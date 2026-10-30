@@ -1,0 +1,32 @@
+# Contract form of the corrected handwash rule (master plan §7.3, task book §4.2).
+# The design doc shows an illustrative YAML; this is the same rule in the typed Rule IR.
+id: wash-before-line
+version: 1
+source:
+  kind: plan
+  plan_id: main-st-kitchen
+  standard: ["Food Code 2026 §2-301.12", "Food Code 2026 §2-103.11(G)"]
+concepts:
+  person: {prompt: person}
+  hands: {prompt: hands}
+  sink: {prompt: sink, static: true}
+zones:
+  line_entry:
+    kind: polygon
+    camera_id: cam1
+    polygon_px: [[0, 0], [400, 0], [400, 300], [0, 300]]
+  sink_zone: {kind: buffer, camera_id: cam1, buffer_of: sink, buffer_m: 0.6}
+predicate:
+  op: sequence
+  semantics: past
+  trigger: {op: inside, object: person, zone: line_entry}
+  require_within_s: 300
+  requirement: {op: dwell, object: person.hands, zone: sink_zone, total_s_gte: 20, max_gap_s: 3}
+severity: medium
+actions:
+  - {kind: coach_station, lang: crew}
+  - {kind: notify, role: shift_lead}
+  - {kind: log}
+verify: {tier1: glimmer, tier2: spark-open-on-dispute, calibrated_alpha: 0.10}
+accept: [zone_in_view, "detect_lb>=0.8", ci_green, nonvacuous, citation_text_match]
+backtestable: "yes"

@@ -1,0 +1,74 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #5c5c5c;
+  --card: #f3f4f6;
+  --ok: #1a7f37;
+  --warn: #9a6700;
+  --bad: #cf222e;
+  --idle: #6e7781;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #9da7b3;
+    --card: #161b22;
+    --ok: #3fb950;
+    --warn: #d29922;
+    --bad: #f85149;
+    --idle: #8b949e;
+  }
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+main { padding: 16px; max-width: 640px; margin: 0 auto; }
+h1 { font-size: 1.35rem; margin: 0.5rem 0 1rem; }
+h2 { font-size: 1.05rem; margin: 0 0 0.5rem; }
+
+.status {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 16px;
+  background: var(--card);
+  font-weight: 600;
+}
+.dot { width: 0.8rem; height: 0.8rem; border-radius: 50%; background: var(--idle); }
+.status-live .dot { background: var(--ok); }
+.status-warn .dot { background: var(--warn); }
+.status-error .dot { background: var(--bad); }
+
+.privacy { background: var(--card); border-radius: 12px; padding: 0.75rem 1rem; }
+.privacy ul { margin: 0; padding-left: 1.2rem; }
+
+.setup { display: grid; gap: 0.5rem; margin: 1rem 0; }
+input, button { font: inherit; padding: 0.75rem; border-radius: 10px; }
+input { border: 1px solid var(--muted); background: var(--bg); color: var(--fg); }
+button { border: 0; background: var(--fg); color: var(--bg); font-weight: 600; }
+button.stop { width: 100%; margin-top: 1rem; background: var(--bad); color: #ffffff; }
+
+video { width: 100%; border-radius: 12px; background: #000000; }
+.camera-id { color: var(--muted); margin: 0.25rem 0 1rem; }
+
+.coach-status { color: var(--muted); margin: 0 0 0.5rem; }
+.bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.bar { display: grid; grid-template-columns: 7rem 1fr 5.5rem; align-items: center; gap: 0.5rem; }
+.bar meter { width: 100%; height: 1.1rem; }
+.bar .verdict { font-weight: 600; text-align: right; }
+.verdict-good { color: var(--ok); }
+.verdict-weak { color: var(--warn); }
+.verdict-none { color: var(--bad); }
+.hint { font-weight: 600; margin-top: 0.75rem; }

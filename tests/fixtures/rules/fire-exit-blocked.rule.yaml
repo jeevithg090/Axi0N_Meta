@@ -1,0 +1,22 @@
+# Contract form of the V2 §6 fire-exit rule: an obstruction in the egress buffer for 60 s.
+id: fire-exit-blocked
+version: 1
+source:
+  kind: sign_photo
+  text: "KEEP CLEAR — FIRE EXIT"
+concepts:
+  obstruction: {prompt: box or cart or pallet}
+  door: {prompt: fire exit door, static: true}
+zones:
+  egress: {kind: buffer, camera_id: cam1, buffer_of: door, buffer_m: 1.5}
+calibration: ground-plane@cam1
+predicate:
+  op: persist
+  seconds: 60
+  of: {op: inside, object: obstruction, zone: egress}
+severity: high
+actions:
+  - {kind: speak}
+  - {kind: notify, role: facilities}
+  - {kind: escalate, role: facilities, after_s: 180}
+verify: {tier1: glimmer, tier2: spark-open-on-disagree}

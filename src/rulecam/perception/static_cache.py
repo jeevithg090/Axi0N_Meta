@@ -11,9 +11,12 @@ with these attributes:
 
     {"camera_id": "<camera id>", "state": "moved"}
 
-The camera's entries are invalidated when `state` is `"moved"`. A watchdog that models its state
-as `BLIND(reason)` may instead send `{"camera_id": ..., "state": "blind", "reason": "moved"}`;
-a `reason` of `"moved"` also invalidates. Any other state or reason is ignored.
+The coverage watchdog (PR #6) actually publishes `BLIND(reason)` changes:
+
+    {"camera_id": "cam1", "state": "blind", "reason": "moved", "moved": true, "ts": "..."}
+
+A camera's entries are invalidated when `moved` is true, `reason` is `"moved"` or `state` is
+`"moved"`. Any other change (OK, dark, frozen, blocked) keeps the cache.
 """
 
 from __future__ import annotations
@@ -73,7 +76,7 @@ def moved_camera(payload: object) -> str | None:
     """Return the camera id if a `coverage.changed` payload says the camera moved.
 
     Args:
-        payload: A dict or an object with `camera_id`, `state` and optionally `reason`.
+        payload: A dict or an object with `camera_id`, `state`, and optionally `reason`, `moved`.
 
     Returns:
         The camera id, or `None` if the payload is not a "moved" change.
@@ -81,6 +84,8 @@ def moved_camera(payload: object) -> str | None:
     camera_id = _field(payload, "camera_id")
     if not isinstance(camera_id, str):
         return None
+    if _field(payload, "moved") is True:
+        return camera_id
     for name in ("state", "reason"):
         value = _field(payload, name)
         if isinstance(value, str) and value.lower() == MOVED:

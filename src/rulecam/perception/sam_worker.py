@@ -8,7 +8,7 @@ repo's lock. The gated checkpoint is downloaded inside the container with the `H
 `Settings` at deploy time.
 
 This module imports with the base dependencies only. It must stay free of pydantic and structlog
-because the GPU image ships just numpy and `rulecam.perception.rle` from this repo; `modal`,
+because the GPU image ships just numpy and `rulecam.perception.masks` from this repo; `modal`,
 `torch` and `sam3` are imported lazily inside the functions that need them.
 
 The request and response dicts are the JSON form of `sam_runtime.SamRequest` and
@@ -27,10 +27,9 @@ from pathlib import Path
 from typing import Any, Protocol
 
 import numpy as np
-from numpy.typing import NDArray
 
-from rulecam.perception import rle
 from rulecam.perception.errors import PerceptionError
+from rulecam.perception.masks import decode_rle, encode_rle
 
 MODAL_APP_NAME = "rulecam-sam"
 MODAL_CLASS_NAME = "Sam31Worker"
@@ -205,7 +204,7 @@ def frame_objects(
             {
                 "frame_idx": frame_idx,
                 "object_id": int(object_id),
-                "rle": rle.encode(masks[i]),
+                "rle": encode_rle(masks[i]),
                 "box_xyxy": [
                     float(x * width),
                     float(y * height),
@@ -241,14 +240,9 @@ def drop_negative_hits(
         if not (0 <= col < width and 0 <= row < height):
             continue
         for obj in objects:
-            if obj["frame_idx"] == frame_idx and _covers(obj["rle"], width, height, row, col):
+            if obj["frame_idx"] == frame_idx and decode_rle(obj["rle"])[row, col]:
                 rejected.add(obj["object_id"])
     return [obj for obj in objects if obj["object_id"] not in rejected]
-
-
-def _covers(mask_rle: str, width: int, height: int, row: int, col: int) -> bool:
-    mask: NDArray[np.bool_] = rle.decode(mask_rle, height, width)
-    return bool(mask[row, col])
 
 
 def build_app(

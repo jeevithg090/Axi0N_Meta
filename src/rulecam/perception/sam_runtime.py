@@ -16,8 +16,8 @@ cross the Modal boundary as JSON dicts, the `model_dump(mode="json")` of `SamReq
 `sam_worker.Sam31Engine` running in-process on a site GPU, or a fake in tests. Each request
 carries the chunk's SHA-256 so the replay cache (P3-02) can key it.
 
-Every call publishes `relay.model_used` (`{model, segment, ms}`) and records its frames and
-GPU-seconds in `PerceptionMetrics`.
+Every call publishes `relay.model_used` (`{model, segment, ms, camera_id}`) and records its
+frames and GPU-seconds in `PerceptionMetrics`.
 """
 
 from __future__ import annotations
@@ -390,7 +390,12 @@ class ModalSam31:
         if self._bus is not None:
             self._bus.publish(
                 Topic.RELAY_MODEL_USED,
-                {"model": MODEL_NAME, "segment": RELAY_SEGMENT, "ms": latency_ms},
+                {
+                    "model": MODEL_NAME,
+                    "segment": RELAY_SEGMENT,
+                    "ms": latency_ms,
+                    "camera_id": chunk.camera_id,
+                },
             )
         if self._metrics is not None:
             self._metrics.record_sam_call(

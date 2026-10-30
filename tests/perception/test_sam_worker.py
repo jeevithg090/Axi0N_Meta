@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import numpy as np
 import pytest
 
-from rulecam.perception import rle
+from rulecam.perception.masks import decode_rle
 from rulecam.perception.sam_worker import (
     MODEL_VERSION,
     Sam3Predictor,
@@ -64,7 +65,8 @@ def test_text_prompt_runs_one_session_forward_from_frame_zero() -> None:
     assert first["object_id"] == 1
     assert first["box_xyxy"] == pytest.approx([1.0, 1.0, 4.0, 3.0])
     assert first["confidence"] == pytest.approx(0.9)
-    assert np.array_equal(rle.decode(first["rle"], HEIGHT, WIDTH), box_mask(1, 1, 4, 3))
+    assert json.loads(first["rle"])["size"] == [HEIGHT, WIDTH]
+    assert np.array_equal(decode_rle(first["rle"]).astype(bool), box_mask(1, 1, 4, 3))
 
 
 def test_backward_box_prompts_click_each_object_on_the_last_frame() -> None:

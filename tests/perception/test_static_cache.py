@@ -11,6 +11,8 @@ from rulecam.contracts import Chunk, Detection, Mask
 from rulecam.perception.static_cache import StaticCache, moved_camera, representatives
 from tests.fakes import EPOCH, FakeSegmenter, make_chunk
 
+BOX_RLE = '{"size":[4,6],"counts":"9220003"}'  # a 4x6 box in the Mask.rle JSON form
+
 
 def _detection(object_id: int, frame_idx: int, confidence: float | None) -> Detection:
     return Detection(
@@ -19,7 +21,7 @@ def _detection(object_id: int, frame_idx: int, confidence: float | None) -> Dete
         ts=EPOCH + timedelta(seconds=frame_idx / 10),
         concept="sink",
         object_id=object_id,
-        mask=Mask(rle="9220003", box_xyxy=(2.0, 1.0, 5.0, 3.0), confidence=confidence),
+        mask=Mask(rle=BOX_RLE, box_xyxy=(2.0, 1.0, 5.0, 3.0), confidence=confidence),
     )
 
 
@@ -70,7 +72,15 @@ def test_new_calibration_is_a_miss() -> None:
     [
         {"camera_id": "cam1", "state": "moved"},
         {"camera_id": "cam1", "state": "blind", "reason": "moved"},
+        {  # exactly what the coverage watchdog (P1-08, PR #6) publishes
+            "camera_id": "cam1",
+            "state": "blind",
+            "reason": "moved",
+            "moved": True,
+            "ts": "2026-11-01T14:03:09Z",
+        },
     ],
+    ids=["synthetic", "blind-reason", "watchdog"],
 )
 def test_moved_payload_invalidates_only_that_camera(payload: dict[str, str]) -> None:
     cache, segmenter = _cache()
@@ -92,7 +102,7 @@ def test_moved_payload_invalidates_only_that_camera(payload: dict[str, str]) -> 
     "payload",
     [
         {"camera_id": "cam1", "state": "ok"},
-        {"camera_id": "cam1", "state": "blind", "reason": "dark"},
+        {"camera_id": "cam1", "state": "blind", "reason": "dark", "moved": False},
         {"state": "moved"},
         "moved",
         None,

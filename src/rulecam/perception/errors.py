@@ -1,4 +1,4 @@
-"""Errors raised by the perception package (§5.3)."""
+"""Errors raised by the perception package."""
 
 from rulecam.errors import RulecamError
 

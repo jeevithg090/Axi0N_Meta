@@ -33,6 +33,7 @@ from rulecam.perception.sam_worker import Sam31Engine
 from tests.fakes import FakeSegmenter, make_chunk
 from tests.perception.fake_sam3 import FakePredictor, frame_outputs
 
+BOX_RLE = '{"size":[4,6],"counts":"9220003"}'  # a 4x6 box in the Mask.rle JSON form
 VIDEO = b"fake mp4 bytes"
 
 
@@ -40,7 +41,7 @@ def _object(frame_idx: int, object_id: int = 1, confidence: float | None = 0.9) 
     return {
         "frame_idx": frame_idx,
         "object_id": object_id,
-        "rle": "9220003",
+        "rle": BOX_RLE,
         "box_xyxy": [2.0, 1.0, 5.0, 3.0],
         "confidence": confidence,
     }
@@ -103,7 +104,7 @@ def test_normal_response_becomes_detections_with_masks() -> None:
         object_id=2,
         mask=second.mask,
     )
-    assert second.mask.rle == "9220003"
+    assert second.mask.rle == BOX_RLE
     assert second.mask.box_xyxy == (2.0, 1.0, 5.0, 3.0)
     assert second.mask.confidence == 0.9
     _, request = worker.calls[0]
@@ -199,7 +200,12 @@ async def test_relay_model_used_is_published_with_latency() -> None:
     await asyncio.sleep(0)
     sam.segment(make_chunk(), "person")
     message = await asyncio.wait_for(listener, timeout=1)
-    assert message.payload == {"model": MODEL_NAME, "segment": "perception", "ms": 125}
+    assert message.payload == {
+        "model": MODEL_NAME,
+        "segment": "perception",
+        "ms": 125,
+        "camera_id": "cam1",
+    }
 
 
 def test_calls_are_recorded_in_metrics() -> None:

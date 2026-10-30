@@ -15,8 +15,8 @@ it can.
 | `static_cache.py` | P1-03 | `StaticCache` (listens on `coverage.changed`), `moved_camera` |
 | `router.py` | P1-03 | `SegmenterRouter`, `Purpose`, `RoutingPolicy`, `FallbackSegmenter`, `MeteredSegmenter` |
 | `metrics.py` | P1-03 | `PerceptionMetrics` (`report()` is the body of `GET /metrics/perception`) |
-| `rle.py` | P1-03 | COCO RLE `encode` / `decode` for `Mask.rle` (byte-identical to pycocotools) |
-| `errors.py` | P1-03 | `PerceptionError`, `SamRuntimeError`, `SamRuntimeUnavailableError`, `SamResponseError` |
+| `masks.py` | P1-02 | `encode_rle` / `decode_rle`: `Mask.rle` as JSON `{"size": [h, w], "counts": "<COCO RLE>"}` |
+| `errors.py` | shared | `PerceptionError`; P1-03 adds `SamRuntimeError`, `SamRuntimeUnavailableError`, `SamResponseError` |
 
 ## How the P1-03 pieces fit
 
@@ -40,8 +40,9 @@ for concept in static_concepts:  # ConceptSpec.static is true
     static.get(chunk, concept, calibration=calibration_id)
 ```
 
-`coverage.changed` payload the static cache expects (from P1-08): `{"camera_id": ..., "state":
-"moved"}`; `{"camera_id": ..., "state": "blind", "reason": "moved"}` also works.
+`coverage.changed` payloads that invalidate the static cache: the watchdog's `{"camera_id": ...,
+"state": "blind", "reason": "moved", "moved": true, "ts": ...}`, or simply `{"camera_id": ...,
+"state": "moved"}`.
 
 ## Deploying self-hosted SAM 3.1
 

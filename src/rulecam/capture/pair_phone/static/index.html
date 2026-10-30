@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <title>Rulecam · Pair this phone</title>
+  <link rel="stylesheet" href="assets/phone.css">
+  <script src="assets/phone.js" defer></script>
+</head>
+<body>
+  <header id="status" class="status status-idle" role="status" aria-live="polite">
+    <span id="status-dot" class="dot" aria-hidden="true"></span>
+    <span id="status-text">Not started</span>
+  </header>
+
+  <main>
+    <h1>Use this phone as a Rulecam camera</h1>
+
+    <section class="privacy" aria-labelledby="privacy-title">
+      <h2 id="privacy-title">Privacy</h2>
+      <ul>
+        <li>Video only. The microphone is never used.</li>
+        <li>Video goes over an encrypted link to this site's owner, only to check the posted
+          rules. It is never used to recognise faces or identify people.</li>
+        <li>Never point this camera into a bathroom, bedroom or break room.</li>
+        <li>Press Stop or close this page to stop the camera at any time.</li>
+      </ul>
+    </section>
+
+    <form id="setup" class="setup">
+      <label for="camera-name">Camera name</label>
+      <input id="camera-name" name="camera-name" maxlength="40" autocomplete="off"
+             placeholder="e.g. Sink wall" required>
+      <button id="start" type="submit">Start camera</button>
+    </form>
+
+    <section id="live" class="live" hidden>
+      <video id="preview" autoplay muted playsinline></video>
+      <p id="camera-id" class="camera-id"></p>
+
+      <section class="coach" aria-labelledby="coach-title">
+        <h2 id="coach-title">Placement coach</h2>
+        <p id="coach-status" class="coach-status">Connecting…</p>
+        <ul id="bars" class="bars"></ul>
+        <p id="hint" class="hint" hidden></p>
+      </section>
+
+      <button id="stop" type="button" class="stop">Stop</button>
+    </section>
+  </main>
+</body>
+</html>

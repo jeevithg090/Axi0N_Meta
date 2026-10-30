@@ -58,6 +58,42 @@ def input_args(
     return [*(["-re"] if realtime else []), "-i", source]
 
 
+def encoder_args(*, fps: float, chunk_seconds: float) -> list[str]:
+    """Return the video-only H.264 encoder options shared by every capture path.
+
+    Keyframes are forced every `chunk_seconds`, so a chunk starts on a keyframe.
+
+    Args:
+        fps: Output frame rate.
+        chunk_seconds: Chunk length in seconds (sets the GOP).
+
+    Returns:
+        Arguments to place between the input and the output options.
+    """
+    gop = str(round(fps * chunk_seconds))
+    return [
+        "-an",
+        "-r",
+        f"{fps:g}",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-tune",
+        "zerolatency",
+        "-pix_fmt",
+        "yuv420p",
+        "-g",
+        gop,
+        "-keyint_min",
+        gop,
+        "-sc_threshold",
+        "0",
+        "-force_key_frames",
+        f"expr:gte(t,n_forced*{chunk_seconds:g})",
+    ]
+
+
 def ffmpeg_args(
     source: str | int,
     pattern: Path,
@@ -80,7 +116,6 @@ def ffmpeg_args(
     Returns:
         The argument list for `asyncio.create_subprocess_exec`.
     """
-    gop = str(round(fps * chunk_seconds))
     return [
         "ffmpeg",
         "-nostdin",
@@ -88,25 +123,7 @@ def ffmpeg_args(
         "-loglevel",
         "error",
         *input_args(source, realtime=realtime),
-        "-an",
-        "-r",
-        f"{fps:g}",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "veryfast",
-        "-tune",
-        "zerolatency",
-        "-pix_fmt",
-        "yuv420p",
-        "-g",
-        gop,
-        "-keyint_min",
-        gop,
-        "-sc_threshold",
-        "0",
-        "-force_key_frames",
-        f"expr:gte(t,n_forced*{chunk_seconds:g})",
+        *encoder_args(fps=fps, chunk_seconds=chunk_seconds),
         "-f",
         "segment",
         "-segment_time",

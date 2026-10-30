@@ -34,3 +34,4 @@ adds a row here with its licence.
 | `src/rulecam/bus.py`, `config.py`, `log.py`, `clock.py`, `cli.py` | Platform basics | #1 |
 | `tests/fakes/`, `tests/guardrails/` | Test doubles and static guardrails | #1 |
 | CI, Makefile, pre-commit, coverage floors | Engineering scaffold | #1 |
+| `.gitlab-ci.yml`, `scripts/ci/github_status.py` | GitLab CI with job results reported to GitHub | #1 |

@@ -19,11 +19,16 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
+import urllib.error
 import urllib.request
 from collections.abc import Callable, Mapping
 from typing import Literal
 
 GitHubState = Literal["pending", "success", "failure", "error"]
+
+MAX_ATTEMPTS = 3
+BACKOFF_S = (1.0, 3.0)
 
 _JOB_TO_GITHUB: dict[str, GitHubState] = {
     "success": "success",
@@ -81,20 +86,52 @@ def build_request(state: GitHubState, env: Mapping[str, str]) -> urllib.request.
     )
 
 
+def is_retryable(exc: OSError) -> bool:
+    """Return True for transient failures: network errors, 429 and 5xx replies."""
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code == 429 or exc.code >= 500  # noqa: PLR2004 - HTTP status classes
+    return True
+
+
+def send_with_retry(
+    request: urllib.request.Request,
+    send: Callable[[urllib.request.Request], int],
+    sleep: Callable[[float], None],
+) -> int:
+    """Send, retrying transient failures up to `MAX_ATTEMPTS` times with a short backoff.
+
+    Raises:
+        OSError: The last error, when every attempt failed or the error is not retryable.
+    """
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            return send(request)
+        except OSError as exc:
+            if attempt == MAX_ATTEMPTS or not is_retryable(exc):
+                raise
+            print(f"github_status: attempt {attempt} failed ({exc}); retrying")
+            sleep(BACKOFF_S[attempt - 1])
+    msg = "MAX_ATTEMPTS must be at least 1"
+    raise ValueError(msg)
+
+
 def run(
     argv: list[str],
     env: Mapping[str, str],
     send: Callable[[urllib.request.Request], int],
+    sleep: Callable[[float], None] = time.sleep,
 ) -> int:
     """Report one status; return a process exit code.
 
-    Reporting never fails the CI job: network or API errors are printed and exit code 0 is
-    returned, because the job's own result is what matters.
+    Transient failures (network errors, 429, 5xx) are retried. Reporting never fails the CI
+    job: a final error is printed and exit code 0 is returned, because the job's own result is
+    what matters.
 
     Args:
         argv: Command-line arguments; `argv[1]` is `pending` or `from-job`.
         env: The CI environment.
         send: Sends the request and returns the HTTP status code.
+        sleep: Backoff sleep, injectable for tests.
 
     Returns:
         0 on success or skip, 2 on bad usage.
@@ -109,7 +146,7 @@ def run(
         "pending" if argv[1] == "pending" else map_job_status(env.get("CI_JOB_STATUS", ""))
     )
     try:
-        code = send(build_request(state, env))
+        code = send_with_retry(build_request(state, env), send, sleep)
     except OSError as exc:
         print(f"github_status: could not report {state}: {exc}")
         return 0

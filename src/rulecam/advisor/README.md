@@ -9,7 +9,10 @@ Turns tracks into a station process log, OCEL 2.0-shaped, in DuckDB (SA §4, ste
 
 ```python
 from rulecam.advisor.process import (
-    assess_quality, build_process_log, stations_from_zones, write_duckdb,
+    assess_quality,
+    build_process_log,
+    stations_from_zones,
+    write_duckdb,
 )
 
 stations = stations_from_zones(plan_zones)  # zone ids dock_* and aisle_*

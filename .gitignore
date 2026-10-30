@@ -30,3 +30,5 @@ ui/out/
 .DS_Store
 .idea/
 .vscode/
+.uv-cache/
+junit.xml

@@ -1,0 +1,77 @@
+# Rulecam CI on GitLab. Code and pull requests live on GitHub (jeevithg090/Axi0N_Meta); every
+# `git push` also goes to the GitLab mirror (see `make remotes`), which runs this pipeline.
+# Each job reports its result back to the GitHub commit as `gitlab/<job>` (scripts/ci/github_status.py).
+#
+# CI/CD variables to set in GitLab (Settings → CI/CD → Variables):
+#   GITHUB_REPO          jeevithg090/Axi0N_Meta
+#   GITHUB_STATUS_TOKEN  fine-grained GitHub token, "Commit statuses: read and write" (masked)
+
+default:
+  image: ghcr.io/astral-sh/uv:python3.12-bookworm
+  interruptible: true
+  before_script:
+    - python3 scripts/ci/github_status.py pending
+  after_script:
+    - python3 scripts/ci/github_status.py from-job
+
+variables:
+  UV_CACHE_DIR: .uv-cache
+  UV_LINK_MODE: copy
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+stages:
+  - test
+
+.uv_cache: &uv_cache
+  cache:
+    key:
+      files: [uv.lock]
+    paths: [.uv-cache]
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH        # branch pipelines only (PRs are on GitHub)
+
+check:
+  stage: test
+  <<: *uv_cache
+  script:
+    - apt-get update -qq && apt-get install -y -qq ffmpeg > /dev/null
+    - uv sync --group dev
+    - uv run ruff check .
+    - uv run ruff format --check .
+    - uv run mypy src tests
+    - uv run pytest --cov --cov-report=json --junitxml=junit.xml
+    - uv run python scripts/coverage_floors.py coverage.json
+  artifacts:
+    when: always
+    reports:
+      junit: junit.xml
+    paths: [coverage.json]
+    expire_in: 7 days
+
+guardrails:
+  stage: test
+  <<: *uv_cache
+  script:
+    - uv sync --group dev
+    - uv run pytest tests/guardrails
+
+ml-cpu:
+  # Torch-based tests (world model, pose, voice out); only runs once those test packages exist.
+  stage: test
+  <<: *uv_cache
+  rules:
+    - exists:
+        - tests/worldmodel/**/*.py
+        - tests/pose/**/*.py
+        - tests/voice_out/**/*.py
+  script:
+    - apt-get update -qq && apt-get install -y -qq ffmpeg > /dev/null
+    - uv sync --group dev --extra ml
+    - >
+      dirs=""; for d in tests/worldmodel tests/pose tests/voice_out;
+      do [ -d "$d" ] && dirs="$dirs $d"; done;
+      uv run pytest $dirs
+
+# The `ui` job (lint, typecheck, vitest, build) is added by P3 together with the ui/ scaffold.

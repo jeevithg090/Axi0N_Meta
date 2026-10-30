@@ -65,6 +65,8 @@ packages = ["src/rulecam"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
+# Design docs are verbatim reference copies; ruff must not reflow their code blocks.
+extend-exclude = ["docs"]
 
 [tool.ruff.lint]
 select = [

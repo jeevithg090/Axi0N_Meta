@@ -10,6 +10,10 @@ the semantics below are the contract that the tests pin down.
 |---|---|
 | `evaluate(rule, tracks, *, calibration, zones, t0, t1, hz=10.0, episode_gap_s=2.0, cooldown_s=0.0, plan_version_hash="", pose=None)` | Pure: no I/O, no clock, no randomness. Identical inputs give byte-identical output; the order of `tracks` does not matter. Returns candidates sorted by `(ts_start, camera_id, event_id)` |
 | `rule_ir_hash(rule)` | sha256 of the rule's canonical JSON (sorted keys) |
+| `backtest(rule, store, camera_id, t0, t1, *, calibration, zones, hz, baseline, pose) -> BacktestReport` | Re-runs the engine on `TrackStore.window` (no SAM calls): events, count, per-hour rate, `backtestable` (`yes`/`partial`/`no` from the concepts present in the stored tracks), and an optional v1-vs-v2 diff (`added`/`removed`, matched by subject and overlapping time). `report.headline()` gives "would have fired N× earlier today" |
+| `DecisionContext`, `candidate_payload(candidate, context)` | What a decision depended on besides tracks (rule, calibration, zones, window, rates). P3-07 stores `candidate_payload(...)` as the `candidate` record's payload |
+| `rederive(record, store, *, pose=None) -> bool` | E9 audit: checks the rule hash, re-evaluates the stored window and requires the recorded candidate to be reproduced exactly. Tampered payloads, swapped rules or changed tracks give False |
+| `near_miss_at(tracks, *, camera_id, subject_concept, other_concept, at, calibration)` | Closest approach and time-to-collision per subject at one instant (e.g. person vs forklift) |
 | `PoseFeatures` | Protocol `(state, point) -> bool \| None` that adapts P4-04's `rulecam.pose.features`; passed as `pose=` |
 | `RuleEvaluationError` | Invalid window, unknown or incomplete zone, `distance_m` without a bound |
 
@@ -71,6 +75,12 @@ that starts at least `require_within_s` before the triggers of interest.
 **Cameras with no tracks.** A camera that a zone of the rule is on is evaluated even with no
 tracks, so `absence` fires on an empty scene. Whether the camera was actually watching is the
 coverage watchdog's job (P1-08).
+
+**Near-miss metrics.** For every `distance_m` node, the trace also holds `<path>.separation_m`,
+`<path>.closest_m` and `<path>.closest_in_s` (closest approach within a 1 s horizon), and
+`<path>.ttc_s` (time until the foot points come within 0.5 m, or `"none"`). Both objects are
+extrapolated at constant velocity; velocities are least-squares slopes of the ground foot point
+over the last 5 samples. These are part of the candidate, so `rederive` checks them too.
 
 **Episodes.** True samples of one subject merge into an episode across gaps shorter than
 `episode_gap_s` (2 s). With `cooldown_s`, an episode starting within that long after the

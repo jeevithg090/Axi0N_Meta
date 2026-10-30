@@ -24,6 +24,7 @@ from rulecam.rules.ir import (
     referenced_zones,
     walk,
 )
+from rulecam.rules.near_miss import near_miss_trace
 from rulecam.rules.pose import PoseFeatures
 from rulecam.rules.predicates.pose import pose as pose_state
 from rulecam.rules.predicates.presence import count, state
@@ -41,9 +42,9 @@ from rulecam.rules.temporal import (
     sequence,
 )
 from rulecam.rules.timeline import Timeline, prepare_tracks, resample
+from rulecam.rules.trace import DECIMALS, trace_value
 
 EPISODE_GAP_S = 2.0
-DECIMALS = 6
 _WRAPPERS = frozenset({"all", "any", "not", "persist"})
 
 Atom = Callable[[Any, Scene], Signal]
@@ -270,6 +271,7 @@ def _candidate(
     if settings.pose_unavailable:
         trace["pose_unavailable"] = True
     trace.update(_trace(settings.rule.predicate, sampler, key, fire))
+    trace.update(near_miss_trace(settings.rule.predicate, scene, key, fire))
     return CandidateEvent(
         event_id=event_id(settings.rule_hash, scene.camera_id, key, ts_start),
         rule_id=settings.rule.id,
@@ -284,15 +286,6 @@ def _candidate(
         plan_version_hash=settings.plan_version_hash,
         rule_ir_hash=settings.rule_hash,
     )
-
-
-def trace_value(value: float) -> float | str:
-    """A JSON-safe trace value: rounded floats, "inf"/"-inf", or "unknown" for NaN."""
-    if math.isnan(value):
-        return "unknown"
-    if math.isinf(value):
-        return "inf" if value > 0 else "-inf"
-    return round(value, DECIMALS)
 
 
 def _trace(

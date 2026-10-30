@@ -17,8 +17,8 @@ VERIFIED against the live API on Oct 30 2026 (issue #5; real replies in
 `tests/fixtures/replay/sam/live/`): both paths, the non-streaming body,
 `usage.video_frames_processed` (a 30-frame chunk bills 50), the `x-ratelimit-*` headers, the output
 grammar, the inclusive-box mask geometry, a backward box prompt with a negative point, and the 400
-error shape. Points still open are marked `ASSUMPTION`: the mask payload encoding (see
-`MaskDecoder`) and negative points on frames without a box.
+error shape. Mask payloads are decoded by `meta-sam-parser` (`sam_masks.py`). One point is still
+open and marked `ASSUMPTION`: negative points on frames without a box.
 """
 
 from __future__ import annotations
@@ -129,10 +129,10 @@ class WireRecord(Frozen):
 class MaskDecoder(Protocol):
     """Turns a mask token's payload into a row-major 0/1 raster of shape (height, width).
 
-    ASSUMPTION: the payload format is not documented publicly. Only Meta's `meta-sam-parser`
-    (`decode_mask_to_raster`) decodes it, and that package ships under the custom SAM License
-    rather than a permissive one, so it is not a dependency yet (issue #5). Adapt it behind this
-    Protocol if the team accepts that licence.
+    The payload format is not documented publicly. The default decoder,
+    `sam_masks.decode_wire_mask`, wraps Meta's `meta-sam-parser` (`decode_mask_to_raster`; SAM
+    License, accepted by the team on Oct 30 2026). It is verified on every mask of the recorded
+    live replies (issue #5).
     """
 
     def __call__(self, mask: WireMask) -> NDArray[np.uint8]:

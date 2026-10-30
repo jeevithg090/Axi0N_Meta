@@ -28,6 +28,7 @@ from pathlib import Path
 from rulecam.bus import Bus
 from rulecam.clients.errors import ClientConfigError, ModelResponseError
 from rulecam.clients.meta_hosted.sam_cost import CostLedger
+from rulecam.clients.meta_hosted.sam_masks import decode_wire_mask
 from rulecam.clients.meta_hosted.sam_wire import (
     FILE_PURPOSE,
     FILES_PATH,
@@ -149,7 +150,7 @@ class HostedSam31:
         rpm: float = DEFAULT_RPM,
         max_concurrency: int = DEFAULT_MAX_CONCURRENCY,
         retry: RetryPolicy | None = None,
-        mask_decoder: MaskDecoder | None = None,
+        mask_decoder: MaskDecoder | None = decode_wire_mask,
         ledger: CostLedger | None = None,
         model: str = SAM_MODEL,
         sleep: Callable[[float], None] = time.sleep,
@@ -165,7 +166,8 @@ class HostedSam31:
             rpm: Request budget per minute for this client.
             max_concurrency: Concepts segmented at once by `segment_concepts`.
             retry: Backoff policy (default: 4 tries, 0.5 s doubling, jittered).
-            mask_decoder: Decodes mask payloads; without one, masks are `NO_MASK` and only boxes
+            mask_decoder: Decodes mask payloads (default: `meta-sam-parser` via
+                `decode_wire_mask`); `None` skips decoding, so masks are `NO_MASK` and only boxes
                 are returned.
             ledger: Cost counters to add to (a new ledger by default).
             model: The model id.

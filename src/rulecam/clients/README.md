@@ -33,10 +33,10 @@ sam.costs.snapshot()  # per-camera cost panel
 - `HostedSam31.from_settings` refuses `RULECAM_MODE=replay` (replay must come from the cache).
 - Verified against the live API on Oct 30 2026 (issue #5). The real replies are in
   `tests/fixtures/replay/sam/live/`.
-- Masks: the payload format is only implemented in Meta's `meta-sam-parser`, which is released
-  under the custom SAM License (not a permissive licence), so it is not a dependency. To get
-  masks, inject a `MaskDecoder`. Without one, `Mask.rle` is `""` (`NO_MASK`) and consumers use
-  the box. `Mask.rle` is COCO compressed RLE as JSON (`rulecam.perception.masks`).
+- Masks: payloads are decoded by `meta_hosted/sam_masks.py`, the default `MaskDecoder`. It wraps
+  Meta's `meta-sam-parser` (SAM License; see WHAT-WE-BUILT.md). `Mask.rle` is full-frame COCO
+  compressed RLE as JSON (`rulecam.perception.masks`). Passing `mask_decoder=None` skips
+  decoding, which gives `Mask.rle == ""` (`NO_MASK`) so consumers fall back to the box.
 - Every wire-format detail (and every unverified assumption, marked `ASSUMPTION`) lives in
   `meta_hosted/sam_wire.py`.
 

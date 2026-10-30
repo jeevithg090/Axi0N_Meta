@@ -1,0 +1,33 @@
+# Ownership by directory (task book §2). P1 = @jeevithg090.
+# Replace @p2-handle / @p3-handle / @p4-handle with teammates' GitHub handles once they are added
+# as collaborators; until then they are inactive placeholders.
+*                                        @jeevithg090
+/src/rulecam/contracts/                  @jeevithg090 @p2-handle @p3-handle @p4-handle
+/src/rulecam/capture/                    @jeevithg090
+/src/rulecam/perception/                 @jeevithg090
+/src/rulecam/rules/                      @jeevithg090
+/src/rulecam/voice_out/                  @jeevithg090
+/src/rulecam/clients/meta_hosted/sam.py  @jeevithg090
+/src/rulecam/advisor/process.py          @jeevithg090
+/src/rulecam/clients/meta_hosted/        @p2-handle
+/src/rulecam/planner/                    @p2-handle
+/src/rulecam/rule_ci/                    @p2-handle
+/src/rulecam/cards/                      @p2-handle
+/src/rulecam/worker/                     @p2-handle
+/src/rulecam/advisor/pipeline.py         @p2-handle
+/ui/app/worker/                          @p2-handle
+/src/rulecam/clients/open_weights/       @p3-handle
+/src/rulecam/verify/                     @p3-handle
+/src/rulecam/act/                        @p3-handle
+/src/rulecam/evidence/                   @p3-handle
+/src/rulecam/api/                        @p3-handle
+/src/rulecam/replay/                     @p3-handle
+/src/rulecam/advisor/api.py              @p3-handle
+/ui/                                     @p3-handle
+/src/rulecam/worldmodel/                 @p4-handle
+/src/rulecam/pose/                       @p4-handle
+/src/rulecam/privacy/                    @p4-handle
+/src/rulecam/eval/                       @p4-handle
+/src/rulecam/advisor/stats/              @p4-handle
+/src/rulecam/advisor/whatif/             @p4-handle
+/tests/guardrails/                       @jeevithg090 @p2-handle @p3-handle @p4-handle

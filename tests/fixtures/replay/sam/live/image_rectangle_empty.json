@@ -1,0 +1,89 @@
+{
+  "note": "Real reply from the live SAM 3.1 API, Oct 30 2026 (issue #5). Reply verbatim; request trimmed.",
+  "request": {
+    "method": "POST",
+    "path": "/responses",
+    "json": {
+      "model": "sam-3.1",
+      "input": [
+        {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "rectangle"
+            },
+            {
+              "type": "input_image",
+              "image_url": "data:image/png;base64,<60520 base64 chars removed>"
+            }
+          ]
+        }
+      ],
+      "stream": false,
+      "metadata": {
+        "include_confidence": "true"
+      }
+    }
+  },
+  "status": 200,
+  "headers": {
+    "content-type": "application/json",
+    "x-ratelimit-limit-requests": "3000",
+    "x-ratelimit-remaining-requests": "2995",
+    "x-request-id": "c5a1bf2b-0f55-4863-a158-cddb2d839fbf"
+  },
+  "json": {
+    "metadata": {
+      "include_confidence": "true"
+    },
+    "top_logprobs": 0,
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "service_tier": "auto",
+    "model": "sam-3.1",
+    "background": false,
+    "tools": [],
+    "tool_choice": "auto",
+    "truncation": "disabled",
+    "id": "resp_6ae4cdce4c8c0987c6054261",
+    "object": "response",
+    "status": "completed",
+    "created_at": 1793379789.0,
+    "completed_at": 1793379790.0,
+    "error": null,
+    "incomplete_details": null,
+    "output": [
+      {
+        "type": "message",
+        "id": "msg_c5a1bf2b-0f55-4863-a158-cddb2d839fbf",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "",
+            "annotations": [],
+            "logprobs": []
+          }
+        ],
+        "status": "completed"
+      }
+    ],
+    "instructions": null,
+    "usage": {
+      "input_tokens": 0,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 0,
+      "output_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "total_tokens": 0,
+      "images_processed": 1
+    },
+    "parallel_tool_calls": true,
+    "store": true
+  }
+}

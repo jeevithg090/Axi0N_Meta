@@ -1,0 +1,23 @@
+{
+  "status": 200,
+  "headers": {"content-type": "application/json", "x-ratelimit-limit-requests": "3000", "x-ratelimit-remaining-requests": "2998"},
+  "json": {
+    "id": "resp-rec-0001",
+    "object": "response",
+    "model": "sam-3.1",
+    "status": "completed",
+    "output": [
+      {
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "<0f>0<|box;x1=10;y1=20;x2=19;y2=59;w=64;h=80;c=0.95|><|mask;x=0;y=0;c=0.94;data=40,10,~FIXTURE-A|>,1<|box;x1=40;y1=30;x2=49;y2=69;w=64;h=80;c=0.81|><|mask;x=0;y=0;c=0.80;data=40,10,~FIXTURE-B|>\n<1f>0<|box;x1=11;y1=20;x2=20;y2=59;w=64;h=80;c=0.93|><|mask;x=0;y=0;c=0.92;data=40,10,~FIXTURE-C|>"
+          }
+        ]
+      }
+    ],
+    "usage": {"video_frames_processed": 30}
+  }
+}

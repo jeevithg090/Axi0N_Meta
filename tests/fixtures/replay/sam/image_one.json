@@ -1,0 +1,19 @@
+{
+  "status": 200,
+  "headers": {"content-type": "application/json"},
+  "json": {
+    "id": "resp-rec-0004",
+    "object": "response",
+    "model": "sam-3.1",
+    "status": "completed",
+    "output": [
+      {
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {"type": "output_text", "text": "<0f>0<|box;x1=2;y1=3;x2=5;y2=7;w=16;h=12;c=0.9|><|mask;x=0;y=0;c=0.9;data=5,4,~IMG|>"}
+        ]
+      }
+    ]
+  }
+}

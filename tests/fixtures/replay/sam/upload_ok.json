@@ -1,0 +1,5 @@
+{
+  "status": 200,
+  "headers": {"content-type": "application/json", "x-ratelimit-remaining-requests": "2999"},
+  "json": {"id": "file-rec-0001", "bytes": 48213, "filename": "cam1_000000.mp4", "purpose": "user_data", "status": "processed"}
+}

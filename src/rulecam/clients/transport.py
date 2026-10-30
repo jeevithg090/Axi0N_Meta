@@ -1,0 +1,280 @@
+"""The HTTP seam shared by model clients: an injectable transport, its reply model and retries.
+
+A `Transport` is a plain callable from a request mapping to a reply mapping, so the replay cache
+(P3-02, `cached_call`) can wrap it without knowing about HTTP. Requests look like:
+
+- `{"method": "POST", "path": "/responses", "json": {...}}`
+- `{"method": "POST", "path": "/files", "form": {"purpose": "user_data"},
+  "file": {"filename": "c.mp4", "content_type": "video/mp4", "content": b"..."}}`
+
+and replies like `{"status": 200, "headers": {"x-ratelimit-remaining-requests": "12"},
+"json": {...}}` (header names lower-case).
+"""
+
+from __future__ import annotations
+
+import random
+import time
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
+
+import httpx
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from rulecam.clients.errors import ModelClientError, ModelHTTPError, ModelResponseError
+from rulecam.clients.ratelimit import TokenBucket
+from rulecam.log import get_logger
+
+_log = get_logger(__name__)
+
+Transport = Callable[[Mapping[str, object]], Mapping[str, object]]
+
+HTTP_OK_MIN = 200
+HTTP_OK_MAX = 299
+HTTP_TOO_MANY_REQUESTS = 429
+HTTP_SERVER_ERROR_MIN = 500
+HTTP_SERVER_ERROR_MAX = 599
+REMAINING_REQUESTS_HEADER = "x-ratelimit-remaining-requests"
+RETRY_AFTER_HEADER = "retry-after"
+
+
+class ModelTransportError(ModelClientError):
+    """The request never got an HTTP answer (connection reset, timeout, DNS failure)."""
+
+
+class HttpReply(BaseModel):
+    """A validated transport reply."""
+
+    model_config = ConfigDict(frozen=True, extra="ignore", populate_by_name=True)
+
+    status: int
+    headers: dict[str, str] = Field(default_factory=dict)
+    body: object = Field(default=None, alias="json")
+
+    @property
+    def ok(self) -> bool:
+        """Whether the status is 2xx."""
+        return HTTP_OK_MIN <= self.status <= HTTP_OK_MAX
+
+    @property
+    def retryable(self) -> bool:
+        """Whether the status is 429 or 5xx, which are worth retrying."""
+        return self.status == HTTP_TOO_MANY_REQUESTS or (
+            HTTP_SERVER_ERROR_MIN <= self.status <= HTTP_SERVER_ERROR_MAX
+        )
+
+    def header(self, name: str) -> str | None:
+        """Return a header value by case-insensitive name, or `None`."""
+        wanted = name.lower()
+        return next((v for k, v in self.headers.items() if k.lower() == wanted), None)
+
+    def error_message(self) -> str:
+        """Return the API's error message from the body, if it has one."""
+        if isinstance(self.body, Mapping):
+            error = self.body.get("error")
+            if isinstance(error, Mapping):
+                return str(error.get("message", error))
+            if error is not None:
+                return str(error)
+        return ""
+
+
+def parse_reply(raw: Mapping[str, object]) -> HttpReply:
+    """Validate a transport's reply mapping.
+
+    Args:
+        raw: The mapping returned by a `Transport`.
+
+    Returns:
+        The validated reply.
+
+    Raises:
+        ModelResponseError: If the mapping has no integer `status`.
+    """
+    try:
+        return HttpReply.model_validate(raw)
+    except ValidationError as exc:
+        msg = "transport reply is missing a valid status"
+        raise ModelResponseError(msg) from exc
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    """Jittered exponential backoff for 429, 5xx and transport errors.
+
+    Attributes:
+        max_attempts: Total attempts including the first one.
+        base_delay_s: Delay before the first retry; doubles on each further retry.
+        max_delay_s: Upper bound for one computed delay (a longer `Retry-After` still wins).
+    """
+
+    max_attempts: int = 4
+    base_delay_s: float = 0.5
+    max_delay_s: float = 8.0
+
+    def delay_s(self, retry_number: int, rng: random.Random, retry_after_s: float | None) -> float:
+        """Return how long to wait before retry number `retry_number` (1-based).
+
+        Args:
+            retry_number: 1 for the first retry, 2 for the second, and so on.
+            rng: Seeded random source for the jitter.
+            retry_after_s: The server's `Retry-After` in seconds, if it sent one.
+
+        Returns:
+            The delay in seconds: the backoff scaled by a jitter in [0.5, 1.0], and never less
+            than `retry_after_s`.
+        """
+        backoff = min(self.max_delay_s, self.base_delay_s * 2.0 ** (retry_number - 1))
+        jittered = backoff * rng.uniform(0.5, 1.0)
+        return max(jittered, retry_after_s or 0.0)
+
+
+def _retry_after_s(reply: HttpReply) -> float | None:
+    value = reply.header(RETRY_AFTER_HEADER)
+    if value is None:
+        return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        return None  # an HTTP-date; the jittered backoff applies instead
+
+
+def _note_rate_headers(reply: HttpReply, limiter: TokenBucket) -> None:
+    remaining = reply.header(REMAINING_REQUESTS_HEADER)
+    if remaining is not None and remaining.strip() == "0":
+        _log.warning("rate_limit_exhausted", status=reply.status)
+        limiter.drain()
+
+
+@dataclass(frozen=True)
+class SendResult:
+    """A successful reply plus how many attempts it took."""
+
+    reply: HttpReply
+    attempts: int
+
+
+@dataclass(frozen=True)
+class Sender:
+    """Sends requests through a transport with rate limiting and retries.
+
+    Attributes:
+        transport: The injected transport (real HTTP, a replay-cache wrapper, or a test fake).
+        limiter: Token bucket consulted before every attempt.
+        policy: Backoff policy.
+        sleep: Blocking sleep in seconds (injected in tests).
+        rng: Random source for the jitter (seed it for deterministic tests).
+    """
+
+    transport: Transport
+    limiter: TokenBucket
+    policy: RetryPolicy
+    sleep: Callable[[float], None] = time.sleep
+    rng: random.Random = field(default_factory=random.Random)
+
+    def send(self, request: Mapping[str, object]) -> SendResult:
+        """Send `request`, retrying 429, 5xx and transport errors up to the policy's limit.
+
+        Args:
+            request: The transport request mapping.
+
+        Returns:
+            The first 2xx reply and the number of attempts used.
+
+        Raises:
+            ModelHTTPError: On a non-retryable status, or when every attempt failed with a status.
+            ModelTransportError: When every attempt failed without an HTTP answer.
+        """
+        for attempt in range(1, self.policy.max_attempts + 1):
+            self.limiter.acquire()
+            try:
+                reply = parse_reply(self.transport(request))
+            except ModelTransportError:
+                if attempt == self.policy.max_attempts:
+                    raise
+                _log.warning("model_transport_retry", attempt=attempt, path=request.get("path"))
+                self.sleep(self.policy.delay_s(attempt, self.rng, None))
+                continue
+            _note_rate_headers(reply, self.limiter)
+            if reply.ok:
+                return SendResult(reply=reply, attempts=attempt)
+            if not reply.retryable or attempt == self.policy.max_attempts:
+                msg = f"HTTP {reply.status} from {request.get('path')}: {reply.error_message()}"
+                raise ModelHTTPError(msg, status=reply.status, attempts=attempt)
+            _log.warning("model_http_retry", attempt=attempt, status=reply.status)
+            self.sleep(self.policy.delay_s(attempt, self.rng, _retry_after_s(reply)))
+        msg = "max_attempts must be at least 1"
+        raise ValueError(msg)
+
+
+class HttpxTransport:
+    """The real transport: bearer-authenticated HTTPS calls with `httpx`."""
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        *,
+        timeout_s: float = 120.0,
+        client: httpx.Client | None = None,
+    ) -> None:
+        """Create the transport.
+
+        Args:
+            base_url: API root, e.g. the value of `META_API_BASE_URL`; paths are appended to it.
+            api_key: Bearer token. Never logged.
+            timeout_s: Per-request timeout in seconds.
+            client: Optional preconfigured client (tests pass one with `httpx.MockTransport`).
+        """
+        self._base_url = base_url.rstrip("/")
+        self._headers = {"Authorization": f"Bearer {api_key}"}
+        self._client = client or httpx.Client(timeout=timeout_s)
+
+    def __call__(self, request: Mapping[str, object]) -> Mapping[str, object]:
+        """Send one request and return `{status, headers, json}`.
+
+        Args:
+            request: A transport request mapping (see the module docstring).
+
+        Returns:
+            The reply mapping; `json` is `None` when the body is not JSON.
+
+        Raises:
+            ModelTransportError: If no HTTP answer was received.
+        """
+        path = str(request["path"])
+        method = str(request.get("method", "POST"))
+        try:
+            response = self._client.request(
+                method,
+                f"{self._base_url}{path}",
+                headers=self._headers,
+                json=request.get("json"),
+                data=_form(request),
+                files=_files(request),
+            )
+        except httpx.TransportError as exc:
+            msg = f"{method} {path} failed: {type(exc).__name__}"
+            raise ModelTransportError(msg) from exc
+        try:
+            body: object = response.json()
+        except ValueError:
+            body = None
+        headers = {k.lower(): v for k, v in response.headers.items()}
+        return {"status": response.status_code, "headers": headers, "json": body}
+
+
+def _form(request: Mapping[str, object]) -> dict[str, str] | None:
+    form = request.get("form")
+    return {str(k): str(v) for k, v in form.items()} if isinstance(form, Mapping) else None
+
+
+def _files(request: Mapping[str, object]) -> dict[str, tuple[str, bytes, str]] | None:
+    file = request.get("file")
+    if not isinstance(file, Mapping):
+        return None
+    content = file["content"]
+    if not isinstance(content, bytes):
+        msg = "file content must be bytes"
+        raise TypeError(msg)
+    return {"file": (str(file["filename"]), content, str(file["content_type"]))}

@@ -1,0 +1,5 @@
+{
+  "status": 429,
+  "headers": {"content-type": "application/json", "retry-after": "1", "x-ratelimit-limit-requests": "3000", "x-ratelimit-remaining-requests": "0"},
+  "json": {"error": {"type": "rate_limit_error", "message": "Rate limit reached for sam-3.1"}}
+}

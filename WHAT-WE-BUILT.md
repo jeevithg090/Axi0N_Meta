@@ -11,6 +11,7 @@ adds a row here with its licence.
 | pydantic, pydantic-settings | Contracts and settings | MIT |
 | FastAPI, uvicorn | API server | MIT / BSD-3-Clause |
 | httpx | HTTP client | BSD-3-Clause |
+| meta-sam-parser 0.1.0 (Meta Platforms) | Decodes SAM 3.1 mask payloads (`clients/meta_hosted/sam_masks.py`) | **SAM License** (Nov 19 2025; custom, not OSI): royalty-free use, modification and redistribution under the same agreement; field-of-use bans (trade-control targets, ITAR, military, nuclear, espionage, weapons); no reverse engineering; indemnity; Meta may terminate on breach. Accepted by the team on Oct 30 2026 (PR #8) |
 | structlog | Structured logging | MIT / Apache-2.0 |
 | DuckDB | Track and event store | MIT |
 | pyarrow | Parquet | Apache-2.0 |

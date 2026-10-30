@@ -1,0 +1,23 @@
+{
+  "status": 200,
+  "headers": {"content-type": "application/json"},
+  "json": {
+    "id": "resp-rec-0003",
+    "object": "response",
+    "model": "sam-3.1",
+    "status": "completed",
+    "output": [
+      {
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "<2f>3<|box;x1=12;y1=20;x2=21;y2=59;w=64;h=80|><|mask;x=0;y=0;data=40,10,!FX2|>\n<0f>3<|box;x1=10;y1=20;x2=19;y2=59;w=64;h=80|><|mask;x=0;y=0;data=40,10,!FX0|>\n<1f>3<|box;x1=11;y1=20;x2=20;y2=59;w=64;h=80|><|mask;x=0;y=0;data=40,10,!FX1|>"
+          }
+        ]
+      }
+    ],
+    "usage": {"video_frames_processed": 30}
+  }
+}

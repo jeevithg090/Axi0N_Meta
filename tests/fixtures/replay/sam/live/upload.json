@@ -1,0 +1,30 @@
+{
+  "note": "Real reply from the live SAM 3.1 API, Oct 30 2026 (issue #5). Reply verbatim; request trimmed.",
+  "request": {
+    "method": "POST",
+    "path": "/files",
+    "form": {
+      "purpose": "user_data"
+    },
+    "file": {
+      "filename": "scene.mp4",
+      "content_type": "video/mp4",
+      "content": "<478558 chars of repr(bytes) removed; sha256 of repr 28e4ad195b6c641e55768805eb43d429ce81b1d982e05fc19fb44e6dd2ce295a>"
+    }
+  },
+  "status": 200,
+  "headers": {
+    "content-type": "application/json",
+    "x-request-id": "01ed0d2a-efcf-4737-b3c9-a8423ee74e2d"
+  },
+  "json": {
+    "id": "file-998329763327191",
+    "bytes": 166418,
+    "created_at": 1793379773,
+    "expires_at": null,
+    "filename": "scene.mp4",
+    "object": "file",
+    "purpose": "user_data",
+    "status": "uploaded"
+  }
+}

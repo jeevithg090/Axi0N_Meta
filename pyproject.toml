@@ -1,0 +1,130 @@
+[project]
+name = "rulecam"
+version = "0.1.0"
+description = "Rulecam: a camera agent that plans its own job and proves its work"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "httpx>=0.27",
+  "structlog>=24.1",
+  "duckdb>=1.0",
+  "pyarrow>=16",
+  "numpy>=1.26",
+  "opencv-python-headless>=4.10",
+  "shapely>=2.0",
+  "scipy>=1.13",
+  "jinja2>=3.1",
+  "pyyaml>=6",
+  "qrcode[pil]>=7.4",
+  "python-kasa>=0.7",
+  "python-multipart>=0.0.9",
+  "typer>=0.12",
+]
+
+[project.optional-dependencies]
+ml = ["torch>=2.3", "transformers>=4.53", "modal>=0.64", "onnxruntime>=1.18"]
+ui = ["playwright>=1.45"]
+# YOLOv8 (ultralytics) is AGPL-3.0: evaluation baseline only, never imported by runtime code.
+eval = ["matplotlib>=3.8", "ultralytics>=8.2"]
+
+[project.scripts]
+rulecam = "rulecam.cli:app"
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-cov>=5",
+  "pytest-asyncio>=0.23",
+  "hypothesis>=6.100",
+  "mypy>=1.10",
+  "ruff>=0.5",
+  "pre-commit>=3.7",
+  "types-PyYAML",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rulecam"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+# Design docs are verbatim reference copies; ruff must not reflow their code blocks.
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W", "F", "I", "B", "UP", "SIM", "RUF", "N", "C4", "C90", "PTH", "PL", "S",
+  "T20", "D", "ANN", "ERA", "PT", "TRY", "RET", "ARG",
+]
+ignore = ["D203", "D213", "PLR0913", "TRY003", "ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D", "ANN", "PLR2004", "ARG"]
+"scripts/**" = ["T20"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+mypy_path = "src"
+explicit_package_bases = true
+
+[[tool.mypy.overrides]]
+module = [
+  "rulecam.contracts.*", "rulecam.rules.*", "rulecam.evidence.*",
+  "rulecam.advisor.*", "rulecam.verify.*",
+]
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+  "cv2.*", "kasa.*", "modal.*", "transformers.*", "duckdb.*", "shapely.*",
+  "qrcode.*", "ultralytics.*", "onnxruntime.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+  "live: real API calls",
+  "gpu: needs a GPU",
+  "slow: takes more than 10 s",
+  "ui: needs Playwright browsers",
+]
+addopts = "-q --strict-markers -m 'not live and not gpu and not ui'"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+source = ["src/rulecam"]
+branch = true

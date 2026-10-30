@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
@@ -11,9 +12,11 @@ import numpy as np
 import pytest
 
 from rulecam.bus import Bus, Topic
+from rulecam.clients.meta_hosted.sam_masks import decode_wire_mask
+from rulecam.clients.meta_hosted.sam_wire import mask_rle, output_text, parse_output
 from rulecam.contracts import Chunk, Detection, Mask
 from rulecam.contracts.core import BoxXYXY
-from rulecam.perception.masks import NO_MASK, encode_rle, mask_foot
+from rulecam.perception.masks import NO_MASK, encode_rle, foot_point, mask_foot
 from rulecam.perception.tracking import (
     Tracker,
     TracksUpdated,
@@ -22,6 +25,7 @@ from rulecam.perception.tracking import (
     match_by_iou,
     prompt_batches,
 )
+from tests.clients.meta_hosted.transport_fakes import SAM_FIXTURES
 from tests.fakes import FakeSegmenter, InMemoryTrackStore, make_chunk
 
 PERSON: BoxXYXY = (100.0, 100.0, 140.0, 200.0)
@@ -338,3 +342,14 @@ def test_two_minute_synthetic_walk_fragment_rate_is_under_ten_percent(reprompt: 
     fragment_rate = (len(ids) - len(WALKERS)) / len(ids)
     assert fragment_rate < 0.10
     assert len(ids) == len(WALKERS)
+
+
+def test_foot_point_on_a_real_decoded_sam_mask() -> None:
+    reply = json.loads((SAM_FIXTURES / "live" / "video_rectangle.json").read_text("utf-8"))
+    record = parse_output(output_text(reply["json"]))[0]  # box 122..197 x 262..277
+
+    foot = foot_point(mask_rle(record, decode_wire_mask), record.box_xyxy)
+
+    assert foot[1] == 277.0  # the mask's lowest row is the box's bottom row
+    assert 122.0 <= foot[0] <= 197.0
+    assert abs(foot[0] - 159.5) < 3.0  # close to the box centre for a filled rectangle

@@ -8,10 +8,10 @@ the semantics below are the contract that the tests pin down.
 
 | Name | What it does |
 |---|---|
-| `evaluate(rule, tracks, *, calibration, zones, t0, t1, hz=10.0, episode_gap_s=2.0, cooldown_s=0.0, plan_version_hash="")` | Pure: no I/O, no clock, no randomness. Identical inputs give byte-identical output; the order of `tracks` does not matter. Returns candidates sorted by `(ts_start, camera_id, event_id)` |
+| `evaluate(rule, tracks, *, calibration, zones, t0, t1, hz=10.0, episode_gap_s=2.0, cooldown_s=0.0, plan_version_hash="", pose=None)` | Pure: no I/O, no clock, no randomness. Identical inputs give byte-identical output; the order of `tracks` does not matter. Returns candidates sorted by `(ts_start, camera_id, event_id)` |
 | `rule_ir_hash(rule)` | sha256 of the rule's canonical JSON (sorted keys) |
+| `PoseFeatures` | Protocol `(state, point) -> bool \| None` that adapts P4-04's `rulecam.pose.features`; passed as `pose=` |
 | `RuleEvaluationError` | Invalid window, unknown or incomplete zone, `distance_m` without a bound |
-| `UnsupportedPredicateError` | An op this version does not evaluate yet |
 
 The rule's predicate being **true means "violation"**: one candidate is emitted per
 (rule, subject, episode).
@@ -56,7 +56,21 @@ bucket is moving". `not` is true only while its subject is observed.
 | `moving` | centred 5-sample median of ground speed > `speed_mps_gt` | `m/s` |
 | `count` | objects (in the zone) `> gt` and `< lt`; with no bounds, at least one | `count` |
 | `state` | a track of the state concept is present: `door`/`open` → `"open door"` or `"door/open"`; `present` → the object itself | `count` |
+| `pose` | the injected `PoseFeatures` says so for the latest point; without an adapter, or when it returns None, the state is false (`pose_unavailable` / `<path>.unknown` in the trace) | 0/1 |
 | `dwell` | the running inside-time of the current visit has reached `total_s_gte`; runs separated by gaps ≤ `max_gap_s` form one visit and gaps are not counted; stays true until the visit's last inside sample | running total (`s`) |
+| `persist` | the child has been true for at least `seconds` without interruption | run so far (`s`) |
+| `absence` | scene-level: no `object` in `zone` for at least `seconds` (the window start counts as the start of an empty stretch) | time empty (`s`) |
+| `rate` | scene-level: rising edges of the child, summed over all subjects, in the trailing 60 s exceed `per_minute_gt` | edges per minute (`1/min`) |
+| `sequence` (past) | at a rising edge of `trigger` for a subject, `requirement` did not hold for that subject at any sample in the previous `require_within_s` (inclusive); fires at the edge | the requirement's best value in the window, e.g. the longest wash (`s`) |
+| `sequence` (future) | `requirement` does not hold within `require_within_s` after the edge; fires at the deadline; edges whose deadline is past `t1` are undecided and never fire | as above |
+
+**Edges.** A subject that is already true at the window start is not a rising edge: its history
+is unknown. A track that appears later already true is an edge. Evaluate sequences over a window
+that starts at least `require_within_s` before the triggers of interest.
+
+**Cameras with no tracks.** A camera that a zone of the rule is on is evaluated even with no
+tracks, so `absence` fires on an empty scene. Whether the camera was actually watching is the
+coverage watchdog's job (P1-08).
 
 **Episodes.** True samples of one subject merge into an episode across gaps shorter than
 `episode_gap_s` (2 s). With `cooldown_s`, an episode starting within that long after the
@@ -82,6 +96,8 @@ previous reported one is dropped.
 uv run pytest tests/rules
 ```
 
-Boundary tables (dwell 19.5/20.5 s, gaps 2/3/4 s, distance 1.95/2.05 m, `without` regions),
+Boundary tables (dwell 19.5/20.5 s, gaps 2/3/4 s, persist 0.9/1.1 s, distance 1.95/2.05 m,
+`without` regions), the past/future sequence cases, absence and rate, every example rule in
+`tests/fixtures/rules/` (handwash, excavator, fire exit, person down, forklift proximity),
 Hypothesis order invariance, and byte-identical determinism. mypy runs in strict mode on this
 package, and its coverage floor is 85% (CI) with a 90% target.

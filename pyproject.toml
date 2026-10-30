@@ -23,6 +23,7 @@ dependencies = [
   "python-kasa>=0.7",
   "python-multipart>=0.0.9",
   "typer>=0.12",
+  "meta-sam-parser>=0.1.0",
 ]
 
 [project.optional-dependencies]

@@ -35,3 +35,4 @@ adds a row here with its licence.
 | `tests/fakes/`, `tests/guardrails/` | Test doubles and static guardrails | #1 |
 | CI, Makefile, pre-commit, coverage floors | Engineering scaffold | #1 |
 | `.gitlab-ci.yml`, `scripts/ci/github_status.py` | GitLab CI with job results reported to GitHub | #1 |
+| `src/rulecam/capture/` + `rulecam capture` CLI | Webcam / RTSP / file → 3 s H.264 faststart chunks, published on the bus (P1-01) | #2 |

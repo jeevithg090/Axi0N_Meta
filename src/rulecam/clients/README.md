@@ -31,9 +31,12 @@ sam.costs.snapshot()  # per-camera cost panel
 - Zero matches returns `[]`; detections are sorted by `(frame_idx, object_id)`.
 - Cost: `max(50, usage.video_frames_processed)` frames at $0.20/1,000; images $2.50/1,000.
 - `HostedSam31.from_settings` refuses `RULECAM_MODE=replay` (replay must come from the cache).
-- Masks: the payload format is only implemented in Meta's `meta-sam-parser`; inject a
-  `MaskDecoder`. Without one, `Mask.rle` is `""` (`NO_MASK`) and consumers use the box.
-  `Mask.rle` is COCO compressed RLE as JSON (`rulecam.perception.masks`).
+- Verified against the live API on Oct 30 2026 (issue #5). The real replies are in
+  `tests/fixtures/replay/sam/live/`.
+- Masks: the payload format is only implemented in Meta's `meta-sam-parser`, which is released
+  under the custom SAM License (not a permissive licence), so it is not a dependency. To get
+  masks, inject a `MaskDecoder`. Without one, `Mask.rle` is `""` (`NO_MASK`) and consumers use
+  the box. `Mask.rle` is COCO compressed RLE as JSON (`rulecam.perception.masks`).
 - Every wire-format detail (and every unverified assumption, marked `ASSUMPTION`) lives in
   `meta_hosted/sam_wire.py`.
 

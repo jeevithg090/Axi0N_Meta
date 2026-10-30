@@ -13,8 +13,12 @@ Everything here follows the official guides (read Oct 30 2026):
 - Output is one line per frame: `<Nf>id<|box;...|><|mask;x=0;y=0;[c=..;]data=H,W,ENC...|>,...`.
   Frames may arrive out of order; zero matches is an empty completion, not an error.
 
-Assumptions that still need checking against the live API are marked `ASSUMPTION` (tracked in the
-GitHub issue linked from the P1-02 PR).
+VERIFIED against the live API on Oct 30 2026 (issue #5; real replies in
+`tests/fixtures/replay/sam/live/`): both paths, the non-streaming body,
+`usage.video_frames_processed` (a 30-frame chunk bills 50), the `x-ratelimit-*` headers, the output
+grammar, the inclusive-box mask geometry, a backward box prompt with a negative point, and the 400
+error shape. Points still open are marked `ASSUMPTION`: the mask payload encoding (see
+`MaskDecoder`) and negative points on frames without a box.
 """
 
 from __future__ import annotations
@@ -125,8 +129,10 @@ class WireRecord(Frozen):
 class MaskDecoder(Protocol):
     """Turns a mask token's payload into a row-major 0/1 raster of shape (height, width).
 
-    The payload format is not documented publicly; Meta's `meta-sam-parser` package decodes it
-    (`decode_mask_to_raster`). Adapt that package behind this Protocol once it is a dependency.
+    ASSUMPTION: the payload format is not documented publicly. Only Meta's `meta-sam-parser`
+    (`decode_mask_to_raster`) decodes it, and that package ships under the custom SAM License
+    rather than a permissive one, so it is not a dependency yet (issue #5). Adapt it behind this
+    Protocol if the team accepts that licence.
     """
 
     def __call__(self, mask: WireMask) -> NDArray[np.uint8]:
@@ -156,9 +162,10 @@ def _negative_token(x: float, y: float, width: int, height: int) -> str:
 def prompt_text(prompt: ObjectPrompt, width: int, height: int) -> str:
     """Render a prompt as the request's `input_text`.
 
-    ASSUMPTION: a negative point applies to every prompted object ("this pixel is not the
-    concept"). On the box frame it follows each box; on another frame it gets its own `<Nf>`
-    marker with one `id-<|point;...|>` record per object.
+    A negative point applies to every prompted object ("this pixel is not the concept"). On the
+    box frame it follows each box: VERIFIED on Oct 30 2026 (issue #5) with
+    `<29f>1<|box;...|>-<|point;...|>` and `propagation_direction: backward`. ASSUMPTION: on another
+    frame it gets its own `<Nf>` marker with one `id-<|point;...|>` record per object.
 
     Args:
         prompt: The prompt to render.
@@ -267,9 +274,9 @@ def image_request(
 def output_text(body: object) -> str:
     """Return the concatenated output text of a non-streaming response.
 
-    ASSUMPTION: the non-streaming body follows the Responses API shape, with the text in
-    `output[].content[]` parts of type `output_text` (a top-level `output_text` string is also
-    accepted). An empty `output` is a zero-match completion.
+    VERIFIED on Oct 30 2026 (issue #5): the non-streaming body follows the Responses API shape,
+    with the text in `output[].content[]` parts of type `output_text`. A top-level `output_text`
+    string is also accepted. An empty `output` is a zero-match completion.
 
     Args:
         body: The decoded JSON body.
@@ -296,7 +303,10 @@ def output_text(body: object) -> str:
 
 
 def frames_processed(body: object) -> int | None:
-    """Return `usage.video_frames_processed`, or `None` if the response does not carry it."""
+    """Return `usage.video_frames_processed`, or `None` if absent.
+
+    Image replies carry `usage.images_processed` instead.
+    """
     usage = body.get("usage") if isinstance(body, Mapping) else None
     value = usage.get("video_frames_processed") if isinstance(usage, Mapping) else None
     return int(value) if isinstance(value, int | float) else None
@@ -386,9 +396,10 @@ def parse_output(text: str) -> list[WireRecord]:
 def mask_rle(record: WireRecord, decoder: MaskDecoder | None) -> str:
     """Decode a record's mask and encode it as full-frame COCO RLE (`Mask.rle`).
 
-    ASSUMPTION: the raster covers the box, inclusive (`H = y2 - y1 + 1`, `W = x2 - x1 + 1`), as in
-    the guide's examples (box 211..270 x 228..254 with `data=27,60`). A raster the size of the
-    whole frame is also accepted. Any other size is not placed and gives `NO_MASK`.
+    The raster covers the box, inclusive (`H = y2 - y1 + 1`, `W = x2 - x1 + 1`): VERIFIED on all
+    103 records of the Oct 30 2026 live replies (issue #5), e.g. box 122..197 x 262..277 with
+    `data=16,76`. A raster the size of the whole frame is also accepted. Any other size is not
+    placed and gives `NO_MASK`.
 
     Args:
         record: The parsed record.

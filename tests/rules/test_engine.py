@@ -10,7 +10,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from rulecam.contracts import CandidateEvent, RuleIR, Track
-from rulecam.rules import RuleEvaluationError, UnsupportedPredicateError, evaluate, rule_ir_hash
+from rulecam.rules import RuleEvaluationError, evaluate, rule_ir_hash
 from tests.rules.helpers import (
     CAL,
     INSIDE_M,
@@ -227,18 +227,6 @@ def test_invalid_windows_raise() -> None:
         run(INSIDE, [], t0=at(5), t1=at(0))
     with pytest.raises(RuleEvaluationError, match="hz"):
         run(INSIDE, [], hz=0)
-
-
-def test_unsupported_ops_raise() -> None:
-    rule = make_rule(
-        {
-            "op": "persist",
-            "of": {"op": "inside", "object": "person", "zone": "sink_zone"},
-            "seconds": 1,
-        }
-    )
-    with pytest.raises(UnsupportedPredicateError):
-        run(rule, [walk_track("cam1:person:1", [INSIDE_M] * 20)])
 
 
 def test_hashes_identify_rule_and_window() -> None:

@@ -1,0 +1,18 @@
+# UC3 (master plan §5): person down for more than 10 s; high severity, alert first.
+id: person-down
+version: 1
+source:
+  kind: plan
+  plan_id: east-corridor
+concepts:
+  person: {prompt: person}
+predicate:
+  op: persist
+  seconds: 10
+  of: {op: pose, object: person, state: down}
+severity: high
+actions:
+  - {kind: notify, role: aide}
+  - {kind: escalate, role: charge_nurse, after_s: 60}
+  - {kind: log}
+verify: {tier1: glimmer, tier2: spark-open-on-disagree}

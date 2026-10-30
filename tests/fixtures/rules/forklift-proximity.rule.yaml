@@ -1,0 +1,22 @@
+# UC4 (master plan §5): a pedestrian within 2 m of a moving forklift; power cut first.
+id: forklift-proximity
+version: 1
+source:
+  kind: plan
+  plan_id: dock-warehouse
+concepts:
+  person: {prompt: person}
+  forklift: {prompt: forklift}
+calibration: ground-plane@cam1
+predicate:
+  op: all
+  of:
+    - {op: distance_m, a: person, b: forklift, lt: 2.0}
+    - {op: moving, object: forklift, speed_mps_gt: 0.2}
+severity: high
+actions:
+  - {kind: interlock_cut}
+  - {kind: visual_signal}
+  - {kind: notify, role: dock_lead}
+  - {kind: log}
+verify: {tier1: glimmer, tier2: spark-open-on-disagree}

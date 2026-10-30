@@ -14,8 +14,8 @@ from datetime import datetime
 from typing import Any
 
 from rulecam.contracts import Calibration, CandidateEvent, Measurement, RuleIR, Track, Zone
-from rulecam.contracts.rule_ir import All, Any_, Not_, Predicate
-from rulecam.rules.errors import UnsupportedPredicateError
+from rulecam.contracts.rule_ir import All, Any_, Not_, Persist, Predicate, Rate
+from rulecam.contracts.rule_ir import Sequence as SequenceOp
 from rulecam.rules.hashing import event_id, rule_ir_hash, track_window_hash
 from rulecam.rules.ir import (
     child_path,
@@ -24,11 +24,22 @@ from rulecam.rules.ir import (
     referenced_zones,
     walk,
 )
+from rulecam.rules.pose import PoseFeatures
+from rulecam.rules.predicates.pose import pose as pose_state
 from rulecam.rules.predicates.presence import count, state
 from rulecam.rules.predicates.spatial import distance_m, inside, moving, overlap_iou, without
 from rulecam.rules.scene import Scene, resolve_zone
 from rulecam.rules.signals import SCENE, Series, Signal, combine, negate, scene_series
-from rulecam.rules.temporal import Run, dwell, merge_runs, runs
+from rulecam.rules.temporal import (
+    Run,
+    absence,
+    dwell,
+    merge_runs,
+    persist,
+    rate,
+    runs,
+    sequence,
+)
 from rulecam.rules.timeline import Timeline, prepare_tracks, resample
 
 EPISODE_GAP_S = 2.0
@@ -45,6 +56,8 @@ _ATOMS: dict[str, Atom] = {
     "count": count,
     "state": state,
     "dwell": dwell,
+    "absence": absence,
+    "pose": pose_state,
 }
 
 
@@ -55,6 +68,7 @@ class _Settings:
     plan_version_hash: str
     end_gap: int
     cooldown: int
+    pose_unavailable: bool
 
 
 def evaluate(
@@ -69,6 +83,7 @@ def evaluate(
     episode_gap_s: float = EPISODE_GAP_S,
     cooldown_s: float = 0.0,
     plan_version_hash: str = "",
+    pose: PoseFeatures | None = None,
 ) -> list[CandidateEvent]:
     """Evaluate a rule over a window of tracks and return one candidate per episode.
 
@@ -85,6 +100,8 @@ def evaluate(
         cooldown_s: Suppress a new episode of the same subject starting within this long
             after the previous reported episode ended.
         plan_version_hash: Hash of the plan version the rule belongs to, copied into events.
+        pose: Pose features for `pose` predicates (P4-04). Without them pose states are
+            false and candidates carry `pose_unavailable=True`.
 
     Returns:
         Candidates sorted by `(ts_start, camera_id, event_id)`.
@@ -100,6 +117,7 @@ def evaluate(
         plan_version_hash=plan_version_hash,
         end_gap=max(1, timeline.samples_for(episode_gap_s)),
         cooldown=timeline.samples_for(cooldown_s),
+        pose_unavailable=pose is None and any(n.op == "pose" for _, n in walk(rule.predicate)),
     )
     events: list[CandidateEvent] = []
     for camera_id in cameras(rule, zones, prepared):
@@ -112,6 +130,7 @@ def evaluate(
             calibration=cal,
             zones=zones,
             tracks=tuple(resample(t, timeline, cal) for t in own),
+            pose=pose,
         )
         window_hash = track_window_hash(camera_id, t0, t1, hz, own)
         events.extend(_evaluate_camera(settings, scene, window_hash))
@@ -159,11 +178,13 @@ def _apply(node: Predicate, kids: list[Signal], scene: Scene) -> Signal:
         return combine(kids, scene.timeline.n, conjunction=isinstance(node, All))
     if isinstance(node, Not_):
         return negate(kids[0])
-    atom = _ATOMS.get(node.op)
-    if atom is None:
-        msg = f"predicate op {node.op!r} is not supported by this engine version"
-        raise UnsupportedPredicateError(msg)
-    return atom(node, scene)
+    if isinstance(node, Persist):
+        return persist(node, kids[0], scene.timeline)
+    if isinstance(node, Rate):
+        return rate(node, kids[0], scene.timeline)
+    if isinstance(node, SequenceOp):
+        return sequence(node, kids[0], kids[1], scene.timeline)
+    return _ATOMS[node.op](node, scene)
 
 
 def episodes(truth: Series, end_gap: int, cooldown: int) -> list[Run]:
@@ -246,6 +267,8 @@ def _candidate(
         "subject": key,
         "episode_s": round((end - fire + 1) / timeline.hz, DECIMALS),
     }
+    if settings.pose_unavailable:
+        trace["pose_unavailable"] = True
     trace.update(_trace(settings.rule.predicate, sampler, key, fire))
     return CandidateEvent(
         event_id=event_id(settings.rule_hash, scene.camera_id, key, ts_start),
@@ -281,6 +304,8 @@ def _trace(
         trace[path] = truth
         if sampler.nodes[path].unit is not None:
             trace[f"{path}.value"] = trace_value(value)
+        elif math.isnan(value):
+            trace[f"{path}.unknown"] = True
     return trace
 
 

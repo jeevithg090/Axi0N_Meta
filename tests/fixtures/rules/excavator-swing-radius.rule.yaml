@@ -1,0 +1,25 @@
+# Contract form of the V2 §6 excavator rule (the design doc shows an illustrative YAML).
+id: excavator-swing-radius
+version: 1
+source:
+  kind: voice
+  lang: es
+  text: "avísame si alguien está a menos de dos metros del balde de la excavadora"
+concepts:
+  person: {prompt: person}
+  bucket: {prompt: excavator bucket}
+calibration: ground-plane@cam1
+predicate:
+  op: persist
+  seconds: 1.0
+  of:
+    op: all
+    of:
+      - {op: distance_m, a: person.foot_point, b: bucket.mask, lt: 2.0}
+      - {op: moving, object: bucket, speed_mps_gt: 0.2}
+severity: high
+actions:
+  - {kind: speak, lang: auto}
+  - {kind: notify, role: crew_lead}
+  - {kind: log}
+verify: {tier1: glimmer, tier2: spark-open-on-disagree, min_confidence: 0.7}

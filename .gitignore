@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+.coverage
+coverage.json
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Media and runtime data (commit manifests only)
+data/
+
+# Node / UI
+node_modules/
+ui/.next/
+ui/out/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

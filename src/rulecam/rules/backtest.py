@@ -219,12 +219,13 @@ def diff_events(
     Returns:
         Events only in `after` (added) and only in `before` (removed).
     """
-    added = tuple(e for e in after if not any(_same(e, b, tolerance_s) for b in before))
-    removed = tuple(e for e in before if not any(_same(e, a, tolerance_s) for a in after))
+    added = tuple(e for e in after if not any(same_episode(e, b, tolerance_s) for b in before))
+    removed = tuple(e for e in before if not any(same_episode(e, a, tolerance_s) for a in after))
     return BacktestDiff(baseline_rule_ir_hash=baseline_rule_ir_hash, added=added, removed=removed)
 
 
-def _same(a: CandidateEvent, b: CandidateEvent, tolerance_s: float) -> bool:
+def same_episode(a: CandidateEvent, b: CandidateEvent, tolerance_s: float = 0.0) -> bool:
+    """Whether two candidates are the same subject on one camera within `tolerance_s` in time."""
     if a.camera_id != b.camera_id or a.predicate_trace.get("subject") != b.predicate_trace.get(
         "subject"
     ):

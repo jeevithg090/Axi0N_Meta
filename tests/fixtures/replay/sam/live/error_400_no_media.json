@@ -1,0 +1,31 @@
+{
+  "note": "Real reply from the live SAM 3.1 API, Oct 30 2026 (issue #5). Reply verbatim; request trimmed.",
+  "request": {
+    "method": "POST",
+    "path": "/responses",
+    "json": {
+      "input": [
+        {
+          "type": "message",
+          "role": "user",
+          "content": [
+            {
+              "type": "input_text",
+              "text": ""
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "status": 400,
+  "headers": {},
+  "json": {
+    "error": {
+      "code": null,
+      "message": "SAM 3 requires an input_image or input_video content part in a user message",
+      "param": null,
+      "type": "invalid_request_error"
+    }
+  }
+}

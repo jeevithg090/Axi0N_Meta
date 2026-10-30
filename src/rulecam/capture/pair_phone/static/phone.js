@@ -40,10 +40,11 @@
   }
 
   function showProgress() {
+    const clips = `${state.sent} ${state.sent === 1 ? "clip" : "clips"}`;
     if (state.running) {
-      setStatus("live", `Live: ${state.sent} clips sent`);
+      setStatus("live", `Live: ${clips} sent`);
     } else if (!byId("status").classList.contains("status-error")) {
-      setStatus("idle", `Stopped after ${state.sent} clips. Press Start camera to resume.`);
+      setStatus("idle", `Stopped after ${clips}. Press Start camera to resume.`);
     }
   }
 

@@ -10,11 +10,15 @@ fall back to the box.
 from __future__ import annotations
 
 import json
+import math
 
 import numpy as np
 from numpy.typing import NDArray
 
+from rulecam.contracts.core import BoxXYXY, PointXY
+
 NO_MASK = ""
+FOOT_FRACTION = 0.05  # the foot point uses the lowest 5% of a mask's pixels
 
 _CHAR_OFFSET = 48
 _LOW_BITS = 0x1F
@@ -135,3 +139,46 @@ def decode_rle(rle: str) -> NDArray[np.uint8]:
     values = (np.arange(len(counts)) % 2).astype(np.uint8)
     flat = np.repeat(values, counts)
     return flat.reshape((height, width), order="F")
+
+
+def box_foot(box: BoxXYXY) -> PointXY:
+    """Return the bottom-centre of a box (the foot-point fallback)."""
+    x1, _, x2, y2 = box
+    return ((x1 + x2) / 2.0, y2)
+
+
+def mask_foot(mask: NDArray[np.generic], fraction: float = FOOT_FRACTION) -> PointXY | None:
+    """Return the bottom-centre of the lowest `fraction` of a mask's foreground pixels.
+
+    The lowest pixels are the ones with the largest row index (ties within the cut-off row are
+    all kept). The point's x is their mean column; its y is the lowest foreground row.
+
+    Args:
+        mask: A 2-D raster; non-zero means foreground.
+        fraction: Share of foreground pixels to use, in (0, 1].
+
+    Returns:
+        The foot point in pixels, or `None` if the mask is empty.
+    """
+    rows, cols = np.nonzero(mask)
+    if rows.size == 0:
+        return None
+    keep = max(1, math.ceil(rows.size * fraction))
+    cutoff = np.sort(rows)[-keep]
+    lowest = rows >= cutoff
+    return (float(cols[lowest].mean()), float(rows.max()))
+
+
+def foot_point(rle: str, box: BoxXYXY) -> PointXY:
+    """Return a detection's foot point: from its mask if decodable, else the box bottom-centre.
+
+    Args:
+        rle: The detection's `Mask.rle` (may be `NO_MASK`).
+        box: The detection's box, used when the mask is missing or empty.
+
+    Returns:
+        The foot point in image pixels.
+    """
+    if rle == NO_MASK:
+        return box_foot(box)
+    return mask_foot(decode_rle(rle)) or box_foot(box)

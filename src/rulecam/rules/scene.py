@@ -26,6 +26,7 @@ from rulecam.rules.geometry import (
     project,
 )
 from rulecam.rules.ir import HANDS_CONCEPT
+from rulecam.rules.pose import PoseFeatures
 from rulecam.rules.timeline import SampledTrack, Timeline
 
 LEFT_WRIST, RIGHT_WRIST = 9, 10  # COCO-17 indices
@@ -68,6 +69,7 @@ class Scene:
     calibration: Calibration | None
     zones: Mapping[str, Zone]
     tracks: tuple[SampledTrack, ...]
+    pose: PoseFeatures | None = None
     _by_concept: dict[str, tuple[SampledTrack, ...]] = field(default_factory=dict)
 
     def names(self, concept: str) -> frozenset[str]:

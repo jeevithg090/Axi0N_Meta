@@ -25,7 +25,9 @@ npm run lint && npm run typecheck && npm test -- --run
 - `make openapi` writes `src/api/openapi.json`; `npm run openapi` generates `src/api/schema.d.ts`.
 - **Planner** (`/planner`):
   - a request composer (typed text, voice recorded in the browser, a photo, PDF or walk-through
-    upload through `POST /plans/uploads`), sent with `POST /plans/requests`;
+    upload through `POST /plans/uploads`), sent with `POST /plans/requests`. Only the types the
+    planner's Understand step reads are offered: JPEG/PNG/WebP, PDF, MP4, and voice, which is
+    re-encoded in the browser as 16 kHz mono WAV (`lib/wav.ts`) for Voice Transcribe;
   - the ten fixed steps from `planner.step`;
   - camera tiles from `GET /cameras` plus the survey inventory.
 - **Plans** (`/plans`, `/plans/[id]`):

@@ -74,12 +74,13 @@ def test_the_live_buffer_rule_passes_rule_ci_with_its_calibration() -> None:
     assert report.ci_green, report.failures
     assert report.nonvacuous
     assert report.failures == ()
-    assert report.summary() == "boundary 7/7, mutations 4/4"
+    assert report.summary() == "boundary 15/15, mutations 5/5"  # + kinematic and operator
     assert [m.name for m in generate_mutations(rule)] == [
         "scale_threshold_0.1",
         "scale_threshold_10",
         "swap_all_any",
         "widen_zone:forklift_buffer",
+        "drop_operator_exclusion",
     ]
     traces = {t.name: t for t in generate_rule_traces(rule)}
     assert {name: t.expected_violation for name, t in traces.items()} == {
@@ -90,6 +91,16 @@ def test_the_live_buffer_rule_passes_rule_ci_with_its_calibration() -> None:
         "stationary": False,
         "interrupted_stay": True,
         "id_swap_mid_stay": True,
+        # kinematic_traces (WS1d): approach and pass-by pairs, the live co-moving 6.4 m case
+        "approach_lt_1.95m": True,
+        "approach_lt_2.05m": False,
+        "pass_lt_1.95m": True,
+        "pass_lt_2.05m": False,
+        "co_moving_far_6.4m": False,
+        # operator vs pedestrian (WS1c)
+        "operator_riding_0.5m": False,
+        "pedestrian_beside_0.5m": True,
+        "pedestrian_in_front_0.5m": True,
     }
     assert {t.kind for t in traces.values()} >= {"zone_edge", "boundary", "interruption", "id_swap"}
     assert len({t.tracks[0].track_id for t in traces.values()}) == 1
@@ -123,7 +134,7 @@ def test_without_calibration_it_fails_with_the_reason() -> None:
 
     assert not report.ci_green
     assert not report.nonvacuous
-    assert (report.traces_total, report.mutants_killed, report.mutants_total) == (0, 0, 4)
+    assert (report.traces_total, report.mutants_killed, report.mutants_total) == (0, 0, 5)
     assert report.failures[0].startswith("no boundary traces: buffer zone needs calibration")
     assert "camera 'cam1'" in report.failures[0]
     assert "no boundary-trace generator" not in " ".join(report.failures)
@@ -190,7 +201,11 @@ def test_moving_on_the_subject_under_persist_skips_the_id_swap() -> None:
 
 def test_a_real_perspective_calibration_lays_the_traces_out_through_its_homography() -> None:
     rule = _rule(calibration=None)
-    traces = generate_rule_traces(rule, calibrations={"cam1": PERSPECTIVE})
+    traces = [
+        t
+        for t in generate_rule_traces(rule, calibrations={"cam1": PERSPECTIVE})
+        if t.kind not in {"kinematic", "operator"}  # these use the synthetic plane by design
+    ]
     assert {t.calibration for t in traces} == {PERSPECTIVE}
     zone = {t.name: t for t in traces}
     assert _ground_distance(zone["zone_inside"], 30) == pytest.approx(1.95)

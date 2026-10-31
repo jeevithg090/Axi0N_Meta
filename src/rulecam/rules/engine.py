@@ -85,6 +85,7 @@ def evaluate(
     cooldown_s: float = 0.0,
     plan_version_hash: str = "",
     pose: PoseFeatures | None = None,
+    operator_exclusion: bool = True,
 ) -> list[CandidateEvent]:
     """Evaluate a rule over a window of tracks and return one candidate per episode.
 
@@ -103,6 +104,9 @@ def evaluate(
         plan_version_hash: Hash of the plan version the rule belongs to, copied into events.
         pose: Pose features for `pose` predicates (P4-04). Without them pose states are
             false and candidates carry `pose_unavailable=True`.
+        operator_exclusion: Ignore the vehicle a person rides as its operator in person-vehicle
+            `distance_m`, buffer-zone `inside` and near-miss metrics (`rules.operators`). On by
+            default; `OperatorExclusion.enabled_for(rule.id)` gives the owner's per-rule choice.
 
     Returns:
         Candidates sorted by `(ts_start, camera_id, event_id)`.
@@ -132,6 +136,7 @@ def evaluate(
             zones=zones,
             tracks=tuple(resample(t, timeline, cal) for t in own),
             pose=pose,
+            operator_exclusion=operator_exclusion,
         )
         window_hash = track_window_hash(camera_id, t0, t1, hz, own)
         events.extend(_evaluate_camera(settings, scene, window_hash))

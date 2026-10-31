@@ -4,19 +4,27 @@ Both objects are extrapolated at constant velocity from their ground foot points
 least-squares slopes over the last `VELOCITY_SAMPLES` timeline samples. The engine adds these
 metrics to the trace of every `distance_m` node at the firing time, so they are part of the
 re-derivable decision (`rederive`).
+
+The metrics measure the same geometry as the predicate they annotate (WS1d): when `distance_m`
+measures to the other object's ground footprint (the projected bottom edge of its box, with a
+calibration and without `.foot_point`), so do `separation_m`, `closest_m` and `ttc_s`, the
+footprint moving rigidly with the object's foot point. So `separation_m` equals the node's
+`value` at the firing time, and a candidate of `distance_m(lt=d)` always shows
+`separation_m < d`. Vehicles the subject operates (`rules.operators`) are left out, as in the
+predicate.
 """
 
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 
 import numpy as np
 
 from rulecam.contracts import Calibration, Frozen, Track
 from rulecam.contracts.rule_ir import DistanceM, Predicate
-from rulecam.rules.geometry import FloatArray
+from rulecam.rules.geometry import FloatArray, project
 from rulecam.rules.ir import parse_ref, walk
 from rulecam.rules.scene import Scene
 from rulecam.rules.timeline import SampledTrack, Timeline, prepare_tracks, resample
@@ -26,6 +34,13 @@ HORIZON_S = 1.0
 CONTACT_M = 0.5
 VELOCITY_SAMPLES = 5
 _MIN_SAMPLES = 2
+_SEARCH_STEPS = 100
+_GOLDEN = (math.sqrt(5.0) - 1.0) / 2.0
+_TIE_M = 1e-9
+
+XY = tuple[float, float]
+Kinematics = tuple[float, float, float, float | None]
+"""`(separation_m, closest_m, closest_in_s, ttc_s)` of one pair."""
 
 
 class NearMiss(Frozen):
@@ -104,16 +119,133 @@ def _slope(times: FloatArray, values: FloatArray) -> float:
 
 
 def _state(
-    track: SampledTrack, index: int, hz: float
+    track: SampledTrack, index: int, hz: float, *, still_if_unknown: bool = False
 ) -> tuple[FloatArray, tuple[float, float]] | None:
+    """Ground position and velocity at a timeline index.
+
+    With `still_if_unknown`, a present track whose velocity cannot be measured yet (fewer than
+    two samples) counts as standing still instead of being unmeasurable.
+    """
     local = index - track.start
     if not 0 <= local < len(track.present) or not track.present[local]:
         return None
     position = track.foot_m[local]
     vel = velocity(track, local, hz)
+    if vel is None and still_if_unknown:
+        vel = (0.0, 0.0)
     if vel is None or np.isnan(position).any():
         return None
     return position, vel
+
+
+def _segment_distance(point: XY, seg_a: XY, seg_b: XY) -> float:
+    """Distance from a point to a segment (scalar)."""
+    dx, dy = seg_b[0] - seg_a[0], seg_b[1] - seg_a[1]
+    rx, ry = point[0] - seg_a[0], point[1] - seg_a[1]
+    length_sq = dx * dx + dy * dy
+    t = 0.0 if length_sq == 0 else min(max((rx * dx + ry * dy) / length_sq, 0.0), 1.0)
+    ex, ey = rx - dx * t, ry - dy * t
+    return math.sqrt(ex * ex + ey * ey)
+
+
+def _argmin(gap: Callable[[float], float], lo: float, hi: float) -> float:
+    """Earliest minimiser of a convex function on `[lo, hi]` (golden section, then bisection)."""
+    a, b = lo, hi
+    for _ in range(_SEARCH_STEPS):
+        left, right = b - _GOLDEN * (b - a), a + _GOLDEN * (b - a)
+        if gap(left) <= gap(right):
+            b = right
+        else:
+            a = left
+    best = (a + b) / 2
+    floor = min(gap(lo), gap(best))
+    return _earliest(gap, lo, best, floor + _TIE_M)
+
+
+def _earliest(gap: Callable[[float], float], lo: float, hi: float, level: float) -> float:
+    """Earliest `t` in `[lo, hi]` with `gap(t) <= level`, for `gap` decreasing on that range."""
+    if gap(lo) <= level:
+        return lo
+    for _ in range(_SEARCH_STEPS):
+        mid = (lo + hi) / 2
+        if gap(mid) <= level:
+            hi = mid
+        else:
+            lo = mid
+    return hi
+
+
+def footprint_kinematics(
+    rel_a: XY, rel_b: XY, rel_vel: XY, horizon_s: float = HORIZON_S, contact_m: float = CONTACT_M
+) -> Kinematics:
+    """Near-miss metrics from a subject point to another object's footprint segment.
+
+    The footprint (endpoints `rel_a`, `rel_b`, relative to the subject) moves rigidly at
+    `rel_vel`. The separation at time t is a convex function of t, so its minimum within the
+    horizon and its first crossing of `contact_m` are found by golden-section search and
+    bisection (fixed step counts, so the result is deterministic).
+
+    Returns:
+        `(separation_m, closest_m, closest_in_s, ttc_s)`; `ttc_s` is None when the footprint
+        never comes within `contact_m`.
+    """
+
+    def gap(t: float) -> float:
+        return _segment_distance((-rel_vel[0] * t, -rel_vel[1] * t), rel_a, rel_b)
+
+    separation = gap(0.0)
+    speed = math.sqrt(rel_vel[0] * rel_vel[0] + rel_vel[1] * rel_vel[1])
+    when = 0.0 if speed == 0 else _argmin(gap, 0.0, horizon_s)
+    if separation <= contact_m:
+        return separation, gap(when), when, 0.0
+    ttc = None
+    if speed > 0:
+        reach = max(math.hypot(*rel_a), math.hypot(*rel_b)) + contact_m
+        lowest = _argmin(gap, 0.0, reach / speed)
+        if gap(lowest) <= contact_m:
+            ttc = _earliest(gap, 0.0, lowest, contact_m)
+    return separation, gap(when), when, ttc
+
+
+def point_kinematics(
+    rel_pos: XY, rel_vel: XY, horizon_s: float = HORIZON_S, contact_m: float = CONTACT_M
+) -> Kinematics:
+    """Near-miss metrics between two points (closed form)."""
+    when, closest = closest_approach(rel_pos, rel_vel, horizon_s)
+    ttc = time_to_collision(rel_pos, rel_vel, contact_m)
+    return math.hypot(*rel_pos), closest, when, ttc
+
+
+def _footprint_ends(
+    other: SampledTrack, index: int, calibration: Calibration
+) -> tuple[FloatArray, FloatArray] | None:
+    box = other.box[index - other.start]
+    ends = project(calibration, np.array([[box[0], box[3]], [box[2], box[3]]], dtype=np.float64))
+    if np.isnan(ends).any():
+        return None
+    return ends[0], ends[1]
+
+
+def _pair(
+    own: tuple[FloatArray, tuple[float, float]],
+    other: SampledTrack,
+    index: int,
+    hz: float,
+    *,
+    calibration: Calibration | None,
+    limits: tuple[float, float],
+) -> Kinematics | None:
+    theirs = _state(other, index, hz, still_if_unknown=True)
+    if theirs is None:
+        return None
+    rel_vel = (theirs[1][0] - own[1][0], theirs[1][1] - own[1][1])
+    ends = None if calibration is None else _footprint_ends(other, index, calibration)
+    if ends is None:
+        rel_pos = (float(theirs[0][0] - own[0][0]), float(theirs[0][1] - own[0][1]))
+        return point_kinematics(rel_pos, rel_vel, *limits)
+    rel_a = (float(ends[0][0] - own[0][0]), float(ends[0][1] - own[0][1]))
+    rel_b = (float(ends[1][0] - own[0][0]), float(ends[1][1] - own[0][1]))
+    return footprint_kinematics(rel_a, rel_b, rel_vel, *limits)
 
 
 def near_miss(
@@ -124,10 +256,26 @@ def near_miss(
     *,
     horizon_s: float = HORIZON_S,
     contact_m: float = CONTACT_M,
+    calibration: Calibration | None = None,
+    ignore: Callable[[SampledTrack], bool] | None = None,
 ) -> NearMiss | None:
     """Worst near-miss metrics between a subject and any other track at a timeline index.
 
     Each field is the worst over all measurable pairs (smallest distance, earliest collision).
+
+    Args:
+        subject: The subject track.
+        others: Candidate other tracks (the subject itself is skipped).
+        index: Timeline index.
+        hz: Timeline rate.
+        horizon_s: Closest-approach horizon.
+        contact_m: Contact distance for the time to collision.
+        calibration: When given, distances are to the other objects' ground footprints (the
+            projected bottom edge of their boxes), as `distance_m` measures them.
+        ignore: Other tracks to leave out at this index (the vehicle the subject operates).
+
+    An other object whose velocity cannot be measured yet is extrapolated as standing still, so
+    every object the predicate measures is in `separation_m`.
 
     Returns:
         The metrics, or None if the subject or every other object is unmeasurable there.
@@ -137,15 +285,13 @@ def near_miss(
         return None
     pairs = []
     for other in others:
-        theirs = None if other.track_id == subject.track_id else _state(other, index, hz)
-        if theirs is None:
+        if other.track_id == subject.track_id or (ignore is not None and ignore(other)):
             continue
-        rel_pos = (float(theirs[0][0] - own[0][0]), float(theirs[0][1] - own[0][1]))
-        rel_vel = (theirs[1][0] - own[1][0], theirs[1][1] - own[1][1])
-        when, closest = closest_approach(rel_pos, rel_vel, horizon_s)
-        ttc = time_to_collision(rel_pos, rel_vel, contact_m)
-        separation = math.sqrt(rel_pos[0] * rel_pos[0] + rel_pos[1] * rel_pos[1])
-        pairs.append((separation, closest, when, ttc))
+        metrics = _pair(
+            own, other, index, hz, calibration=calibration, limits=(horizon_s, contact_m)
+        )
+        if metrics is not None:
+            pairs.append(metrics)
     if not pairs:
         return None
     ttcs = [p[3] for p in pairs if p[3] is not None]
@@ -172,8 +318,17 @@ def near_miss_trace(
             continue
         subjects = scene.tracks_of(parse_ref(node.a)[0])
         subject = next((t for t in subjects if t.track_id == key), None)
-        others = scene.tracks_of(parse_ref(node.b)[0])
-        metrics = None if subject is None else near_miss(subject, others, index, scene.timeline.hz)
+        if subject is None:
+            continue
+        footprint = parse_ref(node.b)[1] != "foot_point"
+        metrics = near_miss(
+            subject,
+            scene.tracks_of(parse_ref(node.b)[0]),
+            index,
+            scene.timeline.hz,
+            calibration=scene.calibration if footprint else None,
+            ignore=_ignored_at(scene, subject, index),
+        )
         if metrics is None:
             continue
         out[f"{path}.separation_m"] = trace_value(metrics.separation_m)
@@ -181,6 +336,14 @@ def near_miss_trace(
         out[f"{path}.closest_in_s"] = trace_value(metrics.closest_in_s)
         out[f"{path}.ttc_s"] = "none" if metrics.ttc_s is None else trace_value(metrics.ttc_s)
     return out
+
+
+def _ignored_at(scene: Scene, subject: SampledTrack, index: int) -> Callable[[SampledTrack], bool]:
+    def ignore(other: SampledTrack) -> bool:
+        mask = scene.ignored(subject, other)
+        return mask is not None and bool(mask[index - subject.start])
+
+    return ignore
 
 
 def near_miss_at(

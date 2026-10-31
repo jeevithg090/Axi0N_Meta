@@ -11,11 +11,13 @@ Every step publishes `planner.step` (`PlannerStepEvent`: running, then done or f
 finished `SitePlan` is saved to `plans/<plan_id>.plan.yaml` with its version one above the plan
 already saved there, then published on `plan.updated`.
 
-Steps 1-6 call the P2-02..P2-05 modules. Step 7 lints the draft plan (`planner.lint`, P2-06b)
-against the site's cameras and records the findings with the plan. Steps 8-10 are plan -> plan
-hooks for acceptance checks (P2-06c), audit (P2-07) and Rule CI (P2-08/09); a hook that is not
-wired yet passes the plan through unchanged and says so in its step detail, so the acceptance
-trace stays empty rather than claiming checks that never ran.
+Steps 1-6 call the P2-02..P2-05 modules; a concern whose rule fails to compile is kept with its
+error rather than failing the run. Step 7 lints the draft plan (`planner.lint`, P2-06b) against
+the site's cameras and records the findings with the plan. Step 8 runs the acceptance checks
+and the bounded repair loop (`planner.acceptance`, P2-06c): it fills the plan's acceptance
+trace, re-compiles failing rules at most twice, and turns what still fails into amber verdicts
+and questions. Steps 9-10 are plan -> plan hooks for audit (P2-07) and Rule CI (P2-08/09); a
+hook that is not wired yet passes the plan through unchanged and says so in its step detail.
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from rulecam.bus import Bus, Topic
 from rulecam.contracts import StructuredLLM, Transcriber
-from rulecam.contracts.core import Frozen, PrivacyMode, Zone
+from rulecam.contracts.core import Calibration, Frozen, PrivacyMode, Zone
 from rulecam.contracts.plan import (
     AcceptanceResult,
     FeasibilityVerdict,
@@ -44,10 +46,17 @@ from rulecam.contracts.plan import (
 )
 from rulecam.contracts.rule_ir import RuleIR, ZoneSpec
 from rulecam.log import get_logger
-from rulecam.planner.errors import GuardrailDeclinedError, PipelineError
+from rulecam.planner.acceptance import CitationResult, PlannedRule, RepairLoop, SiteFacts
+from rulecam.planner.errors import GuardrailDeclinedError, PipelineError, RuleCompilationError
 from rulecam.planner.feasibility import gauge_plan_feasibility
 from rulecam.planner.lint import CameraViews, FrameSize, LintFinding, lint_plan
-from rulecam.planner.models import UnderstandResult
+from rulecam.planner.models import Concern, UnderstandResult
+from rulecam.planner.standards import (
+    GroundingLLM,
+    StandardsLibrary,
+    check_citation,
+    ground_concern_standard,
+)
 from rulecam.planner.steps.ask import Question, propose_clarifying_questions
 from rulecam.planner.steps.compile import compile_rule
 from rulecam.planner.steps.probe import concepts_for_concerns, probe_concepts
@@ -77,9 +86,8 @@ PIPELINE_STEPS: Final[tuple[StepName, ...]] = (
 PLAN_ID_PATTERN: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 MAX_DETAIL_CHARS: Final = 300
 COMPILED_VERDICTS: Final = frozenset({"observable", "caveat"})
-HOOK_STEPS: Final[tuple[StepName, ...]] = ("accept", "audit", "prove")
+HOOK_STEPS: Final[tuple[StepName, ...]] = ("audit", "prove")
 HOOK_TASKS: Final[dict[StepName, str]] = {
-    "accept": "P2-06c",
     "audit": "P2-07",
     "prove": "P2-08",
 }
@@ -100,6 +108,7 @@ class PipelineInput(Frozen):
         roles: Role -> alert channel.
         privacy_mode: The site's privacy mode.
         retention_days: Evidence retention.
+        calibrations: Camera id -> ground calibration (for `calibration_err<=tol`).
         seed: Seed for frame sampling.
     """
 
@@ -111,6 +120,7 @@ class PipelineInput(Frozen):
     roles: dict[str, str] = Field(default_factory=dict)
     privacy_mode: PrivacyMode = PrivacyMode.STANDARD
     retention_days: int = 30
+    calibrations: dict[str, Calibration] = Field(default_factory=dict)
     seed: int = 0
 
 
@@ -140,14 +150,20 @@ class AskResult(Frozen):
 
 
 class CompileResult(Frozen):
-    """Step 6: rules for the concerns a camera can check, and the final verdicts.
+    """Step 6: a rule (or the compile error) per concern a camera can check, and the verdicts.
 
+    `planned` has one entry per `observable` or `caveat` concern the guardrails allowed.
     `feasibility` is the gauge's, except that a concern the compiler's guardrails declined is
     `declined`.
     """
 
-    rules: tuple[RuleIR, ...]
+    planned: tuple[PlannedRule, ...]
     feasibility: tuple[FeasibilityVerdict, ...]
+
+    @property
+    def rules(self) -> tuple[RuleIR, ...]:
+        """The rules that compiled, in concern order."""
+        return tuple(p.rule for p in self.planned if p.rule is not None)
 
 
 class LintResult(Frozen):
@@ -155,6 +171,13 @@ class LintResult(Frozen):
 
     plan: SitePlan
     findings: tuple[LintFinding, ...]
+
+
+class AcceptResult(Frozen):
+    """Step 8: the plan with its acceptance trace, and questions about rules taken out of it."""
+
+    plan: SitePlan
+    questions: tuple[Question, ...]
 
 
 class PlannerStepEvent(Frozen):
@@ -347,6 +370,16 @@ def _lint_summary(result: LintResult) -> str:
     return ", ".join(f"{codes.count(c)} {c}" for c in dict.fromkeys(codes))
 
 
+def _accept_summary(result: AcceptResult) -> str:
+    acceptance = result.plan.acceptance
+    passed = sum(c.passed for c in acceptance.checks)
+    return (
+        f"{passed}/{len(acceptance.checks)} checks passed after {acceptance.rounds} repair "
+        f"round(s), {len(result.questions)} question(s); ci_green and nonvacuous wait for "
+        "Rule CI (P2-08)"
+    )
+
+
 def _detail(exc: Exception) -> str:
     return f"{type(exc).__name__}: {exc}"[:MAX_DETAIL_CHARS]
 
@@ -363,7 +396,8 @@ class PlannerPipeline:
         store: PlanStore,
         voice: Transcriber | None = None,
         bus: Bus | None = None,
-        accept: PlanHook | None = None,
+        grounding: GroundingLLM | None = None,
+        standards: StandardsLibrary | None = None,
         audit: PlanHook | None = None,
         prove: PlanHook | None = None,
     ) -> None:
@@ -376,7 +410,9 @@ class PlannerPipeline:
             store: Where the plan, inputs and step outputs are saved.
             voice: Voice Transcribe, needed for voice items.
             bus: Receives `planner.step` and `plan.updated`.
-            accept: Step 8 hook (P2-06c).
+            grounding: Spark with web search, which proposes a rule's citation.
+            standards: Cited pages, for `citation_text_match`; without it (or `grounding`) a
+                rule citing a standard fails that check.
             audit: Step 9 hook (P2-07).
             prove: Step 10 hook (P2-08/09).
         """
@@ -385,9 +421,11 @@ class PlannerPipeline:
         self._segmenter = segmenter
         self._voice = voice
         self._bus = bus
+        self._grounding = grounding
+        self._standards = standards
         self.store = store
         self._hooks: dict[StepName, PlanHook | None] = dict(
-            zip(HOOK_STEPS, (accept, audit, prove), strict=True)
+            zip(HOOK_STEPS, (audit, prove), strict=True)
         )
         self._lock = threading.Lock()
 
@@ -477,7 +515,13 @@ class PlannerPipeline:
             lambda: self._lint(self._draft(inputs, understood, survey, compiled), inputs),
             _lint_summary,
         )
-        plan = linted.plan
+        accepted = step(
+            "accept",
+            AcceptResult,
+            lambda: self._accept(inputs, linted.plan, survey, probe, compiled),
+            _accept_summary,
+        )
+        plan = accepted.plan
         for name in HOOK_STEPS:
             plan = step(
                 name,
@@ -491,12 +535,9 @@ class PlannerPipeline:
         _log.info("plan_saved", plan_id=plan_id, version=plan.version, rules=len(plan.rules))
         return plan
 
-    def _hook_summary(self, name: StepName, plan: SitePlan) -> str:
+    def _hook_summary(self, name: StepName, _plan: SitePlan) -> str:
         if self._hooks[name] is None:
             return f"not wired yet ({HOOK_TASKS[name]}); plan passed through"
-        if name == "accept":
-            passed = sum(c.passed for c in plan.acceptance.checks)
-            return f"{passed}/{len(plan.acceptance.checks)} checks passed"
         return ""
 
     def _run_hook(self, name: StepName, plan: SitePlan) -> SitePlan:
@@ -608,28 +649,92 @@ class PlannerPipeline:
         gauge: GaugeResult,
     ) -> CompileResult:
         verdicts = {v.concern: v for v in gauge.feasibility}
-        zones = _zone_specs(inputs.zones)
-        rules: list[RuleIR] = []
+        planned: list[PlannedRule] = []
         for concern in understood.concerns:
             verdict = verdicts.get(concern.text)
             if verdict is None or verdict.verdict not in COMPILED_VERDICTS:
                 continue
             try:
-                rules.append(
-                    compile_rule(
-                        concern,
-                        spark=self._spark,
-                        inventory=survey.inventory,
-                        zones=zones,
-                        site_name=inputs.site_name,
-                        plan_id=inputs.plan_id,
-                    )
-                )
+                rule = self._compile_concern(inputs, survey, concern, ())
             except GuardrailDeclinedError as declined:
                 verdicts[concern.text] = declined.declined.to_feasibility_verdict(concern.text)
+                continue
+            except RuleCompilationError as exc:  # step 8 repairs it or asks about it
+                _log.warning("compile_failed", plan_id=inputs.plan_id, error=str(exc))
+                planned.append(PlannedRule(concern=concern, error=str(exc)))
+                continue
+            planned.append(PlannedRule(concern=concern, rule=rule))
         return CompileResult(
-            rules=tuple(rules), feasibility=tuple(verdicts[v.concern] for v in gauge.feasibility)
+            planned=tuple(planned),
+            feasibility=tuple(verdicts[v.concern] for v in gauge.feasibility),
         )
+
+    def _compile_concern(
+        self,
+        inputs: PipelineInput,
+        survey: SurveyResult,
+        concern: Concern,
+        feedback: Sequence[str],
+    ) -> RuleIR:
+        return compile_rule(
+            concern,
+            spark=self._spark,
+            inventory=survey.inventory,
+            zones=_zone_specs(inputs.zones),
+            site_name=inputs.site_name,
+            plan_id=inputs.plan_id,
+            feedback=feedback,
+        )
+
+    # --- step 8 ---------------------------------------------------------------------------------
+
+    def _accept(
+        self,
+        inputs: PipelineInput,
+        draft: SitePlan,
+        survey: SurveyResult,
+        probe: ProbeResult,
+        compiled: CompileResult,
+    ) -> AcceptResult:
+        facts = SiteFacts(
+            views=dict(camera_views(inputs.camera_frames)),
+            probes=probe.probes,
+            calibrations=inputs.calibrations,
+            privacy_mode=inputs.privacy_mode,
+        )
+        loop = RepairLoop(
+            facts,
+            recompile=partial(self._compile_concern, inputs, survey),
+            probe=partial(self._probe_more, inputs),
+            verify_citation=self._verify_citation,
+        )
+        outcome = loop.run(compiled.planned, draft.feasibility)
+        plan = SitePlan.model_validate(
+            {
+                **draft.model_dump(),
+                "rules": outcome.rules,
+                "feasibility": outcome.feasibility,
+                "acceptance": outcome.acceptance,
+            }
+        )
+        return AcceptResult(plan=plan, questions=outcome.questions)
+
+    def _probe_more(self, inputs: PipelineInput, concepts: Sequence[str]) -> tuple[Probe, ...]:
+        return probe_concepts(
+            concepts, inputs.camera_frames, segmenter=self._segmenter, seed=inputs.seed
+        )
+
+    def _verify_citation(self, concern: Concern) -> CitationResult:
+        if self._grounding is None or self._standards is None:
+            return CitationResult(
+                matched=False, detail="standards grounding is not configured; citation unverified"
+            )
+        citation = ground_concern_standard(concern, spark=self._grounding)
+        if citation is None:
+            cited = concern.standard_ref or concern.text
+            return CitationResult(matched=False, detail=f"no citable source found for {cited!r}")
+        check = check_citation(citation, self._standards)
+        return CitationResult(matched=check.matched, detail=f"{citation.ref}: {check.detail}")
 
     def _lint(self, draft: SitePlan, inputs: PipelineInput) -> LintResult:
         findings = lint_plan(draft, views=camera_views(inputs.camera_frames))

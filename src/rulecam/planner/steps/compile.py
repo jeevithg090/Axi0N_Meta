@@ -365,6 +365,7 @@ def _build_compile_messages(
     calibration: str | None,
     zones: Mapping[str, ZoneSpec] | None,
     inventory: Seq[InventoryItem] | None,
+    feedback: Seq[str] = (),
 ) -> list[dict[str, object]]:
     """Format the system prompt and the user context for the compile call."""
     user_lines = [f"Concern text: {concern_text}", f"Source reference: {concern_source}"]
@@ -384,6 +385,12 @@ def _build_compile_messages(
     if inventory:
         seen = ", ".join(f"{item.concept} (cam={item.camera_id})" for item in inventory)
         user_lines.append(f"Surveyed inventory: {seen}")
+    if feedback:
+        user_lines.append(
+            "Your previous rule for this concern failed Rulecam's plan checks. Fix exactly these "
+            "problems; keep the rule's severity and actions and never make it less strict:"
+        )
+        user_lines.extend(f"- {problem}" for problem in feedback)
     return [
         {"role": "system", "content": _COMPILE_SYSTEM_PROMPT},
         {"role": "user", "content": "\n".join(user_lines)},
@@ -428,6 +435,7 @@ def compile_rule(
     site_name: str | None = None,
     plan_id: str | None = None,
     static_concepts: set[str] | frozenset[str] | None = None,
+    feedback: Seq[str] = (),
 ) -> RuleIR:
     """Compile a concern into a validated `RuleIR`, after the guardrails allow it.
 
@@ -440,6 +448,8 @@ def compile_rule(
         site_name: Optional human-readable site name.
         plan_id: Optional plan identifier for source tracking.
         static_concepts: Extra concept names or prompts to mark static.
+        feedback: Problems the plan checks found in the previous rule for this concern (the
+            acceptance repair loop, P2-06c); given to the model as data.
 
     Returns:
         The validated rule, with static concepts tagged.
@@ -469,6 +479,7 @@ def compile_rule(
         calibration=calibration,
         zones=zones,
         inventory=inventory,
+        feedback=feedback,
     )
     rule = _compile_with_repair(spark, messages)
     return apply_static_hints(rule, static_concepts=static_concepts)

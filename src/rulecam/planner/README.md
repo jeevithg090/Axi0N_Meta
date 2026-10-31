@@ -5,9 +5,10 @@ The Site Planner turns multimodal requests into proven, verifiable Site Plans.
 ## Pipeline Steps
 1. **Understand** (`planner/steps/understand.py`): Multimodal intake of text, photos/PDFs, voice, and video walk-throughs.
 2. **Survey & Probes** (`planner/steps/survey.py`, `probes.py`): Camera inventory and SAM detectability probes.
-3. **Compile** (`planner/steps/compile.py`): Compiles concerns into Rule IR with guardrail validation.
-4. **Lint & Acceptance** (`planner/lint.py`, `acceptance.py`): Static plan linter and executable acceptance checks.
-5. **Audit** (`planner/audit.py`): Spark Open plan audit and Glimmer back-translation.
+3. **Compile** (`planner/steps/compile.py`): Compiles concerns into typed RuleIR with guardrail validation, static concept tagging, and repair rounds.
+4. **Guardrails** (`planner/guardrails.py`): Deterministic (English + Spanish) and model guardrails declining banned surveillance categories with alternatives.
+5. **Lint & Acceptance** (`planner/lint.py`, `acceptance.py`): Static plan linter and executable acceptance checks.
+6. **Audit** (`planner/audit.py`): Spark Open plan audit and Glimmer back-translation.
 
 ## Understand Step API
 
@@ -35,8 +36,45 @@ res = understand(items, spark=spark, files=spark, voice=voice_client)
   .mp4; `voice`: .wav), or a missing uploader/transcriber raises `IntakeError`.
 - Every system prompt carries the data-not-instructions clause.
 
+## Guardrail Declines API
+
+```python
+from rulecam.planner.guardrails import check_request, Allowed, Declined
+
+result = check_request("who is slowest")
+if isinstance(result, Declined):
+    print(result.category)  # GuardrailCategory.PER_PERSON_PRODUCTIVITY
+    print(result.reason)
+    print(result.alternative)  # Suggests station throughput instead
+    verdict = result.to_feasibility_verdict(concern="who is slowest")
+```
+
+## Compile Step API
+
+```python
+from rulecam.planner.steps.compile import compile_rule
+from rulecam.planner.models import Concern
+
+concern = Concern(
+    text="Everyone entering the line must wash hands for at least 20 seconds",
+    source_ref="plan",
+    standard_ref="Food Code 2026 §2-301.12",
+)
+
+rule = compile_rule(
+    concern,
+    spark=spark_client,
+    plan_id="main-st-kitchen",
+    zones=declared_zones,
+    inventory=surveyed_inventory,
+)
+# Returns typed RuleIR with static tags applied to known static objects (sink, door, racks)
+# If initial schema validation fails, automatically runs one repair round with error detail.
+```
+
 ## Tests
 
 ```bash
 uv run pytest tests/planner
+uv run pytest tests/guardrails/test_planner_declines.py
 ```

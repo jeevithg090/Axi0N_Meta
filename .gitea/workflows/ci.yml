@@ -3,9 +3,9 @@
 # our self-hosted runner (a RunPod pod, scripts/ci/runner/bootstrap.sh). Each job reports its
 # result back to the GitHub commit as `gitea/<job>` (scripts/ci/github_status.py).
 #
-# Gitea repository settings → Actions:
-#   Secrets:    GITHUB_STATUS_TOKEN  fine-grained GitHub token, "Commit statuses: read and write"
-#   Variables:  GITHUB_REPO          jeevithg090/Axi0N_Meta
+# Gitea repository settings → Actions (Gitea reserves the GITHUB_ prefix for secret names):
+#   Secrets:    STATUS_TOKEN  fine-grained GitHub token, "Commit statuses: read and write"
+#   Variables:  STATUS_REPO   jeevithg090/Axi0N_Meta
 name: ci
 
 on:
@@ -17,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GITHUB_REPO: ${{ vars.GITHUB_REPO }}
-  GITHUB_STATUS_TOKEN: ${{ secrets.GITHUB_STATUS_TOKEN }}
+  GITHUB_REPO: ${{ vars.STATUS_REPO }}
+  GITHUB_STATUS_TOKEN: ${{ secrets.STATUS_TOKEN }}
   CI_COMMIT_SHA: ${{ github.sha }}
   CI_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}
   CI_STATUS_PREFIX: gitea

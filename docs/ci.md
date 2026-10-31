@@ -32,10 +32,11 @@ After a squash-merge, `make sync-main` pushes `main` to Gitea.
 1. **Gitea repo.** On gitea.com create an empty **private** repository, and add teammates as
    collaborators with write access. Under Settings → Repository, make sure **Actions** is
    enabled.
-2. **Secret and variable** (Gitea repo → Settings → Actions):
-   - Secret `GITHUB_STATUS_TOKEN`: a fine-grained GitHub token for `jeevithg090/Axi0N_Meta` with
-     only *Commit statuses: read and write*. You can reuse the one GitLab had, or make a new one.
-   - Variable `GITHUB_REPO` = `jeevithg090/Axi0N_Meta`.
+2. **Secret and variable** (Gitea repo → Settings → Actions; Gitea refuses names starting with
+   `GITHUB_`):
+   - Secret `STATUS_TOKEN`: a fine-grained GitHub token for `jeevithg090/Axi0N_Meta` with only
+     *Commit statuses: read and write*. You can reuse the one GitLab had, or make a new one.
+   - Variable `STATUS_REPO` = `jeevithg090/Axi0N_Meta`.
 3. **Runner token.** Gitea repo → Settings → Actions → Runners → *Create new runner* and copy the
    registration token.
 4. **RunPod pod.** A CPU pod is enough (for example 4 vCPU / 16 GB, Ubuntu 22.04 image), with a

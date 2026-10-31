@@ -66,6 +66,7 @@ class AppServices:
         chunks: Index of recent chunks, fed from `chunk.ready` (feeds `/cameras`).
         plans: The `/plans` registry.
         verify_dir: Directory served at `/verify` (created if missing); `None` skips it.
+        tickers: Called once a second off the event loop (e.g. `EscalationManager.tick`).
     """
 
     bus: Bus
@@ -80,6 +81,21 @@ class AppServices:
     chunks: ChunkIndex | None = None
     plans: PlanRegistry = field(default_factory=PlanRegistry)
     verify_dir: Path | None = None
+    tickers: Sequence[Callable[[], object]] = field(default_factory=tuple)
+
+
+TICK_S = 1.0
+
+
+async def _tick_forever(tickers: Sequence[Callable[[], object]]) -> None:
+    """Call every ticker once a second in a worker thread until cancelled."""
+    while tickers:
+        for tick in tickers:
+            try:
+                await asyncio.to_thread(tick)
+            except Exception:  # one failing ticker must not stop the escalation timers
+                _log.exception("ticker_failed", ticker=getattr(tick, "__qualname__", repr(tick)))
+        await asyncio.sleep(TICK_S)
 
 
 class ModeRequest(BaseModel):
@@ -251,6 +267,8 @@ def _lifespan(
             tasks.append(asyncio.create_task(_index_chunks(services.bus, services.chunks)))
         if services.runtime is not None:
             tasks.append(asyncio.create_task(services.runtime.run()))
+        if services.tickers:
+            tasks.append(asyncio.create_task(_tick_forever(services.tickers)))
         for task in tasks:
             task.add_done_callback(_log_task_end)
         try:

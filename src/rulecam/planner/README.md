@@ -161,9 +161,13 @@ plan = pipeline.resume("main-st", "compile")  # re-run steps 6-10 on the saved s
   decline turns the concern's verdict into `declined`.
 - Step 7 lints the draft plan (below) against the site's cameras and saves
   `LintResult{plan, findings}`; its detail counts the findings by code.
-- Steps 8-10 are `SitePlan -> SitePlan` hooks (`accept`, `audit`, `prove`) for P2-06c, P2-07
-  and P2-08/09. Until one is wired it passes the plan through and its step detail says "not
-  wired yet", so the acceptance trace stays empty instead of claiming checks.
+- Step 6 keeps a concern whose rule fails to compile (`CompileResult.planned[i].error`) instead
+  of failing the run; step 8 repairs it or asks about it.
+- Step 8 runs the acceptance checks and repair loop (below) and saves `AcceptResult{plan,
+  questions}`. Steps 9-10 are `SitePlan -> SitePlan` hooks (`audit`, `prove`) for P2-07 and
+  P2-08/09. Until one is wired it passes the plan through and its step detail says "not wired
+  yet". `PipelineInput.calibrations` feeds `calibration_err<=tol`; `grounding` (Spark with web
+  search) and `standards` (`StandardsLibrary`) feed `citation_text_match`.
 - Every step publishes `planner.step` (`PlannerStepEvent{plan_id, step, status, detail}`,
   status `running` then `done` or `failed`; resumed steps report `done`, "loaded from the
   saved output"). The plan is saved with version = saved version + 1 (never overwriting the
@@ -190,6 +194,27 @@ require_lint_clean(plan, views=views)  # raises PlanLintError(findings)
   `privacy_inconsistency` (Anonymous/Strict Mode with a face concept), `private_space_zone`
   (zone names matched with the guardrails' private-space patterns), `missing_action`,
   `missing_severity`.
+
+## Acceptance checks and repair loop (P2-06c)
+
+```python
+from rulecam.planner.acceptance import PlannedRule, RepairLoop, SiteFacts
+
+loop = RepairLoop(facts, recompile=recompile, probe=probe, verify_citation=verify)
+outcome = loop.run(planned, feasibility)  # rules, feasibility, acceptance, questions
+```
+
+- Measured here, per checkable concern: `concern_covered` (a rule compiled, without structural
+  lint errors), then per rule `zone_in_view` (polygon wholly inside the camera's latest frame),
+  `detect_lb>=0.8` (unprobed concepts are probed first), `calibration_err<=tol` (metric rules,
+  `err_m <= 0.10`), `privacy_consistent`, `citation_text_match` (Spark grounding + quote on the
+  cited page) and `no_private_spaces`. `ci_green` and `nonvacuous` are left to Rule CI (P2-08).
+- Strict AND; the trace keeps the last round's failures. Only items failing `concern_covered`,
+  `zone_in_view`, `privacy_consistent` or `no_private_spaces` are re-compiled, with the failures
+  as feedback, for at most 2 rounds; a repair that lowers severity or drops an action is
+  rejected. Still failing: the rule is removed and becomes a question plus a `caveat` verdict.
+  Failing only `detect_lb>=0.8`, `calibration_err<=tol` or `citation_text_match` (camera,
+  calibration or source fixes): the rule stays, with a `caveat` verdict saying why.
 
 ## Tests
 

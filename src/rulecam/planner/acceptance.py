@@ -1,61 +1,67 @@
-"""Executable acceptance checks and bounded repair loop (task P2-06c, MP §3.2, §7.2).
+"""Acceptance checks and the bounded repair loop: step 8 of the Site Planner (task P2-06c).
 
-The 9 fixed vocabulary acceptance checks (strict AND):
-  1. zone_in_view: every referenced zone is inside active camera views.
-  2. detect_lb>=0.8: every required concept in the rule has Wilson lower bound >= 0.8.
-  3. calibration_err<=tol: ground calibration error is within tolerance for metric rules.
-  4. ci_green: Rule CI test matrix is fully passing.
-  5. nonvacuous: rule threshold is strictly positive and conditions are non-vacuous.
-  6. privacy_consistent: compliance with Anonymous Mode (no unmasked face/PII leakage).
-  7. concern_covered: every user concern is either a compiled rule or an explicit verdict.
-  8. citation_text_match: regulatory citations match official retrieved source texts.
-  9. no_private_spaces: no zones or rules monitor prohibited private spaces.
+The fixed vocabulary is `CHECKS`. This step measures seven of them for every concern the gauge
+found checkable (`observable` or `caveat`):
 
-The repair loop recompiles only failing items, bounded at most 2 rounds.
-Any item still failing after 2 rounds is converted to a clarifying Question or amber caveat verdict.
+- `concern_covered`: the concern has a compiled rule without structural lint errors
+  (undefined concepts or zones, unreasonable thresholds, contradictions, missing actions or
+  severity);
+- `zone_in_view`: every zone the rule uses is on one of the site's cameras, and a polygon zone
+  lies wholly inside that camera's latest frame;
+- `detect_lb>=0.8`: every concept of the rule has a SAM probe on the rule's camera with a Wilson
+  lower bound of at least 0.8 (concepts not probed yet are probed here);
+- `calibration_err<=tol`: a metric rule (distances, speeds, metric buffers) has a ground
+  calibration on each of its cameras with `err_m <= CALIBRATION_TOL_M`;
+- `privacy_consistent`: no concept needs faces in Anonymous or Strict Mode;
+- `no_private_spaces`: no zone names a private space;
+- `citation_text_match`: a rule that cites a standard has a citation whose quote is on the cited
+  page (`planner.standards`).
+
+`ci_green` and `nonvacuous` need Rule CI (P2-08) and are added by the prove step; nothing here
+records them, so the trace never claims a check that did not run.
+
+The trace is a strict AND. Failing items are repaired for at most `MAX_REPAIR_ROUNDS` rounds,
+and only the failing items are re-compiled, with the failures as feedback. A repair that lowers
+the rule's severity or drops one of its actions is rejected. What still fails afterwards is
+handled honestly: the trace keeps the failures; a rule failing `concern_covered`, `zone_in_view`,
+`privacy_consistent` or `no_private_spaces` is taken out of the plan and becomes a question for
+the owner plus an amber (`caveat`) verdict; a rule failing only `detect_lb>=0.8`,
+`calibration_err<=tol` or `citation_text_match` (camera, calibration or source fixes, which a
+re-compile cannot make) stays with an amber verdict saying why.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import Final
 
-from rulecam.contracts import StructuredLLM
-from rulecam.contracts.core import Calibration, PrivacyMode
-from rulecam.contracts.plan import (
-    AcceptanceCheck,
-    AcceptanceResult,
-    FeasibilityVerdict,
-    Probe,
-    SitePlan,
-)
-from rulecam.contracts.rule_ir import (
-    Absence,
-    All,
-    DistanceM,
-    Dwell,
-    Not_,
-    Persist,
-    Predicate,
-    RuleIR,
-)
-from rulecam.contracts.rule_ir import (
-    Sequence as RuleSequence,
-)
+from pydantic import Field
+
+from rulecam.contracts.core import Calibration, Frozen, PrivacyMode, Severity, Zone
+from rulecam.contracts.plan import AcceptanceCheck, AcceptanceResult, FeasibilityVerdict, Probe
+from rulecam.contracts.rule_ir import DistanceM, Moving, RuleIR, ZoneSpec
 from rulecam.log import get_logger
+from rulecam.perception.calibration import zone_in_view
+from rulecam.perception.errors import ZoneError
+from rulecam.planner.errors import GuardrailDeclinedError, RuleCompilationError
 from rulecam.planner.lint import (
-    FORBIDDEN_ZONE_KEYWORDS,
-    extract_concept_references,
-    extract_zone_references,
+    PRIVATE_MODES,
+    CameraViews,
+    LintCode,
+    LintFinding,
+    cross_rule_contradictions,
+    face_concepts,
     lint_rule,
+    private_space_zones,
 )
 from rulecam.planner.models import Concern
-from rulecam.planner.standards import Citation, citation_text_match
 from rulecam.planner.steps.ask import Question
-from rulecam.planner.steps.compile import compile_rule
+from rulecam.planner.steps.compile import walk_predicates
+from rulecam.planner.steps.survey import clean_concepts
 
 _log = get_logger(__name__)
 
-FIXED_ACCEPTANCE_CHECKS: tuple[str, ...] = (
+CHECKS: Final = (
     "zone_in_view",
     "detect_lb>=0.8",
     "calibration_err<=tol",
@@ -66,445 +72,479 @@ FIXED_ACCEPTANCE_CHECKS: tuple[str, ...] = (
     "citation_text_match",
     "no_private_spaces",
 )
-
-DEFAULT_CALIBRATION_TOLERANCE_M = 0.20
-MIN_DETECTABILITY_LB = 0.80
-
-
-def check_zone_in_view(
-    rule: RuleIR,
-    available_cameras: Sequence[str] | Iterable[str] | None,
-) -> AcceptanceCheck:
-    """Check that all zones referenced by the rule are on available cameras."""
-    check_name = "zone_in_view"
-    if available_cameras is None:
-        return AcceptanceCheck(item=rule.id, check=check_name, passed=True)
-
-    avail_set = set(available_cameras)
-    referenced_zones = extract_zone_references(rule.predicate)
-
-    for zone_name in referenced_zones:
-        z_spec = rule.zones.get(zone_name)
-        if z_spec and z_spec.camera_id not in avail_set:
-            return AcceptanceCheck(
-                item=rule.id,
-                check=check_name,
-                passed=False,
-                detail=f"Zone '{zone_name}' on camera '{z_spec.camera_id}' is not in view",
-            )
-
-    return AcceptanceCheck(item=rule.id, check=check_name, passed=True)
+RULE_CI_CHECKS: Final = frozenset({"ci_green", "nonvacuous"})
+REPAIRABLE: Final = frozenset(
+    {"concern_covered", "zone_in_view", "privacy_consistent", "no_private_spaces"}
+)
+MAX_REPAIR_ROUNDS: Final = 2
+MIN_DETECT_LB: Final = 0.8
+CALIBRATION_TOL_M: Final = 0.10
+# Lint codes the acceptance checks measure themselves; the rest make a rule unusable.
+_MEASURED_LINT: Final[frozenset[LintCode]] = frozenset(
+    {"zone_out_of_view", "privacy_inconsistency", "private_space_zone"}
+)
+_SEVERITY_RANK: Final = {Severity.LOW: 0, Severity.MEDIUM: 1, Severity.HIGH: 2}
 
 
-def check_detect_lb(
-    rule: RuleIR,
-    probes: Sequence[Probe],
-) -> AcceptanceCheck:
-    """Check that each required concept has Wilson lower bound >= 0.8."""
-    check_name = "detect_lb>=0.8"
-    needed_concepts = set(extract_concept_references(rule.predicate))
-    # Also include dynamic concepts declared on the rule
-    for c_name, c_spec in rule.concepts.items():
-        if not c_spec.static:
-            needed_concepts.add(c_name)
+class CitationResult(Frozen):
+    """Whether a concern's cited standard was verified on its source page."""
 
-    probe_map = {p.concept.lower(): p for p in probes}
-
-    for concept in needed_concepts:
-        probe = probe_map.get(concept.lower())
-        if probe is None:
-            continue
-        if probe.detect_lb < MIN_DETECTABILITY_LB:
-            return AcceptanceCheck(
-                item=rule.id,
-                check=check_name,
-                passed=False,
-                detail=(
-                    f"Concept '{concept}' detect_lb={probe.detect_lb:.3f} < {MIN_DETECTABILITY_LB}"
-                ),
-            )
-
-    return AcceptanceCheck(item=rule.id, check=check_name, passed=True)
+    matched: bool
+    detail: str
 
 
-def _rule_requires_metric(rule: RuleIR) -> bool:
-    """Check if predicate or zone buffers require metric ground calibration."""
+class PlannedRule(Frozen):
+    """A checkable concern and the rule compiled for it (`None` when compiling failed).
 
-    def _inspect_pred(p: Predicate) -> bool:
-        if isinstance(p, DistanceM):
-            return True
-        if isinstance(p, All):
-            return any(_inspect_pred(sub) for sub in p.of)
-        if isinstance(p, Not_ | Persist):
-            return _inspect_pred(p.of)
-        if isinstance(p, RuleSequence):
-            return _inspect_pred(p.trigger) or _inspect_pred(p.requirement)
-        return False
+    Attributes:
+        concern: The concern.
+        rule: Its rule, if one compiled.
+        error: Why there is no rule (the compile error).
+    """
 
-    if _inspect_pred(rule.predicate):
-        return True
+    concern: Concern
+    rule: RuleIR | None = None
+    error: str = ""
 
-    return any(
-        z_spec.kind == "buffer" and z_spec.buffer_m is not None for z_spec in rule.zones.values()
+
+class SiteFacts(Frozen):
+    """What the checks measure against.
+
+    Attributes:
+        views: The site's cameras and frame sizes.
+        probes: Detectability probes, from step 3 and from this step.
+        calibrations: Ground calibration per camera.
+        privacy_mode: The site's privacy mode.
+    """
+
+    views: dict[str, tuple[int, int] | None]
+    probes: tuple[Probe, ...] = ()
+    calibrations: dict[str, Calibration] = Field(default_factory=dict)
+    privacy_mode: PrivacyMode = PrivacyMode.STANDARD
+
+
+class AcceptanceOutcome(Frozen):
+    """The repair loop's result.
+
+    Attributes:
+        rules: The rules that stay in the plan.
+        feasibility: The verdicts, with amber verdicts for what still fails.
+        acceptance: The last round's trace (failures kept).
+        questions: Questions for the owner about rules taken out.
+    """
+
+    rules: tuple[RuleIR, ...]
+    feasibility: tuple[FeasibilityVerdict, ...]
+    acceptance: AcceptanceResult
+    questions: tuple[Question, ...]
+
+
+Recompiler = Callable[[Concern, Sequence[str]], RuleIR]
+"""Re-compiles a concern with feedback; raises `RuleCompilationError` or
+`GuardrailDeclinedError`."""
+Prober = Callable[[Sequence[str]], Sequence[Probe]]
+"""Probes concept phrases on every camera."""
+CitationVerifier = Callable[[Concern], CitationResult]
+"""Grounds a concern's standard and checks the quote on the cited page."""
+
+
+# --- the checks ---------------------------------------------------------------------------------
+
+
+def _check(item: str, check: str, problems: Sequence[str], ok: str) -> AcceptanceCheck:
+    passed = not problems
+    return AcceptanceCheck(
+        item=item, check=check, passed=passed, detail=ok if passed else "; ".join(problems)
     )
 
 
-def check_calibration_err(
-    rule: RuleIR,
-    calibrations: Mapping[str, Calibration] | None,
-    tolerance_m: float = DEFAULT_CALIBRATION_TOLERANCE_M,
-) -> AcceptanceCheck:
-    """Check that required ground calibrations have error within tolerance."""
-    check_name = "calibration_err<=tol"
-    if not _rule_requires_metric(rule):
-        return AcceptanceCheck(item=rule.id, check=check_name, passed=True)
+def rule_cameras(rule: RuleIR, views: CameraViews) -> list[str]:
+    """The cameras a rule runs on: its zones' cameras, or every site camera if it has no zones."""
+    cameras = {spec.camera_id for spec in rule.zones.values()}
+    return sorted(cameras or views)
 
-    if not calibrations:
-        return AcceptanceCheck(
-            item=rule.id,
-            check=check_name,
-            passed=False,
-            detail="Metric rule requires camera ground calibration but none provided",
-        )
 
-    for cam_id, calib in calibrations.items():
-        if calib.err_m > tolerance_m:
-            return AcceptanceCheck(
-                item=rule.id,
-                check=check_name,
-                passed=False,
-                detail=f"Camera '{cam_id}' error {calib.err_m:.2f}m > {tolerance_m:.2f}m",
+def check_zone_in_view(rule: RuleIR, views: CameraViews) -> AcceptanceCheck:
+    """`zone_in_view`: every used zone's camera exists and a polygon zone is wholly in its frame.
+
+    Args:
+        rule: The rule.
+        views: The site's cameras and frame sizes.
+
+    Returns:
+        The check.
+    """
+    used = {
+        zone
+        for p in walk_predicates(rule.predicate)
+        if isinstance(zone := getattr(p, "zone", None), str)
+    }
+    problems = [
+        problem
+        for name in sorted(used)
+        if (problem := _zone_problem(name, rule.zones[name], views)) is not None
+    ]
+    ok = f"{len(used)} zone(s) fully in view" if used else "the rule uses no zones"
+    return _check(rule.id, "zone_in_view", problems, ok)
+
+
+def _zone_problem(name: str, spec: ZoneSpec, views: CameraViews) -> str | None:
+    if spec.camera_id not in views:
+        return f"zone {name!r} is on camera {spec.camera_id!r}, which the site does not have"
+    if spec.kind != "polygon":
+        return None  # a buffer follows its concept; detect_lb>=0.8 checks the concept
+    size = views[spec.camera_id]
+    if size is None:
+        return f"no readable frame from {spec.camera_id!r} to place zone {name!r}"
+    zone = Zone(zone_id=name, camera_id=spec.camera_id, kind="polygon", polygon_px=spec.polygon_px)
+    try:
+        view = zone_in_view(zone, *size)
+    except ZoneError as exc:
+        return f"zone {name!r}: {exc}"
+    if view.state != "inside":
+        return f"only {view.visible_fraction:.0%} of zone {name!r} is in view of {spec.camera_id!r}"
+    return None
+
+
+def check_detect_lb(rule: RuleIR, probes: Sequence[Probe], views: CameraViews) -> AcceptanceCheck:
+    """`detect_lb>=0.8`: each concept's best probe on the rule's cameras has `detect_lb >= 0.8`.
+
+    Args:
+        rule: The rule.
+        probes: Available probes.
+        views: The site's cameras (used when the rule has no zones).
+
+    Returns:
+        The check; a concept without a probe fails.
+    """
+    cameras = set(rule_cameras(rule, views))
+    problems: list[str] = []
+    lowest: tuple[float, str] | None = None
+    for name, spec in sorted(rule.concepts.items()):
+        phrase = _phrase(spec.prompt)
+        found = [p for p in probes if p.concept == phrase and p.camera_id in cameras]
+        if not found:
+            problems.append(f"concept {name!r} ({phrase!r}) was not probed on {sorted(cameras)}")
+            continue
+        best = max(found, key=lambda p: p.detect_lb)
+        if best.detect_lb < MIN_DETECT_LB:
+            problems.append(
+                f"concept {name!r} detect_lb={best.detect_lb:.2f} < {MIN_DETECT_LB} "
+                f"on {best.camera_id!r}"
             )
-
-    return AcceptanceCheck(item=rule.id, check=check_name, passed=True)
-
-
-def check_ci_green(
-    rule: RuleIR,
-    ci_status: str | None = None,
-) -> AcceptanceCheck:
-    """Check that rule passed CI mutation and boundary fuzzing."""
-    check_name = "ci_green"
-    status = ci_status or "green"
-    passed = status == "green"
-    detail = "" if passed else f"CI status is '{status}' (expected 'green')"
-    return AcceptanceCheck(item=rule.id, check=check_name, passed=passed, detail=detail)
+        if lowest is None or best.detect_lb < lowest[0]:
+            lowest = (best.detect_lb, name)
+    ok = f"lowest detect_lb {lowest[0]:.2f} ({lowest[1]})" if lowest else "the rule has no concepts"
+    return _check(rule.id, "detect_lb>=0.8", problems, ok)
 
 
-def _is_atomic_vacuous(p: Predicate) -> bool:
-    """Check if single atomic predicate has zero or negative threshold."""
-    if isinstance(p, DistanceM):
-        return (p.lt is not None and p.lt <= 0.0) or (p.gt is not None and p.gt <= 0.0)
-    if isinstance(p, Persist | Absence):
-        return p.seconds <= 0.0
-    if isinstance(p, Dwell):
-        return p.total_s_gte <= 0.0
-    return False
-
-
-def _is_predicate_vacuous(p: Predicate) -> bool:
-    """Check recursively if predicate tree has zero or non-positive thresholds."""
-    if _is_atomic_vacuous(p):
+def is_metric(rule: RuleIR) -> bool:
+    """Whether a rule measures ground distance or speed (so it needs a calibration)."""
+    if any(isinstance(p, DistanceM | Moving) for p in walk_predicates(rule.predicate)):
         return True
-    if isinstance(p, RuleSequence):
-        if p.require_within_s <= 0.0:
-            return True
-        return _is_predicate_vacuous(p.trigger) or _is_predicate_vacuous(p.requirement)
-    if isinstance(p, All):
-        return any(_is_predicate_vacuous(sub) for sub in p.of)
-    if isinstance(p, Not_):
-        return _is_predicate_vacuous(p.of)
-    return False
+    return any(spec.buffer_m is not None for spec in rule.zones.values())
 
 
-def check_nonvacuous(rule: RuleIR) -> AcceptanceCheck:
-    """Check that the rule is non-vacuous (thresholds > 0, satisfiable)."""
-    check_name = "nonvacuous"
-    if _is_predicate_vacuous(rule.predicate):
-        return AcceptanceCheck(
-            item=rule.id,
-            check=check_name,
-            passed=False,
-            detail="Rule has zero or non-positive threshold making it vacuous",
-        )
-    return AcceptanceCheck(item=rule.id, check=check_name, passed=True)
-
-
-def check_privacy_consistent(
-    rule: RuleIR,
-    privacy_mode: PrivacyMode,
+def check_calibration(
+    rule: RuleIR, calibrations: Mapping[str, Calibration], views: CameraViews
 ) -> AcceptanceCheck:
-    """Check that rule satisfies site privacy policy constraints."""
-    check_name = "privacy_consistent"
-    errs = lint_rule(rule, privacy_mode=privacy_mode)
-    privacy_errs = [e for e in errs if e.code == "privacy_inconsistency"]
-    if privacy_errs:
-        return AcceptanceCheck(
-            item=rule.id,
-            check=check_name,
-            passed=False,
-            detail=str(privacy_errs[0]),
-        )
-    return AcceptanceCheck(item=rule.id, check=check_name, passed=True)
+    """`calibration_err<=tol`: a metric rule's cameras are calibrated within `CALIBRATION_TOL_M`.
+
+    Args:
+        rule: The rule.
+        calibrations: Ground calibration per camera.
+        views: The site's cameras (used when the rule has no zones).
+
+    Returns:
+        The check; a non-metric rule passes.
+    """
+    if not is_metric(rule):
+        return _check(rule.id, "calibration_err<=tol", (), "the rule measures no distance")
+    problems: list[str] = []
+    for camera_id in rule_cameras(rule, views):
+        calibration = calibrations.get(camera_id)
+        if calibration is None:
+            problems.append(f"camera {camera_id!r} has no ground calibration")
+        elif calibration.err_m > CALIBRATION_TOL_M:
+            problems.append(
+                f"camera {camera_id!r} calibration error {calibration.err_m:.2f} m > "
+                f"{CALIBRATION_TOL_M:.2f} m"
+            )
+    ok = f"calibrated within {CALIBRATION_TOL_M:.2f} m"
+    return _check(rule.id, "calibration_err<=tol", problems, ok)
+
+
+def check_privacy_consistent(rule: RuleIR, mode: PrivacyMode) -> AcceptanceCheck:
+    """`privacy_consistent`: no concept needs faces in Anonymous or Strict Mode."""
+    faces = face_concepts(rule) if mode in PRIVATE_MODES else []
+    problems = [f"concept {name!r} needs faces, but the site is in {mode} mode" for name in faces]
+    return _check(rule.id, "privacy_consistent", problems, f"consistent with {mode} mode")
 
 
 def check_no_private_spaces(rule: RuleIR) -> AcceptanceCheck:
-    """Check that no zones are defined in prohibited private spaces."""
-    check_name = "no_private_spaces"
-    for zone_id in rule.zones:
-        lowered = zone_id.lower()
-        if any(kw in lowered for kw in FORBIDDEN_ZONE_KEYWORDS):
-            return AcceptanceCheck(
-                item=rule.id,
-                check=check_name,
-                passed=False,
-                detail=f"Zone '{zone_id}' monitors a prohibited private area",
-            )
-    return AcceptanceCheck(item=rule.id, check=check_name, passed=True)
+    """`no_private_spaces`: no zone of the rule names a private space."""
+    problems = [f"zone {name!r} names a private space" for name in private_space_zones(rule)]
+    return _check(rule.id, "no_private_spaces", problems, "no private-space zones")
 
 
-def check_citation_text_match(
-    rule: RuleIR,
-    standards_text_cache: Mapping[str, str] | None = None,
-) -> AcceptanceCheck:
-    """Check that cited regulatory standards match official source text."""
-    check_name = "citation_text_match"
-    standards = rule.source.standard
-    if not standards or not standards_text_cache:
-        return AcceptanceCheck(item=rule.id, check=check_name, passed=True)
-
-    for std_ref in standards:
-        official_text = standards_text_cache.get(std_ref)
-        if official_text is not None:
-            citation = Citation(ref=std_ref, url="", quoted_text=std_ref)
-            if not citation_text_match(citation, official_text):
-                return AcceptanceCheck(
-                    item=rule.id,
-                    check=check_name,
-                    passed=False,
-                    detail=f"Cited standard '{std_ref}' does not match official text",
-                )
-
-    return AcceptanceCheck(item=rule.id, check=check_name, passed=True)
-
-
-def check_concern_covered(
-    concerns: Sequence[Concern],
-    rules: Sequence[RuleIR],
-    feasibility: Sequence[FeasibilityVerdict],
-) -> AcceptanceCheck:
-    """Check that every concern is mapped to either a compiled rule or a verdict."""
-    check_name = "concern_covered"
-    covered_in_rules = {r.source.text for r in rules if r.source.text}
-    verdict_map = {f.concern: f.verdict for f in feasibility}
-
-    uncovered: list[str] = []
-    for c in concerns:
-        if c.text in covered_in_rules:
-            continue
-        v = verdict_map.get(c.text)
-        if v in ("declined", "not_observable", "caveat", "observable"):
-            continue
-        uncovered.append(c.text)
-
-    if uncovered:
-        return AcceptanceCheck(
-            item="concerns",
-            check=check_name,
-            passed=False,
-            detail=f"Uncovered concerns without rule or verdict: {uncovered}",
-        )
-
-    return AcceptanceCheck(item="concerns", check=check_name, passed=True)
-
-
-def run_acceptance_checks(
-    plan: SitePlan,
-    *,
-    probes: Sequence[Probe] = (),
-    calibrations: Mapping[str, Calibration] | None = None,
-    available_cameras: Sequence[str] | None = None,
-    standards_text_cache: Mapping[str, str] | None = None,
-    ci_status: str | None = None,
-    concerns: Sequence[Concern] = (),
-    rounds: int = 0,
-) -> AcceptanceResult:
-    """Run all 9 fixed vocabulary acceptance checks across a SitePlan.
+def check_citation(rule: RuleIR, citation: CitationResult | None) -> AcceptanceCheck:
+    """`citation_text_match`: a rule citing a standard has a verified quote.
 
     Args:
-        plan: The SitePlan to evaluate.
-        probes: Detectability probes gathered during survey.
-        calibrations: Ground plane camera calibrations.
-        available_cameras: Active camera IDs at the site.
-        standards_text_cache: Cache of retrieved official standard texts.
-        ci_status: Global CI status ('green', 'red', etc.).
-        concerns: Inferred concerns from intake.
-        rounds: Number of repair rounds already executed.
+        rule: The rule.
+        citation: The concern's citation check, `None` when the rule cites nothing.
 
     Returns:
-        AcceptanceResult with all checks evaluated.
+        The check.
     """
-    checks: list[AcceptanceCheck] = []
-
-    if concerns:
-        checks.append(check_concern_covered(concerns, plan.rules, plan.feasibility))
-
-    for rule in plan.rules:
-        checks.append(check_zone_in_view(rule, available_cameras))
-        checks.append(check_detect_lb(rule, probes))
-        checks.append(check_calibration_err(rule, calibrations))
-        checks.append(check_ci_green(rule, ci_status))
-        checks.append(check_nonvacuous(rule))
-        checks.append(check_privacy_consistent(rule, plan.privacy_mode))
-        checks.append(check_no_private_spaces(rule))
-        checks.append(check_citation_text_match(rule, standards_text_cache))
-
-    return AcceptanceResult(checks=tuple(checks), rounds=rounds)
+    if not rule.source.standard:
+        return _check(rule.id, "citation_text_match", (), "the rule cites no standard")
+    if citation is None:
+        return _check(rule.id, "citation_text_match", ["the cited standard was not checked"], "")
+    problems = [] if citation.matched else [citation.detail]
+    return _check(rule.id, "citation_text_match", problems, citation.detail)
 
 
-def _recompile_failing_rule(
-    rule: RuleIR,
-    plan: SitePlan,
-    failure_reasons: Sequence[str],
-    spark: StructuredLLM,
-) -> RuleIR:
-    """Attempt recompilation of a single failing rule with failure feedback."""
-    concern_text = rule.source.text or rule.id
-    prompt = f"{concern_text}\nFix acceptance failures: {'; '.join(failure_reasons)}"
-    try:
-        return compile_rule(
-            concern=prompt,
-            spark=spark,
-            plan_id=plan.plan_id,
-            site_name=plan.site_name,
-            zones=rule.zones,
-        )
-    except Exception as exc:
-        _log.warning("repair_recompile_failed", rule_id=rule.id, error=str(exc))
-        return rule
+def check_concern_covered(planned: PlannedRule, lint: Sequence[LintFinding]) -> AcceptanceCheck:
+    """`concern_covered`: the concern has a usable rule (compiled, no structural lint errors)."""
+    if planned.rule is None:
+        problems = [f"no rule compiled: {planned.error or 'unknown error'}"]
+        return _check(planned.concern.text, "concern_covered", problems, "")
+    problems = [f"[{f.code}] {f.message}" for f in lint]
+    return _check(planned.concern.text, "concern_covered", problems, f"rule {planned.rule.id!r}")
 
 
-def _demote_persistent_failures(
-    plan: SitePlan,
-    failing_rule_ids: set[str],
-    acc: AcceptanceResult,
-) -> tuple[SitePlan, list[Question]]:
-    """Demote persistently failing rules to clarifying Questions and caveat verdicts."""
-    questions: list[Question] = []
-    final_rules: list[RuleIR] = []
-    new_feasibility = list(plan.feasibility)
+def check_rule(
+    rule: RuleIR, facts: SiteFacts, citation: CitationResult | None
+) -> list[AcceptanceCheck]:
+    """The six per-rule checks, in vocabulary order."""
+    return [
+        check_zone_in_view(rule, facts.views),
+        check_detect_lb(rule, facts.probes, facts.views),
+        check_calibration(rule, facts.calibrations, facts.views),
+        check_privacy_consistent(rule, facts.privacy_mode),
+        check_citation(rule, citation),
+        check_no_private_spaces(rule),
+    ]
 
-    for rule in plan.rules:
-        if rule.id in failing_rule_ids:
-            reasons = [
-                c.detail or c.check for c in acc.checks if c.item == rule.id and not c.passed
-            ]
-            q = Question(
-                question_id=f"q_repair_{rule.id}",
-                text=(
-                    f"Rule '{rule.id}' failed acceptance checks ({', '.join(reasons)}). "
-                    "How should this requirement be adjusted?"
-                ),
-                target_field=rule.id,
+
+# --- the loop -----------------------------------------------------------------------------------
+
+
+class _Round(Frozen):
+    """One evaluation: the checks per planned rule (same order)."""
+
+    checks: tuple[tuple[AcceptanceCheck, ...], ...]
+
+    def failing(self, index: int) -> list[AcceptanceCheck]:
+        return [c for c in self.checks[index] if not c.passed]
+
+    def flat(self) -> tuple[AcceptanceCheck, ...]:
+        return tuple(c for group in self.checks for c in group)
+
+
+class RepairLoop:
+    """Runs the checks and repairs failing rules for at most `MAX_REPAIR_ROUNDS` rounds."""
+
+    def __init__(
+        self,
+        facts: SiteFacts,
+        *,
+        recompile: Recompiler,
+        probe: Prober,
+        verify_citation: CitationVerifier,
+    ) -> None:
+        """Create the loop.
+
+        Args:
+            facts: What the checks measure against.
+            recompile: Re-compiles one concern with feedback.
+            probe: Probes concepts that have no probe yet.
+            verify_citation: Checks a concern's cited standard.
+        """
+        self._facts = facts
+        self._recompile = recompile
+        self._probe = probe
+        self._verify_citation = verify_citation
+        self._citations: dict[str, CitationResult] = {}
+
+    def run(
+        self, planned: Sequence[PlannedRule], feasibility: Sequence[FeasibilityVerdict]
+    ) -> AcceptanceOutcome:
+        """Check, repair the failing items, and settle what still fails.
+
+        Args:
+            planned: One entry per checkable concern.
+            feasibility: The verdicts so far (one per concern).
+
+        Returns:
+            The outcome.
+        """
+        items = list(planned)
+        verdicts = {v.concern: v for v in feasibility}
+        current = self._evaluate(items)
+        rounds = 0
+        while rounds < MAX_REPAIR_ROUNDS and self._repairable(current):
+            rounds += 1
+            for index in self._repairable(current):
+                items[index] = self._repair(items[index], current.failing(index), verdicts)
+            items = [p for p in items if verdicts[p.concern.text].verdict != "declined"]
+            current = self._evaluate(items)
+        return self._settle(items, current, verdicts, rounds)
+
+    def _repairable(self, current: _Round) -> list[int]:
+        return [
+            i
+            for i in range(len(current.checks))
+            if any(c.check in REPAIRABLE for c in current.failing(i))
+        ]
+
+    def _evaluate(self, items: Sequence[PlannedRule]) -> _Round:
+        self._probe_missing([p.rule for p in items if p.rule is not None])
+        rules = [p.rule for p in items if p.rule is not None]
+        contradictions = cross_rule_contradictions(rules)
+        groups: list[tuple[AcceptanceCheck, ...]] = []
+        for planned in items:
+            rule = planned.rule
+            lint = [] if rule is None else self._structural_lint(rule, contradictions)
+            covered = check_concern_covered(planned, lint)
+            if rule is None or lint:
+                groups.append((covered,))
+                continue
+            citation = self._citation(planned) if rule.source.standard else None
+            groups.append((covered, *check_rule(rule, self._facts, citation)))
+        return _Round(checks=tuple(groups))
+
+    def _structural_lint(
+        self, rule: RuleIR, contradictions: Iterable[LintFinding]
+    ) -> list[LintFinding]:
+        own = lint_rule(rule, views=self._facts.views, privacy_mode=self._facts.privacy_mode)
+        return [
+            f
+            for f in (*own, *(c for c in contradictions if c.rule_id == rule.id))
+            if f.code not in _MEASURED_LINT
+        ]
+
+    def _probe_missing(self, rules: Sequence[RuleIR]) -> None:
+        probed = {p.concept for p in self._facts.probes}
+        wanted = [
+            phrase
+            for rule in rules
+            for spec in rule.concepts.values()
+            if (phrase := _phrase(spec.prompt)) not in probed
+        ]
+        if wanted:
+            fresh = tuple(self._probe(list(dict.fromkeys(wanted))))
+            self._facts = self._facts.model_copy(update={"probes": (*self._facts.probes, *fresh)})
+
+    def _citation(self, planned: PlannedRule) -> CitationResult:
+        key = planned.concern.text
+        if key not in self._citations:
+            self._citations[key] = self._verify_citation(planned.concern)
+        return self._citations[key]
+
+    def _repair(
+        self,
+        planned: PlannedRule,
+        failing: Sequence[AcceptanceCheck],
+        verdicts: dict[str, FeasibilityVerdict],
+    ) -> PlannedRule:
+        feedback = [f"{c.check}: {c.detail}" for c in failing]
+        concern = planned.concern
+        try:
+            new = self._recompile(concern, feedback)
+        except GuardrailDeclinedError as declined:
+            verdicts[concern.text] = declined.declined.to_feasibility_verdict(concern.text)
+            return planned
+        except RuleCompilationError as exc:
+            _log.warning("acceptance_repair_failed", concern=concern.text, error=str(exc))
+            return (
+                planned
+                if planned.rule is not None
+                else planned.model_copy(update={"error": str(exc)})
             )
-            questions.append(q)
-            c_text = rule.source.text or rule.id
-            reason_str = ", ".join(reasons)
-            new_feasibility.append(
-                FeasibilityVerdict(
-                    concern=c_text,
-                    verdict="caveat",
-                    says=f"Rule '{rule.id}' has unresolved acceptance caveats ({reason_str}).",
+        loosened = loosening(planned.rule, new)
+        if loosened is not None:
+            _log.warning("acceptance_repair_rejected", rule_id=new.id, reason=loosened)
+            return planned
+        _log.info("acceptance_repaired", concern=concern.text, rule_id=new.id)
+        return PlannedRule(concern=concern, rule=new)
+
+    def _settle(
+        self,
+        items: Sequence[PlannedRule],
+        last: _Round,
+        verdicts: dict[str, FeasibilityVerdict],
+        rounds: int,
+    ) -> AcceptanceOutcome:
+        rules: list[RuleIR] = []
+        questions: list[Question] = []
+        for index, planned in enumerate(items):
+            failing = last.failing(index)
+            blocking = [c for c in failing if c.check in REPAIRABLE]
+            if not blocking and planned.rule is not None:
+                rules.append(planned.rule)
+            if failing:
+                verdicts[planned.concern.text] = _amber(
+                    verdicts[planned.concern.text], failing, blocking
                 )
-            )
-        else:
-            final_rules.append(rule)
-
-    updated_plan = plan.model_copy(
-        update={
-            "rules": tuple(final_rules),
-            "feasibility": tuple(new_feasibility),
-        }
-    )
-    return updated_plan, questions
+            if blocking:
+                questions.append(_question(len(questions) + 1, planned, blocking))
+        return AcceptanceOutcome(
+            rules=tuple(rules),
+            feasibility=tuple(verdicts.values()),
+            acceptance=AcceptanceResult(checks=last.flat(), rounds=rounds),
+            questions=tuple(questions),
+        )
 
 
-def repair_plan_acceptance(
-    plan: SitePlan,
-    *,
-    spark: StructuredLLM,
-    probes: Sequence[Probe] = (),
-    calibrations: Mapping[str, Calibration] | None = None,
-    available_cameras: Sequence[str] | None = None,
-    standards_text_cache: Mapping[str, str] | None = None,
-    concerns: Sequence[Concern] = (),
-    max_rounds: int = 2,
-) -> tuple[SitePlan, AcceptanceResult, tuple[Question, ...]]:
-    """Execute bounded repair loop (max 2 rounds) recompiling only failing items.
+def loosening(old: RuleIR | None, new: RuleIR) -> str | None:
+    """Why a repaired rule is weaker than the one it replaces, or `None`.
+
+    A repair may not lower the severity or drop an action kind.
 
     Args:
-        plan: The initial SitePlan to test and repair.
-        spark: StructuredLLM client for recompiling failed rules.
-        probes: Detectability probes from survey.
-        calibrations: Camera calibrations.
-        available_cameras: Available cameras.
-        standards_text_cache: Cached regulatory texts.
-        concerns: Identified concerns.
-        max_rounds: Maximum repair rounds (bounded at 2).
+        old: The rule before repair (`None` when there was none).
+        new: The repaired rule.
 
     Returns:
-        Tuple of (repaired SitePlan, final AcceptanceResult, newly created Questions if any).
+        The reason the repair is rejected, or `None`.
     """
-    current_plan = plan
-    questions: list[Question] = []
-    rounds = 0
+    if old is None:
+        return None
+    if _SEVERITY_RANK[new.severity] < _SEVERITY_RANK[old.severity]:
+        return f"severity lowered from {old.severity} to {new.severity}"
+    dropped = {a.kind for a in old.actions} - {a.kind for a in new.actions}
+    if dropped:
+        return f"actions dropped: {', '.join(sorted(dropped))}"
+    return None
 
-    acc = run_acceptance_checks(
-        current_plan,
-        probes=probes,
-        calibrations=calibrations,
-        available_cameras=available_cameras,
-        standards_text_cache=standards_text_cache,
-        concerns=concerns,
-        rounds=rounds,
+
+def _amber(
+    verdict: FeasibilityVerdict,
+    failing: Sequence[AcceptanceCheck],
+    blocking: Sequence[AcceptanceCheck],
+) -> FeasibilityVerdict:
+    reasons = "; ".join(c.detail for c in failing)
+    if blocking:
+        says = f"I can't check this yet; I need your answer first ({reasons})."
+    else:
+        says = f"I can check this, with a caveat: {reasons}."
+    return verdict.model_copy(update={"verdict": "caveat", "says": says})
+
+
+def _question(number: int, planned: PlannedRule, blocking: Sequence[AcceptanceCheck]) -> Question:
+    reasons = "; ".join(c.detail for c in blocking)
+    return Question(
+        question_id=f"accept-{number}",
+        text=(
+            f"I couldn't build a rule I can check for {planned.concern.text!r} ({reasons}). "
+            "What should change: the zone, the camera, or the request?"
+        ),
+        target_field="rules",
     )
 
-    while not acc.all_passed and rounds < max_rounds:
-        rounds += 1
-        failing_rule_ids = {c.item for c in acc.checks if not c.passed and c.item != "concerns"}
-        new_rules: list[RuleIR] = []
 
-        for rule in current_plan.rules:
-            if rule.id in failing_rule_ids:
-                reasons = [c.detail for c in acc.checks if c.item == rule.id and not c.passed]
-                recompiled = _recompile_failing_rule(rule, current_plan, reasons, spark)
-                new_rules.append(recompiled)
-            else:
-                new_rules.append(rule)
-
-        current_plan = current_plan.model_copy(update={"rules": tuple(new_rules)})
-        acc = run_acceptance_checks(
-            current_plan,
-            probes=probes,
-            calibrations=calibrations,
-            available_cameras=available_cameras,
-            standards_text_cache=standards_text_cache,
-            concerns=concerns,
-            rounds=rounds,
-        )
-
-    if not acc.all_passed:
-        still_failing = {c.item for c in acc.checks if not c.passed and c.item != "concerns"}
-        current_plan, questions = _demote_persistent_failures(current_plan, still_failing, acc)
-        acc = run_acceptance_checks(
-            current_plan,
-            probes=probes,
-            calibrations=calibrations,
-            available_cameras=available_cameras,
-            standards_text_cache=standards_text_cache,
-            concerns=concerns,
-            rounds=rounds,
-        )
-
-    current_plan = current_plan.model_copy(update={"acceptance": acc})
-    return current_plan, acc, tuple(questions)
+def _phrase(prompt: str) -> str:
+    cleaned = clean_concepts([prompt])
+    return cleaned[0] if cleaned else prompt

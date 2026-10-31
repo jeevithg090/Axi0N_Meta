@@ -47,6 +47,7 @@ from rulecam.perception.metrics import PerceptionMetrics, PerceptionMetricsRepor
 from rulecam.perception.router import Purpose
 from rulecam.planner.pipeline import PlannerPipeline, PlanStore
 from rulecam.planner.runner import ChunkFrames, PlannerService
+from rulecam.planner.standards import StandardsLibrary
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
 from rulecam.runtime.factory import (
     ChainEventSource,
@@ -383,7 +384,8 @@ def build_planner(
 ) -> PlannerService | None:
     """Build the Site Planner runner for `POST /plans/requests` (P2-06a).
 
-    Spark, Voice Transcribe and hosted SAM all go through the replay cache. Plans are saved
+    Spark, Voice Transcribe and hosted SAM all go through the replay cache, and so do cited
+    standards pages (`<data>/standards_cache`, for `citation_text_match`). Plans are saved
     under `plans/`, survey frames come from the last 60 s of chunks, and finished plans go into
     the `/plans` registry.
 
@@ -403,6 +405,8 @@ def build_planner(
         segmenter=perception.hosted,
         voice=voice,
         bus=bus,
+        grounding=spark,
+        standards=StandardsLibrary.from_settings(settings),
         store=PlanStore(PLANS_DIR),
     )
     frames = ChunkFrames(

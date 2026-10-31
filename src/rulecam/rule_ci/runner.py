@@ -1,108 +1,108 @@
-"""Rule CI test execution runner (task P2-08, MP §3.4).
+"""Rule CI runner and the planner's step 10 hook (task P2-08, MP §3.4).
 
-Coordinates boundary-trace fuzzing and mutation testing for RuleIR rules:
-1. Validates non-vacuity (threshold > 0, valid bounds).
-2. Runs synthetic Track sets and verifies expected violation outcomes.
-3. Fuzzes with mutation operators (scaling, flipping comparisons, semantics direction).
-4. Tracks killed mutants (outcome differs from baseline).
-5. Publishes results to `Topic.CI_RESULT` and returns `RuleCIReport`.
+`run_rule_ci` evaluates a rule with the real rules engine (`rulecam.rules.evaluate`) on its
+boundary traces, then evaluates every mutant on the same traces. A mutant is killed when at least
+one trace's outcome differs from the unmutated rule's; survivors are listed in the report. The
+report is published on `ci.result` as a `CIResult` (`{rule_id, report}` plus `ci_green`).
+
+`prove_plan_hook` runs Rule CI for every rule of a plan and records `ci_green` and `nonvacuous`
+for each rule in the plan's acceptance trace (step 8 leaves them out until Rule CI has run).
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from typing import Final
 
 from rulecam.bus import Bus, Topic
-from rulecam.contracts.core import Zone
-from rulecam.contracts.plan import SitePlan
+from rulecam.contracts.plan import AcceptanceCheck, SitePlan
 from rulecam.contracts.rule_ir import RuleIR
 from rulecam.log import get_logger
-from rulecam.rule_ci.models import MutationCase, RuleCIReport, TraceCase
+from rulecam.planner.acceptance import RULE_CI_CHECKS
+from rulecam.rule_ci.geometry import UnsupportedRuleError
+from rulecam.rule_ci.models import CIResult, MutationCase, RuleCIReport, TraceCase
 from rulecam.rule_ci.mutations import generate_mutations
-from rulecam.rule_ci.traces import generate_rule_traces, is_rule_vacuous
-from rulecam.rules.engine import evaluate
+from rulecam.rule_ci.traces import generate_rule_traces
+from rulecam.rules import RuleEvaluationError, evaluate
 
 _log = get_logger(__name__)
 
-
-def _evaluate_trace(rule: RuleIR, trace: TraceCase) -> bool:
-    """Evaluate a rule on a synthetic trace, returning True if violation detected."""
-    zones = dict(trace.zones)
-    for zid, zspec in rule.zones.items():
-        if zspec.kind == "polygon" and zspec.polygon_px:
-            zones[zid] = Zone(
-                zone_id=zid,
-                camera_id=zspec.camera_id,
-                kind="polygon",
-                polygon_px=zspec.polygon_px,
-            )
-    events = evaluate(
-        rule,
-        trace.tracks,
-        calibration=trace.calibration,
-        zones=zones,
-        t0=trace.t0,
-        t1=trace.t1,
-    )
-    return len(events) > 0
+Outcome = bool | str
+"""Whether the rule fired on a trace, or the evaluation error's text."""
 
 
-def _run_traces(
-    rule: RuleIR, trace_cases: Sequence[TraceCase]
-) -> tuple[int, dict[str, bool], list[str]]:
-    """Run traces against rule and record pass count and baseline outcomes."""
-    traces_passed = 0
-    failures: list[str] = []
-    baseline_outcomes: dict[str, bool] = {}
+def fires(rule: RuleIR, trace: TraceCase) -> Outcome:
+    """Run the rules engine on one trace.
 
-    for trace in trace_cases:
-        try:
-            observed_violation = _evaluate_trace(rule, trace)
-            baseline_outcomes[trace.name] = observed_violation
-            if observed_violation == trace.expected_violation:
-                traces_passed += 1
-            else:
-                failures.append(
-                    f"Trace '{trace.name}' failed: expected violation={trace.expected_violation}, "
-                    f"observed={observed_violation}"
-                )
-        except Exception as exc:
-            failures.append(f"Trace '{trace.name}' raised {type(exc).__name__}: {exc}")
-            baseline_outcomes[trace.name] = False
+    Zones are not passed in, so the engine resolves them from the rule itself (a mutant's
+    widened zones included) and builds buffer zones around the trace's anchor tracks.
 
-    return traces_passed, baseline_outcomes, failures
+    Args:
+        rule: The rule (or a mutant).
+        trace: The trace.
+
+    Returns:
+        True if at least one candidate was emitted, False if none, or the error text if the
+        engine rejected the rule or the window.
+    """
+    try:
+        events = evaluate(
+            rule, trace.tracks, calibration=trace.calibration, zones={}, t0=trace.t0, t1=trace.t1
+        )
+    except RuleEvaluationError as exc:
+        return f"error: {exc}"
+    return bool(events)
 
 
-def _run_mutations(
-    mutant_cases: Sequence[MutationCase],
-    trace_cases: Sequence[TraceCase],
-    baseline_outcomes: dict[str, bool],
-) -> tuple[int, list[str]]:
-    """Evaluate mutants across traces to determine killed vs surviving count."""
-    mutants_killed = 0
-    failures: list[str] = []
+NONVACUOUS_KINDS: Final = frozenset({"boundary", "zone_edge"})
+"""Pairs that must be straddled: thresholds and zone edges (gap and window pairs are tolerances)."""
 
-    for mutant in mutant_cases:
-        killed = False
-        for trace in trace_cases:
-            try:
-                mutant_violation = _evaluate_trace(mutant.mutated_rule, trace)
-                orig_violation = baseline_outcomes.get(trace.name, False)
-                if mutant_violation != orig_violation:
-                    killed = True
-                    break
-            except Exception:
-                killed = True
-                break
 
-        if killed:
-            mutants_killed += 1
+def nonvacuous(traces: Sequence[TraceCase], outcomes: Mapping[str, Outcome]) -> bool:
+    """Whether the rule fires on the positive and not on the negative trace of every pair.
+
+    Every threshold and zone-edge pair must have a positive member the rule fires on and a
+    negative member it stays quiet on. A rule that never fires, always fires, or has a threshold
+    so degenerate that no positive member exists (a 0 s dwell) is vacuous.
+
+    Args:
+        traces: The traces.
+        outcomes: The unmutated rule's outcome per trace name.
+
+    Returns:
+        True when there is at least one such pair and all of them are straddled.
+    """
+    pairs: dict[str, tuple[bool, bool]] = {}
+    for trace in traces:
+        if trace.pair is None or trace.kind not in NONVACUOUS_KINDS:
+            continue
+        fired_on_positive, quiet_on_negative = pairs.get(trace.pair, (False, False))
+        observed = outcomes[trace.name]
+        if trace.expected_violation:
+            fired_on_positive |= observed is True
         else:
-            failures.append(
-                f"Mutant '{mutant.name}' ({mutant.operator}) survived all traces without change"
-            )
+            quiet_on_negative |= observed is False
+        pairs[trace.pair] = (fired_on_positive, quiet_on_negative)
+    return bool(pairs) and all(positive and negative for positive, negative in pairs.values())
 
-    return mutants_killed, failures
+
+def _trace_failures(traces: Sequence[TraceCase], outcomes: Mapping[str, Outcome]) -> list[str]:
+    failures = []
+    for trace in traces:
+        observed = outcomes[trace.name]
+        if observed != trace.expected_violation:
+            failures.append(
+                f"trace {trace.name}: expected violation={trace.expected_violation}, "
+                f"got {observed} ({trace.description})"
+            )
+    return failures
+
+
+def killed(
+    mutant: MutationCase, traces: Sequence[TraceCase], baseline: Mapping[str, Outcome]
+) -> bool:
+    """Whether some trace's outcome under the mutant differs from the unmutated rule's."""
+    return any(fires(mutant.rule, trace) != baseline[trace.name] for trace in traces)
 
 
 def run_rule_ci(
@@ -113,69 +113,93 @@ def run_rule_ci(
     mutants: Sequence[MutationCase] | None = None,
     justification: str | None = None,
 ) -> RuleCIReport:
-    """Run boundary traces and mutation tests for a RuleIR.
+    """Run boundary traces and mutation tests for one rule and publish the report.
 
     Args:
-        rule: The RuleIR to test.
-        bus: Event bus to publish `Topic.CI_RESULT` to.
-        traces: Optional pre-generated traces (generated automatically if omitted).
-        mutants: Optional pre-generated mutants (generated automatically if omitted).
-        justification: Optional justification if mutant kill rate is below 90%.
+        rule: The rule.
+        bus: Where to publish `ci.result`, if anywhere.
+        traces: Traces to use instead of `generate_rule_traces(rule)`.
+        mutants: Mutants to use instead of `generate_mutations(rule)`.
+        justification: Recorded reason to accept a kill ratio below 90%.
 
     Returns:
-        RuleCIReport containing results and `ci_green` status.
+        The report. A rule Rule CI cannot generate traces for gets an empty, failing report.
     """
-    vacuous = is_rule_vacuous(rule)
-    nonvacuous = not vacuous
-
-    trace_cases = list(traces) if traces is not None else generate_rule_traces(rule)
-    mutant_cases = list(mutants) if mutants is not None else generate_mutations(rule)
-
-    traces_passed, baseline_outcomes, trace_failures = _run_traces(rule, trace_cases)
-    mutants_killed, mutant_failures = _run_mutations(mutant_cases, trace_cases, baseline_outcomes)
-
     failures: list[str] = []
-    if vacuous:
-        failures.append(f"Rule {rule.id} has vacuous or zero threshold: nonvacuous=False")
-    failures.extend(trace_failures)
-    failures.extend(mutant_failures)
-
+    try:
+        cases = list(traces) if traces is not None else generate_rule_traces(rule)
+    except UnsupportedRuleError as exc:
+        cases, failures = [], [f"no boundary traces: {exc}"]
+    outcomes = {trace.name: fires(rule, trace) for trace in cases}
+    failures += _trace_failures(cases, outcomes)
+    variants = list(mutants) if mutants is not None else generate_mutations(rule)
+    survivors = [m for m in variants if cases and not killed(m, cases, outcomes)]
+    unrun = len(variants) if not cases else 0
+    failures += [f"mutant {m.name} survived ({m.description})" for m in survivors]
+    if unrun:
+        failures.append(f"{unrun} mutants not run: no traces")
     report = RuleCIReport(
         rule_id=rule.id,
-        traces_passed=traces_passed,
-        traces_total=len(trace_cases),
-        mutants_killed=mutants_killed,
-        mutants_total=len(mutant_cases),
-        failures=failures,
-        nonvacuous=nonvacuous,
+        traces_passed=sum(outcomes[t.name] == t.expected_violation for t in cases),
+        traces_total=len(cases),
+        mutants_killed=len(variants) - len(survivors) - unrun,
+        mutants_total=len(variants),
+        failures=tuple(failures),
+        nonvacuous=nonvacuous(cases, outcomes),
         justification=justification,
     )
-
     if bus is not None:
-        bus.publish(
-            Topic.CI_RESULT,
-            {"rule_id": rule.id, "report": report.model_dump()},
-        )
-
-    _log.info(
-        "rule_ci_completed",
-        rule_id=rule.id,
-        traces=f"{traces_passed}/{len(trace_cases)}",
-        mutants=f"{mutants_killed}/{len(mutant_cases)}",
-        ci_green=report.ci_green,
-    )
-
+        bus.publish(Topic.CI_RESULT, CIResult.of(report))
+    _log.info("rule_ci_done", rule_id=rule.id, summary=report.summary(), ci_green=report.ci_green)
     return report
 
 
+def acceptance_checks(report: RuleCIReport) -> tuple[AcceptanceCheck, AcceptanceCheck]:
+    """The `ci_green` and `nonvacuous` acceptance checks for one rule's report."""
+    detail = report.summary()
+    if report.failures:
+        detail += "; " + "; ".join(report.failures)
+    return (
+        AcceptanceCheck(
+            item=report.rule_id, check="ci_green", passed=report.ci_green, detail=detail
+        ),
+        AcceptanceCheck(
+            item=report.rule_id,
+            check="nonvacuous",
+            passed=report.nonvacuous,
+            detail="fires on its positive boundary trace and not on its negative one"
+            if report.nonvacuous
+            else "no boundary pair where it fires on the positive and not the negative trace",
+        ),
+    )
+
+
+def with_rule_ci(plan: SitePlan, reports: Sequence[RuleCIReport]) -> SitePlan:
+    """The plan with its acceptance trace's Rule CI checks replaced by these reports'."""
+    kept = tuple(c for c in plan.acceptance.checks if c.check not in RULE_CI_CHECKS)
+    added = tuple(check for report in reports for check in acceptance_checks(report))
+    acceptance = plan.acceptance.model_copy(update={"checks": kept + added})
+    return plan.model_copy(update={"acceptance": acceptance})
+
+
 def prove_plan_hook(
-    bus: Bus | None = None,
+    bus: Bus | None = None, *, justifications: Mapping[str, str] | None = None
 ) -> Callable[[SitePlan], SitePlan]:
-    """Return a PlanHook for step 10 ('prove') that executes Rule CI for all rules."""
+    """Build the pipeline's step 10 hook: Rule CI for every rule, recorded in the acceptance trace.
+
+    Args:
+        bus: Where to publish each rule's `ci.result`.
+        justifications: Recorded reasons, by rule id, to accept a kill ratio below 90%.
+
+    Returns:
+        A `SitePlan -> SitePlan` hook.
+    """
+    reasons = dict(justifications or {})
 
     def hook(plan: SitePlan) -> SitePlan:
-        for rule in plan.rules:
-            run_rule_ci(rule, bus=bus)
-        return plan
+        reports = [
+            run_rule_ci(rule, bus=bus, justification=reasons.get(rule.id)) for rule in plan.rules
+        ]
+        return with_rule_ci(plan, reports)
 
     return hook

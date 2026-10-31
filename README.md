@@ -50,7 +50,7 @@ Only models that actually run in the product are listed; this table is updated a
 | Muse Voice Transcribe | Spoken requests, disputes, voice round-trip check | Hosted API | planned |
 | SAM 3.1 | Survey, probes, tracking, coverage, masks | Hosted + self-hosted | planned |
 | Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute | Site laptop (llama-server) | client + Tier 1 verifier (P3-03) |
-| Muse Spark Open (open weights) | Tier 2 verifier, plan audit, devil's advocate | Baseten | planned |
+| Muse Spark Open (open weights) | Tier 2 verifier, dispute review, plan audit, devil's advocate | Baseten | client + Tier 2 (P3-04) |
 | Muse Image | Rule CI scenes, lookalikes, posters | Hosted API | planned |
 | Sapiens (FAIR) | Pose and skeletons | GPU | planned |
 | MMS-TTS (FAIR) | Spoken warnings | CPU | planned |

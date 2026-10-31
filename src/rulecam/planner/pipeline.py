@@ -22,8 +22,11 @@ hook that is not wired yet passes the plan through unchanged and says so in its 
 Geometry (`planner.geometry`): steps 2 and 3 record their SAM detections. The survey turns
 reference objects (a pallet, a 1 m floor square) into ground calibrations
 (`SurveyResult.calibrations`), and the probe turns needed places (sink, prep counter, door)
-into polygon zones (`ProbeResult.zones`). Compile, lint and accept use the merge of those with
-the owner's site config (`PipelineInput.zones` and `.calibrations`), the owner's winning.
+into polygon zones (`ProbeResult.zones`). When a concern needs metres, the probe also prompts SAM
+with the reference phrases (pallet, 1 m floor square) on the cameras that concern runs on and
+that are still uncalibrated, so calibration does not depend on how Spark worded the survey
+(`ProbeResult.reference_probes`, `.calibrations`). Compile, lint and accept use the merge of
+those with the owner's site config (`PipelineInput.zones` and `.calibrations`), the owner's winning.
 `PlanStore.calibrations` gives the merged calibrations of a saved run, which plan approval
 (`runtime.activate`) hands to the runtime.
 """
@@ -58,8 +61,11 @@ from rulecam.planner.errors import GuardrailDeclinedError, PipelineError, RuleCo
 from rulecam.planner.feasibility import gauge_plan_feasibility
 from rulecam.planner.geometry import (
     RecordingSegmenter,
+    ReferenceProbe,
     SiteGeometry,
     frame_size,
+    metric_cameras,
+    probe_references,
     scene_calibrations,
     scene_zones,
 )
@@ -150,11 +156,17 @@ class SurveyResult(Frozen):
 
 
 class ProbeResult(Frozen):
-    """Step 3: the concepts each concern needs, how reliably SAM sees them, and place zones."""
+    """Step 3: the concepts each concern needs, how reliably SAM sees them, and place zones.
+
+    `reference_probes` are the reference prompts tried for the metric concerns' cameras and
+    `calibrations` what they gave (cameras the owner or the survey calibrated are not probed).
+    """
 
     needs: dict[str, tuple[str, ...]]
     probes: tuple[Probe, ...]
     zones: tuple[Zone, ...] = ()
+    reference_probes: tuple[ReferenceProbe, ...] = ()
+    calibrations: dict[str, Calibration] = Field(default_factory=dict)
 
 
 class GaugeResult(Frozen):
@@ -279,7 +291,11 @@ class PlanStore:
             return {}
         owner = self.load_input(plan_id).calibrations
         survey = self.load_step(plan_id, "survey", SurveyResult)
-        scene = survey.calibrations if survey is not None else {}
+        probe = self.load_step(plan_id, "probe", ProbeResult)
+        scene = {
+            **(survey.calibrations if survey is not None else {}),
+            **(probe.calibrations if probe is not None else {}),
+        }
         return {**scene, **owner}
 
     def save_step(self, plan_id: str, step: StepName, output: BaseModel) -> None:
@@ -391,9 +407,29 @@ def survey_summary(survey: SurveyResult) -> str:
 
 
 def probe_summary(probe: ProbeResult) -> str:
-    """Step 3's detail, e.g. "6 probes; zones from the scene: sink"."""
-    zones = ", ".join(z.zone_id for z in probe.zones)
-    return f"{len(probe.probes)} probes" + (f"; zones from the scene: {zones}" if zones else "")
+    """Step 3's detail, e.g. "6 probes; zones from the scene: sink; references on dock: ...".
+
+    The reference part lists each prompt tried with its detection count, then the calibration
+    it gave (or that none was made).
+    """
+    parts = [f"{len(probe.probes)} probes"]
+    if probe.zones:
+        parts.append("zones from the scene: " + ", ".join(z.zone_id for z in probe.zones))
+    cameras = dict.fromkeys(r.camera_id for r in probe.reference_probes)
+    for camera_id in cameras:
+        tried = ", ".join(
+            f"{r.prompt} ({r.n_detections} found in {r.n_frames} frames)"
+            for r in probe.reference_probes
+            if r.camera_id == camera_id
+        )
+        cal = probe.calibrations.get(camera_id)
+        outcome = (
+            f"calibrated from {cal.reference or cal.method} ({cal.err_m:.2f} m)"
+            if cal is not None
+            else "no calibration"
+        )
+        parts.append(f"references on {camera_id}: {tried}; {outcome}")
+    return "; ".join(parts)
 
 
 def _lint_summary(result: LintResult) -> str:
@@ -662,7 +698,28 @@ class PlannerPipeline:
             concepts, inputs.camera_frames, segmenter=recorder, seed=inputs.seed
         )
         zones = scene_zones(recorder.sightings, concepts)
-        return ProbeResult(needs=needs, probes=probes, zones=zones)
+        seen: dict[str, list[str]] = {}
+        for p in probes:
+            if p.detect_rate > 0:
+                seen.setdefault(p.camera_id, []).append(p.concept)
+        cameras = metric_cameras(
+            needs, seen, calibrated=[*inputs.calibrations, *survey.calibrations]
+        )
+        tried = probe_references(
+            cameras, inputs.camera_frames, segmenter=recorder, seed=inputs.seed
+        )
+        calibrations = {
+            camera_id: cal
+            for camera_id, cal in scene_calibrations(recorder.sightings).items()
+            if camera_id in cameras
+        }
+        return ProbeResult(
+            needs=needs,
+            probes=probes,
+            zones=zones,
+            reference_probes=tried,
+            calibrations=calibrations,
+        )
 
     def geometry(
         self, inputs: PipelineInput, survey: SurveyResult, probe: ProbeResult
@@ -673,7 +730,7 @@ class PlannerPipeline:
             owner_zones=inputs.zones,
             scene_zones=probe.zones,
             owner_calibrations=inputs.calibrations,
-            scene_calibrations=survey.calibrations,
+            scene_calibrations={**survey.calibrations, **probe.calibrations},
         )
 
     def _gauge(self, understood: UnderstandResult, probe: ProbeResult) -> GaugeResult:

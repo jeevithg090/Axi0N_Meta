@@ -15,6 +15,16 @@ decodable mask) is never used: a box is not a footprint, so it would invent a sc
 survey also saw a door on that camera, a candidate whose scale disagrees with a 2.03 m door
 (`door_scale_ok`) is dropped. The owner's calibration always wins over the scene's.
 
+Reference probes (`metric_cameras`, `probe_references`): the survey only sees a pallet if Spark
+names it with a phrase `reference_kind` accepts, and Spark's wording varies ("wooden pallet" on
+one run, "stacked pallet with bags" on the next). So when a concern needs metres (its text names
+a distance or a speed, `needs_metres`), the probe step explicitly prompts SAM with every
+`REFERENCE_PROMPTS` phrase on each camera that saw one of that concern's needed concepts and is
+not calibrated yet (by the owner's site config or by the survey). It reuses the survey's frames:
+`REFERENCE_PROBE_FRAMES` (3) of the camera's 8 survey frames, so at most 3 x 2 = 6 SAM calls
+per camera. Without a metric concern no reference probe runs. The detections go through
+`scene_calibrations` like the survey's; nothing found means no calibration (never a guess).
+
 Zones from the scene (`scene_zones`): a needed concept that is a place (sink, prep counter,
 door, dock, ...) becomes a polygon zone on each camera that sees it: the most confident
 detection's box, widened by `PLACE_SIDE_MARGIN` of its width on each side and extended
@@ -57,7 +67,7 @@ from rulecam.perception.calibration import (
 from rulecam.perception.errors import CalibrationError
 from rulecam.perception.masks import NO_MASK, decode_rle
 from rulecam.planner.acceptance import is_metric, rule_cameras
-from rulecam.planner.steps.survey import ImageSegmenter
+from rulecam.planner.steps.survey import DEFAULT_SURVEY_FRAMES, ImageSegmenter, sample_frames
 
 _log = get_logger(__name__)
 
@@ -78,6 +88,16 @@ PLACE_WORDS: Final = re.compile(
 )
 _NOT_PLACE: Final = re.compile(r"\b(?:person|people|worker|hands?|gloves?|forklifts?)\b")
 _SLUG: Final = re.compile(r"[^a-z0-9]+")
+REFERENCE_PROMPTS: Final[dict[str, ReferenceKind]] = {
+    "wooden pallet": "pallet_48x40in",
+    "1 m floor square": "floor_square_1m",
+}
+REFERENCE_PROBE_FRAMES: Final = 3
+_METRIC: Final = re.compile(
+    r"\d\s*(?:m|cm|ft|km/?h|mph|m/s)\b"
+    r"|\b(?:met(?:re|er)s?|metros?|feet|foot|yards?|distance|distancia|speed(?:ing)?|"
+    r"velocidad|too\s+fast|buffer)\b"
+)
 
 
 # --- recording the steps' SAM calls -------------------------------------------------------------
@@ -231,6 +251,100 @@ def scene_calibrations(sightings: Sequence[Sighting]) -> dict[str, Calibration]:
             err_m=round(calibration.err_m, 4),
         )
     return dict(sorted(best.items()))
+
+
+# --- reference probes --------------------------------------------------------------------------
+
+
+class ReferenceProbe(Frozen):
+    """One reference prompt tried on one camera for scene calibration.
+
+    Attributes:
+        camera_id: The camera.
+        prompt: The SAM prompt (a `REFERENCE_PROMPTS` key).
+        n_frames: Frames it ran on.
+        n_detections: Detections SAM returned over those frames.
+    """
+
+    camera_id: str
+    prompt: str
+    n_frames: int
+    n_detections: int
+
+
+def needs_metres(concern: str) -> bool:
+    """Whether a concern's text asks for a ground distance or a speed (`2 m`, `metres`, `speed`)."""
+    return bool(_METRIC.search(_normalise(concern)))
+
+
+def metric_cameras(
+    needs: Mapping[str, Sequence[str]],
+    seen: Mapping[str, Iterable[str]],
+    *,
+    calibrated: Iterable[str] = (),
+) -> tuple[str, ...]:
+    """The cameras a metric concern runs on that still lack a ground calibration.
+
+    Args:
+        needs: Concern text -> the concepts it needs.
+        seen: Camera id -> the concepts SAM found there at least once.
+        calibrated: Cameras already calibrated (owner's site config, survey); skipped.
+
+    Returns:
+        Camera ids, sorted: those that saw a needed concept of a concern that needs metres.
+    """
+    done = set(calibrated)
+    wanted = {
+        _normalise(c) for text, concepts in needs.items() if needs_metres(text) for c in concepts
+    }
+    return tuple(
+        sorted(
+            camera_id
+            for camera_id, concepts in seen.items()
+            if camera_id not in done and wanted & {_normalise(c) for c in concepts}
+        )
+    )
+
+
+def probe_references(
+    cameras: Iterable[str],
+    camera_frames: Mapping[str, Sequence[Path]],
+    *,
+    segmenter: ImageSegmenter,
+    seed: int,
+    n_frames: int = REFERENCE_PROBE_FRAMES,
+) -> tuple[ReferenceProbe, ...]:
+    """Prompt SAM with every reference phrase on a few of each camera's survey frames.
+
+    Pass a `RecordingSegmenter` and give its sightings to `scene_calibrations`.
+
+    Args:
+        cameras: The cameras to probe.
+        camera_frames: Camera id -> its frames, oldest first.
+        segmenter: SAM 3.1 on single images.
+        seed: The run's seed (the same as the survey's, so its frames are reused).
+        n_frames: Frames per camera per prompt, out of the survey's sample.
+
+    Returns:
+        One record per (camera, prompt), cameras in the given order.
+    """
+    tried: list[ReferenceProbe] = []
+    for camera_id in cameras:
+        survey_frames = sample_frames(
+            camera_frames.get(camera_id, ()), DEFAULT_SURVEY_FRAMES, seed=seed
+        )
+        frames = sample_frames(survey_frames, n_frames, seed=seed)
+        for prompt in REFERENCE_PROMPTS:
+            found = sum(
+                len(segmenter.segment_image(frame, prompt, camera_id=camera_id)) for frame in frames
+            )
+            tried.append(
+                ReferenceProbe(
+                    camera_id=camera_id, prompt=prompt, n_frames=len(frames), n_detections=found
+                )
+            )
+            _log.info("reference_probe", camera_id=camera_id, prompt=prompt, found=found)
+    return tuple(tried)
 
 
 # --- zones from the scene -----------------------------------------------------------------------

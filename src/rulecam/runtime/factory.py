@@ -9,11 +9,15 @@ self-hosted worker (our own GPU pod when `SAM_BASE_URL` is set, otherwise Modal)
 On the runtime path the tracker's segmenter is, from the outside in: `StaticServedSegmenter`
 (static concepts from the static cache, no SAM call) -> `CallMeter` (requests and billed frames
 per camera, for the loop's budget and `/runtime/metrics`) -> the router's runtime segmenter. The
-loop also gets the motion gate and the idle-sampling/budget policy from settings.
+loop also gets the motion gate, the idle-sampling/budget policy and its pipeline depth
+(`RULECAM_RUNTIME_PIPELINE_DEPTH`) from settings. With more than one chunk in flight the tracker
+does not re-prompt: a re-prompt needs the previous chunk's tracks, which would make every chunk
+wait for one more SAM round trip in order, so identities are handed off by IoU.
 
-The policy (P3-05), actions (P3-06) and strip renderer (P4-05) have not landed yet, so the
-defaults here are deliberately conservative: nothing acts first, nothing is executed, and no
-pixels are attached to a candidate (so nothing raw can leave the loop in any privacy mode).
+Each candidate gets its evidence strip from `EpisodeStrips` (P4-05): keyframes across the
+episode from the chunks on disk, with the rule's boxes, zones and distance ruler, in the plan's
+privacy mode, under `<data dir>/strips`. The policy (P3-05) and actions (P3-06) have not landed
+yet, so those defaults are deliberately conservative: nothing acts first and nothing is executed.
 """
 
 from __future__ import annotations
@@ -38,7 +42,6 @@ from rulecam.contracts import (
     Chunk,
     Clock,
     EventRecord,
-    PrivacyMode,
     RuleIR,
     Track,
     VerifierVerdict,
@@ -56,6 +59,7 @@ from rulecam.replay.cache import ReplayCache
 from rulecam.rules.store import ParquetTrackStore
 from rulecam.runtime.loop import RuntimeLoop, chunk_end
 from rulecam.runtime.sampling import SamplingPolicy
+from rulecam.runtime.strips import EpisodeStrips, face_detector
 from rulecam.verify.decision import Decision
 from rulecam.verify.tier1 import GlimmerVerifier
 
@@ -173,14 +177,6 @@ class NoActions:
         return []
 
 
-class NoStrips:
-    """Placeholder for P4-05: attaches no frames, so no pixels leave the loop in any mode."""
-
-    def render(self, candidate: CandidateEvent, chunk: Chunk, mode: PrivacyMode) -> CandidateEvent:  # noqa: ARG002 - protocol signature
-        """Return the candidate with an empty strip."""
-        return candidate.model_copy(update={"strip_paths": ()})
-
-
 def _offline(request: Mapping[str, object]) -> Mapping[str, object]:  # noqa: ARG001 - protocol signature
     msg = "no META_API_BASE_URL/META_API_KEY: hosted SAM can only be served from the replay cache"
     raise ClientConfigError(msg)
@@ -286,14 +282,16 @@ def build_runtime(
         chain: The evidence chain.
 
     Returns:
-        The loop, with placeholder policy, actions and strips until P3-05, P3-06 and P4-05.
+        The loop, with placeholder policy and actions until P3-05 and P3-06.
     """
     meter = CallMeter(perception.router.for_purpose(Purpose.RUNTIME))
     served = StaticServedSegmenter(meter)
+    depth = settings.rulecam_runtime_pipeline_depth
     tracker = Tracker(
         served,
         store=perception.store,
         bus=bus,
+        reprompt=depth == 1,
         max_workers=settings.rulecam_runtime_concept_workers,
     )
     verifier = GlimmerVerifier(
@@ -307,11 +305,17 @@ def build_runtime(
         verifier=verifier,
         policy=VerifyOnlyPolicy(),
         actions=NoActions(),
-        strips=NoStrips(),
+        strips=EpisodeStrips(
+            chunks=perception.chunks,
+            store=perception.store,
+            out_dir=settings.rulecam_data_dir / "strips",
+            faces=face_detector(settings.rulecam_face_model),
+        ),
         chain=chain,
         sampling=SamplingPolicy.from_settings(settings),
         motion_gate=MotionGate(),  # camera time is recorded by `ChunkIndex`, not twice here
         usage=meter,
         static_sink=lambda concepts, version: served.set_static(concepts, generation=version),
         companions=(lambda: served.cache.run(bus),),
+        pipeline_depth=depth,
     )

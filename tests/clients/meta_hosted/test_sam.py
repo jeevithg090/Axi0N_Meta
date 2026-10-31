@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
 from collections.abc import Callable, Mapping
 from datetime import timedelta
 from pathlib import Path
@@ -389,3 +391,71 @@ def test_rle_round_trips_random_masks() -> None:
     for shape in [(1, 1), (7, 5), (80, 64)]:
         mask = (rng.random(shape) > 0.6).astype(np.uint8)
         assert (decode_rle(encode_rle(mask)) == mask).all()
+
+
+def _gated_upload_transport(
+    started: list[str], release: threading.Event
+) -> Callable[[Mapping[str, object]], Mapping[str, object]]:
+    """Uploads block until released; everything else returns an empty video reply."""
+    empty = load_reply("video_empty")
+
+    def transport(request: Mapping[str, object]) -> Mapping[str, object]:
+        if request.get("path") == "/files":
+            file = request["file"]
+            assert isinstance(file, Mapping)
+            started.append(str(file["filename"]))
+            assert release.wait(5)
+            return {"status": 200, "headers": {}, "json": {"id": f"file-{file['filename']}"}}
+        return empty
+
+    return transport
+
+
+def _chunk_at(tmp_path: Path, name: str, content: bytes) -> Chunk:
+    path = tmp_path / f"{name}.mp4"
+    path.write_bytes(content)
+    return Chunk(
+        chunk_id=name,
+        camera_id="cam1",
+        path=str(path),
+        start_ts=EPOCH,
+        fps=10,
+        n_frames=30,
+        width=64,
+        height=48,
+    )
+
+
+def test_different_chunks_upload_in_parallel(tmp_path: Path) -> None:
+    started: list[str] = []
+    release = threading.Event()
+    client = HostedSam31(_gated_upload_transport(started, release), clock=FakeClock())
+    chunks = [_chunk_at(tmp_path, f"c{i}", f"video-{i}".encode()) for i in range(3)]
+    threads = [threading.Thread(target=client.segment, args=(c, "person")) for c in chunks]
+    for thread in threads:
+        thread.start()
+    deadline = time.monotonic() + 5
+    while len(started) < 3 and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert sorted(started) == ["c0.mp4", "c1.mp4", "c2.mp4"]  # all three in flight at once
+    release.set()
+    for thread in threads:
+        thread.join(5)
+
+
+def test_same_chunk_concurrent_concepts_share_one_upload(tmp_path: Path) -> None:
+    started: list[str] = []
+    release = threading.Event()
+    client = HostedSam31(_gated_upload_transport(started, release), clock=FakeClock())
+    chunk = _chunk_at(tmp_path, "c0", b"same-video")
+    threads = [
+        threading.Thread(target=client.segment, args=(chunk, concept))
+        for concept in ("person", "forklift", "pallet")
+    ]
+    for thread in threads:
+        thread.start()
+    time.sleep(0.2)
+    release.set()
+    for thread in threads:
+        thread.join(5)
+    assert started == ["c0.mp4"]

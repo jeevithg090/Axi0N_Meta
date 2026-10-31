@@ -10,6 +10,7 @@ from rulecam.rule_ci.boundary_pairs import (
     run_boundary_pairs_suite,
 )
 from rulecam.rule_ci.forecast import AlertBudget, AlertForecast, forecast_alerts
+from rulecam.rule_ci.generate import generate_rule_traces
 from rulecam.rule_ci.geometry import UnsupportedRuleError
 from rulecam.rule_ci.injection import InjectionReport, run_injection_red_team
 from rulecam.rule_ci.lookalikes import (
@@ -23,7 +24,6 @@ from rulecam.rule_ci.mutations import generate_mutations
 from rulecam.rule_ci.red_team import RedTeam, RedTeamReport
 from rulecam.rule_ci.runner import prove_plan_hook, run_rule_ci
 from rulecam.rule_ci.scenes import DetectabilityReport, run_detectability_scenes
-from rulecam.rule_ci.traces import generate_rule_traces
 
 __all__ = [
     "AlertBudget",

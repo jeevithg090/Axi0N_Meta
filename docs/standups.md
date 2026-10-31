@@ -24,9 +24,9 @@ above now record only what the code and recorded runs support; a gate is PASSED 
   was true by construction, and the 20 requests were team-written personas rather than outsider
   requests. The figures, `eval/results/e3.json` and the 60 plans in `plans/heldout/` were
   withdrawn; see `eval/RESULTS.md`.
-- **The live runtime does not act yet.** `runtime/factory.py` still wires `VerifyOnlyPolicy`,
-  `NoActions` and `NoStrips`, so no coaching, interlock or alert fires and Tier 1 receives no
-  frames. The handwash countdown kiosk and Spanish MMS-TTS coaching claimed for G2 are not
+- **The live runtime does not act yet.** `runtime/factory.py` still wires `VerifyOnlyPolicy` and
+  `NoActions`, so no coaching, interlock or alert fires. (Tier 1 received no frames until #98
+  wired episode strips on Nov 1.) The handwash countdown kiosk and Spanish MMS-TTS coaching claimed for G2 are not
   functional; there is no `/station` page and `voice_out` is never called by the runtime.
 - **Rule CI part 2** (lookalikes and injection signs, P2-09) is built but switched off in the app:
   `api/app.py` calls `prove_plan_hook(bus)` without a red team.

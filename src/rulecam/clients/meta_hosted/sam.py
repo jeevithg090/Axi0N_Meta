@@ -195,7 +195,8 @@ class HostedSam31:
         jitter = random.Random(seed)  # noqa: S311 - retry jitter, not cryptography
         self._sender = Sender(transport, limiter, retry or RetryPolicy(), sleep, jitter)
         self._file_ids: OrderedDict[str, str] = OrderedDict()
-        self._upload_lock = threading.Lock()
+        self._upload_lock = threading.Lock()  # guards the two dicts only, never the network
+        self._digest_locks: dict[str, threading.Lock] = {}
         if mask_decoder is None:
             _log.warning("sam_mask_decoder_missing", hint="masks fall back to boxes")
 
@@ -423,6 +424,14 @@ class HostedSam31:
             if cached is not None:
                 self._file_ids.move_to_end(digest)
                 return cached
+            digest_lock = self._digest_locks.setdefault(digest, threading.Lock())
+        # Different chunks upload in parallel (the runtime keeps several in flight); concurrent
+        # calls for the same chunk (one per concept) wait for the first upload and reuse its id.
+        with digest_lock:
+            with self._upload_lock:
+                cached = self._file_ids.get(digest)
+            if cached is not None:
+                return cached
             request: dict[str, object] = {
                 "method": "POST",
                 "path": FILES_PATH,
@@ -438,9 +447,11 @@ class HostedSam31:
             if not isinstance(file_id, str) or not file_id:
                 msg = "file upload reply has no id"
                 raise ModelResponseError(msg)
-            self._file_ids[digest] = file_id
-            if len(self._file_ids) > _FILE_ID_CACHE_SIZE:
-                self._file_ids.popitem(last=False)
+            with self._upload_lock:
+                self._file_ids[digest] = file_id
+                if len(self._file_ids) > _FILE_ID_CACHE_SIZE:
+                    self._file_ids.popitem(last=False)
+                self._digest_locks.pop(digest, None)
             return file_id
 
     def _post(self, body: dict[str, object]) -> _Reply:

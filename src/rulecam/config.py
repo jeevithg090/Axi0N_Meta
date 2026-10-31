@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     rulecam_sam_budget_frames_per_min: int = Field(default=1000, ge=0)  # per camera; 0 = no budget
     rulecam_sam_budget_stride: int = Field(default=3, ge=1)  # over budget: one chunk in N
     rulecam_runtime_concept_workers: int = Field(default=4, ge=1)  # concepts segmented at once
+    rulecam_runtime_pipeline_depth: int = Field(default=4, ge=1)  # chunks per camera in flight
+    # YuNet face-detector ONNX (opencv_zoo) for blurring faces in evidence strips; without it
+    # only the head regions of tracked people are blurred (runtime.strips).
+    rulecam_face_model: Path | None = None
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None

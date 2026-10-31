@@ -17,8 +17,22 @@ For every `chunk.ready`:
 The steps owned by other tasks (strip rendering, the safety policy, actions) are injected as
 protocols, so the loop runs end to end with fakes until P4-05, P3-05 and P3-06 land.
 
-**Backpressure:** when a chunk arrives more than `max_lag_s` after it ended, the loop switches to
-keyframe mode and processes only one chunk in `keyframe_stride` until it catches up.
+**Pipeline:** hosted SAM takes 6 to 17 s per request while a camera delivers a chunk every 3 s,
+so `run()` keeps up to `pipeline_depth` chunks per camera in flight. Each chunk is *submitted* in
+arrival order: the lag check, idle sampling, motion gate and budget decide there whether and what
+to segment, and the budget counts the chunks still in flight (`CameraSampler.reserve`). The SAM
+concept pass (`ChunkTracker.segment`, stateless) then runs concurrently, and a per-camera reorder
+buffer hands the results, strictly in chunk order, to everything stateful: identity hand-off and
+track store appends (`ChunkTracker.stitch`), gaps, rule evaluation, candidates, verification,
+actions and the evidence chain. A chunk that fails is counted and its slot freed; the chunks
+behind it carry on. With `pipeline_depth=1` this is the sequential loop it replaced.
+
+**Backpressure:** when a chunk is submitted more than `max_lag_s` after it ended, the loop
+switches to keyframe mode for that camera and processes only one chunk in `keyframe_stride`
+until it catches up. A camera whose pipeline is full waits for its oldest chunk to finish
+before the next is submitted, so a backend that cannot keep up even with `pipeline_depth`
+requests in flight shows up as lag and the keyframe policy, never as an unbounded queue of SAM
+requests.
 
 **Gaps:** a chunk (or a concept of a chunk) that is not segmented, for backpressure, idle
 sampling, the budget or the motion gate, is a coverage gap, never an observed absence. A rule
@@ -30,19 +44,23 @@ predicates need none; `persist`, `absence` and `dwell` their seconds; `rate` a m
 proximity rule is not blind for a whole window after an idle chunk. The lag, mode and cost
 counters are exposed in `metrics` (and served at `/runtime/metrics`).
 
-**Privacy:** the strip renderer receives the plan's `PrivacyMode` (P4-05 `render_strip(event,
-mode)`), so only skeleton renders leave the loop in `anonymous` and `strict` mode.
+**Privacy:** the strip renderer receives the plan's `PrivacyMode` and the evaluation context
+(P4-05, `runtime.strips`), so no person pixel leaves the loop in `anonymous` and `strict` mode.
 
-A failing chunk (any `RulecamError`, e.g. a `ReplayMiss` or a model error) is logged and skipped;
-it never stops the loop.
+A failing chunk (any `RulecamError`, e.g. a `ReplayMiss` or a model error) is logged, counted
+and treated as a coverage gap; it never stops the loop.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+import math
+import threading
+from collections import deque
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Protocol
 
@@ -70,7 +88,9 @@ from rulecam.errors import RulecamError
 from rulecam.evidence.chain import EventChain
 from rulecam.log import get_logger
 from rulecam.perception.errors import PerceptionError
+from rulecam.perception.metrics import hosted_billed_frames
 from rulecam.perception.motion_gate import MotionGate, MotionStats, is_still
+from rulecam.perception.tracking import SegmentedChunk
 from rulecam.rules.backtest import DecisionContext, candidate_payload
 from rulecam.rules.engine import relevant_concepts
 from rulecam.rules.ir import walk
@@ -85,6 +105,9 @@ DEFAULT_MAX_LAG_S = 6.0
 DEFAULT_KEYFRAME_STRIDE = 3
 EPISODE_MERGE_S = 2.0
 RATE_HISTORY_S = 60.0
+DEFAULT_PIPELINE_DEPTH = 1
+LATENCY_SAMPLES = 200
+SEGMENT_THREADS = 32
 
 StaticSink = Callable[[frozenset[str], str], None]
 """Told the static SAM prompts of a newly set plan, and the plan's version hash."""
@@ -93,16 +116,30 @@ StaticSink = Callable[[frozenset[str], str], None]
 class ChunkTracker(Protocol):
     """Tracks a chunk's concepts and stores the tracks (`perception.tracking.Tracker`)."""
 
-    def process_chunk(self, chunk: Chunk, concepts: Iterable[str]) -> list[Track]:
-        """Track `concepts` in `chunk`."""
+    def segment(self, chunk: Chunk, concepts: Iterable[str]) -> SegmentedChunk:
+        """Segment `concepts` in `chunk`; stateless, called for several chunks at once."""
+        ...
+
+    def stitch(self, chunk: Chunk, segmented: SegmentedChunk) -> list[Track]:
+        """Hand identities off and store the tracks; called for a camera's chunks in order."""
         ...
 
 
 class StripRenderer(Protocol):
     """Fills `strip_paths` with a 6-frame strip in the site's privacy mode (P4-05)."""
 
-    def render(self, candidate: CandidateEvent, chunk: Chunk, mode: PrivacyMode) -> CandidateEvent:
-        """Return the candidate with its strip; in `anonymous`/`strict` mode, skeletons only."""
+    def render(
+        self,
+        candidate: CandidateEvent,
+        chunk: Chunk,
+        mode: PrivacyMode,
+        context: DecisionContext,
+    ) -> CandidateEvent:
+        """Return the candidate with its strip; in `anonymous`/`strict` mode, skeletons only.
+
+        `context` carries the rule (whose subjects are drawn), its zones and the camera's
+        calibration (the distance ruler). A renderer never raises: on failure the strip is empty.
+        """
         ...
 
 
@@ -131,8 +168,8 @@ class ActionRunner(Protocol):
 class SamUsage(Protocol):
     """Counts the runtime segmenter's SAM requests and billed frames (`perception.CallMeter`)."""
 
-    def totals(self, camera_id: str) -> tuple[int, int]:
-        """Return `(requests, billed_frames)` so far for `camera_id`."""
+    def take_chunk(self, camera_id: str, chunk_id: str) -> tuple[int, int]:
+        """Return `(requests, billed_frames)` made for one chunk, and forget them."""
         ...
 
 
@@ -166,7 +203,10 @@ class LoopMetrics(Frozen):
     `chunks_skipped` counts backpressure skips; the other `chunks_skipped_*` counters say why a
     chunk was not segmented. `sam_calls` and `billed_frames` are the runtime's own SAM requests
     and their billed frames (hosted pricing), and `billed_frames_per_min` each camera's last
-    minute, which the budget is checked against.
+    minute, which the budget is checked against (together with in-flight reservations).
+    `lag_s` is the largest of each camera's latest lag and `keyframe_mode` whether any camera is
+    in it. `in_flight` counts chunks submitted for segmentation and not yet consumed, at most
+    `pipeline_depth` per camera; the latency percentiles cover the last 200 segmentations.
     """
 
     chunks_processed: int = 0
@@ -185,15 +225,24 @@ class LoopMetrics(Frozen):
     billed_frames_per_min: dict[str, int] = Field(default_factory=dict)
     budget_exceeded: int = 0
     budget_degraded: tuple[str, ...] = ()
+    in_flight: int = 0
+    pipeline_depth: int = DEFAULT_PIPELINE_DEPTH
+    segment_latency_p50_s: float = 0.0
+    segment_latency_p95_s: float = 0.0
+
+
+@dataclass
+class _Lag:
+    lag_s: float = 0.0
+    keyframe_mode: bool = False
+    stride_count: int = 0
 
 
 @dataclass
 class _State:
     processed: int = 0
     skipped: int = 0
-    lag_s: float = 0.0
-    keyframe_mode: bool = False
-    stride_count: int = 0
+    lag: dict[str, _Lag] = field(default_factory=dict)  # per camera
     candidates: int = 0
     windows_blind: int = 0
     failed: int = 0
@@ -205,6 +254,52 @@ class _State:
     billed_frames: int = 0
     last_end: dict[tuple[str, str, str], datetime] = field(default_factory=dict)
     gap_end: dict[tuple[str, str], datetime] = field(default_factory=dict)  # (camera, prompt)
+
+
+@dataclass(frozen=True)
+class _Job:
+    """One chunk, with the decisions taken when it was submitted.
+
+    `run` is what to segment (empty: the chunk is not segmented); `gap` the prompts it leaves
+    unobserved. `rule_prompts` is the plan's prompt map as it was at submission.
+    """
+
+    chunk: Chunk
+    plan: ActivePlan
+    rules: tuple[RuleIR, ...]
+    rule_prompts: Mapping[str, Mapping[str, bool]]
+    prompts: Mapping[str, bool]
+    gap: tuple[str, ...]
+    run: tuple[str, ...] = ()
+    motion_seen: bool = False
+
+
+_Slot = tuple[_Job, "asyncio.Future[SegmentedChunk] | None"]
+
+
+@dataclass
+class _Lane:
+    """One camera's pipeline: chunks waiting to be submitted, and submitted ones in order."""
+
+    slots: asyncio.Semaphore
+    intake: asyncio.Queue[Chunk | None] = field(default_factory=asyncio.Queue)
+    ordered: asyncio.Queue[_Slot | None] = field(default_factory=asyncio.Queue)
+
+
+def percentile(samples: Sequence[float], q: float) -> float:
+    """Nearest-rank percentile of `samples` (0 when there are none).
+
+    Args:
+        samples: The values.
+        q: The percentile, in (0, 100].
+
+    Returns:
+        The smallest sample with at least `q` percent of the samples at or below it.
+    """
+    if not samples:
+        return 0.0
+    ordered = sorted(samples)
+    return ordered[max(0, math.ceil(q / 100 * len(ordered)) - 1)]
 
 
 def rule_prompts(rule: RuleIR, zones: Mapping[str, Zone]) -> dict[str, bool]:
@@ -294,6 +389,7 @@ class RuntimeLoop:
         usage: SamUsage | None = None,
         static_sink: StaticSink | None = None,
         companions: Sequence[Callable[[], Awaitable[None]]] = (),
+        pipeline_depth: int = DEFAULT_PIPELINE_DEPTH,
     ) -> None:
         """Create the loop; it does nothing until a plan is set.
 
@@ -318,6 +414,8 @@ class RuntimeLoop:
             static_sink: Told each new plan's static prompts (the static cache's concepts).
             companions: Background coroutines `run()` keeps alive alongside the chunk loop
                 (e.g. the static cache's `coverage.changed` listener).
+            pipeline_depth: Chunks per camera `run()` keeps in flight (segmenting, or waiting
+                for an earlier chunk to be consumed); 1 processes one chunk at a time.
         """
         self._bus = bus
         self._clock = clock
@@ -336,9 +434,13 @@ class RuntimeLoop:
         self._usage = usage
         self._static_sink = static_sink
         self._companions = tuple(companions)
+        self._depth = max(1, pipeline_depth)
         self._plan: ActivePlan | None = None
         self._prompts: dict[str, dict[str, bool]] = {}
         self._state = _State()
+        self._lock = threading.RLock()  # submission and in-order consumption share the state
+        self._in_flight = 0  # touched on the event loop only
+        self._latencies: deque[float] = deque(maxlen=LATENCY_SAMPLES)
 
     @property
     def plan(self) -> ActivePlan | None:
@@ -349,11 +451,13 @@ class RuntimeLoop:
     def metrics(self) -> LoopMetrics:
         """Current runtime health."""
         s = self._state
+        lags = list(s.lag.values())
+        latencies = list(self._latencies)
         return LoopMetrics(
             chunks_processed=s.processed,
             chunks_skipped=s.skipped,
-            lag_s=round(s.lag_s, 3),
-            keyframe_mode=s.keyframe_mode,
+            lag_s=round(max((lag.lag_s for lag in lags), default=0.0), 3),
+            keyframe_mode=any(lag.keyframe_mode for lag in lags),
             candidates=s.candidates,
             windows_blind=s.windows_blind,
             chunks_failed=s.failed,
@@ -366,6 +470,10 @@ class RuntimeLoop:
             billed_frames_per_min=self._sampler.billed_per_minute(),
             budget_exceeded=self._sampler.budget_exceeded,
             budget_degraded=tuple(self._sampler.degraded()),
+            in_flight=self._in_flight,
+            pipeline_depth=self._depth,
+            segment_latency_p50_s=round(percentile(latencies, 50), 3),
+            segment_latency_p95_s=round(percentile(latencies, 95), 3),
         )
 
     def set_plan(self, plan: ActivePlan) -> None:
@@ -389,10 +497,12 @@ class RuntimeLoop:
         )
 
     async def run(self) -> None:
-        """Process `chunk.ready` messages until cancelled (blocking work runs in a thread).
+        """Process `chunk.ready` messages until cancelled (blocking work runs in threads).
 
-        A chunk that fails with a `RulecamError` is logged and counted in `chunks_failed`; the
-        loop carries on with the next chunk. Companion coroutines run until the loop stops.
+        Up to `pipeline_depth` chunks per camera are segmented at once; their results are
+        consumed in chunk order (module docstring). A chunk that fails with a `RulecamError` is
+        logged and counted in `chunks_failed`; the loop carries on with the next chunk.
+        Companion coroutines run until the loop stops.
         """
         companions = [asyncio.create_task(_await(start)) for start in self._companions]
         try:
@@ -402,74 +512,208 @@ class RuntimeLoop:
                 task.cancel()
 
     async def _consume(self) -> None:
-        async with contextlib.aclosing(self._bus.subscribe(Topic.CHUNK_READY)) as messages:
-            async for message in messages:
-                chunk = message.payload
-                if not isinstance(chunk, Chunk):
-                    continue
-                try:
-                    await asyncio.to_thread(self.handle_chunk, chunk)
-                except RulecamError:
-                    self._state.failed += 1
-                    _log.exception(
-                        "runtime_chunk_failed", chunk_id=chunk.chunk_id, camera_id=chunk.camera_id
-                    )
+        executor = ThreadPoolExecutor(SEGMENT_THREADS, thread_name_prefix="rulecam-segment")
+        lanes: dict[str, _Lane] = {}
+        try:
+            async with asyncio.TaskGroup() as group:
+                async with contextlib.aclosing(self._bus.subscribe(Topic.CHUNK_READY)) as messages:
+                    async for message in messages:
+                        chunk = message.payload
+                        if not isinstance(chunk, Chunk):
+                            continue
+                        lane = lanes.get(chunk.camera_id)
+                        if lane is None:
+                            lane = lanes[chunk.camera_id] = _Lane(asyncio.Semaphore(self._depth))
+                            group.create_task(self._submit(lane, executor))
+                            group.create_task(self._drain(lane))
+                        lane.intake.put_nowait(chunk)
+                for lane in lanes.values():
+                    lane.intake.put_nowait(None)
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
+
+    async def _submit(self, lane: _Lane, executor: ThreadPoolExecutor) -> None:
+        """Submit a camera's chunks in arrival order, at most `pipeline_depth` in flight."""
+        loop = asyncio.get_running_loop()
+        while (chunk := await lane.intake.get()) is not None:
+            await lane.slots.acquire()  # a full pipeline waits here, so the lag shows it
+            try:
+                job = await asyncio.to_thread(self._admit, chunk)
+            except BaseException:
+                lane.slots.release()
+                raise
+            future = loop.run_in_executor(executor, self._segment, job) if job and job.run else None
+            if future is None:
+                lane.slots.release()
+            else:
+                self._in_flight += 1
+            if job is not None:
+                lane.ordered.put_nowait((job, future))
+        lane.ordered.put_nowait(None)
+
+    async def _drain(self, lane: _Lane) -> None:
+        """Consume a camera's submitted chunks strictly in submission order."""
+        while (slot := await lane.ordered.get()) is not None:
+            job, future = slot
+            try:
+                outcome: SegmentedChunk | Exception | None = None
+                if future is not None:
+                    try:
+                        outcome = await future
+                    except Exception as exc:
+                        outcome = exc
+                await asyncio.to_thread(self._finish, job, outcome)
+            except RulecamError:
+                self._state.failed += 1
+                _log.exception(
+                    "runtime_chunk_failed",
+                    chunk_id=job.chunk.chunk_id,
+                    camera_id=job.chunk.camera_id,
+                )
+            finally:
+                if future is not None:
+                    self._in_flight -= 1
+                    lane.slots.release()
 
     def _should_process(self, chunk: Chunk) -> bool:
-        s = self._state
-        s.lag_s = (self._clock.now() - chunk_end(chunk)).total_seconds()
-        lagging = s.lag_s > self._max_lag_s
-        if lagging != s.keyframe_mode:
-            _log.warning("runtime_keyframe_mode", on=lagging, lag_s=round(s.lag_s, 2))
-            s.keyframe_mode = lagging
-            s.stride_count = 0
-        if not s.keyframe_mode:
+        lag = self._state.lag.setdefault(chunk.camera_id, _Lag())
+        lag.lag_s = (self._clock.now() - chunk_end(chunk)).total_seconds()
+        lagging = lag.lag_s > self._max_lag_s
+        if lagging != lag.keyframe_mode:
+            _log.warning(
+                "runtime_keyframe_mode",
+                on=lagging,
+                lag_s=round(lag.lag_s, 2),
+                camera_id=chunk.camera_id,
+            )
+            lag.keyframe_mode = lagging
+            lag.stride_count = 0
+        if not lag.keyframe_mode:
             return True
-        s.stride_count += 1
-        return (s.stride_count - 1) % self._stride == 0
+        lag.stride_count += 1
+        return (lag.stride_count - 1) % self._stride == 0
 
     def handle_chunk(self, chunk: Chunk) -> list[CandidateEvent]:
-        """Run the whole pipeline for one chunk.
+        """Run the whole pipeline for one chunk, synchronously (submit, segment, consume).
 
-        `run()` calls this in a worker thread; bus messages reach subscribers safely because
-        the API binds the bus to its event loop (`Bus.bind_loop`).
+        Bus messages reach subscribers safely from a worker thread because the API binds the
+        bus to its event loop (`Bus.bind_loop`).
 
         Args:
             chunk: The chunk that just became ready.
 
         Returns:
             The new candidates found (after de-duplication across windows).
+
+        Raises:
+            RulecamError: The chunk failed (it is accounted for as a gap first).
         """
-        plan = self._plan
-        if plan is None:
+        job = self._admit(chunk)
+        if job is None:
             return []
+        if not job.run:
+            return self._finish(job, None)
+        try:
+            outcome: SegmentedChunk | Exception = self._segment(job)
+        except Exception as exc:
+            outcome = exc
+        return self._finish(job, outcome)
+
+    def _admit(self, chunk: Chunk) -> _Job | None:
+        """Submission: decide whether and what to segment (lag, sampling, budget, motion gate).
+
+        Returns:
+            The job to consume in order, or `None` when no plan or rule covers the camera.
+        """
+        plan, rule_prompts = self._plan, self._prompts
+        if plan is None:
+            return None
         rules = plan.rules_on(chunk.camera_id)
         if not rules:
-            self._state.skipped_no_rule += 1
-            return []
-        prompts = merge_prompts(self._prompts[rule.id] for rule in rules)
-        if not self._should_process(chunk):
-            self._state.skipped += 1
-            self._mark_gap(chunk, prompts)
-            return []
+            with self._lock:
+                self._state.skipped_no_rule += 1
+            return None
+        prompts = merge_prompts(rule_prompts[rule.id] for rule in rules)
+        job = _Job(chunk, plan, rules, rule_prompts, prompts, gap=tuple(prompts))
+        with self._lock:
+            if not self._should_process(chunk):
+                self._state.skipped += 1
+                return job
         stats = self._measure(chunk)
         moving = stats is None or self._gate is None or not is_still(stats, self._gate.config)
-        admission = self._sampler.admit(chunk, rules, moving=moving)
-        if admission != "run":
-            if admission == "idle":
-                self._state.skipped_idle += 1
-            else:
-                self._state.skipped_budget += 1
-            self._mark_gap(chunk, prompts)
+        with self._lock:
+            admission = self._sampler.admit(chunk, rules, moving=moving)
+            if admission != "run":
+                if admission == "idle":
+                    self._state.skipped_idle += 1
+                else:
+                    self._state.skipped_budget += 1
+                return job
+            run = self._select(chunk, rules, prompts, stats)
+            gap = tuple(p for p in prompts if p not in run)
+            dynamic = [p for p in prompts if not prompts[p]]
+            if dynamic and not any(p in run for p in dynamic):
+                # Every dynamic concept was gated on a still chunk: nothing to segment.
+                self._state.skipped_still += 1
+                return replace(job, gap=gap)
+            if self._usage is not None:
+                calls = sum(1 for p in run if not prompts[p])  # static prompts are cached
+                self._sampler.reserve(chunk, calls * hosted_billed_frames(chunk.n_frames))
+            return replace(job, gap=gap, run=tuple(run), motion_seen=stats is not None and moving)
+
+    def _segment(self, job: _Job) -> SegmentedChunk:
+        """The concurrent step: the SAM concept pass of a submitted chunk."""
+        started = self._clock.now()
+        segmented = self._tracker.segment(job.chunk, job.run)
+        self._latencies.append((self._clock.now() - started).total_seconds())
+        return segmented
+
+    def _finish(
+        self, job: _Job, outcome: SegmentedChunk | Exception | None
+    ) -> list[CandidateEvent]:
+        """The in-order step: gaps, hand-off, rules and candidates of one submitted chunk.
+
+        Args:
+            job: The submitted chunk.
+            outcome: Its segmentation, the error it raised, or `None` if it was not segmented.
+
+        Returns:
+            The new candidates.
+        """
+        chunk = job.chunk
+        if not job.run:
+            with self._lock:
+                self._mark_gap(chunk, job.gap)
             return []
-        run = self._select(chunk, rules, prompts, stats)
-        self._mark_gap(chunk, [p for p in prompts if p not in run])
-        dynamic = [p for p in prompts if not prompts[p]]
-        if dynamic and not any(p in run for p in dynamic):
-            # Every dynamic concept was gated on a still chunk: nothing to segment.
-            self._state.skipped_still += 1
-            return []
-        return self._process(chunk, plan, rules, run, motion_seen=stats is not None and moving)
+        try:
+            tracks = self._stitch(chunk, outcome)
+        except Exception:
+            with self._lock:
+                # Nothing of a failed chunk was observed: a gap, like any other skipped chunk.
+                self._state.processed += 1
+                self._mark_gap(chunk, job.prompts)
+                self._sampler.record(chunk, billed_frames=self._bill(chunk), active=False)
+            raise
+        with self._lock:
+            return self._process(job, tracks)
+
+    def _stitch(self, chunk: Chunk, outcome: SegmentedChunk | Exception | None) -> list[Track]:
+        """Hand off a segmented chunk's identities, or re-raise the error its segment raised."""
+        if isinstance(outcome, Exception):
+            raise outcome
+        if outcome is None:
+            msg = "a segmented chunk needs its segmentation"
+            raise ValueError(msg)
+        return self._tracker.stitch(chunk, outcome)
+
+    def _bill(self, chunk: Chunk) -> int:
+        """Count the chunk's SAM requests and billed frames; return the billed frames."""
+        if self._usage is None:
+            return 0
+        calls, billed = self._usage.take_chunk(chunk.camera_id, chunk.chunk_id)
+        self._state.sam_calls += calls
+        self._state.billed_frames += billed
+        return billed
 
     def _measure(self, chunk: Chunk) -> MotionStats | None:
         if self._gate is None:
@@ -498,29 +742,17 @@ class RuntimeLoop:
                 gated.add(prompt)
         return [p for p in prompts if p not in gated]
 
-    def _process(
-        self,
-        chunk: Chunk,
-        plan: ActivePlan,
-        rules: Sequence[RuleIR],
-        run: Sequence[str],
-        *,
-        motion_seen: bool,
-    ) -> list[CandidateEvent]:
-        """Segment `run` on the chunk, evaluate the camera's rules and handle new candidates."""
+    def _process(self, job: _Job, tracks: Sequence[Track]) -> list[CandidateEvent]:
+        """Evaluate the camera's rules after a segmented chunk and handle new candidates."""
+        chunk, rules = job.chunk, job.rules
         self._state.processed += 1
-        before = self._usage.totals(chunk.camera_id) if self._usage is not None else (0, 0)
-        tracks = self._tracker.process_chunk(chunk, run)
-        after = self._usage.totals(chunk.camera_id) if self._usage is not None else (0, 0)
-        calls, billed = after[0] - before[0], after[1] - before[1]
-        self._state.sam_calls += calls
-        self._state.billed_frames += billed
-        found = [pair for rule in rules for pair in self._evaluate(rule, plan, chunk)]
+        self._mark_gap(chunk, job.gap)
+        billed = self._bill(chunk)
+        found = [pair for rule in rules for pair in self._evaluate(rule, job)]
         for candidate, context in found:
-            self._handle_candidate(candidate, context, chunk, plan.privacy_mode)
-        prompts = merge_prompts(self._prompts[rule.id] for rule in rules)
-        dynamic_seen = any(not prompts.get(t.concept, False) for t in tracks)
-        active = bool(found) or dynamic_seen or (has_high(rules) and motion_seen)
+            self._handle_candidate(candidate, context, chunk, job.plan.privacy_mode)
+        dynamic_seen = any(not job.prompts.get(t.concept, False) for t in tracks)
+        active = bool(found) or dynamic_seen or (has_high(rules) and job.motion_seen)
         self._sampler.record(chunk, billed_frames=billed, active=active)
         return [candidate for candidate, _ in found]
 
@@ -532,13 +764,12 @@ class RuntimeLoop:
             previous = self._state.gap_end.get(key)
             self._state.gap_end[key] = end if previous is None else max(previous, end)
 
-    def _evaluate(
-        self, rule: RuleIR, plan: ActivePlan, chunk: Chunk
-    ) -> list[tuple[CandidateEvent, DecisionContext]]:
+    def _evaluate(self, rule: RuleIR, job: _Job) -> list[tuple[CandidateEvent, DecisionContext]]:
+        chunk, plan = job.chunk, job.plan
         t1 = chunk_end(chunk)
         t0 = t1 - self._window
         self._forget_before(chunk.camera_id, t0)
-        gaps = [self._state.gap_end.get((chunk.camera_id, p)) for p in self._prompts[rule.id]]
+        gaps = [self._state.gap_end.get((chunk.camera_id, p)) for p in job.rule_prompts[rule.id]]
         gap_end = max((g for g in gaps if g is not None), default=None)
         if gap_end is not None and gap_end > t0:
             # Some of this window was not observed: judge only what came after the gap, and
@@ -590,7 +821,7 @@ class RuntimeLoop:
         # The context lets `rulecam audit` re-derive this decision from the track store (E9).
         self._chain.append("candidate", candidate_payload(candidate, context))
         self._bus.publish(Topic.CANDIDATE_NEW, candidate)
-        candidate = self._strips.render(candidate, chunk, mode)
+        candidate = self._strips.render(candidate, chunk, mode, context)
         act_first = self._policy.act_first(candidate, rule)
         if act_first:
             immediate = Decision(alert=True, route="auto", act_first=True, reason="act first")

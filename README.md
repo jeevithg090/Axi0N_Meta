@@ -50,7 +50,7 @@ Each status says exactly how far the model is wired today. **Live** means the de
 | Muse Spark 1.3 (+1.2 for narrated video) | Planner, compiler, standards grounding | Hosted API | Live in the Planner (P2-01, P2-06) |
 | Muse Voice Transcribe | Spoken requests, disputes, voice round-trip check | Hosted API | Live for spoken requests (P2-02); voice disputes are library (P2-S2), not yet passed to the worker router |
 | SAM 3.1 | Survey, probes, tracking, coverage, masks | Hosted API; self-hosted on Modal | Live: hosted client (P1-02) for survey, probes and Rule CI; the runtime uses self-hosted SAM 3.1 on our GPU pod (`SAM_BASE_URL`) or Modal when configured, and falls back to hosted (P1-03) |
-| Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute | Site laptop or GPU pod (llama-server) | Live as Tier 1 (P3-03), but the runtime passes it no frames yet, so it judges the predicate trace alone |
+| Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute | Site laptop or GPU pod (llama-server) | Live as Tier 1 (P3-03); since #98 it sees up to 6 privacy-filtered keyframes per episode (P4-05) |
 | Muse Spark Open (open weights) | Tier 2 verifier, dispute review, plan audit, devil's advocate | Baseten | Live for plan audit and dispute review (P2-07, P2-11); Tier 2 in the runtime is library (P3-04) |
 | Muse Image | Rule CI scenes, lookalikes, boundary pairs | Hosted API | Library: Rule CI part 2 (P2-09, #71) is built but switched off in the app, which runs part 1 only |
 | Sapiens (FAIR) | Pose and skeletons | GPU | Planned; RTMPose (ONNX, CPU) pose features and estimator are library code (P4-04), unverified on real weights and not yet called by the runtime |

@@ -112,6 +112,31 @@ matter:
    `RULECAM_SAM_BUDGET_FRAMES_PER_MIN` (default 1,000; 0 turns it off), it degrades to one chunk
    in `RULECAM_SAM_BUDGET_STRIDE` (3), logged `budget_exceeded`, instead of falling behind. It
    recovers by itself when the minute drains (`budget_recovered`).
+6. **Pipelined chunks.** Hosted SAM takes 6 to 17 s per request and a camera delivers a chunk
+   every 3 s, so a loop that segments one chunk at a time cannot keep up. Measured on `main`
+   096a438 (one HIGH forklift rule, one camera, idle stride 2): lag 123 to 142 s, the loop stuck
+   in keyframe mode, 3 chunks segmented in 3 minutes, the 8 vCPU API pod mostly idle. The loop
+   now keeps up to `RULECAM_RUNTIME_PIPELINE_DEPTH` (default 4) chunks per camera in flight.
+   Everything that decides *whether* to segment (lag, idle stride, motion gate, budget) runs when
+   a chunk is submitted, in arrival order; only the SAM concept pass runs concurrently; a
+   per-camera reorder buffer then hands results, strictly in chunk order, to tracking, the track
+   store, rule evaluation, candidates, verification, actions and the evidence chain. The budget
+   counts each in-flight chunk's expected bill (one request per dynamic concept) until its real
+   bill replaces it, so depth never overspends it. A failed chunk is counted in `chunks_failed`
+   and is a coverage gap; the chunks behind it carry on. When a camera's pipeline is full the
+   next chunk waits for the oldest one, its lag grows and keyframe mode thins the chunks, as
+   before; requests never queue past the depth. `1` is the old one-chunk-at-a-time loop.
+
+   **Throughput.** A camera keeps up while `depth / latency >= 1 / interval`, where the interval
+   is 3 s on a hot camera and 6 s at idle stride 2. Depth 4 sustains 4 / 6 s = 0.67 chunks/s at
+   6 s latency (needs 0.33) and 4 / 12 s = 0.33 chunks/s at 12 s, so it keeps up with every chunk
+   up to 12 s per request and with idle stride 2 up to 24 s. At 17 s it manages 0.24 chunks/s on
+   a hot camera; lag then grows by about 1.3 s per chunk until keyframe mode (one in 3, 0.11
+   chunks/s needed) takes over. The cost is concurrency, not frames: at depth 4 with two concepts
+   a camera has up to 8 hosted requests open at once. With depth above 1 the tracker hands
+   identities off by box IoU instead of box re-prompts: a re-prompt needs the previous chunk's
+   tracks, which would put one more SAM round trip per chunk back on the ordered path. That also
+   removes the re-prompt requests from the bill.
 
 **Safety trade-off.** A chunk that is not segmented is a coverage gap, never evidence of
 absence: a rule's window is cut to start after the gap, and the rule is judged on the cut window
@@ -128,15 +153,37 @@ a 160 px frame). The budget never thins a camera with a HIGH rule while it is ac
 **Expected spend** for the measured case (one HIGH forklift rule, warehouse + kitchen camera,
 30-frame 3 s chunks, 50 frames billed per request): before, 2 cameras x 20 chunks x 2 concepts x
 50 = **4,000 billed frames/min**. After: kitchen **0**; warehouse **1,000/min** while still or
-idle (every 2nd chunk) and **2,000/min** while something moves (every chunk; tracker box
-re-prompts for objects already in view add up to one request per concept per chunk). The same
+idle (every 2nd chunk) and **2,000/min** while something moves (every chunk; with
+`RULECAM_RUNTIME_PIPELINE_DEPTH=1`, tracker box re-prompts for objects already in view add up to
+one request per concept per chunk). The same
 rule at medium severity: about 200/min on a still camera (gate keyframes only), 670/min while
 idle with motion, and at most the 1,000/min budget while active.
 
 `GET /runtime/metrics` (owner) shows it: `sam_calls`, `billed_frames`, `billed_frames_per_min`
 per camera, `chunks_skipped_no_rule`, `chunks_skipped_idle`, `chunks_skipped_still`,
-`chunks_skipped_budget`, `budget_exceeded`, `budget_degraded`, next to the existing lag and
-keyframe fields.
+`chunks_skipped_budget`, `budget_exceeded`, `budget_degraded`, and for the pipeline `in_flight`,
+`pipeline_depth`, `segment_latency_p50_s` and `segment_latency_p95_s` (last 200 segmentations),
+next to the existing lag and keyframe fields (`lag_s` is the most-behind camera's).
+
+## Evidence strips (what Glimmer sees)
+
+Every candidate gets a strip before Tier 1 (`runtime/strips.py`, P4-05): up to 6 keyframes
+spread over the episode (at least its last 2 s), decoded from the chunks on disk with one ffmpeg
+call per chunk straight into memory (no raw frame is written), at most 640 px wide. Each frame
+shows the rule's objects as labelled boxes (the subject in red), the rule's polygon zones, a
+caption (frame, offset, rule, measured value) and, when the camera has a calibration in the
+approved plan, a ruler from the subject's foot to the nearest other object with its ground
+distance and a one-metre tick. The JPEGs go to `$RULECAM_DATA_DIR/strips/<camera>/<event>/`.
+
+The plan's privacy mode applies: `standard` keeps the real frame with faces blurred;
+`anonymous` and `strict` keep no person pixel (a clean plate, the rule's non-person objects
+minus every person box, people drawn as skeletons or stick figures; `strict` is greyscale with
+identical figures). Faces are only located to be blurred. The face detector is OpenCV's YuNet:
+put `face_detection_yunet_2023mar.onnx` from opencv_zoo (check its licence when fetching) on the
+volume and set `RULECAM_FACE_MODEL` to its path. Without it the log says `face_detector_missing`
+at start-up and only the head regions of tracked people are blurred. A strip that cannot be
+rendered is logged (`strip_render_failed`, `strip_chunk_failed`) and the candidate is verified
+without frames.
 
 ## Glimmer pod (RunPod GPU)
 
@@ -206,6 +253,37 @@ GPU pod setup:
 6. Check: `curl https://<sam-pod>-8090.proxy.runpod.net/health` gives `{"status": "ok", …}`, and
    `POST /segment` without the key gives 401.
 
+GPU memory, speed and accuracy knobs (GPU pod environment, read once at load):
+
+- After every session (also a failed one) the engine runs `gc.collect()`,
+  `torch.clear_autocast_cache()` and `torch.cuda.empty_cache()`, asks propagation not to keep
+  per-frame masks (`evict_cached_frame_outputs`), and logs `sam_session_memory allocated_mb=…
+  reserved_mb=… peak_mb=…`. Upstream `close_session` only empties the CUDA cache above 80 % device
+  use and, by default, keeps every propagated frame's video-resolution masks on the GPU until the
+  session closes; on an L4 the pod grew from 4 GB to 20–22 GB in a few calls and then failed every
+  call with `OutOfMemoryError`. `scripts/sam_pod/soak.py` (stdlib only, run with the sam venv on
+  the GPU pod) posts one chunk N times and prints `/health` memory after each call.
+- `SAM_MEMORY_GUARD_GB` (default: half the device): when allocated memory is still above it after a
+  session, the engine logs `sam_memory_guard`, closes any session the predictor still holds and
+  frees the cache again. `GET /health` shows `memory` (allocated, reserved, peak, free and total
+  bytes; `sessions`, `guard_trips`, `last_session`, `model_config`). Allocated memory should come
+  back to the same level after every call; if `guard_trips` keeps rising, restart with
+  `setup.sh --restart` and report the log.
+- No frame downscaling: SAM 3.1 resizes every frame to 1008 × 1008 before the backbone, so smaller
+  input frames save no GPU time. `SAM_COMPILE=1` builds the model with `torch.compile` and warms it
+  up (upstream quotes about 2×; slower start, untested on our pod).
+- Detection settings (defaults are upstream's): `SAM_DET_THRESH` (0.4), `SAM_NEW_DET_THRESH`
+  (0.65, the score a detection needs to start a new object), `SAM_HOTSTART_DELAY` (15 frames),
+  `SAM_HOTSTART_UNMATCH` (8) and `SAM_HOTSTART_DUP` (8). Set them in the
+  environment of `setup.sh --restart` or as `KEY=value` lines in `/workspace/sam.env` (read on
+  every start, so they survive a reboot). Hotstart drops an object that goes
+  unmatched for 8 of its first 15 frames, which is most of a 3 s chunk at 3–8 fps.
+- Hosted parity check, on the API pod: `RULECAM_MODE=live uv run python
+  scripts/sam_pod/compare.py --concept forklift --concept person <chunk.mp4 …>` prints per chunk
+  and concept the detections, frames with detections, latency and frame agreement for hosted and
+  self-hosted SAM, plus the self-hosted `/health` memory before and after (hosted calls are
+  billed).
+
 API pod: add `SAM_BASE_URL=https://<sam-pod>-8090.proxy.runpod.net` to `.env`, write the same key
 to `/workspace/rulecam/.sam_api_key` (mode 600) and have `start.sh` export it as `SAM_API_KEY` like
 the other key files, then restart the API. The key never goes in `.env`, `NEXT_PUBLIC_*`, argv or
@@ -213,7 +291,8 @@ logs.
 
 **Security.** The server refuses to start without `SAM_API_KEY`, compares the Bearer key in
 constant time, and answers 401 before reading a body. Only `/health` is open, and it reveals the
-model version and whether the GPU is busy, nothing else. Keep it behind the RunPod HTTPS proxy;
+model version, whether the GPU is busy, GPU memory counters and the detection settings, nothing
+else. Keep it behind the RunPod HTTPS proxy;
 no shortcut that trusts every forwarder (the `--forwarded-allow-ips="*"` kind) and no open port
 without the key. Rotate the key by rewriting both 600 files and restarting both sides.
 

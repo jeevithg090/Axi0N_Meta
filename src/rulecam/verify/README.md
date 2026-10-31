@@ -33,12 +33,14 @@ answer = glimmer.structured(model=glimmer.model, messages=msgs, schema=MySchema)
 ```
 
 - Output is constrained with `response_format: json_schema`. A malformed reply is retried once,
-  then the verifier returns `unsure` with score 0.5. It never crashes and never passes silently.
+  with a corrective message (so the retry is a new request and a new replay-cache key), then
+  the verifier returns `unsure` with score 0.5. It never crashes and never passes silently.
 - Glimmer receives the rule text, an IR summary, the predicate trace and up to 6 strip frames
   (base64 data URLs). It copies any visible text verbatim into `scene_text` for the firewall.
 - Every call publishes `relay.model_used` and appends a line to
   `evidence/glimmer/inference-log.jsonl` (model, quant, hardware, latency, request hash; never
-  prompts or images). This is the open-weight prize evidence: commit it after demo runs.
+  prompts or images). Calls served from the replay cache are not logged, since no inference ran.
+  This is the open-weight prize evidence: commit it after demo runs.
 
 ## Tests
 
@@ -64,10 +66,13 @@ spark.devil_advocate({"metric": ..., "leading": ...})  # list[str], tested by th
 - `.env`: `BASETEN_API_KEY`, `BASETEN_BASE_URL` (default `https://inference.baseten.co/v1`),
   `BASETEN_SPARK_OPEN_MODEL` (confirm the `-1026` ID), and `SPARK_OPEN_IMAGES_SUPPORTED`. Leave
   that one `false` until a day-one call confirms images work; the text-only path then sends
-  Glimmer's description of the strip, labelled as Glimmer's.
-- `reasoning_content` is stored in `data/reasoning/<so_id>.txt`. Each call appends a line with the
+  Glimmer's description of the strip, labelled as Glimmer's. With no Glimmer verdict to pass,
+  a text-only `verify` returns `unsure` without calling Spark Open.
+- `reasoning_content` is stored in `data/reasoning/<so_id>.txt`. The id is content-addressed
+  (`so_` + the first 16 hex of its SHA-256), so replayed runs give identical ids. Each call appends a line with the
   Baseten response id to `evidence/spark_open/inference-log.jsonl`.
-- A timeout or error gives `unsure` (verify) or `pending` (dispute), never a silent pass. Audit and
+- A timeout or error gives `unsure` (verify, with the elapsed latency) or `pending` (dispute),
+  never a silent pass. Audit and
   devil's-advocate failures raise, so callers can show them as "not audited".
 - Live check: `make live-test` runs `tests/verify/test_tier2_live.py`.
 

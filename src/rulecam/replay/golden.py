@@ -15,7 +15,8 @@ steps:
 canonical output of each step to `scenarios/<name>.expected.json`. `verify` runs the same steps in
 `replay` mode (no network) and reports every step whose output differs. Step kinds are registered
 by the packages that own them with `register_step`, so this module knows nothing about planners or
-verifiers.
+verifiers. While a scenario runs, the runner's cache is also the process-wide cache, so steps that
+call `cached_call` are switched to the same mode (and `verify` can never reach the network).
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ from pydantic import Field, ValidationError
 
 from rulecam.contracts import Frozen
 from rulecam.log import get_logger
-from rulecam.replay.cache import Mode, ReplayCache, canonical_json
+from rulecam.replay.cache import Mode, ReplayCache, atomic_write_text, canonical_json, using
 from rulecam.replay.errors import ReplayMiss, ScenarioError
 
 _log = get_logger(__name__)
@@ -162,17 +163,25 @@ class GoldenRunner:
             msg = f"unknown step kind {step.kind!r} in step {step.id!r}"
             raise ScenarioError(msg) from exc
 
-    def _run(self, scenario: Scenario, mode: Mode) -> dict[str, object]:
+    def _run(self, scenario: Scenario, mode: Mode) -> tuple[dict[str, object], dict[str, str]]:
+        """Run every step; return outputs, and (in replay) the steps that hit `ReplayMiss`."""
         fns = [self._step_fn(step) for step in scenario.steps]  # fail before any model call
+        outputs: dict[str, object] = {}
+        misses: dict[str, str] = {}
         previous = self._cache.mode
         self._cache.set_mode(mode)
         try:
-            return {
-                step.id: _normalise(fn(step.params, self._cache))
-                for step, fn in zip(scenario.steps, fns, strict=True)
-            }
+            with using(self._cache):
+                for step, fn in zip(scenario.steps, fns, strict=True):
+                    try:
+                        outputs[step.id] = _normalise(fn(step.params, self._cache))
+                    except ReplayMiss as exc:
+                        if mode != "replay":
+                            raise
+                        misses[step.id] = str(exc)
         finally:
             self._cache.set_mode(previous)
+        return outputs, misses
 
     def record(self, name: str) -> Path:
         """Run scenario `name` in record mode and write its expected outputs.
@@ -187,12 +196,12 @@ class GoldenRunner:
             ScenarioError: If the scenario is invalid or names an unknown step kind.
         """
         scenario = load_scenario(self.scenario_path(name))
-        outputs = self._run(scenario, "record")
+        outputs, _ = self._run(scenario, "record")
         path = self.expected_path(name)
-        path.write_text(
+        atomic_write_text(
+            path,
             json.dumps({"scenario": scenario.name, "steps": outputs}, indent=2, sort_keys=True)
             + "\n",
-            encoding="utf-8",
         )
         _log.info("golden_recorded", scenario=name, steps=len(outputs))
         return path
@@ -213,7 +222,8 @@ class GoldenRunner:
     def verify(self, name: str) -> GoldenReport:
         """Replay scenario `name` and compare each step with its recorded output.
 
-        A step that hits `ReplayMiss` is reported as a diff with the error, not raised.
+        A step that hits `ReplayMiss` is reported as a diff (with its step id and the error), and
+        the remaining steps still run.
 
         Args:
             name: The scenario name.
@@ -226,15 +236,16 @@ class GoldenRunner:
         """
         scenario = load_scenario(self.scenario_path(name))
         expected = self._load_expected(name)
-        try:
-            actual = self._run(scenario, "replay")
-        except ReplayMiss as exc:
-            diff = StepDiff(step_id="*", expected=None, actual=None, error=str(exc))
-            return GoldenReport(scenario=name, steps=len(scenario.steps), diffs=(diff,))
+        actual, misses = self._run(scenario, "replay")
         diffs = tuple(
-            StepDiff(step_id=step.id, expected=expected.get(step.id), actual=actual[step.id])
+            StepDiff(
+                step_id=step.id,
+                expected=expected.get(step.id),
+                actual=actual.get(step.id),
+                error=misses.get(step.id),
+            )
             for step in scenario.steps
-            if expected.get(step.id) != actual[step.id]
+            if step.id in misses or expected.get(step.id) != actual[step.id]
         )
         _log.info("golden_verified", scenario=name, diffs=len(diffs))
         return GoldenReport(scenario=name, steps=len(scenario.steps), diffs=diffs)

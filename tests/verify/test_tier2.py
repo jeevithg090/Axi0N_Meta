@@ -15,6 +15,7 @@ from rulecam.clients.open_weights.spark_open import (
     ReasoningStore,
     SparkOpenClient,
     SparkOpenConfig,
+    reasoning_id,
 )
 from rulecam.clients.transport import ModelTransportError
 from rulecam.config import Settings
@@ -50,11 +51,10 @@ def make(
     tmp_path: Path, *replies: Mapping[str, object] | Exception, images: bool = False
 ) -> tuple[SparkOpenVerifier, QueueTransport, SparkOpenClient]:
     transport = QueueTransport(*replies)
-    ids = iter(f"{i:04d}" for i in range(100))
     client = SparkOpenClient(
         transport,
         clock=FakeClock(),
-        reasoning=ReasoningStore(tmp_path / "reasoning", new_id=lambda: next(ids)),
+        reasoning=ReasoningStore(tmp_path / "reasoning"),
         config=SparkOpenConfig(images_supported=images),
         evidence=EvidenceLog(tmp_path / "evidence.jsonl"),
         monotonic=iter([0.0, 1.5, 3.0, 4.5, 6.0, 7.5]).__next__,
@@ -72,7 +72,7 @@ def test_verify_keeps_reasoning_verbatim_and_stores_it(tmp_path: Path) -> None:
     assert verdict.reasoning == REASONING
     assert verdict.score == 0.8
     assert verdict.latency_ms == 1500
-    assert client.reasoning_text("so_0000") == REASONING
+    assert client.reasoning_text(reasoning_id(REASONING)) == REASONING
     line = json.loads((tmp_path / "evidence.jsonl").read_text())
     assert line["request_id"] == "chatcmpl-42"
     assert line["hardware"] == "baseten"
@@ -116,9 +116,28 @@ def test_images_sent_when_supported(tmp_path: Path) -> None:
 )
 def test_timeouts_and_errors_give_unsure(tmp_path: Path, failure: object) -> None:
     replies = [failure, failure]
-    verifier, _, _ = make(tmp_path, *replies)  # type: ignore[arg-type]
+    verifier, transport, _ = make(tmp_path, *replies)  # type: ignore[arg-type]
+    verdict = verifier.verify(make_candidate(), load_rule(), make_verdict(verdict="unsure"))
+    assert (verdict.verdict, verdict.score) == ("unsure", 0.5)
+    assert transport.requests, "the failure must come from a real call"
+
+
+def test_failed_call_reports_elapsed_latency(tmp_path: Path) -> None:
+    error = ModelTransportError("timeout")
+    _, _, client = make(tmp_path, error, error)
+    ticks = iter([10.0, 100.0])
+    verifier = SparkOpenVerifier(client, monotonic=ticks.__next__)
+    verdict = verifier.verify(make_candidate(), load_rule(), make_verdict(verdict="unsure"))
+    assert verdict.verdict == "unsure"
+    assert verdict.latency_ms == 90_000
+
+
+def test_text_only_without_tier1_is_unsure_without_calling(tmp_path: Path) -> None:
+    verifier, transport, _ = make(tmp_path, spark_reply(VIOLATION))
     verdict = verifier.verify(make_candidate(), load_rule())
     assert (verdict.verdict, verdict.score) == ("unsure", 0.5)
+    assert "text-only" in verdict.reason
+    assert transport.requests == []
 
 
 @pytest.mark.parametrize("outcome", ["upheld", "rejected"])
@@ -138,7 +157,9 @@ def test_dispute_failure_stays_pending(tmp_path: Path) -> None:
     error = ModelTransportError("timeout")
     verifier, _, _ = make(tmp_path, error, error)
     dispute = Dispute(channel="tap", reason_text="wrong")
-    assert verifier.review_dispute(make_candidate(), load_rule(), dispute).outcome == "pending"
+    reviewed = verifier.review_dispute(make_candidate(), load_rule(), dispute)
+    assert reviewed.outcome == "pending"
+    assert reviewed.reviewer_reasoning == "review failed: ModelTransportError"
 
 
 def test_dispute_without_reasoning_uses_reason(tmp_path: Path) -> None:
@@ -172,7 +193,7 @@ def test_audit_findings_parse(tmp_path: Path) -> None:
     result = verifier.audit_plan(minimal_plan())
     assert [f.text for f in result] == ["back-door sink not covered by any camera"]
     assert result[0].by == "spark-open"
-    assert result[0].reasoning_ref == "so_0000"
+    assert result[0].reasoning_ref == reasoning_id(REASONING)
 
 
 def test_audit_failure_raises(tmp_path: Path) -> None:
@@ -204,6 +225,8 @@ def test_reasoning_store_rejects_paths(tmp_path: Path) -> None:
     store = ReasoningStore(tmp_path)
     ref = store.save("x")
     assert store.load(ref) == "x"
+    assert ref == store.save("x") == reasoning_id("x"), "ids are content-addressed"
+    assert ref != store.save("y")
     with pytest.raises(ValueError, match="invalid reasoning id"):
         store.load("so_../../etc")
 

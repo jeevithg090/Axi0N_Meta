@@ -1,7 +1,8 @@
 """Builds the real runtime from settings (task P3-08): SAM router, tracker, Parquet store, Glimmer.
 
 `build_perception` wires the merged P1 modules: hosted SAM 3.1 through the replay cache, the
-self-hosted Modal worker, `SegmenterRouter`, `PerceptionMetrics`, and a thread-safe
+self-hosted worker (our own GPU pod when `SAM_BASE_URL` is set, otherwise Modal),
+`SegmenterRouter`, `PerceptionMetrics`, and a thread-safe
 `ParquetTrackStore` shared by the runtime loop and the correction loop. `build_runtime` adds the
 `Tracker`, the Tier 1 Glimmer verifier and the evidence chain around them.
 
@@ -44,10 +45,11 @@ from rulecam.contracts import (
 )
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.log import get_logger
+from rulecam.perception.errors import SamRuntimeError
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.perception.motion_gate import MotionGate
 from rulecam.perception.router import CallMeter, Purpose, RoutingPolicy, SegmenterRouter
-from rulecam.perception.sam_runtime import ModalSam31, ModalWorker
+from rulecam.perception.sam_runtime import HttpSamWorker, ModalSam31, ModalWorker, SamWorker
 from rulecam.perception.static_cache import StaticServedSegmenter
 from rulecam.perception.tracking import Tracker
 from rulecam.replay.cache import ReplayCache
@@ -213,26 +215,52 @@ class Perception:
     chunks: ChunkIndex
 
 
+def self_hosted_worker(settings: Settings) -> tuple[SamWorker, str] | None:
+    """Pick the self-hosted SAM worker: our GPU pod (`SAM_BASE_URL`) first, then Modal.
+
+    Args:
+        settings: Application settings.
+
+    Returns:
+        The worker and a short name for the log, or `None` when neither is configured (runtime
+        perception is then hosted).
+    """
+    if settings.sam_base_url and settings.sam_api_key is not None:
+        return HttpSamWorker.from_settings(settings), "http"
+    if settings.modal_token_id is not None and settings.modal_token_secret is not None:
+        return ModalWorker(settings), "modal"
+    return None
+
+
 def build_perception(
     settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus
 ) -> Perception:
     """Build SAM (hosted + self-hosted behind `SegmenterRouter`), metrics and the track store.
 
-    Runtime perception is self-hosted when Modal tokens are configured, hosted otherwise.
+    Runtime perception is self-hosted when `SAM_BASE_URL` + `SAM_API_KEY` (our GPU pod) or the
+    Modal tokens are configured, hosted otherwise. Probes, surveys and Rule CI stay hosted. A
+    self-hosted failure sends runtime calls to hosted for the router's retry window; each such
+    outage is logged (`sam_fallback_to_hosted`) and counted in `sam_fallbacks`.
     """
     metrics = PerceptionMetrics()
     hosted = hosted_sam(settings, cache, clock=clock, bus=bus)
-    has_modal = settings.modal_token_id is not None and settings.modal_token_secret is not None
-    backend = Backend.SELF_HOSTED if has_modal else Backend.HOSTED
+    picked = self_hosted_worker(settings)
+    backend = Backend.SELF_HOSTED if picked is not None else Backend.HOSTED
+    worker, worker_name = picked if picked is not None else (ModalWorker(settings), "none")
+
+    def on_fallback(camera_id: str, error: SamRuntimeError) -> None:  # noqa: ARG001 - hook signature
+        metrics.record_fallback(camera_id)
+
     router = SegmenterRouter(
         hosted,
-        ModalSam31(ModalWorker(settings), bus=bus, metrics=metrics),
+        ModalSam31(worker, bus=bus, metrics=metrics),
         clock=clock,
         policy=RoutingPolicy(runtime_backend=backend),
         metrics=metrics,
+        on_fallback=on_fallback,
     )
     store = LockedTrackStore(ParquetTrackStore(settings.rulecam_data_dir / "tracks"))
-    _log.info("perception_built", runtime_backend=str(backend))
+    _log.info("perception_built", runtime_backend=str(backend), self_hosted_worker=worker_name)
     return Perception(
         hosted=hosted, router=router, metrics=metrics, store=store, chunks=ChunkIndex(metrics)
     )

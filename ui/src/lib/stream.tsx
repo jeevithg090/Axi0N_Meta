@@ -7,9 +7,11 @@ import { useSearchParams } from "next/navigation";
 import {
   createContext,
   Suspense,
+  useCallback,
   useContext,
   useEffect,
   useReducer,
+  useRef,
   useState,
   type Dispatch,
   type ReactNode,
@@ -22,6 +24,9 @@ import { parseFrame, type ModeChanged } from "./events";
 import { initialState, reducer, type Action, type UiState } from "./store";
 
 const StreamContext = createContext<UiState>(initialState);
+const DispatchContext = createContext<Dispatch<Action>>(() => undefined);
+// null until the URL has been read; then whether the page runs on the recorded demo frames.
+const DemoContext = createContext<boolean | null>(null);
 const MAX_BACKOFF_MS = 10_000;
 const DEMO_STEP_MS = 600;
 
@@ -87,22 +92,54 @@ function DemoParam({ onChange }: { onChange: (demo: boolean) => void }) {
 export function StreamProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [demo, setDemo] = useState<boolean | null>(null);
+  const demoRef = useRef<boolean | null>(null);
+  const stopRef = useRef<(() => void) | null>(null);
+  // Switching between the live socket and the recording never mixes their events, modes or
+  // plans: the old source stops and the state resets before any screen sees the new `demo`, so
+  // screens that load data for the new source (usePlans) are not wiped by the reset.
+  const onDemo = useCallback((next: boolean) => {
+    if (demoRef.current === next) return;
+    demoRef.current = next;
+    stopRef.current?.();
+    stopRef.current = null;
+    dispatch({ type: "reset" });
+    setDemo(next);
+  }, []);
   useEffect(() => {
     if (demo === null) return undefined;
-    // Switching between the live socket and the recording never mixes their events or modes.
-    dispatch({ type: "reset" });
-    return demo ? playDemo(dispatch) : connect(dispatch);
+    const stop = demo ? playDemo(dispatch) : connect(dispatch);
+    stopRef.current = stop;
+    return () => {
+      stop();
+      if (stopRef.current === stop) stopRef.current = null;
+    };
   }, [demo]);
   return (
-    <StreamContext.Provider value={state}>
-      <Suspense fallback={null}>
-        <DemoParam onChange={setDemo} />
-      </Suspense>
-      {children}
-    </StreamContext.Provider>
+    <DispatchContext.Provider value={dispatch}>
+      <DemoContext.Provider value={demo}>
+        <StreamContext.Provider value={state}>
+          <Suspense fallback={null}>
+            <DemoParam onChange={onDemo} />
+          </Suspense>
+          {children}
+        </StreamContext.Provider>
+      </DemoContext.Provider>
+    </DispatchContext.Provider>
   );
 }
 
 export function useStream(): UiState {
   return useContext(StreamContext);
+}
+
+export function useDispatch(): Dispatch<Action> {
+  return useContext(DispatchContext);
+}
+
+/**
+ * Whether the page runs on recorded demo frames (`?demo=1`), so no API calls are made; `null`
+ * until the URL has been read. Follows client-side navigation between demo and live.
+ */
+export function useDemo(): boolean | null {
+  return useContext(DemoContext);
 }

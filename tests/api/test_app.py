@@ -238,6 +238,18 @@ def test_state_changes_and_ws_are_owner_only(services: AppServices, tmp_path: Pa
     assert services.runtime.plan is None
 
 
+def test_another_sites_page_cannot_use_the_owners_browser(services: AppServices) -> None:
+    app = create_app(services)
+    with owner(app) as client:
+        client.headers["Origin"] = "https://evil.example"
+        assert client.put("/mode", json={"mode": "live"}).status_code == 403
+        with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws") as ws:
+            ws.receive_json()
+        client.headers["Origin"] = "http://localhost:3000"
+        assert client.put("/mode", json={"mode": "live"}).status_code == 200
+    assert services.cache.mode == "live"
+
+
 def site_plan(plan_id: str = "main-st") -> SitePlan:
     return SitePlan(
         plan_id=plan_id,

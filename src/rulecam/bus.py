@@ -26,6 +26,9 @@ class Topic(StrEnum):
     ACTION_DONE = "action.done"
     COVERAGE_CHANGED = "coverage.changed"
     PLAN_UPDATED = "plan.updated"
+    # {plan_id, step, status: "running" | "done" | "failed", detail}; published by the
+    # Site Planner pipeline (P2-06) for each of its ten fixed steps.
+    PLANNER_STEP = "planner.step"
     CI_RESULT = "ci.result"
     SURPRISE_NEW = "surprise.new"
     ADVICE_NEW = "advice.new"

@@ -16,14 +16,16 @@ One FastAPI app serves the UI, the phones and the verify page, and mirrors the e
 | `GET /evidence/days`, `/evidence/{day}/chain`, `/evidence/{day}/verify` | the chain JSONL and its `ChainReport` |
 | `PUT /runtime/plan`, `GET /runtime/metrics` | (owner) load an `ActivePlan`; lag, keyframe mode, blind windows, failures |
 | `GET/POST /plans`, `GET /plans/{id}`, `POST /plans/{id}/approve` | in-memory `SitePlan` registry (create/approve are owner-only; approve publishes `plan.updated`) |
+| `POST /plans/uploads`, `POST /plans/requests` | (owner) planner intake: store a WAV/PDF/photo/MP4 (content type and leading bytes checked) as `uploads/<sha>.<ext>`; send request items, whose files must be such uploads, to the Site Planner runner |
 | `GET /cameras` | paired phones and cameras that sent chunks |
 | `GET /metrics/perception` | P1-03 `PerceptionMetricsReport` (SAM calls, gating, cost per camera-hour) |
 | `/pair/...` | P1-09 Pair-a-Phone (`build_router`) |
 | `POST /correction` | P1-10 correction loop (`correction_router`) |
 | `/verify/` | static verify page, served from `<data dir>/verify` |
 
-**Owner-only** means both the request host and the client are loopback (`require_owner` from
-Pair-a-Phone), because the same app is reachable through the public tunnel. `/worker`, `/ack`,
+**Owner-only** means both the request host and the client are loopback, and a browser request
+carries no `Origin` from another host (`require_owner` from Pair-a-Phone), because the same app is
+reachable through the public tunnel and any web page can make the owner's browser call localhost. `/worker`, `/ack`,
 `/interlock`, `/advice` and `/surprise` are mounted through `AppServices.routers` as they land.
 
 ## Runtime loop

@@ -25,6 +25,7 @@ import contextlib
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, WebSocket, status
 from fastapi import Path as PathParam
@@ -136,14 +137,26 @@ def require_secure_transport(conn: HTTPConnection) -> None:
     raise HTTPException(status.HTTP_403_FORBIDDEN, reason)
 
 
+def _from_loopback_page(conn: HTTPConnection) -> bool:
+    """False when a browser sent this from a page on another host (cross-site request forgery).
+
+    A page on any website can make the owner's browser POST to `http://localhost:8000`; the
+    browser then sends that page's `Origin`. Requests without one (curl, the UI's server-side
+    proxy) are not browser cross-site requests.
+    """
+    origin = conn.headers.get("origin")
+    return origin is None or is_loopback(urlsplit(origin).hostname)
+
+
 def require_owner(conn: HTTPConnection) -> None:
-    """Only let this machine (not the public tunnel) create pairing tokens.
+    """Only let this machine (not the public tunnel, nor another site's page) make owner calls.
 
     Raises:
-        HTTPException: 403 unless both the target host and the client are loopback.
+        HTTPException: 403 unless the target host and the client are loopback and any browser
+            `Origin` is a loopback page.
     """
     client = conn.client.host if conn.client else None
-    if is_loopback(conn.url.hostname) and is_loopback(client):
+    if is_loopback(conn.url.hostname) and is_loopback(client) and _from_loopback_page(conn):
         return
     reason = "pairing codes are created on the owner's machine"
     raise HTTPException(status.HTTP_403_FORBIDDEN, reason)

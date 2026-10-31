@@ -3,22 +3,33 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { useStream } from "@/lib/stream";
+import { useDemo, useStream } from "@/lib/stream";
 
 import { ModeBadge } from "./ModeBadge";
 import { RelayHud } from "./RelayHud";
 
+const LINKS = [
+  { href: "/planner", label: "Planner" },
+  { href: "/plans", label: "Plans" },
+  { href: "/monitor", label: "Live monitor" },
+];
+
 /** Every screen sits in this shell: title, LIVE/REPLAY badge and the relay HUD strip (§5.7). */
 export function Shell({ children }: { children: ReactNode }) {
   const state = useStream();
+  const query = useDemo() ? "?demo=1" : "";
   return (
     <>
       <header className="shell-header">
-        <Link href="/" className="brand">
+        <Link href={`/${query}`} className="brand">
           Rulecam
         </Link>
         <nav className="nav">
-          <Link href="/monitor">Live monitor</Link>
+          {LINKS.map((link) => (
+            <Link key={link.href} href={`${link.href}${query}`}>
+              {link.label}
+            </Link>
+          ))}
         </nav>
         <ModeBadge state={state} />
       </header>

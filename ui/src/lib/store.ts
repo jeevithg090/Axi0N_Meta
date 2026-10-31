@@ -11,6 +11,7 @@ import type {
   VerdictNew,
   VerifierVerdict,
 } from "./events";
+import type { PlannerStepFrame, SitePlan, StepStatus } from "./plan";
 import { emptyRelay, reduceRelay, type RelayState } from "./relay";
 
 export const MAX_EVENTS = 50;
@@ -23,6 +24,17 @@ export interface EventView {
   actions: ActionRecord[];
 }
 
+/** A plan as the UI knows it: the newest version, and the version the owner last approved. */
+export interface PlanEntry {
+  latest: SitePlan;
+  approved: SitePlan | null;
+}
+
+export interface PlannerProgress {
+  planId: string | null;
+  steps: Record<string, { status: StepStatus; detail: string }>;
+}
+
 export interface UiState {
   connection: Connection;
   mode: Mode | null;
@@ -30,6 +42,8 @@ export interface UiState {
   relay: RelayState;
   events: EventView[]; // newest first
   coverage: Record<string, string>; // camera_id → state
+  plans: Record<string, PlanEntry>;
+  planner: PlannerProgress;
 }
 
 export const initialState: UiState = {
@@ -39,13 +53,43 @@ export const initialState: UiState = {
   relay: emptyRelay,
   events: [],
   coverage: {},
+  plans: {},
+  planner: { planId: null, steps: {} },
 };
 
 export type Action =
   | { type: "frame"; frame: Frame }
   | { type: "connection"; connection: Connection }
   | { type: "mode"; mode: ModeChanged }
+  | { type: "plan-loaded"; plan: SitePlan; approved: boolean }
+  | { type: "plan-approved"; planId: string }
   | { type: "reset" };
+
+/** The newer of two versions of one plan (a reload must not undo a `plan.updated`). */
+function newer(a: SitePlan | null | undefined, b: SitePlan): SitePlan {
+  return a && a.version > b.version ? a : b;
+}
+
+function withPlan(state: UiState, plan: SitePlan, approved: boolean): UiState {
+  const previous = state.plans[plan.plan_id];
+  const entry: PlanEntry = {
+    latest: newer(previous?.latest, plan),
+    approved: approved ? newer(previous?.approved, plan) : (previous?.approved ?? null),
+  };
+  return { ...state, plans: { ...state.plans, [plan.plan_id]: entry } };
+}
+
+function reducePlannerStep(state: UiState, frame: PlannerStepFrame): UiState {
+  const fresh = state.planner.planId !== frame.plan_id;
+  const steps = fresh ? {} : state.planner.steps;
+  return {
+    ...state,
+    planner: {
+      planId: frame.plan_id,
+      steps: { ...steps, [frame.step]: { status: frame.status, detail: frame.detail ?? "" } },
+    },
+  };
+}
 
 function updateEvent(
   events: EventView[],
@@ -89,6 +133,10 @@ function reduceFrame(state: UiState, frame: Frame): UiState {
         })),
       };
     }
+    case "plan.updated":
+      return withPlan(state, frame.payload as SitePlan, false);
+    case "planner.step":
+      return reducePlannerStep(state, frame.payload as PlannerStepFrame);
     case "coverage.changed": {
       const { camera_id, state: coverage } = frame.payload as CoverageChanged;
       return { ...state, coverage: { ...state.coverage, [camera_id]: coverage } };
@@ -108,6 +156,12 @@ export function reducer(state: UiState, action: Action): UiState {
       return reduceConnection(state, action.connection);
     case "mode":
       return { ...state, mode: action.mode.mode, badge: action.mode.badge };
+    case "plan-loaded":
+      return withPlan(state, action.plan, action.approved);
+    case "plan-approved": {
+      const entry = state.plans[action.planId];
+      return entry ? withPlan(state, entry.latest, true) : state;
+    }
     case "reset":
       return initialState;
   }

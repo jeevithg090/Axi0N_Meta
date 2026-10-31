@@ -2,22 +2,65 @@
 
 Plans are `SitePlan` contracts. Creating and approving are owner-only (loopback); approving
 publishes `plan.updated`. The registry holds a bounded number of plans.
+
+Planner intake (P3-09b): `POST /plans/uploads` stores a voice clip, photo, PDF or walk-through
+under a content-addressed name, accepting only the file types the planner's Understand step
+(`rulecam.planner.steps.understand.ALLOWED_SUFFIXES`) takes, checked by content type, by the
+file's leading bytes and by size. `POST /plans/requests` hands the request items to the Site
+Planner runner (P2-06), which reports progress on `planner.step`; a file item may only name an
+upload (`uploads/<name>`, as returned by `POST /plans/uploads`), which is resolved to its stored
+path, so a client never supplies a server path. Both are owner-only.
 """
 
 from __future__ import annotations
 
+import hashlib
+import os
+import re
+import tempfile
 import threading
-from typing import Annotated
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Annotated, Literal, Protocol
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import Path as PathParam
+from pydantic import BaseModel, Field
 
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import require_owner
-from rulecam.contracts import SitePlan
+from rulecam.contracts import RequestItem, SitePlan
+from rulecam.planner.steps.understand import ALLOWED_SUFFIXES
 
 MAX_PLANS = 64
-PlanId = Annotated[str, Path(pattern=r"^[A-Za-z0-9_.-]{1,64}$")]
+MAX_UPLOAD_BYTES = 32 * 1024 * 1024
+PlanId = Annotated[str, PathParam(pattern=r"^[A-Za-z0-9_.-]{1,64}$")]
+UploadKind = Literal["voice", "pdf", "photo", "video"]
+# Content type -> (request item kind, stored extension). Only types the Understand step accepts.
+UPLOAD_TYPES: dict[str, tuple[UploadKind, str]] = {
+    "audio/wav": ("voice", "wav"),
+    "audio/x-wav": ("voice", "wav"),
+    "audio/wave": ("voice", "wav"),
+    "image/jpeg": ("photo", "jpg"),
+    "image/png": ("photo", "png"),
+    "image/webp": ("photo", "webp"),
+    "application/pdf": ("pdf", "pdf"),
+    "video/mp4": ("video", "mp4"),
+}
+UPLOAD_PREFIX = "uploads/"
+_UPLOAD_NAME = re.compile(r"[0-9a-f]{32}\.[a-z0-9]{2,4}")
+
+
+def atomic_write_bytes(path: Path, data: bytes) -> None:
+    """Write `data` to `path` via a temporary file and `os.replace`."""
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        Path(tmp).replace(path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 class PlanSummary(BaseModel):
@@ -82,18 +125,140 @@ def _summary(plan: SitePlan, *, approved: bool) -> PlanSummary:
     )
 
 
-def plans_router(registry: PlanRegistry, bus: Bus) -> APIRouter:
+class PlannerRunner(Protocol):
+    """Starts the fixed-step Site Planner (P2-06) on a request; it publishes `planner.step`."""
+
+    def submit(self, items: Sequence[RequestItem]) -> str:
+        """Queue a planning run and return its plan id."""
+        ...
+
+
+class PlanRequest(BaseModel):
+    """Body of `POST /plans/requests`: the owner's request, in any mix of formats."""
+
+    items: list[RequestItem] = Field(min_length=1, max_length=20)
+
+
+class PlanRequestAccepted(BaseModel):
+    """Reply of `POST /plans/requests`."""
+
+    plan_id: str
+
+
+class UploadResult(BaseModel):
+    """Reply of `POST /plans/uploads`: what to put in `RequestItem.file` and `.kind`."""
+
+    file: str
+    kind: UploadKind
+    bytes: int
+
+
+def _upload_kind(content_type: str) -> tuple[UploadKind, str]:
+    try:
+        return UPLOAD_TYPES[content_type.split(";", maxsplit=1)[0].strip().lower()]
+    except KeyError as exc:
+        raise HTTPException(
+            status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, f"unsupported upload type {content_type!r}"
+        ) from exc
+
+
+def sniff_matches(ext: str, data: bytes) -> bool:
+    """Whether the file's leading bytes are those of `ext` (the content type is client-chosen)."""
+    if ext == "pdf":
+        return data.startswith(b"%PDF-")
+    if ext == "png":
+        return data.startswith(b"\x89PNG\r\n\x1a\n")
+    if ext == "jpg":
+        return data.startswith(b"\xff\xd8\xff")
+    if ext in {"webp", "wav"}:
+        return data[:4] == b"RIFF" and data[8:12] == (b"WEBP" if ext == "webp" else b"WAVE")
+    return ext == "mp4" and data[4:8] == b"ftyp"
+
+
+async def _read_limited(upload: UploadFile, limit: int) -> bytes:
+    data = await upload.read(limit + 1)
+    if len(data) > limit:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "upload is too large")
+    if not data:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "upload is empty")
+    return data
+
+
+def resolve_upload(uploads_dir: Path, item: RequestItem) -> RequestItem:
+    """Point a file item at its stored upload; text items pass through unchanged.
+
+    Raises:
+        HTTPException: 422 unless `item.file` is `uploads/<name>` naming a stored upload whose
+            extension the item's kind accepts.
+    """
+    if item.kind == "text":
+        return item
+    name = (item.file or "").removeprefix(UPLOAD_PREFIX)
+    path = uploads_dir / name
+    if (
+        not (item.file or "").startswith(UPLOAD_PREFIX)
+        or _UPLOAD_NAME.fullmatch(name) is None
+        or path.suffix not in ALLOWED_SUFFIXES[item.kind]
+        or not path.is_file()
+    ):
+        msg = f"a {item.kind} item must name a file from POST /plans/uploads"
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, msg)
+    return item.model_copy(update={"file": str(path)})
+
+
+def save_upload(uploads_dir: Path, data: bytes, ext: str) -> Path:
+    """Store an upload under a content-addressed name (never a client-supplied path)."""
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    path = uploads_dir / f"{hashlib.sha256(data).hexdigest()[:32]}.{ext}"
+    if not path.exists():
+        atomic_write_bytes(path, data)
+    return path
+
+
+def plans_router(
+    registry: PlanRegistry,
+    bus: Bus,
+    *,
+    uploads_dir: Path | None = None,
+    planner: PlannerRunner | None = None,
+    max_upload_bytes: int = MAX_UPLOAD_BYTES,
+) -> APIRouter:
     """Build the `/plans` router.
 
     Args:
         registry: Where plans are kept.
         bus: Receives `plan.updated` on approval.
+        uploads_dir: Where `POST /plans/uploads` stores files; `None` disables uploads.
+        planner: The Site Planner runner; `POST /plans/requests` answers 503 without one.
+        max_upload_bytes: Upload size cap (the Voice Transcribe file limit by default).
 
     Returns:
         The router.
     """
     router = APIRouter(prefix="/plans", tags=["plans"])
     owner = [Depends(require_owner)]
+
+    @router.post("/uploads", status_code=status.HTTP_201_CREATED, dependencies=owner)
+    async def upload(file: UploadFile) -> UploadResult:
+        if uploads_dir is None:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "uploads are disabled")
+        kind, ext = _upload_kind(file.content_type or "")
+        data = await _read_limited(file, max_upload_bytes)
+        if not sniff_matches(ext, data):
+            raise HTTPException(
+                status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, f"the file is not a {ext} file"
+            )
+        path = save_upload(uploads_dir, data, ext)
+        return UploadResult(file=f"{UPLOAD_PREFIX}{path.name}", kind=kind, bytes=len(data))
+
+    @router.post("/requests", status_code=status.HTTP_202_ACCEPTED, dependencies=owner)
+    def request_plan(body: PlanRequest) -> PlanRequestAccepted:
+        if planner is None or uploads_dir is None:
+            raise HTTPException(
+                status.HTTP_503_SERVICE_UNAVAILABLE, "the Site Planner is not running yet"
+            )
+        items = [resolve_upload(uploads_dir, item) for item in body.items]
+        return PlanRequestAccepted(plan_id=planner.submit(items))
 
     @router.get("")
     def list_plans() -> list[PlanSummary]:

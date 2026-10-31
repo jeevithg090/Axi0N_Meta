@@ -38,3 +38,6 @@ ui/src/api/openapi.json
 .vscode/
 .uv-cache/
 junit.xml
+
+# Local monitoring target (deploy/monitoring/targets/rulecam.example.json)
+deploy/monitoring/targets/rulecam.json

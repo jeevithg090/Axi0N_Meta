@@ -25,6 +25,7 @@ dependencies = [
   "python-multipart>=0.0.9",
   "typer>=0.12",
   "meta-sam-parser>=0.1.0",
+  "prometheus-client>=0.21",
 ]
 
 [project.optional-dependencies]

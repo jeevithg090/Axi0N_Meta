@@ -1,8 +1,8 @@
 """Scene-text firewall with Llama Prompt Guard 2 (task P3-05, defences D1-D3).
 
 Both verifier tiers copy any text they see in the frames into `scene_text`. The firewall scans it
-with `meta-llama/Llama-Prompt-Guard-2-86M` (CPU, transformers). When the malicious score passes
-the threshold:
+with `meta-llama/Llama-Prompt-Guard-2-86M` (CPU, transformers). When the malicious score reaches
+the threshold (`score >= threshold`; a tie is treated as an attack, the safe side):
 
 1. the sign region is blurred (SAM concepts `sign` and `text`);
 2. both tiers are re-run on the blurred strip;
@@ -163,7 +163,8 @@ class SceneTextFirewall:
             tier1: Glimmer verifier, re-run on the blurred strip.
             chain: Evidence chain for `tamper_attempt` records.
             tier2: Spark Open verifier, re-run when it ran the first time.
-            threshold: Malicious score at which text is treated as an attack.
+            threshold: Malicious score at or above which text is treated as an attack (a score
+                exactly at the threshold is flagged, which errs towards scrutiny).
         """
         self._classifier = classifier
         self._blurrer = blurrer
@@ -197,7 +198,7 @@ class SceneTextFirewall:
         """
         texts = [v.scene_text for v in (tier1, tier2) if v is not None and v.scene_text]
         score = max((self.scan(t) for t in texts), default=0.0)
-        if score < self._threshold:
+        if score < self._threshold:  # flagged at or above the threshold (ties are attacks)
             return Screened(flagged=False, tier1=tier1, tier2=tier2, score=score)
         blurred = candidate.model_copy(update={"strip_paths": self._blurrer.blur(candidate)})
         new1 = self._tier1.verify(blurred, rule).model_copy(update={"tamper": True})

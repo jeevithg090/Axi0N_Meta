@@ -22,11 +22,14 @@ from collections.abc import Mapping
 from typing import Protocol
 
 from rulecam.contracts import CandidateEvent, Dispute, RuleIR, Severity, Verifier, VerifierVerdict
+from rulecam.errors import RulecamError
 from rulecam.log import get_logger
 from rulecam.verify.decision import Decision
 from rulecam.verify.firewall import SceneTextFirewall
 
 _log = get_logger(__name__)
+
+_TAMPER_REASON = "text in view tried to instruct the verifier; a person reviews it"
 
 
 class Tier2(Protocol):
@@ -165,19 +168,20 @@ class VerificationPolicy:
         """
         tau = self.threshold(rule)
         tier2 = None
-        if self._tier2 is not None and needs_tier2(rule, tier1, tau):
-            tier2 = self._tier2.verify(candidate, rule, tier1)
-        if self._firewall is not None:
-            screened = self._firewall.screen(candidate, rule, tier1, tier2)
-            if screened.flagged:
-                if screened.force_human:
-                    return Decision(
-                        alert=True,
-                        route="human_queue",
-                        act_first=self.act_first(candidate, rule),
-                        reason="text in view tried to instruct the verifier; a person reviews it",
-                    )
-                tier1, tier2 = screened.tier1, screened.tier2
+        try:
+            if self._tier2 is not None and needs_tier2(rule, tier1, tau):
+                tier2 = self._tier2.verify(candidate, rule, tier1)
+            if self._firewall is not None:
+                screened = self._firewall.screen(candidate, rule, tier1, tier2)
+                if screened.flagged:
+                    if screened.force_human:
+                        return self._to_human(candidate, rule, _TAMPER_REASON)
+                    tier1, tier2 = screened.tier1, screened.tier2
+        except (RulecamError, OSError, ImportError) as exc:
+            _log.warning(
+                "policy_verification_error", event_id=candidate.event_id, error=type(exc).__name__
+            )
+            return self._to_human(candidate, rule, "verification error; a person reviews it")
         decision = decide(candidate, rule, tier1, tier2, threshold=tau)
         _log.info(
             "policy_decision",
@@ -186,6 +190,15 @@ class VerificationPolicy:
             route=decision.route,
         )
         return decision
+
+    def _to_human(self, candidate: CandidateEvent, rule: RuleIR, reason: str) -> Decision:
+        """An alert a person must review (never dropped, whatever the severity)."""
+        return Decision(
+            alert=True,
+            route="human_queue",
+            act_first=self.act_first(candidate, rule),
+            reason=reason,
+        )
 
     def review_dispute(
         self,

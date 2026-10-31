@@ -84,9 +84,12 @@ spark.devil_advocate({"metric": ..., "leading": ...})  # list[str], tested by th
 - **Threshold:** the rule's calibrated one (`thresholds` from rule health), else
   `verify.min_confidence`.
 - **Disputes:** always go to Tier 2 (`review_dispute`).
+- **Errors:** if Tier 2 or the firewall fails (model error, unreadable strip, missing extra), the
+  alert goes to `human_queue` with `alert=True`; it is never dropped.
 
 `SceneTextFirewall` scans each tier's `scene_text` with **Llama Prompt Guard 2** (gated on Hugging
-Face: set `HF_TOKEN` and install `--extra ml`). On a flag it:
+Face: set `HF_TOKEN` and install `--extra ml`). Text is flagged when its malicious score is **at or
+above** the threshold (default 0.5; a tie counts as an attack). On a flag it:
 
 1. blurs the `sign` and `text` regions found by SAM (`BoxStripBlurrer`);
 2. re-runs the tiers on the blurred strip;

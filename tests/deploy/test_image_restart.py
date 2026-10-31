@@ -43,9 +43,12 @@ for pid in filter(str.isdigit, os.listdir("/proc")):
 
 
 def docker(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(  # noqa: S603 - fixed docker argv
-        [str(DOCKER), *args], capture_output=True, text=True, check=check, timeout=300
+    result = subprocess.run(  # noqa: S603 - fixed docker argv
+        [str(DOCKER), *args], capture_output=True, text=True, check=False, timeout=300
     )
+    if check and result.returncode != 0:
+        pytest.fail(f"docker {args[0]} failed ({result.returncode}):\n{result.stderr}")
+    return result
 
 
 @pytest.fixture
@@ -74,7 +77,9 @@ def run_once(volume: str) -> tuple[list[str], str, float]:
     docker("run", "-d", "--name", container, "-v", f"{volume}:/workspace", IMAGE)
     try:
         wait_healthy(container)
-        inspect = docker("exec", container, "python3", "-c", INSPECT).stdout.split()
+        # As the service user: reading another uid's /proc/<pid>/environ needs CAP_SYS_PTRACE,
+        # which Docker drops even for root.
+        inspect = docker("exec", "-u", "10001", container, "python3", "-c", INSPECT).stdout.split()
         started = time.monotonic()
         docker("stop", "-t", "20", container)
         stop_s = time.monotonic() - started
@@ -92,6 +97,7 @@ def test_entrypoint_twice_on_one_volume(volume: str) -> None:
     )  # fmt: skip
     for _ in range(2):
         inspect, logs, stop_s = run_once(volume)
+        assert inspect, f"no uvicorn process found:\n{logs}"
         uid, *names = inspect
         assert uid == "10001"  # the unprivileged rulecam user, not root
         assert "META_API_KEY" in names

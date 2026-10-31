@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str | None = None
     public_tunnel_url: str | None = None
     public_ui_url: str | None = None  # public origin of the web UI (worker page QR on posters)
+    planner_survey_window_s: float = (
+        60.0  # seconds of recent chunks the planner samples frames from
+    )
 
     @property
     def replay_dir(self) -> Path:

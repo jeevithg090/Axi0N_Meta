@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import math
 import threading
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 
@@ -27,11 +29,13 @@ from rulecam.planner.steps.probe import (
     probe_concepts,
 )
 from rulecam.planner.steps.survey import (
+    DEFAULT_SURVEY_FRAMES,
     MAX_SPARK_FRAMES,
     SURVEY_SYSTEM_PROMPT,
     ImageSegmenter,
     ProposedConcepts,
     clean_concepts,
+    frame_group,
     sample_frames,
     survey_cameras,
 )
@@ -129,6 +133,60 @@ def test_sampling_is_deterministic_for_a_seed_and_keeps_frame_order(tmp_path: Pa
 def test_sampling_keeps_every_frame_when_there_are_few(tmp_path: Path) -> None:
     pool = frames(tmp_path, "f", 5)
     assert sample_frames(pool, 8, seed=1) == pool
+
+
+def chunk_frames(tmp_path: Path, n_chunks: int, per_chunk: int) -> list[Path]:
+    """Frames named like `ChunkFrames` names them: `<chunk>-f<k>.jpg`, oldest first."""
+    out = []
+    for c in range(n_chunks):
+        for k in range(per_chunk):
+            path = tmp_path / f"chunk{c:02d}-f{k}.jpg"
+            path.write_bytes(b"\xff\xd8\xff")
+            out.append(path)
+    return out
+
+
+def test_frame_group_is_the_chunk_of_a_chunk_frame_and_the_stem_otherwise() -> None:
+    assert frame_group(Path("ab12-f0.jpg")) == frame_group(Path("ab12-f2.jpg")) == "ab12"
+    assert frame_group(Path("upload.jpg")) == "upload"
+    assert frame_group(Path("f3.jpg")) == "f3"
+
+
+@pytest.mark.parametrize(("n_chunks", "per_chunk"), [(20, 3), (12, 3), (8, 3), (30, 2), (24, 3)])
+def test_probe_sampling_spreads_frames_across_chunks(
+    tmp_path: Path, n_chunks: int, per_chunk: int
+) -> None:
+    pool = chunk_frames(tmp_path, n_chunks, per_chunk)
+
+    picked = sample_frames(pool, DEFAULT_PROBE_FRAMES, seed=7)
+
+    per_chunk_counts = Counter(frame_group(f) for f in picked)
+    assert len(picked) == min(DEFAULT_PROBE_FRAMES, len(pool))
+    assert len(per_chunk_counts) == min(n_chunks, DEFAULT_PROBE_FRAMES)
+    assert max(per_chunk_counts.values()) <= math.ceil(DEFAULT_PROBE_FRAMES / n_chunks)
+    assert picked == sorted(picked)  # oldest first
+
+
+def test_spread_sampling_is_deterministic_for_a_seed(tmp_path: Path) -> None:
+    pool = chunk_frames(tmp_path, 20, 3)
+    first = sample_frames(pool, DEFAULT_PROBE_FRAMES, seed=7)
+    assert first == sample_frames(pool, DEFAULT_PROBE_FRAMES, seed=7)
+    assert first != sample_frames(pool, DEFAULT_PROBE_FRAMES, seed=8)
+
+
+def test_survey_cost_does_not_grow_with_more_frames_per_chunk(tmp_path: Path) -> None:
+    """More frames per chunk feed the probes; the survey still uses 8 per camera, 4 for Spark."""
+    pool = chunk_frames(tmp_path, 20, 3)
+    segmenter = FrameSegmenter(lambda *_: 1)
+    files = FakeAttacher()
+    spark = FakeLLM([ProposedConcepts(concepts=["sink"])])
+
+    survey_cameras({"cam1": pool}, spark=spark, files=files, segmenter=segmenter, seed=7)
+
+    surveyed = {name for name, _, _ in segmenter.calls}
+    assert len(surveyed) == DEFAULT_SURVEY_FRAMES
+    assert len({frame_group(Path(name)) for name in surveyed}) == DEFAULT_SURVEY_FRAMES
+    assert len(files.attached) <= MAX_SPARK_FRAMES
 
 
 def test_probe_frame_selection_is_deterministic_for_a_seed(tmp_path: Path) -> None:

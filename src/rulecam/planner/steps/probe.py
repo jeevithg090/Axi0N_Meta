@@ -6,7 +6,17 @@ rate, its Wilson 95% lower bound and the median box height in pixels.
 
 Frame count: the task book says 12 frames, but with 12 frames even 12/12 hits gives a Wilson
 lower bound of 12 / (12 + 1.96²) = 0.758, below the 0.8 "observable" bar, so nothing could ever be
-observable. The default is 24 frames: 24/24 gives 0.862 (the MP §7.2 example's 0.86).
+observable. The default is 24 frames: 24/24 gives 0.862 (the MP §7.2 example's 0.86). A bound
+of 0.8 needs at least 16 frames, all hits, so the camera must supply them: `ChunkFrames` takes
+up to 3 frames per 3 s chunk (at least 1 s apart), so a 60 s window gives up to ~60 frames.
+
+Sampling and its caveat: the 24 frames are spread across as many chunks as possible (seeded,
+at most `ceil(24 / n_chunks)` per chunk while other chunks still have frames, see
+`survey.sample_frames`). Frames of one chunk, and of neighbouring chunks, are seconds apart and
+correlated (a static scene gives near-identical frames), while the Wilson interval assumes
+independent trials. The effective sample size is smaller than `n_frames`, so `detect_lb` is
+optimistic for a scene that barely changes over the window; a longer window
+(`PLANNER_SURVEY_WINDOW_S`) gives more independent frames.
 
 Which concepts a concern needs (`concepts_for_concerns`) is Spark 1.3's judgement, given the
 concerns and the surveyed concepts as JSON; the answer is cleaned and capped in code.

@@ -165,7 +165,8 @@ plan = pipeline.resume("main-st", "compile")  # re-run steps 6-10 on the saved s
   of failing the run; step 8 repairs it or asks about it.
 - Step 8 runs the acceptance checks and repair loop (below) and saves `AcceptResult{plan,
   questions}`. Steps 9-10 are `SitePlan -> SitePlan` hooks (`audit`, `prove`) for P2-07 and
-  P2-08/09. Until one is wired it passes the plan through and its step detail says "not wired
+  P2-08/09 (`build_planner` wires `rule_ci.prove_plan_hook`; its detail reads "Rule CI green
+  for N/M rules"). Until one is wired it passes the plan through and its step detail says "not wired
   yet". `PipelineInput.calibrations` feeds `calibration_err<=tol`; `grounding` (Spark with web
   search) and `standards` (`StandardsLibrary`) feed `citation_text_match`.
 - Every step publishes `planner.step` (`PlannerStepEvent{plan_id, step, status, detail}`,
@@ -208,7 +209,8 @@ outcome = loop.run(planned, feasibility)  # rules, feasibility, acceptance, ques
   lint errors), then per rule `zone_in_view` (polygon wholly inside the camera's latest frame),
   `detect_lb>=0.8` (unprobed concepts are probed first), `calibration_err<=tol` (metric rules,
   `err_m <= 0.10`), `privacy_consistent`, `citation_text_match` (Spark grounding + quote on the
-  cited page) and `no_private_spaces`. `ci_green` and `nonvacuous` are left to Rule CI (P2-08).
+  cited page) and `no_private_spaces`. `ci_green` and `nonvacuous` are added per rule by the
+  prove step (`rule_ci.prove_plan_hook`, P2-08).
 - Strict AND; the trace keeps the last round's failures. Only items failing `concern_covered`,
   `zone_in_view`, `privacy_consistent` or `no_private_spaces` are re-compiled, with the failures
   as feedback, for at most 2 rounds; a repair that lowers severity or drops an action is

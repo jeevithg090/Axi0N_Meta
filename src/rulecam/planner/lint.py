@@ -1,519 +1,348 @@
-"""Plan and Rule IR linter (task P2-06b, MP §3.2, §7.2, V2 §6).
+"""The plan linter: step 7 of the Site Planner (task P2-06b, MP §3.2).
 
-Inspects proposed SitePlans and RuleIR definitions for 8 deterministic error classes:
-  1. undefined_concept: references concepts not declared in rule or plan inventory.
-  2. undefined_zone: references zones not declared in rule or plan zones.
-  3. zone_out_of_view: references zones belonging to cameras outside available views.
-  4. unreasonable_threshold: ground distances outside [0.3, 20.0]m or durations outside [1, 3600]s.
-  5. contradictory_rules: rules with same subject and zone having directly conflicting conditions.
-  6. privacy_inconsistency: Anonymous/Strict privacy mode with facial/unmasked recognition.
-  7. private_space_zone: zones located in private spaces (restroom, break room, locker room).
-  8. missing_action_or_severity: empty actions list or missing severity.
+Deterministic checks only (no model calls) on the compiled rules of a `SitePlan`. Each finding
+has one of these codes:
+
+- `undefined_concept`: a predicate names a concept the rule does not declare;
+- `undefined_zone`: a predicate names a zone the rule does not declare;
+- `zone_out_of_view`: a zone is on a camera the site does not have, or its polygon lies outside
+  that camera's frame;
+- `unreasonable_threshold`: a distance outside 0.3-20 m or a duration outside 1-3,600 s;
+- `contradictory_rules`: the same subject and zone with opposite conditions (inside vs. not
+  inside or absent), within one rule's conjunction or across two rules;
+- `privacy_inconsistency`: Anonymous or Strict Mode with a concept that needs faces;
+- `private_space_zone`: a zone named after a private space (bathroom, break room, ...);
+- `missing_action`: a rule with no actions;
+- `missing_severity`: a rule without a valid severity.
+
+`lint_plan` returns the findings; `require_lint_clean` raises `PlanLintError` with all of them.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+import re
+from collections.abc import Iterator, Mapping, Sequence
+from typing import Final, Literal
 
-from rulecam.contracts.core import Frozen, PrivacyMode
+from rulecam.contracts.core import Frozen, PrivacyMode, Severity, Zone
 from rulecam.contracts.plan import SitePlan
 from rulecam.contracts.rule_ir import (
     Absence,
     All,
-    Any_,
+    Count,
     DistanceM,
     Dwell,
     Inside,
-    Moving,
     Not_,
-    Overlap,
     Persist,
-    PoseState,
     Predicate,
-    Rate,
     RuleIR,
-    StateCheck,
-    Without,
     ZoneSpec,
 )
 from rulecam.contracts.rule_ir import (
     Sequence as RuleSequence,
 )
+from rulecam.perception.calibration import zone_in_view
+from rulecam.perception.errors import ZoneError
 from rulecam.planner.errors import PlannerError
+from rulecam.planner.guardrails import GuardrailCategory, deterministic_check
+from rulecam.planner.steps.compile import walk_predicates
 
-# Deterministic threshold bounds (MP §3.2, §7.2)
-MIN_DISTANCE_M = 0.3
-MAX_DISTANCE_M = 20.0
-MIN_DURATION_S = 1.0
-MAX_DURATION_S = 3600.0
+MIN_DISTANCE_M: Final = 0.3
+MAX_DISTANCE_M: Final = 20.0
+MIN_DURATION_S: Final = 1.0
+MAX_DURATION_S: Final = 3600.0
+PRIVATE_MODES: Final = frozenset({PrivacyMode.ANONYMOUS, PrivacyMode.STRICT})
+FACE_WORDS: Final = re.compile(r"\b(?:faces?|facial|head\s?shots?|iris|irises|retinas?)\b")
+_OBJECT_FIELDS: Final = ("a", "b", "object", "subject", "item")
 
-FORBIDDEN_ZONE_KEYWORDS: tuple[str, ...] = (
-    "bathroom",
-    "restroom",
-    "toilet",
-    "washroom",
-    "locker",
-    "break room",
-    "breakroom",
-    "changing room",
-    "shower",
-    "bedroom",
-)
-
-FACE_OR_IDENTITY_KEYWORDS: tuple[str, ...] = (
-    "face",
-    "facial",
-    "identity",
-    "individual",
-    "person_id",
-    "unmasked_face",
-    "retina",
-    "biometric",
-)
+LintCode = Literal[
+    "undefined_concept",
+    "undefined_zone",
+    "zone_out_of_view",
+    "unreasonable_threshold",
+    "contradictory_rules",
+    "privacy_inconsistency",
+    "private_space_zone",
+    "missing_action",
+    "missing_severity",
+]
+FrameSize = tuple[int, int]
+CameraViews = Mapping[str, FrameSize | None]
+"""Camera id -> its frame size (width, height) in pixels, `None` when no frame could be read."""
 
 
 class LintFinding(Frozen):
-    """Structured report of a single lint finding."""
+    """One lint error.
 
-    code: str
-    rule_id: str | None
+    Attributes:
+        code: The error class.
+        rule_id: The rule it is about.
+        message: What is wrong, for the owner and the repair prompt.
+    """
+
+    code: LintCode
+    rule_id: str
     message: str
-    field: str | None = None
 
 
-class LintError(PlannerError):
-    """Base exception for all plan and rule lint errors."""
-
-    def __init__(self, code: str, rule_id: str | None, message: str) -> None:
-        """Initialise LintError with code, rule_id, and descriptive message."""
-        self.code = code
-        self.rule_id = rule_id
-        super().__init__(f"[{code}] (rule: {rule_id}): {message}")
-
-
-class UndefinedConceptError(LintError):
-    """Raised when a rule references an undeclared concept."""
-
-    def __init__(self, rule_id: str | None, concept: str) -> None:
-        """Initialise UndefinedConceptError."""
-        super().__init__("undefined_concept", rule_id, f"Undefined concept reference: '{concept}'")
-
-
-class UndefinedZoneError(LintError):
-    """Raised when a rule references an undeclared zone."""
-
-    def __init__(self, rule_id: str | None, zone: str) -> None:
-        """Initialise UndefinedZoneError."""
-        super().__init__("undefined_zone", rule_id, f"Undefined zone reference: '{zone}'")
-
-
-class ZoneOutOfViewError(LintError):
-    """Raised when a zone is on a camera outside available views."""
-
-    def __init__(self, rule_id: str | None, zone: str, camera_id: str) -> None:
-        """Initialise ZoneOutOfViewError."""
-        super().__init__(
-            "zone_out_of_view",
-            rule_id,
-            f"Zone '{zone}' camera '{camera_id}' is not in available camera views",
-        )
-
-
-class UnreasonableThresholdError(LintError):
-    """Raised when numeric thresholds fall outside physical or operational limits."""
-
-    def __init__(self, rule_id: str | None, detail: str) -> None:
-        """Initialise UnreasonableThresholdError."""
-        super().__init__("unreasonable_threshold", rule_id, detail)
-
-
-class ContradictoryRulesError(LintError):
-    """Raised when two rules or clauses have directly contradictory requirements."""
-
-    def __init__(self, rule_id: str | None, detail: str) -> None:
-        """Initialise ContradictoryRulesError."""
-        super().__init__("contradictory_rules", rule_id, detail)
-
-
-class PrivacyInconsistencyError(LintError):
-    """Raised when Anonymous Mode is used with rules requiring facial identification."""
-
-    def __init__(self, rule_id: str | None, detail: str) -> None:
-        """Initialise PrivacyInconsistencyError."""
-        super().__init__("privacy_inconsistency", rule_id, detail)
-
-
-class PrivateSpaceZoneError(LintError):
-    """Raised when a zone is designated in a strictly private area."""
-
-    def __init__(self, rule_id: str | None, zone_name: str) -> None:
-        """Initialise PrivateSpaceZoneError."""
-        super().__init__(
-            "private_space_zone",
-            rule_id,
-            f"Zone '{zone_name}' is inside a prohibited private space",
-        )
-
-
-class MissingActionError(LintError):
-    """Raised when a rule defines no actions."""
-
-    def __init__(self, rule_id: str | None) -> None:
-        """Initialise MissingActionError."""
-        super().__init__("missing_action", rule_id, "Rule must declare at least one action")
-
-
-class MissingSeverityError(LintError):
-    """Raised when a rule is missing a severity rating."""
-
-    def __init__(self, rule_id: str | None) -> None:
-        """Initialise MissingSeverityError."""
-        super().__init__("missing_severity", rule_id, "Rule must declare a valid severity")
-
-
-def _extract_direct_concepts(pred: Predicate) -> set[str]:
-    """Extract root concepts from atomic predicates."""
-    refs: set[str] = set()
-    if isinstance(pred, DistanceM | Overlap):
-        refs.add(pred.a.split(".")[0])
-        refs.add(pred.b.split(".")[0])
-    elif isinstance(pred, Without):
-        refs.add(pred.subject.split(".")[0])
-        refs.add(pred.item.split(".")[0])
-    elif isinstance(pred, Inside | Moving | Dwell | Absence | PoseState | StateCheck):
-        refs.add(pred.object.split(".")[0])
-    return refs
-
-
-def extract_concept_references(pred: Predicate) -> set[str]:
-    """Recursively extract all root concept names referenced in a predicate."""
-    refs = _extract_direct_concepts(pred)
-
-    if isinstance(pred, All | Any_):
-        for sub in pred.of:
-            refs.update(extract_concept_references(sub))
-    elif isinstance(pred, Not_ | Persist | Rate):
-        refs.update(extract_concept_references(pred.of))
-    elif isinstance(pred, RuleSequence):
-        refs.update(extract_concept_references(pred.trigger))
-        refs.update(extract_concept_references(pred.requirement))
-
-    return refs
-
-
-def extract_zone_references(pred: Predicate) -> set[str]:
-    """Recursively extract all zone names referenced in a predicate."""
-    zones: set[str] = set()
-
-    if isinstance(pred, Inside | Dwell | Absence):
-        zones.add(pred.zone)
-    elif isinstance(pred, All | Any_):
-        for sub in pred.of:
-            zones.update(extract_zone_references(sub))
-    elif isinstance(pred, Not_ | Persist | Rate):
-        zones.update(extract_zone_references(pred.of))
-    elif isinstance(pred, RuleSequence):
-        zones.update(extract_zone_references(pred.trigger))
-        zones.update(extract_zone_references(pred.requirement))
-
-    return zones
-
-
-def _check_distance_thresholds(rule_id: str | None, pred: DistanceM) -> list[LintError]:
-    errors: list[LintError] = []
-    for val, name in ((pred.lt, "lt"), (pred.gt, "gt")):
-        if val is not None and (val < MIN_DISTANCE_M or val > MAX_DISTANCE_M):
-            errors.append(
-                UnreasonableThresholdError(
-                    rule_id,
-                    f"Distance threshold {name}={val}m is outside valid range "
-                    f"[{MIN_DISTANCE_M}, {MAX_DISTANCE_M}]m",
-                )
-            )
-    return errors
-
-
-def _check_temporal_thresholds(rule_id: str | None, pred: Predicate) -> list[LintError]:
-    errors: list[LintError] = []
-    if isinstance(pred, Persist) and (
-        pred.seconds < MIN_DURATION_S or pred.seconds > MAX_DURATION_S
-    ):
-        errors.append(
-            UnreasonableThresholdError(
-                rule_id,
-                f"Persist duration {pred.seconds}s is outside valid range "
-                f"[{MIN_DURATION_S}, {MAX_DURATION_S}]s",
-            )
-        )
-    elif isinstance(pred, Dwell):
-        if pred.total_s_gte < MIN_DURATION_S or pred.total_s_gte > MAX_DURATION_S:
-            errors.append(
-                UnreasonableThresholdError(
-                    rule_id,
-                    f"Dwell duration {pred.total_s_gte}s is outside valid range "
-                    f"[{MIN_DURATION_S}, {MAX_DURATION_S}]s",
-                )
-            )
-        if pred.max_gap_s < 0.0 or pred.max_gap_s > MAX_DURATION_S:
-            errors.append(
-                UnreasonableThresholdError(
-                    rule_id,
-                    f"Dwell max_gap_s {pred.max_gap_s}s is negative or exceeds {MAX_DURATION_S}s",
-                )
-            )
-    elif isinstance(pred, Absence) and (
-        pred.seconds < MIN_DURATION_S or pred.seconds > MAX_DURATION_S
-    ):
-        errors.append(
-            UnreasonableThresholdError(
-                rule_id,
-                f"Absence duration {pred.seconds}s is outside valid range "
-                f"[{MIN_DURATION_S}, {MAX_DURATION_S}]s",
-            )
-        )
-    elif isinstance(pred, RuleSequence) and (
-        pred.require_within_s < MIN_DURATION_S or pred.require_within_s > MAX_DURATION_S
-    ):
-        errors.append(
-            UnreasonableThresholdError(
-                rule_id,
-                f"Sequence require_within_s {pred.require_within_s}s is outside valid range "
-                f"[{MIN_DURATION_S}, {MAX_DURATION_S}]s",
-            )
-        )
-    return errors
-
-
-def _check_thresholds(rule: RuleIR, pred: Predicate) -> list[LintError]:
-    """Recursively validate numeric distance and duration thresholds."""
-    errors: list[LintError] = []
-
-    if isinstance(pred, DistanceM):
-        errors.extend(_check_distance_thresholds(rule.id, pred))
-    else:
-        errors.extend(_check_temporal_thresholds(rule.id, pred))
-
-    if isinstance(pred, All | Any_):
-        for sub in pred.of:
-            errors.extend(_check_thresholds(rule, sub))
-    elif isinstance(pred, Not_ | Persist | Rate):
-        errors.extend(_check_thresholds(rule, pred.of))
-    elif isinstance(pred, RuleSequence):
-        errors.extend(_check_thresholds(rule, pred.trigger))
-        errors.extend(_check_thresholds(rule, pred.requirement))
-
-    return errors
-
-
-def _check_predicate_self_contradiction(rule: RuleIR, pred: Predicate) -> list[LintError]:
-    """Check for self-contradictory clauses inside a single rule predicate."""
-    errors: list[LintError] = []
-    if isinstance(pred, All):
-        positive_inside: set[tuple[str, str]] = set()
-        negative_inside: set[tuple[str, str]] = set()
-
-        for clause in pred.of:
-            if isinstance(clause, Inside):
-                positive_inside.add((clause.object, clause.zone))
-            elif isinstance(clause, Not_) and isinstance(clause.of, Inside):
-                negative_inside.add((clause.of.object, clause.of.zone))
-
-        overlap = positive_inside & negative_inside
-        if overlap:
-            obj, zone = next(iter(overlap))
-            errors.append(
-                ContradictoryRulesError(
-                    rule.id,
-                    f"Predicate contains contradictory clauses: {obj} is both inside and "
-                    f"not inside zone {zone}",
-                )
-            )
-
-    return errors
-
-
-def _check_inter_rule_contradictions(rules: Sequence[RuleIR]) -> list[LintError]:
-    """Check for contradictory requirements between multiple rules."""
-    errors: list[LintError] = []
-
-    inside_rules: dict[tuple[str, str], list[str]] = {}
-    not_inside_rules: dict[tuple[str, str], list[str]] = {}
-
-    for rule in rules:
-        pred = rule.predicate
-        if isinstance(pred, Inside):
-            key = (pred.object, pred.zone)
-            inside_rules.setdefault(key, []).append(rule.id)
-        elif isinstance(pred, Not_) and isinstance(pred.of, Inside):
-            key = (pred.of.object, pred.of.zone)
-            not_inside_rules.setdefault(key, []).append(rule.id)
-
-    for key, r_inside in inside_rules.items():
-        if key in not_inside_rules:
-            r_outside = not_inside_rules[key]
-            errors.append(
-                ContradictoryRulesError(
-                    r_inside[0],
-                    f"Rules {r_inside} and {r_outside} contradict each other: "
-                    f"one requires {key[0]} inside {key[1]} while the other requires outside",
-                )
-            )
-
-    return errors
-
-
-def _check_rule_actions_and_severity(rule: RuleIR) -> list[LintError]:
-    errors: list[LintError] = []
-    if not rule.actions:
-        errors.append(MissingActionError(rule.id))
-    if not rule.severity:
-        errors.append(MissingSeverityError(rule.id))
-    return errors
-
-
-def _check_rule_zones(
-    rule: RuleIR,
-    all_zones: Mapping[str, ZoneSpec],
-    available_cameras: Sequence[str] | Iterable[str] | None,
-) -> list[LintError]:
-    errors: list[LintError] = []
-    for zone_id in all_zones:
-        lowered = zone_id.lower()
-        if any(kw in lowered for kw in FORBIDDEN_ZONE_KEYWORDS):
-            errors.append(PrivateSpaceZoneError(rule.id, zone_id))
-
-    referenced_zones = extract_zone_references(rule.predicate)
-    for zone_name in referenced_zones:
-        if zone_name not in all_zones:
-            errors.append(UndefinedZoneError(rule.id, zone_name))
-
-    if available_cameras is not None:
-        avail_cam_set = set(available_cameras)
-        for zone_name in referenced_zones:
-            z_spec = all_zones.get(zone_name)
-            if z_spec and z_spec.camera_id not in avail_cam_set:
-                errors.append(ZoneOutOfViewError(rule.id, zone_name, z_spec.camera_id))
-
-    return errors
-
-
-def _check_rule_concepts(
-    rule: RuleIR,
-    inventory_concepts: Sequence[str] | Iterable[str] | None,
-) -> list[LintError]:
-    errors: list[LintError] = []
-    referenced_concepts = extract_concept_references(rule.predicate)
-    declared_concepts = set(rule.concepts.keys())
-    if inventory_concepts:
-        declared_concepts.update(inventory_concepts)
-
-    for concept in referenced_concepts:
-        if concept not in declared_concepts:
-            errors.append(UndefinedConceptError(rule.id, concept))
-    return errors
-
-
-def _check_rule_privacy(rule: RuleIR, privacy_mode: PrivacyMode) -> list[LintError]:
-    errors: list[LintError] = []
-    if privacy_mode in (PrivacyMode.ANONYMOUS, PrivacyMode.STRICT):
-        for concept_name in rule.concepts:
-            lowered = concept_name.lower()
-            if any(kw in lowered for kw in FACE_OR_IDENTITY_KEYWORDS):
-                errors.append(
-                    PrivacyInconsistencyError(
-                        rule.id,
-                        f"Concept '{concept_name}' requires facial/identity recognition, "
-                        f"which violates {privacy_mode.value.title()} Privacy Mode",
-                    )
-                )
-    return errors
+class PlanLintError(PlannerError):
+    """A plan has lint errors.
+
+    Attributes:
+        findings: Every finding, in rule order.
+    """
+
+    def __init__(self, findings: Sequence[LintFinding]) -> None:
+        """Create the error.
+
+        Args:
+            findings: The findings (at least one).
+        """
+        self.findings = tuple(findings)
+        listed = "; ".join(f"[{f.code}] {f.rule_id}: {f.message}" for f in self.findings)
+        super().__init__(f"{len(self.findings)} lint error(s): {listed}")
+
+
+def concept_root(ref: str) -> str:
+    """The concept name of an object reference (`person.hands` -> `person`)."""
+    return ref.split(".", 1)[0]
+
+
+def private_space_zones(rule: RuleIR) -> list[str]:
+    """Names of the rule's zones that name a private space (the guardrails' patterns)."""
+    return [name for name in rule.zones if _names_private_space(name)]
+
+
+def face_concepts(rule: RuleIR) -> list[str]:
+    """Names of the rule's concepts whose name or prompt needs a face."""
+    return [
+        name
+        for name, spec in rule.concepts.items()
+        if FACE_WORDS.search(_words(name)) or FACE_WORDS.search(_words(spec.prompt))
+    ]
+
+
+def zone_view_problem(name: str, spec: ZoneSpec, views: CameraViews) -> str | None:
+    """Why a zone is out of view, or `None` when it is not known to be.
+
+    A zone is out of view when its camera is not one of the site's, or when its pixel polygon
+    shares no area with (or is not a valid polygon in) the camera's frame. Buffer zones follow
+    their concept, so only their camera is checked.
+
+    Args:
+        name: The zone's name.
+        spec: The zone.
+        views: The site's cameras and frame sizes.
+
+    Returns:
+        The problem, or `None`.
+    """
+    if spec.camera_id not in views:
+        return f"zone {name!r} is on camera {spec.camera_id!r}, which the site does not have"
+    size = views[spec.camera_id]
+    if spec.kind != "polygon" or size is None:
+        return None
+    zone = Zone(zone_id=name, camera_id=spec.camera_id, kind="polygon", polygon_px=spec.polygon_px)
+    try:
+        view = zone_in_view(zone, *size)
+    except ZoneError as exc:
+        return f"zone {name!r} has no usable polygon: {exc}"
+    if view.state == "outside":
+        return f"zone {name!r} lies outside the {size[0]}x{size[1]} frame of {spec.camera_id!r}"
+    return None
 
 
 def lint_rule(
-    rule: RuleIR,
-    *,
-    privacy_mode: PrivacyMode = PrivacyMode.STANDARD,
-    known_zones: Mapping[str, ZoneSpec] | None = None,
-    available_cameras: Sequence[str] | Iterable[str] | None = None,
-    inventory_concepts: Sequence[str] | Iterable[str] | None = None,
-) -> list[LintError]:
-    """Validate a single RuleIR for the 8 deterministic lint error classes.
+    rule: RuleIR, *, views: CameraViews, privacy_mode: PrivacyMode = PrivacyMode.STANDARD
+) -> tuple[LintFinding, ...]:
+    """Lint one rule on its own (everything but cross-rule contradictions).
 
     Args:
-        rule: The RuleIR instance to check.
-        privacy_mode: Operational privacy mode for this deployment.
-        known_zones: Mapping of zone_id to ZoneSpec declared in plan or rule.
-        available_cameras: Optional collection of active camera IDs.
-        inventory_concepts: Optional concepts verified in survey inventory.
+        rule: The rule.
+        views: The site's cameras and frame sizes.
+        privacy_mode: The site's privacy mode.
 
     Returns:
-        List of LintError instances discovered.
+        The findings, empty when the rule is clean.
     """
-    errors: list[LintError] = []
-    errors.extend(_check_rule_actions_and_severity(rule))
+    problems: list[tuple[LintCode, str]] = [
+        *_reference_problems(rule),
+        *(
+            ("zone_out_of_view", problem)
+            for name, spec in rule.zones.items()
+            if (problem := zone_view_problem(name, spec, views)) is not None
+        ),
+        *(("unreasonable_threshold", p) for p in _threshold_problems(rule)),
+        *(("contradictory_rules", p) for p in _self_contradictions(rule)),
+        *_privacy_problems(rule, privacy_mode),
+        *_action_problems(rule),
+    ]
+    return tuple(LintFinding(code=code, rule_id=rule.id, message=m) for code, m in problems)
 
-    all_zones: dict[str, ZoneSpec] = dict(rule.zones)
-    if known_zones:
-        all_zones.update(known_zones)
 
-    errors.extend(_check_rule_zones(rule, all_zones, available_cameras))
-    errors.extend(_check_rule_concepts(rule, inventory_concepts))
-    errors.extend(_check_thresholds(rule, rule.predicate))
-    errors.extend(_check_rule_privacy(rule, privacy_mode))
-    errors.extend(_check_predicate_self_contradiction(rule, rule.predicate))
-
-    return errors
-
-
-def lint_plan(
-    plan: SitePlan,
-    *,
-    available_cameras: Sequence[str] | Iterable[str] | None = None,
-) -> list[LintError]:
-    """Validate all rules and configurations in a SitePlan.
+def lint_plan(plan: SitePlan, *, views: CameraViews) -> tuple[LintFinding, ...]:
+    """Lint every rule of a plan, then look for contradictions between rules.
 
     Args:
-        plan: The SitePlan to validate.
-        available_cameras: Optional active camera IDs at the site.
+        plan: The plan.
+        views: The site's cameras and frame sizes.
 
     Returns:
-        List of all LintErrors discovered across rules and global plan configuration.
+        The findings, empty when the plan is clean.
     """
-    errors: list[LintError] = []
-
-    known_zones: dict[str, ZoneSpec] = {}
-    for r in plan.rules:
-        known_zones.update(r.zones)
-
-    inventory_concepts = [item.concept for item in plan.inventory]
-    cams = (
-        list(available_cameras)
-        if available_cameras is not None
-        else list({item.camera_id for item in plan.inventory})
-    )
-
-    for rule in plan.rules:
-        errors.extend(
-            lint_rule(
-                rule,
-                privacy_mode=plan.privacy_mode,
-                known_zones=known_zones,
-                available_cameras=cams,
-                inventory_concepts=inventory_concepts,
-            )
-        )
-
-    errors.extend(_check_inter_rule_contradictions(plan.rules))
-
-    return errors
+    findings = [
+        finding
+        for rule in plan.rules
+        for finding in lint_rule(rule, views=views, privacy_mode=plan.privacy_mode)
+    ]
+    findings.extend(cross_rule_contradictions(plan.rules))
+    return tuple(findings)
 
 
-def lint_plan_or_raise(
-    plan: SitePlan,
-    *,
-    available_cameras: Sequence[str] | Iterable[str] | None = None,
-) -> None:
-    """Validate a SitePlan and raise the first LintError if any are found."""
-    errors = lint_plan(plan, available_cameras=available_cameras)
-    if errors:
-        raise errors[0]
+def require_lint_clean(plan: SitePlan, *, views: CameraViews) -> None:
+    """Raise `PlanLintError` if the plan has any lint error.
+
+    Args:
+        plan: The plan.
+        views: The site's cameras and frame sizes.
+
+    Raises:
+        PlanLintError: With every finding.
+    """
+    findings = lint_plan(plan, views=views)
+    if findings:
+        raise PlanLintError(findings)
+
+
+def cross_rule_contradictions(rules: Sequence[RuleIR]) -> list[LintFinding]:
+    """Pairs of rules that require the same subject both in and out of the same zone.
+
+    Args:
+        rules: The plan's rules.
+
+    Returns:
+        One finding per contradicting pair, on the later rule.
+    """
+    findings: list[LintFinding] = []
+    for i, later in enumerate(rules):
+        for earlier in rules[:i]:
+            flipped = {(subj, zone, not on) for subj, zone, on in _literals(later.predicate)}
+            clash = _literals(earlier.predicate) & flipped
+            if clash:
+                subject, zone, _ = min(clash)
+                message = (
+                    f"rules {earlier.id!r} and {later.id!r} have opposite conditions for "
+                    f"{subject!r} in zone {zone!r}"
+                )
+                findings.append(
+                    LintFinding(code="contradictory_rules", rule_id=later.id, message=message)
+                )
+    return findings
+
+
+# --- checks -------------------------------------------------------------------------------------
+
+
+def _reference_problems(rule: RuleIR) -> Iterator[tuple[LintCode, str]]:
+    for pred in walk_predicates(rule.predicate):
+        for field in _OBJECT_FIELDS:
+            ref = getattr(pred, field, None)
+            if isinstance(ref, str) and concept_root(ref) not in rule.concepts:
+                yield "undefined_concept", f"{pred.op}.{field} names undeclared concept {ref!r}"
+        zone = getattr(pred, "zone", None)
+        if isinstance(zone, str) and zone not in rule.zones:
+            yield "undefined_zone", f"{pred.op}.zone names undeclared zone {zone!r}"
+    for name, spec in rule.zones.items():
+        if spec.kind == "buffer" and (spec.buffer_of or "") not in rule.concepts:
+            problem = f"zone {name!r} buffers undeclared concept {spec.buffer_of!r}"
+            yield "undefined_concept", problem
+
+
+def _out_of_range(value: float, low: float, high: float) -> bool:
+    return not low <= value <= high
+
+
+def _threshold_problems(rule: RuleIR) -> Iterator[str]:
+    distance = f"outside {MIN_DISTANCE_M}-{MAX_DISTANCE_M} m"
+    duration = f"outside {MIN_DURATION_S:g}-{MAX_DURATION_S:g} s"
+    for pred in walk_predicates(rule.predicate):
+        if isinstance(pred, DistanceM):
+            for name, value in (("lt", pred.lt), ("gt", pred.gt)):
+                if value is not None and _out_of_range(value, MIN_DISTANCE_M, MAX_DISTANCE_M):
+                    yield f"distance_m.{name} = {value} m is {distance}"
+        for name, seconds in _durations(pred):
+            if _out_of_range(seconds, MIN_DURATION_S, MAX_DURATION_S):
+                yield f"{pred.op}.{name} = {seconds} s is {duration}"
+    for name, spec in rule.zones.items():
+        if spec.buffer_m is not None and _out_of_range(
+            spec.buffer_m, MIN_DISTANCE_M, MAX_DISTANCE_M
+        ):
+            yield f"zone {name!r} buffer_m = {spec.buffer_m} m is {distance}"
+
+
+def _durations(pred: Predicate) -> list[tuple[str, float]]:
+    if isinstance(pred, Persist | Absence):
+        return [("seconds", pred.seconds)]
+    if isinstance(pred, Dwell):
+        return [("total_s_gte", pred.total_s_gte)]
+    if isinstance(pred, RuleSequence):
+        return [("require_within_s", pred.require_within_s)]
+    return []
+
+
+def _self_contradictions(rule: RuleIR) -> Iterator[str]:
+    literals = _literals(rule.predicate)
+    for subject, zone, present in sorted(literals):
+        if present and (subject, zone, False) in literals:
+            yield f"the condition needs {subject!r} both in and not in zone {zone!r}"
+
+
+def _privacy_problems(rule: RuleIR, mode: PrivacyMode) -> Iterator[tuple[LintCode, str]]:
+    if mode in PRIVATE_MODES:
+        for name in face_concepts(rule):
+            problem = f"concept {name!r} needs faces, but the site is in {mode} mode"
+            yield "privacy_inconsistency", problem
+    for name in private_space_zones(rule):
+        yield "private_space_zone", f"zone {name!r} names a private space"
+
+
+def _action_problems(rule: RuleIR) -> Iterator[tuple[LintCode, str]]:
+    if not rule.actions:
+        yield "missing_action", "the rule has no actions"
+    if not isinstance(getattr(rule, "severity", None), Severity):  # e.g. built by model_construct
+        yield "missing_severity", "the rule has no valid severity"
+
+
+# --- helpers ------------------------------------------------------------------------------------
+
+Literal_ = tuple[str, str, bool]  # (subject concept, zone, present?)
+
+
+def _literals(pred: Predicate) -> set[Literal_]:
+    """Zone-presence conditions the predicate requires: its own, or each conjunct's of an `all`."""
+    conjuncts = pred.of if isinstance(pred, All) else (pred,)
+    return {lit for c in conjuncts if (lit := _literal(c)) is not None}
+
+
+def _literal(pred: Predicate) -> Literal_ | None:
+    if isinstance(pred, Persist):
+        return _literal(pred.of)
+    if isinstance(pred, Inside | Dwell):
+        return concept_root(pred.object), pred.zone, True
+    if isinstance(pred, Count) and pred.zone is not None and pred.gt is not None:
+        return concept_root(pred.object), pred.zone, True
+    if isinstance(pred, Absence):
+        return concept_root(pred.object), pred.zone, False
+    if isinstance(pred, Not_) and isinstance(pred.of, Inside):
+        return concept_root(pred.of.object), pred.of.zone, False
+    return None
+
+
+def _words(text: str) -> str:
+    return re.sub(r"[_\-.]+", " ", text.lower())
+
+
+def _names_private_space(name: str) -> bool:
+    declined = deterministic_check(_words(name))
+    return declined is not None and declined.category is GuardrailCategory.PRIVATE_SPACE

@@ -11,8 +11,9 @@ Every step publishes `planner.step` (`PlannerStepEvent`: running, then done or f
 finished `SitePlan` is saved to `plans/<plan_id>.plan.yaml` with its version one above the plan
 already saved there, then published on `plan.updated`.
 
-Steps 1-6 call the P2-02..P2-05 modules. Steps 7-10 are plan -> plan hooks for the linter
-(P2-06b), acceptance checks (P2-06c), audit (P2-07) and Rule CI (P2-08/09); a hook that is not
+Steps 1-6 call the P2-02..P2-05 modules. Step 7 lints the draft plan (`planner.lint`, P2-06b)
+against the site's cameras and records the findings with the plan. Steps 8-10 are plan -> plan
+hooks for acceptance checks (P2-06c), audit (P2-07) and Rule CI (P2-08/09); a hook that is not
 wired yet passes the plan through unchanged and says so in its step detail, so the acceptance
 trace stays empty rather than claiming checks that never ran.
 """
@@ -26,6 +27,7 @@ from functools import partial
 from pathlib import Path
 from typing import Final, Literal, TypeVar
 
+import cv2
 import yaml
 from pydantic import BaseModel, Field, ValidationError
 
@@ -44,6 +46,7 @@ from rulecam.contracts.rule_ir import RuleIR, ZoneSpec
 from rulecam.log import get_logger
 from rulecam.planner.errors import GuardrailDeclinedError, PipelineError
 from rulecam.planner.feasibility import gauge_plan_feasibility
+from rulecam.planner.lint import CameraViews, FrameSize, LintFinding, lint_plan
 from rulecam.planner.models import UnderstandResult
 from rulecam.planner.steps.ask import Question, propose_clarifying_questions
 from rulecam.planner.steps.compile import compile_rule
@@ -74,9 +77,8 @@ PIPELINE_STEPS: Final[tuple[StepName, ...]] = (
 PLAN_ID_PATTERN: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 MAX_DETAIL_CHARS: Final = 300
 COMPILED_VERDICTS: Final = frozenset({"observable", "caveat"})
-HOOK_STEPS: Final[tuple[StepName, ...]] = ("lint", "accept", "audit", "prove")
+HOOK_STEPS: Final[tuple[StepName, ...]] = ("accept", "audit", "prove")
 HOOK_TASKS: Final[dict[StepName, str]] = {
-    "lint": "P2-06b",
     "accept": "P2-06c",
     "audit": "P2-07",
     "prove": "P2-08",
@@ -146,6 +148,13 @@ class CompileResult(Frozen):
 
     rules: tuple[RuleIR, ...]
     feasibility: tuple[FeasibilityVerdict, ...]
+
+
+class LintResult(Frozen):
+    """Step 7: the draft plan and its lint findings (empty when the plan is clean)."""
+
+    plan: SitePlan
+    findings: tuple[LintFinding, ...]
 
 
 class PlannerStepEvent(Frozen):
@@ -306,6 +315,38 @@ def _verdict_counts(gauge: GaugeResult) -> str:
     return ", ".join(f"{verdicts.count(v)} {v}" for v in dict.fromkeys(verdicts))
 
 
+def _frame_size(frame: Path) -> FrameSize | None:
+    image = cv2.imread(str(frame), cv2.IMREAD_GRAYSCALE) if frame.is_file() else None
+    if image is None:
+        return None
+    height, width = image.shape[:2]
+    return width, height
+
+
+def camera_views(camera_frames: dict[str, tuple[Path, ...]]) -> CameraViews:
+    """The site's cameras with the frame size of each camera's latest readable frame.
+
+    Args:
+        camera_frames: Camera id -> frames, oldest first.
+
+    Returns:
+        Camera id -> (width, height), or `None` for a camera none of whose frames can be read.
+    """
+    return {
+        camera_id: next(
+            (size for f in reversed(frames) if (size := _frame_size(f)) is not None), None
+        )
+        for camera_id, frames in camera_frames.items()
+    }
+
+
+def _lint_summary(result: LintResult) -> str:
+    if not result.findings:
+        return "no lint errors"
+    codes = [f.code for f in result.findings]
+    return ", ".join(f"{codes.count(c)} {c}" for c in dict.fromkeys(codes))
+
+
 def _detail(exc: Exception) -> str:
     return f"{type(exc).__name__}: {exc}"[:MAX_DETAIL_CHARS]
 
@@ -322,7 +363,6 @@ class PlannerPipeline:
         store: PlanStore,
         voice: Transcriber | None = None,
         bus: Bus | None = None,
-        lint: PlanHook | None = None,
         accept: PlanHook | None = None,
         audit: PlanHook | None = None,
         prove: PlanHook | None = None,
@@ -336,7 +376,6 @@ class PlannerPipeline:
             store: Where the plan, inputs and step outputs are saved.
             voice: Voice Transcribe, needed for voice items.
             bus: Receives `planner.step` and `plan.updated`.
-            lint: Step 7 hook (P2-06b).
             accept: Step 8 hook (P2-06c).
             audit: Step 9 hook (P2-07).
             prove: Step 10 hook (P2-08/09).
@@ -348,7 +387,7 @@ class PlannerPipeline:
         self._bus = bus
         self.store = store
         self._hooks: dict[StepName, PlanHook | None] = dict(
-            zip(HOOK_STEPS, (lint, accept, audit, prove), strict=True)
+            zip(HOOK_STEPS, (accept, audit, prove), strict=True)
         )
         self._lock = threading.Lock()
 
@@ -432,13 +471,14 @@ class PlannerPipeline:
             lambda: self._compile(inputs, understood, survey, gauge),
             lambda out: f"{len(out.rules)} rules",
         )
-        plan = step(
+        linted = step(
             "lint",
-            SitePlan,
-            lambda: self._run_hook("lint", self._draft(inputs, understood, survey, compiled)),
-            partial(self._hook_summary, "lint"),
+            LintResult,
+            lambda: self._lint(self._draft(inputs, understood, survey, compiled), inputs),
+            _lint_summary,
         )
-        for name in HOOK_STEPS[1:]:
+        plan = linted.plan
+        for name in HOOK_STEPS:
             plan = step(
                 name,
                 SitePlan,
@@ -590,6 +630,12 @@ class PlannerPipeline:
         return CompileResult(
             rules=tuple(rules), feasibility=tuple(verdicts[v.concern] for v in gauge.feasibility)
         )
+
+    def _lint(self, draft: SitePlan, inputs: PipelineInput) -> LintResult:
+        findings = lint_plan(draft, views=camera_views(inputs.camera_frames))
+        for finding in findings:
+            _log.warning("plan_lint_error", plan_id=draft.plan_id, **finding.model_dump())
+        return LintResult(plan=draft, findings=findings)
 
     def _draft(
         self,

@@ -129,6 +129,47 @@ check = check_citation(citation, library) if citation else None  # CitationCheck
   text up to 10 MB. PDF pages are refused (`StandardsFetchError`), so the check fails with an
   `unverifiable: ...` detail.
 
+## Pipeline and persistence (P2-06a)
+
+```python
+from rulecam.planner.pipeline import PipelineInput, PlannerPipeline, PlanStore
+
+pipeline = PlannerPipeline(
+    spark=spark, files=spark, segmenter=sam, voice=voice, bus=bus, store=PlanStore(Path("plans"))
+)
+plan = pipeline.run(
+    PipelineInput(
+        plan_id="main-st",
+        site_name="Main St",
+        request=items,
+        camera_frames=frames,
+        zones=zones,
+        seed=7,
+    )
+)
+plan = pipeline.resume("main-st")  # after a crash: first step without an output
+plan = pipeline.resume("main-st", "compile")  # re-run steps 6-10 on the saved steps 1-5
+```
+
+- Steps, always in this order: understand, survey, probe, gauge, ask, compile, lint, accept,
+  audit, prove. Inputs go to `plans/<id>/input.json`, each step's typed output to
+  `plans/<id>/steps/<NN>_<step>.json`, the plan to `plans/<id>.plan.yaml`; all writes are
+  atomic. Running a step deletes its own and every later output first, so nothing stale
+  survives a crash. Plan ids must be safe file names (`PipelineError` otherwise).
+- Probe asks Spark 1.3 which concepts each concern needs (`concepts_for_concerns`), then probes
+  them. Compile runs only for `observable` and `caveat` concerns; a compile-time guardrail
+  decline turns the concern's verdict into `declined`.
+- Steps 7-10 are `SitePlan -> SitePlan` hooks (`lint`, `accept`, `audit`, `prove`) for P2-06b,
+  P2-06c, P2-07 and P2-08/09. Until one is wired it passes the plan through and its step detail
+  says "not wired yet", so the acceptance trace stays empty instead of claiming checks.
+- Every step publishes `planner.step` (`PlannerStepEvent{plan_id, step, status, detail}`,
+  status `running` then `done` or `failed`; resumed steps report `done`, "loaded from the
+  saved output"). The plan is saved with version = saved version + 1 (never overwriting the
+  same or a newer version), then published on `plan.updated`.
+- `planner/runner.py::PlannerService` is the `PlannerRunner` behind `POST /plans/requests`: it
+  runs one plan at a time in a worker thread and puts finished plans in the `/plans` registry.
+  `ChunkFrames` gives the survey the last frame of each camera's chunks from the last 60 s.
+
 ## Tests
 
 ```bash

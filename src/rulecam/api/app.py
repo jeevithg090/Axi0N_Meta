@@ -33,9 +33,11 @@ from rulecam.api.plans import PlannerRunner, PlanRegistry, plans_router
 from rulecam.api.ws import mirror_bus
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
+from rulecam.clients.errors import ClientConfigError
+from rulecam.clients.meta_hosted import SparkClient, VoiceTranscribeClient
 from rulecam.clock import SystemClock
 from rulecam.config import Settings, get_settings
-from rulecam.contracts import Chunk
+from rulecam.contracts import Chunk, Clock
 from rulecam.evidence.chain import ChainReport, EventChain, verify_chain
 from rulecam.evidence.merkle import chain_root, read_day_roots
 from rulecam.log import get_logger
@@ -43,8 +45,16 @@ from rulecam.perception.correction import CorrectionService
 from rulecam.perception.correction_api import correction_router
 from rulecam.perception.metrics import PerceptionMetrics, PerceptionMetricsReport
 from rulecam.perception.router import Purpose
+from rulecam.planner.pipeline import PlannerPipeline, PlanStore
+from rulecam.planner.runner import ChunkFrames, PlannerService
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
-from rulecam.runtime.factory import ChainEventSource, ChunkIndex, build_perception, build_runtime
+from rulecam.runtime.factory import (
+    ChainEventSource,
+    ChunkIndex,
+    Perception,
+    build_perception,
+    build_runtime,
+)
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
 
 _log = get_logger(__name__)
@@ -358,11 +368,55 @@ def _log_task_end(task: asyncio.Task[None]) -> None:
         _log.error("background_task_died", task=task.get_name(), error=repr(error))
 
 
+PLANS_DIR = Path("plans")
+
+
+def build_planner(
+    settings: Settings,
+    *,
+    cache: ReplayCache,
+    clock: Clock,
+    bus: Bus,
+    perception: Perception,
+    plans: PlanRegistry,
+    site: str,
+) -> PlannerService | None:
+    """Build the Site Planner runner for `POST /plans/requests` (P2-06a).
+
+    Spark, Voice Transcribe and hosted SAM all go through the replay cache. Plans are saved
+    under `plans/`, survey frames come from the last 60 s of chunks, and finished plans go into
+    the `/plans` registry.
+
+    Returns:
+        The runner, or `None` (logged) when the clients cannot be built, e.g. in live mode
+        without API keys; `POST /plans/requests` then answers 503.
+    """
+    try:
+        spark = SparkClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
+        voice = VoiceTranscribeClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
+    except ClientConfigError as exc:
+        _log.warning("planner_disabled", error=str(exc))
+        return None
+    pipeline = PlannerPipeline(
+        spark=spark,
+        files=spark,
+        segmenter=perception.hosted,
+        voice=voice,
+        bus=bus,
+        store=PlanStore(PLANS_DIR),
+    )
+    frames = ChunkFrames(
+        perception.chunks, clock=clock, out_dir=settings.rulecam_data_dir / "planner_frames"
+    )
+    return PlannerService(pipeline, site_name=site, frames=frames, on_plan=plans.put)
+
+
 def services_from_settings(settings: Settings, site: str = "demo") -> AppServices:
     """Build the default services from settings.
 
     Always: bus, replay cache, evidence chain, perception (SAM router, metrics, track store),
-    Pair-a-Phone and the correction loop. With `RULECAM_RUNTIME=true`, also the runtime loop.
+    Pair-a-Phone, the correction loop and the plan registry, plus the Site Planner runner when
+    its clients can be built. With `RULECAM_RUNTIME=true`, also the runtime loop.
 
     Args:
         settings: Application settings.
@@ -397,6 +451,10 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         chunks=perception.chunks,
         record_label=chain.append,
     )
+    plans = PlanRegistry()
+    planner = build_planner(
+        settings, cache=cache, clock=clock, bus=bus, perception=perception, plans=plans, site=site
+    )
     return AppServices(
         bus=bus,
         cache=cache,
@@ -409,6 +467,8 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         chunks=perception.chunks,
         verify_dir=VERIFY_PAGE_DIR,
         uploads_dir=settings.rulecam_data_dir / "uploads",
+        plans=plans,
+        planner=planner,
     )
 
 

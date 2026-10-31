@@ -31,7 +31,9 @@ browser ──► https://rulecam.vercel.app  (Next.js, ui/)
 - Secrets are files with mode 600, read by `start.sh` into the environment: `.meta_api_key`,
   `.glimmer_api_key` (add `.baseten_api_key` / `HF_TOKEN` the same way when needed). The owner
   writes them; they are never in `.env`, argv, chat or git.
-- `start.sh` runs `uvicorn rulecam.api.app:app --host 0.0.0.0 --port 8000`. Do not add
+- `start.sh` runs `uvicorn rulecam.api.app:app --host 0.0.0.0 --port 8000
+  --timeout-graceful-shutdown 5`. Without the timeout, a restart hangs while public `/ws` viewers
+  stay connected, and the new process cannot take the port. Do not add
   `--forwarded-allow-ips="*"`: it would let anyone spoof a loopback client past the owner check.
 - Auto-start: the pod's `dockerStartCmd` is
   `bash -c "(/workspace/rulecam/boot.sh &) ; exec /start.sh"`, and `boot.sh` runs `start.sh`

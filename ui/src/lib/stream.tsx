@@ -3,18 +3,21 @@
 // Connects the UI to `/ws` (or to the recorded demo frames with `?demo=1`) and shares the folded
 // state through React context. Reconnects with a capped backoff; the badge shows OFFLINE meanwhile.
 
+import { useSearchParams } from "next/navigation";
 import {
   createContext,
+  Suspense,
   useContext,
   useEffect,
   useReducer,
+  useState,
   type Dispatch,
   type ReactNode,
 } from "react";
 
 import { demoFrames } from "@/fixtures/demo-frames";
 
-import { API_BASE, wsUrl } from "./config";
+import { API_PROXY, wsUrl } from "./config";
 import { parseFrame, type ModeChanged } from "./events";
 import { initialState, reducer, type Action, type UiState } from "./store";
 
@@ -42,7 +45,7 @@ function connect(dispatch: Dispatch<Action>): () => void {
     socket.onopen = () => {
       backoff = 500;
       dispatch({ type: "connection", connection: "open" });
-      fetch(`${API_BASE}/mode`)
+      fetch(`${API_PROXY}/mode`)
         .then((r) => (r.ok ? (r.json() as Promise<ModeChanged>) : null))
         .then((mode) => mode && dispatch({ type: "mode", mode }))
         .catch(() => undefined);
@@ -64,17 +67,40 @@ function connect(dispatch: Dispatch<Action>): () => void {
   return () => {
     stopped = true;
     if (retry) clearTimeout(retry);
-    socket?.close();
+    if (socket) {
+      // Detach first: this socket's late close event must not mark a newer connection OFFLINE.
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onclose = null;
+      socket.close();
+    }
   };
+}
+
+/** Reports whether the URL asks for the recorded demo, on first load and on client navigation. */
+function DemoParam({ onChange }: { onChange: (demo: boolean) => void }) {
+  const demo = useSearchParams().get("demo") === "1";
+  useEffect(() => onChange(demo), [demo, onChange]);
+  return null;
 }
 
 export function StreamProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const [demo, setDemo] = useState<boolean | null>(null);
   useEffect(() => {
-    const demo = new URLSearchParams(window.location.search).get("demo") === "1";
+    if (demo === null) return undefined;
+    // Switching between the live socket and the recording never mixes their events or modes.
+    dispatch({ type: "reset" });
     return demo ? playDemo(dispatch) : connect(dispatch);
-  }, []);
-  return <StreamContext.Provider value={state}>{children}</StreamContext.Provider>;
+  }, [demo]);
+  return (
+    <StreamContext.Provider value={state}>
+      <Suspense fallback={null}>
+        <DemoParam onChange={setDemo} />
+      </Suspense>
+      {children}
+    </StreamContext.Provider>
+  );
 }
 
 export function useStream(): UiState {

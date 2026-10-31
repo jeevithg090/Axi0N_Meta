@@ -20,13 +20,13 @@ from rulecam.advisor.pipeline import (
 from rulecam.advisor.safety import assess_change
 from rulecam.bus import Topic
 from rulecam.contracts.advisor import Change, Recommendation
+from rulecam.contracts.core import Severity
 from rulecam.contracts.rule_ir import (
     ActionSpec,
     ConceptSpec,
     DistanceM,
     RuleIR,
     RuleSource,
-    Severity,
     ZoneSpec,
 )
 from tests.advisor.advisor_fakes import (

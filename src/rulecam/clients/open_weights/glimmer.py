@@ -195,7 +195,9 @@ class GlimmerClient:
             quant=settings.glimmer_quant,
             hardware=settings.glimmer_hardware,
         )
-        http = HttpxTransport(settings.glimmer_base_url, "local", timeout_s=DEFAULT_TIMEOUT_S)
+        # llama-server ignores the key unless started with --api-key (needed when it is remote).
+        key = settings.glimmer_api_key.get_secret_value() if settings.glimmer_api_key else "local"
+        http = HttpxTransport(settings.glimmer_base_url, key, timeout_s=DEFAULT_TIMEOUT_S)
         transport = cache.wrap_transport(PROVIDER, config.model, http)
         evidence = EvidenceLog(settings.evidence_dir / "glimmer" / "inference-log.jsonl")
         return cls(

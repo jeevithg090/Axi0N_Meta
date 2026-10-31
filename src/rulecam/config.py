@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     baseten_spark_open_model: str = "meta-models/muse-spark-open-1026"
     spark_open_images_supported: bool = False
     glimmer_base_url: str = "http://127.0.0.1:8080/v1"
+    glimmer_api_key: SecretStr | None = None
     glimmer_model: str = "muse-glimmer-30b"
     glimmer_quant: str = ""
     glimmer_hardware: str = ""

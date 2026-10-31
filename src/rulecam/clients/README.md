@@ -10,7 +10,61 @@ HTTP calls.
 | `transport.py` | `Transport` (a request mapping in, a reply mapping out — the seam the P3-02 replay cache wraps), `HttpxTransport` (real HTTPS, bearer auth), `Sender` (token bucket + jittered backoff on 429/5xx, at most 4 tries, honours `Retry-After`, drains on `x-ratelimit-remaining-requests: 0`) |
 | `ratelimit.py` | Thread-safe `TokenBucket` |
 | `relay.py` | `ModelUsed`, the `relay.model_used` payload (`model`, `segment`, `latency_ms`, `camera_id`, `attempts`) |
-| `errors.py` | `ModelHTTPError`, `ModelResponseError`, `ClientConfigError` |
+| `errors.py` | `ModelHTTPError`, `ModelResponseError`, `StructuredOutputError`, `ClientConfigError` |
+
+## `meta_hosted/spark.py` — `SparkClient` (P2-01, owner P2)
+
+Implements `rulecam.contracts.StructuredLLM` on Meta's hosted Responses API.
+
+```python
+spark = SparkClient(transport, clock=SystemClock(), bus=bus)
+response = spark.structured(
+    model="muse-spark-1.3",
+    messages=[{"role": "user", "content": "Extract safety hazards"}],
+    schema=HazardsOutput,
+    reasoning_effort="low",
+    background=False,
+    enable_web_search=True,
+    max_tool_calls=5,
+)
+```
+
+- Structured schema output via Pydantic model (`schema.model_json_schema()`).
+- Background job polling (`background=True`).
+- Validation error recovery: retries once with schema error feedback, then raises `StructuredOutputError`.
+- Tracks prompt caching via `cached_tokens`.
+
+## `meta_hosted/voice.py` — `VoiceTranscribeClient` (P2-01, owner P2)
+
+Implements `rulecam.contracts.Transcriber` for speech transcription and diarization.
+
+```python
+voice = VoiceTranscribeClient(transport, clock=SystemClock(), bus=bus)
+segments = voice.transcribe(
+    audio_bytes, lang_bias=["en", "es"], keywords=["sanitizer"], diarize=True
+)
+# Streaming session with start-only parameters:
+session = voice.start_streaming_session("DIARIZATION", keywords=["safety"], language_bias=["en"])
+```
+
+- Splits audio files exceeding 10 minutes or 32 MB into WAV chunks automatically.
+- Enforces session-start-only configuration for `keywords` and `languageBias`.
+
+## `meta_hosted/image.py` — `MuseImageClient` (P2-01, owner P2)
+
+Generates synthetic scenes, posters, and red-team visual lookalikes.
+
+```python
+image_client = MuseImageClient(
+    transport, clock=SystemClock(), bus=bus, output_dir=Path("data/images")
+)
+res = image_client.generate("Kitchen workstation with sanitizer bottle", size="1024x1024")
+# res.path -> Path to saved PNG
+```
+
+- Rate-limited to 150 RPM.
+- Accepts at most 10 reference images; rejects mask/inpainting parameters.
+- Chaining support via `previous_response_id`.
 
 ## `meta_hosted/sam.py` — `HostedSam31` (P1-02, owner P1)
 

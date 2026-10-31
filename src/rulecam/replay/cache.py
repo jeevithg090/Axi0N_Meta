@@ -162,7 +162,14 @@ def atomic_write_text(path: Path, text: str) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(text)
-        Path(tmp_name).replace(path)
+        for attempt in range(20):
+            try:
+                Path(tmp_name).replace(path)
+                break
+            except PermissionError:
+                if attempt == 19:  # noqa: PLR2004
+                    raise
+                time.sleep(0.005)
     except BaseException:
         Path(tmp_name).unlink(missing_ok=True)
         raise

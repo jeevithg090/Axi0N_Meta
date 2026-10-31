@@ -46,12 +46,12 @@ Only models that actually run in the product are listed; this table is updated a
 
 | Meta model | Job | Runs where | Status |
 |---|---|---|---|
-| Muse Spark 1.3 (+1.2 for narrated video) | Planner, compiler, standards grounding | Hosted API | planned |
-| Muse Voice Transcribe | Spoken requests, disputes, voice round-trip check | Hosted API | planned |
+| Muse Spark 1.3 (+1.2 for narrated video) | Planner, compiler, standards grounding | Hosted API | integrated (P2-01) |
+| Muse Voice Transcribe | Spoken requests, disputes, voice round-trip check | Hosted API | integrated (P2-01) |
 | SAM 3.1 | Survey, probes, tracking, coverage, masks | Hosted + self-hosted | planned |
 | Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute | Site laptop | planned |
 | Muse Spark Open (open weights) | Tier 2 verifier, plan audit, devil's advocate | Baseten | planned |
-| Muse Image | Rule CI scenes, lookalikes, posters | Hosted API | planned |
+| Muse Image | Rule CI scenes, lookalikes, posters | Hosted API | integrated (P2-01) |
 | Sapiens (FAIR) | Pose and skeletons | GPU | planned |
 | MMS-TTS (FAIR) | Spoken warnings | CPU | planned |
 | V-JEPA 2 (FAIR) | Surprise Lens world model | GPU | planned (gated) |

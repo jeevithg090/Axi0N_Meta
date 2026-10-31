@@ -51,7 +51,7 @@ Only models that actually run in the product are listed; this table is updated a
 | Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute | Site laptop (llama-server) | client + Tier 1 verifier (P3-03) |
 | Muse Spark Open (open weights) | Tier 2 verifier, dispute review, plan audit, devil's advocate | Baseten | client + Tier 2 (P3-04) |
 | Muse Image | Rule CI scenes, lookalikes, posters | Hosted API | client (P2-01); Rule CI scenes and lookalikes (P2-09) |
-| Sapiens (FAIR) | Pose and skeletons | GPU | planned |
+| Sapiens (FAIR) | Pose and skeletons | GPU | planned; RTMPose (ONNX, CPU) is the pose path for now (P4-04) |
 | MMS-TTS (FAIR) | Spoken warnings | CPU | planned |
 | V-JEPA 2 (FAIR) | Surprise Lens world model | GPU | planned (gated) |
 | Llama Prompt Guard 2 (86M) | Scene-text firewall | CPU (transformers, `ml` extra) | firewall (P3-05) |

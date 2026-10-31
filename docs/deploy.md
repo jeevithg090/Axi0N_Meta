@@ -10,7 +10,8 @@ browser ──► https://rulecam.vercel.app  (Next.js, ui/)
             https://<api-pod>-8000.proxy.runpod.net   (FastAPI, live mode)
               │  /ws  (read-only bus mirror; allowed for the PUBLIC_UI_URL origin only)
               ├─► Meta Model API (Spark, Voice, Image, SAM) via the replay cache
-              └─► https://<gpu-pod>-8080.proxy.runpod.net/v1  (llama-server + Muse Glimmer 30B)
+              ├─► https://<gpu-pod>-8080.proxy.runpod.net/v1  (llama-server + Muse Glimmer 30B)
+              └─► https://<sam-pod>-8090.proxy.runpod.net     (sam_server + SAM 3.1, runtime only)
 ```
 
 ## Vercel (UI)
@@ -111,6 +112,31 @@ matter:
    `RULECAM_SAM_BUDGET_FRAMES_PER_MIN` (default 1,000; 0 turns it off), it degrades to one chunk
    in `RULECAM_SAM_BUDGET_STRIDE` (3), logged `budget_exceeded`, instead of falling behind. It
    recovers by itself when the minute drains (`budget_recovered`).
+6. **Pipelined chunks.** Hosted SAM takes 6 to 17 s per request and a camera delivers a chunk
+   every 3 s, so a loop that segments one chunk at a time cannot keep up. Measured on `main`
+   096a438 (one HIGH forklift rule, one camera, idle stride 2): lag 123 to 142 s, the loop stuck
+   in keyframe mode, 3 chunks segmented in 3 minutes, the 8 vCPU API pod mostly idle. The loop
+   now keeps up to `RULECAM_RUNTIME_PIPELINE_DEPTH` (default 4) chunks per camera in flight.
+   Everything that decides *whether* to segment (lag, idle stride, motion gate, budget) runs when
+   a chunk is submitted, in arrival order; only the SAM concept pass runs concurrently; a
+   per-camera reorder buffer then hands results, strictly in chunk order, to tracking, the track
+   store, rule evaluation, candidates, verification, actions and the evidence chain. The budget
+   counts each in-flight chunk's expected bill (one request per dynamic concept) until its real
+   bill replaces it, so depth never overspends it. A failed chunk is counted in `chunks_failed`
+   and is a coverage gap; the chunks behind it carry on. When a camera's pipeline is full the
+   next chunk waits for the oldest one, its lag grows and keyframe mode thins the chunks, as
+   before; requests never queue past the depth. `1` is the old one-chunk-at-a-time loop.
+
+   **Throughput.** A camera keeps up while `depth / latency >= 1 / interval`, where the interval
+   is 3 s on a hot camera and 6 s at idle stride 2. Depth 4 sustains 4 / 6 s = 0.67 chunks/s at
+   6 s latency (needs 0.33) and 4 / 12 s = 0.33 chunks/s at 12 s, so it keeps up with every chunk
+   up to 12 s per request and with idle stride 2 up to 24 s. At 17 s it manages 0.24 chunks/s on
+   a hot camera; lag then grows by about 1.3 s per chunk until keyframe mode (one in 3, 0.11
+   chunks/s needed) takes over. The cost is concurrency, not frames: at depth 4 with two concepts
+   a camera has up to 8 hosted requests open at once. With depth above 1 the tracker hands
+   identities off by box IoU instead of box re-prompts: a re-prompt needs the previous chunk's
+   tracks, which would put one more SAM round trip per chunk back on the ordered path. That also
+   removes the re-prompt requests from the bill.
 
 **Safety trade-off.** A chunk that is not segmented is a coverage gap, never evidence of
 absence: a rule's window is cut to start after the gap, and the rule is judged on the cut window
@@ -127,15 +153,17 @@ a 160 px frame). The budget never thins a camera with a HIGH rule while it is ac
 **Expected spend** for the measured case (one HIGH forklift rule, warehouse + kitchen camera,
 30-frame 3 s chunks, 50 frames billed per request): before, 2 cameras x 20 chunks x 2 concepts x
 50 = **4,000 billed frames/min**. After: kitchen **0**; warehouse **1,000/min** while still or
-idle (every 2nd chunk) and **2,000/min** while something moves (every chunk; tracker box
-re-prompts for objects already in view add up to one request per concept per chunk). The same
+idle (every 2nd chunk) and **2,000/min** while something moves (every chunk; with
+`RULECAM_RUNTIME_PIPELINE_DEPTH=1`, tracker box re-prompts for objects already in view add up to
+one request per concept per chunk). The same
 rule at medium severity: about 200/min on a still camera (gate keyframes only), 670/min while
 idle with motion, and at most the 1,000/min budget while active.
 
 `GET /runtime/metrics` (owner) shows it: `sam_calls`, `billed_frames`, `billed_frames_per_min`
 per camera, `chunks_skipped_no_rule`, `chunks_skipped_idle`, `chunks_skipped_still`,
-`chunks_skipped_budget`, `budget_exceeded`, `budget_degraded`, next to the existing lag and
-keyframe fields.
+`chunks_skipped_budget`, `budget_exceeded`, `budget_degraded`, and for the pipeline `in_flight`,
+`pipeline_depth`, `segment_latency_p50_s` and `segment_latency_p95_s` (last 200 segmentations),
+next to the existing lag and keyframe fields (`lag_s` is the most-behind camera's).
 
 ## Glimmer pod (RunPod GPU)
 
@@ -150,11 +178,120 @@ keyframe fields.
   and `LLAMA_CACHE=/workspace/llama-cache`. Without the key the GPU is open to anyone with the URL.
   The API sends the same key as `GLIMMER_API_KEY`.
 
+## Self-hosted SAM 3.1
+
+Why: with hosted SAM on the continuous runtime, each call took **6 to 17 s** live and billed
+**at least 50 frames**, so the loop could not keep up with 3 s chunks (**lag 142 s**, keyframe
+mode). The router already intends self-hosted SAM 3.1 for the continuous runtime
+(`perception/router.py`); this runs it on our own GPU pod instead of Modal.
+
+What runs where:
+
+- GPU pod: `rulecam.perception.sam_server`, a stdlib HTTP server around `Sam31Engine`
+  (`facebook/sam3.1`, `sam3` at the commit pinned in `sam_worker.SAM3_COMMIT`). `GET /health` is
+  open; `POST /segment` needs `Authorization: Bearer <SAM_API_KEY>`. The body is
+  `{"request": <SamRequest JSON>, "video_b64": ...}` (32 MB limit, `SAM_MAX_BODY_BYTES`), the
+  answer the `SamResponse` JSON. One call runs on the GPU at a time; up to `SAM_MAX_WAITING` (2)
+  wait, the rest get 503 at once. The model loads once, before the port opens.
+- API pod: `HttpSamWorker` (`perception/sam_runtime.py`) posts each runtime chunk there (60 s
+  timeout, one retry on 503 or a dropped connection). Runtime perception is self-hosted when
+  `SAM_BASE_URL` and `SAM_API_KEY` are set; they win over the Modal tokens, and without either
+  runtime perception stays hosted. Planner probes, surveys and Rule CI always stay on hosted SAM.
+- Fallback: any self-hosted failure (pod down, wrong key, queue full, engine error, malformed
+  answer) sends runtime calls to hosted SAM for 60 s, then self-hosted is tried again. Each outage
+  logs `sam_fallback_to_hosted` (and `sam_self_hosted_recovered` when it is back) and counts in
+  `sam_fallbacks` at `GET /metrics/perception`; the calls it served show as `sam_calls_hosted`.
+  `perception_built` in the API log says `self_hosted_worker=http` when the pod is in use.
+
+**Gated checkpoint.** `facebook/sam3.1` is gated on Hugging Face: the account behind `HF_TOKEN`
+must have requested and been granted access on the model page first, or the download fails with
+401/403. The token is only needed once, to fill the cache on the volume; the server then runs
+with `HF_HUB_OFFLINE=1` and never sees it.
+
+GPU pod setup:
+
+1. Create the pod: a RunPod PyTorch CUDA image with SSH (e.g.
+   `runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04`; the venv brings its own
+   Python 3.12 and `torch==2.10.0` cu128 wheels, so the host driver must support CUDA 12.8),
+   RTX A6000 48 GB (an L4/A10G-class 24 GB GPU is enough), 40 GB volume at `/workspace` (venv
+   about 10 GB, checkpoint cache), ports **`8090/http, 22/tcp`**. Do not expose 8090 as a TCP
+   port: the server speaks plain HTTP and the RunPod HTTPS proxy is what keeps the key encrypted.
+2. Copy the code: `git archive origin/main | ssh … 'mkdir -p /workspace/rulecam && tar -x -C
+   /workspace/rulecam'`.
+3. Write the two secret files on the pod yourself (mode 600, never in argv, chat or git):
+   `/workspace/.hf_token` (the Hugging Face token) and `/workspace/.sam_api_key` (a fresh random
+   key, e.g. `umask 077; openssl rand -hex 32 > /workspace/.sam_api_key`).
+4. Run `/workspace/rulecam/scripts/sam_pod/setup.sh` once over SSH. It is idempotent: it creates
+   `/workspace/sam-venv` (uv, Python 3.12, torch cu128, `sam3` at the pinned commit, opencv,
+   numpy < 2, pydantic), checks that `sam3` imports and CUDA is visible, downloads
+   `config.json` and `sam3.1_multiplex.pt` into `/workspace/hf-cache`, then starts the server with
+   `setsid nohup` on port 8090 (log `/workspace/sam.log`) and waits for `/health`. Re-running it
+   skips every finished step; `setup.sh --restart` restarts the server after a code update.
+5. Auto-start: set the pod's `dockerStartCmd` (RunPod REST API, `PATCH /v1/pods/<id>`) to
+   `bash -c "(/workspace/rulecam/scripts/sam_pod/boot.sh &) ; exec /start.sh"`. `boot.sh` runs
+   `setup.sh` in the background (log `/workspace/sam-setup.log`) while `/start.sh` brings up SSH.
+6. Check: `curl https://<sam-pod>-8090.proxy.runpod.net/health` gives `{"status": "ok", …}`, and
+   `POST /segment` without the key gives 401.
+
+GPU memory, speed and accuracy knobs (GPU pod environment, read once at load):
+
+- After every session (also a failed one) the engine runs `gc.collect()`,
+  `torch.clear_autocast_cache()` and `torch.cuda.empty_cache()`, asks propagation not to keep
+  per-frame masks (`evict_cached_frame_outputs`), and logs `sam_session_memory allocated_mb=…
+  reserved_mb=… peak_mb=…`. Upstream `close_session` only empties the CUDA cache above 80 % device
+  use and, by default, keeps every propagated frame's video-resolution masks on the GPU until the
+  session closes; on an L4 the pod grew from 4 GB to 20–22 GB in a few calls and then failed every
+  call with `OutOfMemoryError`. `scripts/sam_pod/soak.py` (stdlib only, run with the sam venv on
+  the GPU pod) posts one chunk N times and prints `/health` memory after each call.
+- `SAM_MEMORY_GUARD_GB` (default: half the device): when allocated memory is still above it after a
+  session, the engine logs `sam_memory_guard`, closes any session the predictor still holds and
+  frees the cache again. `GET /health` shows `memory` (allocated, reserved, peak, free and total
+  bytes; `sessions`, `guard_trips`, `last_session`, `model_config`). Allocated memory should come
+  back to the same level after every call; if `guard_trips` keeps rising, restart with
+  `setup.sh --restart` and report the log.
+- No frame downscaling: SAM 3.1 resizes every frame to 1008 × 1008 before the backbone, so smaller
+  input frames save no GPU time. `SAM_COMPILE=1` builds the model with `torch.compile` and warms it
+  up (upstream quotes about 2×; slower start, untested on our pod).
+- Detection settings (defaults are upstream's): `SAM_DET_THRESH` (0.4), `SAM_NEW_DET_THRESH`
+  (0.65, the score a detection needs to start a new object), `SAM_HOTSTART_DELAY` (15 frames),
+  `SAM_HOTSTART_UNMATCH` (8) and `SAM_HOTSTART_DUP` (8). Set them in the
+  environment of `setup.sh --restart` or as `KEY=value` lines in `/workspace/sam.env` (read on
+  every start, so they survive a reboot). Hotstart drops an object that goes
+  unmatched for 8 of its first 15 frames, which is most of a 3 s chunk at 3–8 fps.
+- Hosted parity check, on the API pod: `RULECAM_MODE=live uv run python
+  scripts/sam_pod/compare.py --concept forklift --concept person <chunk.mp4 …>` prints per chunk
+  and concept the detections, frames with detections, latency and frame agreement for hosted and
+  self-hosted SAM, plus the self-hosted `/health` memory before and after (hosted calls are
+  billed).
+
+API pod: add `SAM_BASE_URL=https://<sam-pod>-8090.proxy.runpod.net` to `.env`, write the same key
+to `/workspace/rulecam/.sam_api_key` (mode 600) and have `start.sh` export it as `SAM_API_KEY` like
+the other key files, then restart the API. The key never goes in `.env`, `NEXT_PUBLIC_*`, argv or
+logs.
+
+**Security.** The server refuses to start without `SAM_API_KEY`, compares the Bearer key in
+constant time, and answers 401 before reading a body. Only `/health` is open, and it reveals the
+model version, whether the GPU is busy, GPU memory counters and the detection settings, nothing
+else. Keep it behind the RunPod HTTPS proxy;
+no shortcut that trusts every forwarder (the `--forwarded-allow-ips="*"` kind) and no open port
+without the key. Rotate the key by rewriting both 600 files and restarting both sides.
+
+**Cost.** An RTX A6000 pod is about $0.59/h (like the Glimmer pod) whether it serves one camera or
+several, plus about $2.80/month for a 40 GB volume. Hosted SAM bills `max(50, frames)` per request
+at $0.20 per 1,000 frames: the 1,000 to 2,000 billed frames/min of one HIGH rule on one active
+camera ("Runtime SAM cost" above) is $12 to $24 per camera-hour. `GET /metrics/perception` shows
+the self-hosted calls' GPU-seconds (priced at `DEFAULT_GPU_USD_PER_HOUR`) next to the
+hosted-equivalent cost. Stop the pod when nobody is viewing (`runpodctl pod stop <id>`); the venv
+and checkpoint stay on the volume, so the next boot only loads the model. The runtime falls back
+to hosted SAM while it is stopped, so stop it only together with the runtime, or the hosted bill
+returns.
+
 ## Checks
 
 - `curl https://rulecam.vercel.app/rulecam-api/mode` → `{"mode":"live","badge":"LIVE"}`.
 - `PUT /mode` through the public URL → 403 (also with a spoofed `X-Forwarded-For: 127.0.0.1`).
 - Glimmer chat without the key → 401.
+- SAM `POST /segment` without the key → 401; `GET /health` → `{"status": "ok", …}`.
 - On the API pod: `uv run python -m rulecam.replay.preflight` (with the key files exported).
 
 ## Costs and shutdown

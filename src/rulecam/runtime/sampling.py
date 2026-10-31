@@ -14,7 +14,9 @@ thins that out without letting a real event through:
   with motion (or unknown motion) or a hot camera is always segmented, whatever the budget.
 - **Budget.** When a camera's billed frames over the last minute reach `budget_frames_per_min`,
   it degrades to one chunk in `budget_stride` (logged `budget_exceeded`) instead of falling behind,
-  until the minute's spend drops under the budget again.
+  until the minute's spend drops under the budget again. Chunks still being segmented count
+  with their `reserve`d estimate until `record` replaces it with what they billed, so a loop
+  with several chunks in flight cannot overspend the budget before the bills come in.
 
 Every chunk that is not segmented is a coverage gap for the loop, never an observed absence.
 """
@@ -92,6 +94,7 @@ class _Camera:
     hot_until: datetime | None = None
     degraded: bool = False
     billed: deque[tuple[datetime, int]] = field(default_factory=deque)
+    reserved: dict[str, int] = field(default_factory=dict)  # chunk id -> frames, in flight
 
 
 class CameraSampler:
@@ -137,8 +140,25 @@ class CameraSampler:
         cam.since_run = (cam.since_run or 0) + 1
         return "budget" if cam.degraded and cam.since_run >= base else "idle"
 
+    def reserve(self, chunk: Chunk, frames: int) -> None:
+        """Count an admitted chunk's expected bill against the budget until it is recorded.
+
+        Args:
+            chunk: A chunk `admit` let run, whose segmentation has not finished.
+            frames: The frames it is expected to bill.
+        """
+        if frames > 0:
+            self._cameras.setdefault(chunk.camera_id, _Camera()).reserved[chunk.chunk_id] = frames
+
+    def in_flight_frames(self, camera_id: str) -> int:
+        """Frames reserved by `camera_id`'s chunks still being segmented."""
+        cam = self._cameras.get(camera_id)
+        return sum(cam.reserved.values()) if cam is not None else 0
+
     def record(self, chunk: Chunk, *, billed_frames: int, active: bool) -> None:
-        """Record a segmented chunk: what it billed and whether something happened in it.
+        """Record a segmented (or failed) chunk: what it billed, whether something happened.
+
+        Releases the chunk's reservation, if any.
 
         Args:
             chunk: The chunk just segmented.
@@ -146,6 +166,7 @@ class CameraSampler:
             active: A candidate opened, a dynamic concept was tracked, or (HIGH) motion was seen.
         """
         cam = self._cameras.setdefault(chunk.camera_id, _Camera())
+        cam.reserved.pop(chunk.chunk_id, None)
         end = chunk_end(chunk)
         if billed_frames:
             cam.billed.append((end, billed_frames))
@@ -176,7 +197,7 @@ class CameraSampler:
         budget = self._policy.budget_frames_per_min
         if budget <= 0:
             return
-        spent = self.billed_last_minute(camera_id, now)
+        spent = self.billed_last_minute(camera_id, now) + sum(cam.reserved.values())
         over = spent >= budget
         if over and not cam.degraded:
             self.budget_exceeded += 1

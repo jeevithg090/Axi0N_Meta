@@ -15,8 +15,9 @@ Each trace's expected outcome follows from how it was built (e.g. "washed 19.5 s
 track, so an ID swap loses the subject's history: its expected outcome is what the per-track
 semantics give (a missed wash credit fires, a split persist does not).
 
-Supported shapes: `sequence(inside -> dwell)` (past or future), `[persist] inside`, and
-`[persist] distance_m` alone or with `moving` under `all`. Anything else raises
+Shapes here: `sequence(inside -> dwell)` (past or future), `[persist] inside` on a polygon zone,
+and `[persist] distance_m` alone or with `moving` under `all`; buffer-zone `inside` rules are in
+`rule_ci.buffer_traces`, and `rule_ci.generate` picks the generator. Anything else raises
 `UnsupportedRuleError`, which the runner reports as a CI failure, never as a pass. Everything is
 deterministic: no randomness, a fixed epoch and a 10 Hz timeline.
 """
@@ -36,7 +37,6 @@ from rulecam.contracts.rule_ir import (
     Dwell,
     Inside,
     Moving,
-    Persist,
     Predicate,
     RuleIR,
 )
@@ -53,7 +53,7 @@ from rulecam.rule_ci.geometry import (
     synthetic_calibration,
 )
 from rulecam.rule_ci.models import TraceCase, TraceKind
-from rulecam.rules.ir import children, parse_ref
+from rulecam.rules.ir import parse_ref
 
 EPOCH: Final = datetime(2026, 10, 30, 12, 0, tzinfo=UTC)
 HZ: Final = 10.0
@@ -71,8 +71,7 @@ TRACK_HOLD_S: Final = 0.5
 HAND_DROP_M: Final = 1.0
 PERSON_BOX_M: Final = (1.0, 2.0)
 HAND_BOX_M: Final = (0.2, 0.2)
-DEFAULT_CAMERA: Final = "cam1"
-_FOOT_PARTS: Final = (None, "foot_point")
+FOOT_PARTS: Final = (None, "foot_point")
 
 
 # --- quantities ---------------------------------------------------------------------------------
@@ -277,7 +276,7 @@ def _sequence_scene(rule: RuleIR, node: SequenceNode) -> tuple[ZoneScene, Inside
         raise UnsupportedRuleError(msg)
     concept, trigger_part = parse_ref(trigger.object)
     req_concept, req_part = parse_ref(requirement.object)
-    if trigger_part not in _FOOT_PARTS or req_concept != concept or req_part == "mask":
+    if trigger_part not in FOOT_PARTS or req_concept != concept or req_part == "mask":
         msg = "the trigger and requirement must be about the same subject's foot point or hands"
         raise UnsupportedRuleError(msg)
     regions = layout_regions(dict(rule.zones), [trigger.zone, requirement.zone])
@@ -328,7 +327,10 @@ class _Wash:
         )
 
 
-def _pair(base: str, value: float, unit: str, *, expected: bool, kind: TraceKind, why: str) -> Spec:
+def pair_spec(
+    base: str, value: float, unit: str, *, expected: bool, kind: TraceKind, why: str
+) -> Spec:
+    """One member of the boundary pair on threshold `base`, named after its value."""
     return Spec(
         name=f"{base}_{value:g}{unit}",
         description=why,
@@ -355,7 +357,7 @@ def _requirement_traces(
     when = "after entering" if future else "before entering"
     cases = [
         scene.case(
-            _pair(
+            pair_spec(
                 "total_s_gte",
                 s,
                 "s",
@@ -369,7 +371,7 @@ def _requirement_traces(
     ]
     cases += [
         scene.case(
-            _pair(
+            pair_spec(
                 "max_gap_s",
                 gap,
                 "s",
@@ -405,7 +407,7 @@ def _past_traces(
     waits = [(below(within_s, eps + 1 / HZ), False), (above(within_s, eps), True)]
     cases = [
         scene.case(
-            _pair(
+            pair_spec(
                 "require_within_s",
                 wait,
                 "s",
@@ -453,7 +455,7 @@ def _future_traces(
     waits = [(below(slack - (wash.enough - threshold), eps), False), (above(slack, eps), True)]
     cases = [
         scene.case(
-            _pair(
+            pair_spec(
                 "require_within_s",
                 wait,
                 "s",
@@ -520,7 +522,7 @@ def _edge_traces(
     return cases
 
 
-def _id_swap_spec(part: float, persist_s: float) -> Spec:
+def id_swap_spec(part: float, persist_s: float) -> Spec:
     """An ID swap halfway through a persist, with its per-track expected outcome.
 
     Only the first ID's part, plus the `TRACK_HOLD_S` its last point is held for, can reach the
@@ -541,16 +543,13 @@ def _id_swap_spec(part: float, persist_s: float) -> Spec:
 
 
 def inside_traces(rule: RuleIR, node: Inside, persist_s: float | None) -> list[TraceCase]:
-    """Boundary traces for `inside(object, zone)`, optionally under `persist`."""
+    """Boundary traces for `inside(object, polygon zone)`, optionally under `persist`."""
     concept, part = parse_ref(node.object)
-    if part not in _FOOT_PARTS:
+    if part not in FOOT_PARTS:
         msg = "inside is supported on an object's foot point"
         raise UnsupportedRuleError(msg)
     regions = layout_regions(dict(rule.zones), [node.zone])
     region = regions[node.zone]
-    if region.anchor_concept == concept:
-        msg = f"zone {node.zone!r} is a buffer of the subject itself"
-        raise UnsupportedRuleError(msg)
     scene = ZoneScene(
         camera_id=rule.zones[node.zone].camera_id,
         concept=concept,
@@ -582,7 +581,7 @@ def _persist_traces(scene: ZoneScene, place: XY, persist_s: float) -> list[Trace
     eps, part = time_eps(persist_s), part_of(persist_s)
     cases = [
         scene.case(
-            _pair(
+            pair_spec(
                 "persist_s",
                 s,
                 "s",
@@ -606,7 +605,7 @@ def _persist_traces(scene: ZoneScene, place: XY, persist_s: float) -> list[Trace
             [Phase(place, part), Phase(scene.far, STEP_S), Phase(place, part)],
         ),
         scene.case(
-            _id_swap_spec(part, persist_s),
+            id_swap_spec(part, persist_s),
             [Phase(place, part), Phase(place, part, 1)],
         ),
     ]
@@ -702,7 +701,7 @@ def proximity_traces(scene: Proximity) -> list[TraceCase]:
     op = "lt" if scene.distance.lt is not None else "gt"
     cases = [
         scene.case(
-            _pair(
+            pair_spec(
                 f"distance_{op}",
                 d,
                 "m",
@@ -718,7 +717,7 @@ def proximity_traces(scene: Proximity) -> list[TraceCase]:
     if scene.moving is not None:
         cases += [
             scene.case(
-                _pair(
+                pair_spec(
                     "speed_mps_gt",
                     v,
                     "mps",
@@ -742,7 +741,7 @@ def _proximity_persist(
     eps, part = time_eps(persist), part_of(persist)
     cases = [
         scene.case(
-            _pair(
+            pair_spec(
                 "persist_s",
                 s,
                 "s",
@@ -768,53 +767,8 @@ def _proximity_persist(
             fast,
         ),
         scene.case(
-            _id_swap_spec(part, persist),
+            id_swap_spec(part, persist),
             [(hit, part, 0), (hit, part, 1)],
             fast,
         ),
     ]
-
-
-# --- entry point --------------------------------------------------------------------------------
-
-
-def _camera(rule: RuleIR) -> str:
-    cameras = {spec.camera_id for spec in rule.zones.values()}
-    if cameras:
-        return sorted(cameras)[0]
-    if rule.calibration and "@" in rule.calibration:
-        return rule.calibration.rsplit("@", 1)[1]
-    return DEFAULT_CAMERA
-
-
-def shape_of(node: Predicate) -> str:
-    """The predicate's operator tree, e.g. `persist(pose)`, for error messages."""
-    inner = ",".join(shape_of(child) for _, child in children(node))
-    return f"{node.op}({inner})" if inner else node.op
-
-
-def generate_rule_traces(rule: RuleIR) -> list[TraceCase]:
-    """Build the boundary traces for a rule from its own thresholds and zones.
-
-    Args:
-        rule: The rule.
-
-    Returns:
-        The traces, each with its expected outcome.
-
-    Raises:
-        UnsupportedRuleError: Rule CI has no trace generator for the rule's shape.
-    """
-    node: Predicate = rule.predicate
-    persist_s = None
-    if isinstance(rule.predicate, Persist):
-        node, persist_s = rule.predicate.of, rule.predicate.seconds
-    if isinstance(node, SequenceNode) and persist_s is None:
-        return sequence_traces(rule, node)
-    if isinstance(node, Inside):
-        return inside_traces(rule, node, persist_s)
-    parts = proximity_parts(node)
-    if parts is not None:
-        return proximity_traces(Proximity(_camera(rule), parts[0], parts[1], persist_s))
-    msg = f"no boundary-trace generator for {shape_of(rule.predicate)}"
-    raise UnsupportedRuleError(msg)

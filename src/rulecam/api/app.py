@@ -465,7 +465,7 @@ def build_planner(
         standards=StandardsLibrary.from_settings(settings),
         store=PlanStore(PLANS_DIR),
         audit=audit_hook(SparkOpenVerifier(spark_open), glimmer, glimmer_model=glimmer.model),
-        prove=prove_plan_hook(bus),
+        prove=prove_plan_hook(bus, calibrations=run_calibrations(PlanStore(PLANS_DIR))),
     )
     frames = ChunkFrames(
         perception.chunks,

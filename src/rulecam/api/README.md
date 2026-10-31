@@ -14,7 +14,7 @@ One FastAPI app serves the UI, the phones and the verify page, and mirrors the e
 | `GET /mode`, `PUT /mode {mode}` | LIVE/REPLAY badge state; `PUT` (owner) publishes `mode.changed` |
 | `WS /ws` | (owner) every bus topic as `{"topic", "payload"}` JSON frames |
 | `GET /evidence/days`, `/evidence/{day}/chain`, `/evidence/{day}/verify` | the chain JSONL and its `ChainReport` |
-| `PUT /runtime/plan`, `GET /runtime/metrics` | (owner) load an `ActivePlan`; lag, keyframe mode, blind windows, failures, SAM calls, billed frames and skip counters (docs/deploy.md, "Runtime SAM cost") |
+| `PUT /runtime/plan`, `GET /runtime/metrics` | (owner) load an `ActivePlan`; lag, keyframe mode, blind windows, failures, SAM calls, billed frames, skip counters and the pipeline (in flight, depth, segment latency p50/p95; docs/deploy.md, "Runtime SAM cost") |
 | `GET/POST /plans`, `GET /plans/{id}`, `POST /plans/{id}/approve` | in-memory `SitePlan` registry (create/approve are owner-only). Approve activates the plan: rules whose acceptance trace passes or is amber (Rule CI green and nonvacuous) are handed to the runtime, persisted to `<data>/runtime/active_plan.json` (restored at start-up), chained as `plan`/`plan_approved` and published on `plan.updated`; 409 when no rule qualifies, 503 without a runtime |
 | `POST /plans/uploads`, `POST /plans/requests` | (owner) planner intake: store a WAV/PDF/photo/MP4 (content type and leading bytes checked) as `uploads/<sha>.<ext>`; send request items, whose files must be such uploads, to the Site Planner runner |
 | `GET /cameras` | paired phones and cameras that sent chunks |

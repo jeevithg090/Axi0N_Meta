@@ -15,6 +15,12 @@ dropped, so one person never becomes two tracks.
 Track IDs are opaque (`{camera_id}:{concept}:{8 hex}`) and never an analytics key (rule R13).
 The foot point is the bottom-centre of the mask's lowest 5% of pixels, falling back to the box's
 bottom-centre; `foot_m` is filled only when a pixel-to-metre mapping is given (P1-05).
+
+`process_chunk` is two steps the runtime pipeline (P3-08) calls separately: `segment` (the
+concept pass, stateless, so several chunks of a camera can be segmented at once) and `stitch`
+(re-prompts and hand-off, in chunk order). The pipelined runtime turns re-prompts off: a
+re-prompt needs the previous chunk's final boxes, which would put one SAM round trip per chunk
+back on the ordered path; the IoU fallback then hands identities off.
 """
 
 from __future__ import annotations
@@ -136,6 +142,15 @@ class _ConceptState:
     live: tuple[_Live, ...]
 
 
+@dataclass(frozen=True)
+class SegmentedChunk:
+    """A chunk's concept pass: what `Tracker.segment` found, before identities are handed off."""
+
+    chunk_id: str
+    concepts: tuple[str, ...]
+    detections: Mapping[str, tuple[Detection, ...]]
+
+
 def _new_suffix() -> str:
     return uuid4().hex[:8]
 
@@ -190,6 +205,8 @@ class Tracker:
     def process_chunk(self, chunk: Chunk, concepts: Iterable[str]) -> list[Track]:
         """Track every concept in a chunk, store the tracks and publish `tracks.updated`.
 
+        The same as `stitch(chunk, segment(chunk, concepts))`.
+
         Args:
             chunk: The next chunk from one camera.
             concepts: Concepts the active rules need; each is one segmenter call (plus re-prompts),
@@ -199,13 +216,44 @@ class Tracker:
             This chunk's tracks (points from this chunk only), across all concepts, in concept
             order.
         """
-        unique = list(dict.fromkeys(concepts))
-        workers = min(self._max_workers, len(unique))
-        if workers > 1:
-            with ThreadPoolExecutor(max_workers=workers) as pool:
-                per_concept = list(pool.map(lambda c: self.update(chunk, c), unique))
-        else:
-            per_concept = [self.update(chunk, concept) for concept in unique]
+        return self.stitch(chunk, self.segment(chunk, concepts))
+
+    def segment(self, chunk: Chunk, concepts: Iterable[str]) -> SegmentedChunk:
+        """Run the concept pass of every concept on a chunk, without touching tracking state.
+
+        Safe to call for several chunks of one camera at once (the runtime pipeline does), since
+        it reads no hand-off state; `stitch` must then be called for the chunks in order.
+
+        Args:
+            chunk: The chunk.
+            concepts: Concept noun phrases (duplicates are segmented once), up to `max_workers`
+                of them at once.
+
+        Returns:
+            The chunk's detections per concept.
+        """
+        unique = tuple(dict.fromkeys(concepts))
+        found = self._map(lambda concept: tuple(self._segmenter.segment(chunk, concept)), unique)
+        detections = dict(zip(unique, found, strict=True))
+        return SegmentedChunk(chunk_id=chunk.chunk_id, concepts=unique, detections=detections)
+
+    def stitch(self, chunk: Chunk, segmented: SegmentedChunk) -> list[Track]:
+        """Hand identities off from the previous chunk, store the tracks, publish `tracks.updated`.
+
+        Call it for a camera's chunks in order. With `reprompt` on this makes the box re-prompt
+        requests, which depend on the previous chunk's tracks.
+
+        Args:
+            chunk: The chunk `segmented` came from.
+            segmented: Its concept pass, from `segment`.
+
+        Returns:
+            This chunk's tracks, across all concepts, in concept order.
+        """
+        per_concept = self._map(
+            lambda concept: self._update(chunk, concept, segmented.detections[concept]),
+            segmented.concepts,
+        )
         tracks = [t for found in per_concept for t in found]
         if self._store is not None and tracks:
             self._store.append(tracks)
@@ -226,9 +274,20 @@ class Tracker:
         Returns:
             Tracks with this chunk's points, sorted by first timestamp then track ID.
         """
+        return self._update(chunk, concept, self._segmenter.segment(chunk, concept))
+
+    def _map[T](self, work: Callable[[str], T], concepts: Sequence[str]) -> list[T]:
+        """Apply `work` to each concept, up to `max_workers` at once, keeping concept order."""
+        workers = min(self._max_workers, len(concepts))
+        if workers <= 1:
+            return [work(concept) for concept in concepts]
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            return list(pool.map(work, concepts))
+
+    def _update(self, chunk: Chunk, concept: str, detections: Iterable[Detection]) -> list[Track]:
         key = (chunk.camera_id, concept)
         live = self._live_for(key, chunk)
-        objects = group_by_object(self._segmenter.segment(chunk, concept))
+        objects = group_by_object(detections)
         continued = self._reprompted(chunk, concept, live) if self._reprompt else {}
         fresh = self._drop_duplicates(objects, continued)
         assigned = self._iou_fallback(live, continued, fresh, chunk)

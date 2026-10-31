@@ -7,6 +7,20 @@ commit. `sam3` needs numpy < 2, which is why it lives only in the GPU image and 
 repo's lock. The gated checkpoint is downloaded inside the container with the `HF_TOKEN` taken from
 `Settings` at deploy time.
 
+GPU memory: every session is followed by `gc.collect()`, `torch.clear_autocast_cache()` and
+`torch.cuda.empty_cache()` (tens of milliseconds next to a ~3.5 s session). Upstream
+`close_session` clears the session dicts but only empties the CUDA cache above 80 % device use
+(`_CLEAR_CACHE_THRESHOLD` in `sam3/model/sam3_base_predictor.py`), and propagation keeps every
+frame's video-resolution masks in `inference_state["cached_frame_outputs"]` unless the request
+sets `evict_cached_frame_outputs`. A memory guard (`SAM_MEMORY_GUARD_GB`, half the device by
+default) closes any session the predictor still holds and frees the cache again when allocated
+memory stays high after a session; `memory_stats()` feeds the server's `/health`.
+
+No downscaling: SAM 3.1 resizes every frame to a fixed 1008 x 1008 input before the backbone
+(`load_video_frames_from_video_file_using_cv2` in `sam3/model/io_utils.py`, `image_size=1008` in
+`build_sam3_multiplex_video_predictor`), so shrinking 1280 x 720 frames first saves no encoder
+work and would only cost mask resolution.
+
 This module imports with the base dependencies only. It must stay free of pydantic and structlog
 because the GPU image ships just numpy and `rulecam.perception.masks` from this repo; `modal`,
 `torch` and `sam3` are imported lazily inside the functions that need them.
@@ -20,9 +34,16 @@ The request and response dicts are the JSON form of `sam_runtime.SamRequest` and
 
 from __future__ import annotations
 
+import functools
+import gc
+import inspect
+import logging
+import os
 import tempfile
 import time
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import AbstractContextManager, contextmanager, nullcontext
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -43,9 +64,39 @@ SAM3_COMMIT = "f1647e8d0c1d280991f4d1b7d974c2704537fe66"
 SAM3_PACKAGE = f"sam3 @ git+https://github.com/facebookresearch/sam3.git@{SAM3_COMMIT}"
 TORCH_PACKAGES = ("torch==2.10.0", "torchvision")
 TORCH_INDEX_URL = "https://download.pytorch.org/whl/cu128"
-IMAGE_PACKAGES = (SAM3_PACKAGE, "opencv-python-headless", "setuptools<81")
+# sam3 imports einops, pycocotools and psutil without declaring them; masks -> contracts needs
+# pydantic. Keep in step with scripts/sam_pod/setup.sh.
+IMAGE_PACKAGES = (
+    SAM3_PACKAGE,
+    "opencv-python-headless",
+    "setuptools<81",
+    "pydantic>=2.7",
+    "einops",
+    "pycocotools",
+    "psutil",
+)
+
+# GPU memory guard (see the module docstring).
+MEMORY_GUARD_ENV = "SAM_MEMORY_GUARD_GB"
+DEFAULT_MEMORY_GUARD_FRACTION = 0.5
+COMPILE_ENV = "SAM_COMPILE"
+GIB = 1024**3
+# Optional overrides of the SAM 3.1 tracker's detection settings, read once at load. Upstream
+# values (`build_sam3_multiplex_video_predictor`): score_threshold_detection 0.4, new_det_thresh
+# 0.65, hotstart_delay 15, hotstart_unmatch_thresh 8, hotstart_dup_thresh 8.
+MODEL_OVERRIDE_ENVS: Mapping[str, tuple[str, type[float] | type[int]]] = {
+    "SAM_DET_THRESH": ("score_threshold_detection", float),
+    "SAM_NEW_DET_THRESH": ("new_det_thresh", float),
+    "SAM_HOTSTART_DELAY": ("hotstart_delay", int),
+    "SAM_HOTSTART_UNMATCH": ("hotstart_unmatch_thresh", int),
+    "SAM_HOTSTART_DUP": ("hotstart_dup_thresh", int),
+}
+_HOTSTART_LIMITED = ("hotstart_unmatch_thresh", "hotstart_dup_thresh")
 
 WireObject = dict[str, Any]
+FrameOutputs = list[tuple[int, Mapping[str, Any]]]
+
+_log = logging.getLogger("rulecam.sam_worker")
 
 
 class Sam3Predictor(Protocol):
@@ -60,6 +111,149 @@ class Sam3Predictor(Protocol):
         ...
 
 
+class GpuMemory(Protocol):
+    """Reads and frees GPU memory around sessions (torch on a GPU, a fake in tests)."""
+
+    def stats(self) -> dict[str, int]:
+        """Return the device's memory counters.
+
+        Returns:
+            `allocated_bytes`, `reserved_bytes`, `peak_allocated_bytes`, `free_bytes` and
+            `total_bytes`, or `{}` without a GPU.
+        """
+        ...
+
+    def release(self) -> None:
+        """Drop unreachable objects and give cached, unused GPU blocks back to the device."""
+        ...
+
+    def reset_peak(self) -> None:
+        """Start a new peak measurement (one per session)."""
+        ...
+
+
+class NoGpuMemory:
+    """`GpuMemory` without a GPU: no stats, release only collects garbage."""
+
+    def stats(self) -> dict[str, int]:
+        """Return no stats."""
+        return {}
+
+    def release(self) -> None:
+        """Collect garbage."""
+        gc.collect()
+
+    def reset_peak(self) -> None:
+        """Do nothing."""
+
+
+class TorchGpuMemory:
+    """`GpuMemory` backed by `torch.cuda` (the module is passed in, so tests can fake it)."""
+
+    def __init__(self, torch: Any) -> None:
+        """Wrap the `torch` module.
+
+        Args:
+            torch: The imported `torch` module.
+        """
+        self._torch = torch
+
+    def stats(self) -> dict[str, int]:
+        """Read the caching allocator's counters and the device's free memory."""
+        cuda = self._torch.cuda
+        free, total = cuda.mem_get_info()
+        return {
+            "allocated_bytes": int(cuda.memory_allocated()),
+            "reserved_bytes": int(cuda.memory_reserved()),
+            "peak_allocated_bytes": int(cuda.max_memory_allocated()),
+            "free_bytes": int(free),
+            "total_bytes": int(total),
+        }
+
+    def release(self) -> None:
+        """Collect garbage, clear the autocast weight cache, then empty the CUDA cache."""
+        gc.collect()
+        self._torch.clear_autocast_cache()
+        self._torch.cuda.empty_cache()
+
+    def reset_peak(self) -> None:
+        """Reset the peak-allocated counter."""
+        self._torch.cuda.reset_peak_memory_stats()
+
+
+@dataclass(frozen=True)
+class EngineSettings:
+    """GPU-pod settings read from the environment when the engine loads.
+
+    Attributes:
+        memory_guard_bytes: Allocated bytes after a session that trigger the guard; `None` means
+            `DEFAULT_MEMORY_GUARD_FRACTION` of the device.
+        compile: Whether to build SAM 3.1 with `torch.compile` (and warm it up).
+        model_overrides: Tracker attribute -> value (see `MODEL_OVERRIDE_ENVS`).
+    """
+
+    memory_guard_bytes: int | None = None
+    compile: bool = False
+    model_overrides: dict[str, float | int] = field(default_factory=dict)
+
+
+def engine_settings_from_env(env: Mapping[str, str]) -> EngineSettings:
+    """Read `EngineSettings` from environment variables.
+
+    Args:
+        env: Usually `os.environ`.
+
+    Returns:
+        The settings; unset or empty variables keep the defaults.
+
+    Raises:
+        ValueError: If a variable is not a number, or the guard is not positive.
+    """
+    guard: int | None = None
+    if env.get(MEMORY_GUARD_ENV):
+        gigabytes = float(env[MEMORY_GUARD_ENV])
+        if gigabytes <= 0:
+            msg = f"{MEMORY_GUARD_ENV} must be positive"
+            raise ValueError(msg)
+        guard = int(gigabytes * GIB)
+    overrides: dict[str, float | int] = {
+        attribute: kind(env[name])
+        for name, (attribute, kind) in MODEL_OVERRIDE_ENVS.items()
+        if env.get(name)
+    }
+    compile_model = env.get(COMPILE_ENV, "").strip().lower() in {"1", "true", "yes"}
+    return EngineSettings(
+        memory_guard_bytes=guard, compile=compile_model, model_overrides=overrides
+    )
+
+
+def apply_model_overrides(model: Any, overrides: Mapping[str, float | int]) -> dict[str, Any]:
+    """Set tracker detection settings on a loaded SAM 3.1 model.
+
+    The hotstart thresholds are capped at `hotstart_delay`, as the model's constructor asserts.
+
+    Args:
+        model: The predictor's model (`Sam3MultiplexTrackingWithInteractivity`).
+        overrides: Attribute -> value; names the model lacks are ignored.
+
+    Returns:
+        The effective values of every attribute in `MODEL_OVERRIDE_ENVS` the model has.
+    """
+    for attribute, value in overrides.items():
+        if hasattr(model, attribute):
+            setattr(model, attribute, value)
+    delay = getattr(model, "hotstart_delay", 0)
+    if delay > 0:
+        for attribute in _HOTSTART_LIMITED:
+            if getattr(model, attribute, 0) > delay:
+                setattr(model, attribute, delay)
+    return {
+        attribute: getattr(model, attribute)
+        for attribute, _ in MODEL_OVERRIDE_ENVS.values()
+        if hasattr(model, attribute)
+    }
+
+
 class Sam31Engine:
     """Segments one concept in one chunk with SAM 3.1; satisfies `sam_runtime.SamWorker`.
 
@@ -67,16 +261,42 @@ class Sam31Engine:
     each object with one positive click at its box centre: in the open-weights SAM 3.1 API, boxes
     are concept exemplars, while per-object prompts with an `obj_id` are clicks. Negative points
     drop every object whose mask covers them on their frame (the hosted API refines masks
-    instead). The start frame is 0 for forward propagation and the last frame for backward.
+    instead). The start frame is 0 for forward propagation and the last frame for backward;
+    backward propagation never yields its start frame (`_get_processing_order` starts one frame
+    before it), so that frame comes from the prompt's own answer.
+
+    After every session, also a failed one, GPU memory is released and checked (module
+    docstring).
     """
 
-    def __init__(self, predictor: Sam3Predictor) -> None:
+    def __init__(
+        self,
+        predictor: Sam3Predictor,
+        inference_context: Callable[[], AbstractContextManager[object]] = nullcontext,
+        *,
+        memory: GpuMemory | None = None,
+        memory_guard_bytes: int | None = None,
+        model_config: Mapping[str, Any] | None = None,
+    ) -> None:
         """Wrap a loaded predictor.
 
         Args:
             predictor: A `sam3` video predictor, or a fake in tests.
+            inference_context: Entered around every session (on a GPU: bfloat16 autocast plus
+                inference mode, as the sam3 examples run it).
+            memory: Reads and frees GPU memory (defaults to `NoGpuMemory`).
+            memory_guard_bytes: Allocated bytes after a session that trigger the guard; `None`
+                disables it.
+            model_config: Effective model settings, reported by `memory_stats` for `/health`.
         """
         self._predictor = predictor
+        self._inference_context = inference_context
+        self._memory: GpuMemory = memory or NoGpuMemory()
+        self._guard_bytes = memory_guard_bytes
+        self._model_config = dict(model_config or {})
+        self._sessions = 0
+        self._guard_trips = 0
+        self._last_session: dict[str, int] = {}
 
     @classmethod
     def load(cls) -> Sam31Engine:  # pragma: no cover - needs a CUDA GPU and the sam3 package
@@ -85,11 +305,29 @@ class Sam31Engine:
         Returns:
             An engine ready to serve calls.
         """
+        import torch  # type: ignore[import-not-found]  # noqa: PLC0415
         from sam3.model_builder import (  # type: ignore[import-not-found]  # noqa: PLC0415
             build_sam3_predictor,
         )
 
-        return cls(build_sam3_predictor(version="sam3.1", use_fa3=False))
+        settings = engine_settings_from_env(os.environ)
+        predictor = build_sam3_predictor(
+            version="sam3.1", use_fa3=False, compile=settings.compile, warm_up=settings.compile
+        )
+        drop_unsupported_init_kwargs(predictor.model)
+        model_config = apply_model_overrides(predictor.model, settings.model_overrides)
+        memory = TorchGpuMemory(torch)
+        guard = settings.memory_guard_bytes or int(
+            memory.stats()["total_bytes"] * DEFAULT_MEMORY_GUARD_FRACTION
+        )
+        _log.info("sam_engine_loaded guard_bytes=%d model_config=%s", guard, model_config)
+        return cls(
+            predictor,
+            inference_context=lambda: bf16_inference(torch),
+            memory=memory,
+            memory_guard_bytes=guard,
+            model_config={**model_config, "compile": settings.compile},
+        )
 
     def segment(self, video: bytes, request: dict[str, Any]) -> dict[str, Any]:
         """Segment one chunk.
@@ -103,10 +341,15 @@ class Sam31Engine:
         """
         started = time.perf_counter()
         width, height = int(request["width"]), int(request["height"])
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "chunk.mp4"
-            path.write_bytes(video)
-            frames = list(self._run_session(path, request))
+        self._memory.reset_peak()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "chunk.mp4"
+                path.write_bytes(video)
+                with self._inference_context():
+                    frames = self._run_session(path, request)
+        finally:
+            self._after_session()
         include_confidence = bool(request["include_confidence"])
         objects: list[WireObject] = []
         for frame_idx, outputs in frames:
@@ -114,34 +357,147 @@ class Sam31Engine:
         negatives = [(int(p["frame_idx"]), p["x"], p["y"]) for p in request["negative_points"]]
         return {
             "objects": drop_negative_hits(objects, negatives, width, height),
-            "frames_processed": len(frames),
+            "frames_processed": len({frame_idx for frame_idx, _ in frames}),
             "gpu_seconds": time.perf_counter() - started,
             "model_version": MODEL_VERSION,
         }
 
-    def _run_session(
-        self, path: Path, request: dict[str, Any]
-    ) -> Iterator[tuple[int, Mapping[str, Any]]]:
+    def memory_stats(self) -> dict[str, Any]:
+        """GPU memory now, after the last session, and the guard's counters (for `/health`).
+
+        Returns:
+            `allocated_bytes`, `reserved_bytes`, `peak_allocated_bytes`, `free_bytes` and
+            `total_bytes` (empty without a GPU), plus `sessions`, `guard_bytes`, `guard_trips`,
+            `last_session` (the same counters right after the last cleanup) and `model_config`.
+        """
+        return {
+            **self._memory.stats(),
+            "sessions": self._sessions,
+            "guard_bytes": self._guard_bytes,
+            "guard_trips": self._guard_trips,
+            "last_session": dict(self._last_session),
+            "model_config": dict(self._model_config),
+        }
+
+    def _run_session(self, path: Path, request: dict[str, Any]) -> FrameOutputs:
         start = 0 if request["direction"] == "forward" else int(request["n_frames"]) - 1
         session = self._predictor.handle_request(
             {"type": "start_session", "resource_path": str(path)}
         )
         session_id = session["session_id"]
+        prompt_outputs: Mapping[str, Any] | None = None
         try:
             for prompt in prompt_requests(request, start):
-                self._predictor.handle_request({**prompt, "session_id": session_id})
+                reply = self._predictor.handle_request({**prompt, "session_id": session_id})
+                prompt_outputs = reply.get("outputs") or prompt_outputs
             stream = self._predictor.handle_stream_request(
                 {
                     "type": "propagate_in_video",
                     "session_id": session_id,
                     "propagation_direction": request["direction"],
                     "start_frame_index": start,
+                    # We read each frame once: do not keep its video-resolution masks on the GPU.
+                    "evict_cached_frame_outputs": True,
                 }
             )
-            for response in stream:
-                yield int(response["frame_index"]), response["outputs"]
+            frames = [(int(r["frame_index"]), r["outputs"]) for r in stream]
         finally:
+            # Our own cleanup (gc + empty_cache) runs right after, unconditionally.
+            self._predictor.handle_request(
+                {"type": "close_session", "session_id": session_id, "run_gc_collect": False}
+            )
+        return with_prompt_frame(frames, start, prompt_outputs)
+
+    def _after_session(self) -> None:
+        """Free the session's GPU memory and trip the guard if allocated memory stays high."""
+        self._sessions += 1
+        self._memory.release()
+        stats = self._memory.stats()
+        allocated = stats.get("allocated_bytes", 0)
+        if self._guard_bytes is not None and allocated > self._guard_bytes:
+            self._guard_trips += 1
+            closed = self._close_leftover_sessions()
+            self._memory.release()
+            stats = self._memory.stats()
+            _log.warning(
+                "sam_memory_guard allocated_bytes=%d guard_bytes=%d closed_sessions=%d "
+                "after_bytes=%d",
+                allocated,
+                self._guard_bytes,
+                closed,
+                stats.get("allocated_bytes", 0),
+            )
+        self._last_session = stats
+        if stats:
+            _log.info(
+                "sam_session_memory allocated_mb=%d reserved_mb=%d peak_mb=%d",
+                stats["allocated_bytes"] // 2**20,
+                stats["reserved_bytes"] // 2**20,
+                stats["peak_allocated_bytes"] // 2**20,
+            )
+
+    def _close_leftover_sessions(self) -> int:
+        """Close every session the predictor still holds (none should be left)."""
+        sessions = getattr(self._predictor, "_all_inference_states", None)
+        if not isinstance(sessions, dict):
+            return 0
+        leftover = list(sessions)
+        for session_id in leftover:
             self._predictor.handle_request({"type": "close_session", "session_id": session_id})
+        return len(leftover)
+
+
+def with_prompt_frame(
+    frames: FrameOutputs, start: int, prompt_outputs: Mapping[str, Any] | None
+) -> FrameOutputs:
+    """Add the prompt frame's own outputs when propagation did not yield that frame.
+
+    Forward propagation yields its start frame again; backward propagation starts one frame
+    before it (`Sam3MultiplexTracking._get_processing_order` at the pinned commit), so without
+    this the last frame of every backward chunk had no objects.
+
+    Args:
+        frames: `(frame_idx, outputs)` from propagation.
+        start: The prompt frame.
+        prompt_outputs: The last `add_prompt` answer's outputs, if any.
+
+    Returns:
+        `frames`, plus `(start, prompt_outputs)` when the start frame is missing.
+    """
+    if prompt_outputs is None or any(frame_idx == start for frame_idx, _ in frames):
+        return frames
+    return [*frames, (start, prompt_outputs)]
+
+
+@contextmanager
+def bf16_inference(torch: Any) -> Iterator[None]:
+    """Run SAM 3.1 the way the sam3 examples do: CUDA bfloat16 autocast in inference mode.
+
+    The SAM 3.1 checkpoint runs in bfloat16; without autocast, linear layers mixing bfloat16
+    weights with float32 inputs fail ("mat1 and mat2 must have the same dtype").
+    """
+    with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+        yield
+
+
+def drop_unsupported_init_kwargs(model: Any) -> None:
+    """Make `model.init_state` ignore keyword arguments it does not declare.
+
+    At the pinned sam3 commit, `Sam3BasePredictor.start_session` always passes
+    `offload_state_to_cpu`, but SAM 3.1's `Sam3MultiplexTrackingWithInteractivity.init_state`
+    does not accept it, so every session failed with a TypeError on a real GPU. The wrapper only
+    drops names the signature lacks, and does nothing once upstream accepts them (or `**kwargs`).
+    """
+    original = model.init_state
+    parameters = inspect.signature(original).parameters
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
+        return
+
+    @functools.wraps(original)
+    def init_state(*args: Any, **kwargs: Any) -> Any:
+        return original(*args, **{k: v for k, v in kwargs.items() if k in parameters})
+
+    model.init_state = init_state
 
 
 def prompt_requests(request: dict[str, Any], frame_index: int) -> list[dict[str, Any]]:

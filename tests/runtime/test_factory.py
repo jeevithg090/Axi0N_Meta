@@ -14,6 +14,8 @@ from rulecam.config import Settings
 from rulecam.contracts import PrivacyMode
 from rulecam.evidence.chain import EventChain
 from rulecam.perception.metrics import Backend, PerceptionMetrics
+from rulecam.perception.router import Purpose
+from rulecam.perception.sam_runtime import HttpSamWorker, ModalWorker
 from rulecam.replay.cache import ReplayCache
 from rulecam.replay.errors import ReplayMiss
 from rulecam.rules.backtest import DecisionContext, candidate_payload, read_candidate_payload
@@ -28,6 +30,7 @@ from rulecam.runtime.factory import (
     build_perception,
     build_runtime,
     hosted_sam,
+    self_hosted_worker,
 )
 from tests.fakes import EPOCH, FakeClock, make_chunk, make_track, make_verdict
 from tests.rules.helpers import CAL, make_rule
@@ -138,3 +141,43 @@ def test_build_perception_and_runtime(
     loop = build_runtime(cfg, perception, cache=cache, clock=clock, bus=bus, chain=chain)
     assert loop.plan is None
     assert loop.handle_chunk(make_chunk()) == []
+
+
+MODAL = {"modal_token_id": SecretStr("a"), "modal_token_secret": SecretStr("b")}
+SAM_HTTP = {"sam_base_url": "http://127.0.0.1:9", "sam_api_key": SecretStr("k")}
+
+
+@pytest.mark.parametrize(
+    ("extra", "worker_type", "name"),
+    [
+        ({}, None, None),
+        ({"sam_base_url": "http://127.0.0.1:9"}, None, None),  # a URL without a key is not enough
+        (MODAL, ModalWorker, "modal"),
+        (SAM_HTTP, HttpSamWorker, "http"),
+        ({**MODAL, **SAM_HTTP}, HttpSamWorker, "http"),  # our GPU pod wins over Modal
+    ],
+)
+def test_self_hosted_worker_precedence(
+    tmp_path: Path, extra: dict[str, object], worker_type: type | None, name: str | None
+) -> None:
+    picked = self_hosted_worker(settings(tmp_path, **extra))
+    if worker_type is None:
+        assert picked is None
+    else:
+        assert picked is not None
+        assert isinstance(picked[0], worker_type)
+        assert picked[1] == name
+
+
+def test_http_outage_falls_back_to_hosted_and_is_counted(tmp_path: Path) -> None:
+    bus = Bus()
+    clock = FakeClock()
+    cache = ReplayCache(tmp_path / "replay", "replay", clock=clock, bus=bus)
+    perception = build_perception(settings(tmp_path, **SAM_HTTP), cache=cache, clock=clock, bus=bus)
+    assert perception.router.policy.runtime_backend is Backend.SELF_HOSTED
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"not really a video")
+    chunk = make_chunk().model_copy(update={"path": str(video)})
+    with pytest.raises(ReplayMiss):  # nothing listens on port 9: hosted (replay-only) is tried
+        perception.router.for_purpose(Purpose.RUNTIME).segment(chunk, "person")
+    assert perception.metrics.report().total.sam_fallbacks == 1

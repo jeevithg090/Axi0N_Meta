@@ -20,6 +20,7 @@ from rulecam.contracts.core import Calibration, PrivacyMode, Zone
 from rulecam.contracts.plan import (
     AcceptanceCheck,
     AcceptanceResult,
+    AuditFinding,
     FeasibilityVerdict,
     InventoryItem,
     Probe,
@@ -51,6 +52,8 @@ from rulecam.planner.standards import (
     html_to_text,
 )
 from rulecam.planner.steps.ask import ProposedQuestions, Question
+from rulecam.planner.steps.audit import audit_hook, is_audit_skipped
+from rulecam.planner.steps.back_translate import BackTranslationAnswer, RuleSummary
 from rulecam.planner.steps.compile import rule_to_draft
 from rulecam.planner.steps.probe import (
     MAX_CONCEPTS_PER_CONCERN,
@@ -59,7 +62,7 @@ from rulecam.planner.steps.probe import (
 )
 from rulecam.planner.steps.survey import ProposedConcepts
 from rulecam.replay.cache import ReplayCache
-from tests.fakes import EPOCH, FakeClock
+from tests.fakes import EPOCH, FakeClock, FakeLLM
 
 M = TypeVar("M", bound=BaseModel)
 RULES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "rules"
@@ -472,6 +475,51 @@ def test_unwired_hooks_say_so_in_their_step_detail(tmp_path: Path) -> None:
     assert done["lint"] == "no lint errors"
     assert done["prove"] == "not wired yet (P2-08); plan passed through"
     assert done["gauge"] == "1 observable, 1 not_observable, 1 declined"
+
+
+class OneGapAuditor:
+    """Spark Open's plan audit, finding one gap."""
+
+    def audit_plan(self, plan: SitePlan) -> list[AuditFinding]:
+        return [AuditFinding(by="spark-open", text="back door unwatched", reasoning_ref="so_ab")]
+
+
+def test_the_audit_step_attaches_findings_and_back_translation(tmp_path: Path) -> None:
+    bus = Recorder()
+    summary = RuleSummary(rule_id="wash-before-line", summary="Hands washed 20 s before the line.")
+    glimmer = FakeLLM([BackTranslationAnswer(summaries=[summary])])
+    audit = audit_hook(OneGapAuditor(), glimmer, glimmer_model="muse-glimmer-30b")
+    plan = _pipeline(tmp_path, _spark(), bus, audit=audit).run(_inputs(tmp_path))
+
+    assert plan.audit == (
+        AuditFinding(by="spark-open", text="back door unwatched", reasoning_ref="so_ab"),
+    )
+    assert plan.back_translation == "[en]\n- wash-before-line: Hands washed 20 s before the line."
+    saved = PlanStore(tmp_path / "plans").load_plan("main-st")
+    assert saved is not None
+    assert saved.audit == plan.audit
+    done = {
+        m.payload.step: m.payload.detail
+        for m in bus.messages
+        if isinstance(m.payload, PlannerStepEvent) and m.payload.status == "done"
+    }
+    assert done["audit"] == "1 audit findings; back-translated (en)"
+
+
+def test_an_unreachable_auditor_is_reported_in_the_audit_step(tmp_path: Path) -> None:
+    bus = Recorder()
+    plan = _pipeline(tmp_path, _spark(), bus, audit=audit_hook(None, None, glimmer_model="g")).run(
+        _inputs(tmp_path)
+    )
+    assert is_audit_skipped(plan)
+    done = {
+        m.payload.step: m.payload.detail
+        for m in bus.messages
+        if isinstance(m.payload, PlannerStepEvent) and m.payload.status == "done"
+    }
+    assert done["audit"] == (
+        "audit_skipped: not audited, Spark Open is not configured; back-translation incomplete (en)"
+    )
 
 
 def test_lint_findings_are_saved_with_the_draft_plan(tmp_path: Path) -> None:

@@ -35,6 +35,8 @@ from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
 from rulecam.clients.errors import ClientConfigError
 from rulecam.clients.meta_hosted import SparkClient, VoiceTranscribeClient
+from rulecam.clients.open_weights.glimmer import GlimmerClient
+from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
 from rulecam.config import Settings, get_settings
 from rulecam.contracts import Chunk, Clock
@@ -48,6 +50,7 @@ from rulecam.perception.router import Purpose
 from rulecam.planner.pipeline import PlannerPipeline, PlanStore
 from rulecam.planner.runner import ChunkFrames, PlannerService
 from rulecam.planner.standards import StandardsLibrary
+from rulecam.planner.steps.audit import audit_hook
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
 from rulecam.runtime.factory import (
     ChainEventSource,
@@ -57,6 +60,7 @@ from rulecam.runtime.factory import (
     build_runtime,
 )
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
+from rulecam.verify.tier2 import SparkOpenVerifier
 
 _log = get_logger(__name__)
 
@@ -385,7 +389,9 @@ def build_planner(
     """Build the Site Planner runner for `POST /plans/requests` (P2-06a).
 
     Spark, Voice Transcribe and hosted SAM all go through the replay cache, and so do cited
-    standards pages (`<data>/standards_cache`, for `citation_text_match`). Plans are saved
+    standards pages (`<data>/standards_cache`, for `citation_text_match`). Step 9 audits the plan
+    with Spark Open and back-translates it with Glimmer (P2-07); either being unreachable marks
+    the plan `audit_skipped` or `not back-translated` instead of failing it. Plans are saved
     under `plans/`, survey frames come from the last 60 s of chunks, and finished plans go into
     the `/plans` registry.
 
@@ -399,6 +405,8 @@ def build_planner(
     except ClientConfigError as exc:
         _log.warning("planner_disabled", error=str(exc))
         return None
+    spark_open = SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+    glimmer = GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
     pipeline = PlannerPipeline(
         spark=spark,
         files=spark,
@@ -408,6 +416,7 @@ def build_planner(
         grounding=spark,
         standards=StandardsLibrary.from_settings(settings),
         store=PlanStore(PLANS_DIR),
+        audit=audit_hook(SparkOpenVerifier(spark_open), glimmer, glimmer_model=glimmer.model),
     )
     frames = ChunkFrames(
         perception.chunks, clock=clock, out_dir=settings.rulecam_data_dir / "planner_frames"

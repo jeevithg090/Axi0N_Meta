@@ -10,7 +10,7 @@ The Site Planner turns multimodal requests into proven, verifiable Site Plans.
 5. **Compile** (`planner/steps/compile.py`): Compiles concerns into typed RuleIR with guardrail validation, static concept tagging, and repair rounds.
 6. **Guardrails** (`planner/guardrails.py`): Deterministic (English + Spanish) and model guardrails declining banned surveillance categories with alternatives.
 7. **Lint & Acceptance** (`planner/lint.py`, `acceptance.py`): Static plan linter and executable acceptance checks.
-8. **Audit** (`planner/audit.py`): Spark Open plan audit and Glimmer back-translation.
+8. **Audit** (`planner/steps/audit.py`, `back_translate.py`): Spark Open plan audit and Glimmer back-translation.
 
 ## Understand Step API
 
@@ -215,6 +215,29 @@ outcome = loop.run(planned, feasibility)  # rules, feasibility, acceptance, ques
   rejected. Still failing: the rule is removed and becomes a question plus a `caveat` verdict.
   Failing only `detect_lb>=0.8`, `calibration_err<=tol` or `citation_text_match` (camera,
   calibration or source fixes): the rule stays, with a `caveat` verdict saying why.
+
+## Plan audit and back-translation (P2-07)
+
+```python
+from rulecam.planner.steps.audit import audit_hook
+from rulecam.verify.tier2 import SparkOpenVerifier
+
+audit = audit_hook(SparkOpenVerifier(spark_open), glimmer, glimmer_model=glimmer.model)
+pipeline = PlannerPipeline(..., audit=audit)  # step 9; `build_planner` wires it
+```
+
+- Spark Open (`SparkOpenVerifier.audit_plan`, P3-04) audits the accepted plan at medium effort
+  for gaps, contradictions and over-reach. Each `AuditFinding.reasoning_ref` is the
+  content-addressed id (`so_<sha256[:16]>`) of Spark Open's reasoning, stored verbatim in
+  `data/reasoning/<id>.txt`, so replayed runs give the same ids. If Spark Open is not
+  configured or fails (`ModelClientError`, `OSError`), the plan gets one
+  `audit_skipped: not audited, ...` finding instead: never a silent pass.
+- Glimmer then reads each rule's compiled IR (never the owner's sentence) and says what it
+  will do, one call per plan language, into `SitePlan.back_translation`: a `[lang]` section
+  per language with a `- <rule id>: <summary>` line per rule. A rule Glimmer could not
+  describe reads `not back-translated (...)`; there is no template stand-in.
+- The `audit` step's `planner.step` detail says how many findings there were, or that the
+  audit was skipped, and whether the back-translation is complete.
 
 ## Tests
 

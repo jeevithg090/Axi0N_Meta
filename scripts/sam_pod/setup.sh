@@ -19,6 +19,9 @@ umask 077
 RULECAM_DIR="${RULECAM_DIR:-/workspace/rulecam}"
 SAM_VENV="${SAM_VENV:-/workspace/sam-venv}"
 export HF_HOME="${HF_HOME:-/workspace/hf-cache}"
+# uv's managed Python must live on the volume too: the venv symlinks to it, and the container disk
+# (where uv puts it by default) is wiped when the pod stops.
+export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-/workspace/uv-python}"
 SAM_LOG="${SAM_LOG:-/workspace/sam.log}"
 SAM_PORT="${SAM_PORT:-8090}"
 HF_TOKEN_FILE="${HF_TOKEN_FILE:-/workspace/.hf_token}"
@@ -64,9 +67,14 @@ install_venv() {
   commit="$(pinned SAM3_COMMIT)"
   [[ -n "$commit" ]] || die "SAM3_COMMIT not found in $WORKER_PY"
   marker="$SAM_VENV/.rulecam-sam3-$commit"
-  if [[ -f "$marker" ]]; then
+  if [[ -f "$marker" ]] && "$PY" -c "import sys" >/dev/null 2>&1; then
     log "venv ready (sam3 $commit)"
     return
+  fi
+  if [[ -e "$SAM_VENV" ]] && ! "$PY" -c "import sys" >/dev/null 2>&1; then
+    # e.g. its interpreter lived on the container disk and the pod was restarted
+    log "venv at $SAM_VENV has no working Python; rebuilding it"
+    rm -rf "$SAM_VENV"
   fi
   command -v uv >/dev/null 2>&1 || python3 -m pip install --quiet --upgrade uv
   [[ -x "$PY" ]] || uv venv --quiet --python 3.12 "$SAM_VENV"

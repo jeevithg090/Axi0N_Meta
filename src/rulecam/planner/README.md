@@ -98,6 +98,10 @@ verdicts = gauge_plan_feasibility(
 - A probe frame is a hit when SAM returns any detection. `detect_lb` is the Wilson 95% lower
   bound (`rulecam.stats.wilson_interval`). Probes sample **24** frames by default: with the task
   book's 12, a perfect 12/12 gives a lower bound of only 0.758, so nothing could be observable.
+  `sample_frames` spreads the picks across chunks (at most `ceil(n / n_chunks)` per chunk while
+  others have frames left). Caveat: frames seconds apart are correlated, but Wilson assumes
+  independent trials, so `detect_lb` is optimistic for a near-static scene; a longer window
+  gives more independent frames.
 - Verdicts: guardrail decline (P2-03) -> `declined`; a required concept missing on the chosen
   camera or `detect_lb < 0.5` -> `not_observable` with an alternative; `0.5 <= detect_lb < 0.8`
   -> `caveat` with the cheapest camera fix (Spark, template fallback); otherwise `observable`.
@@ -175,7 +179,9 @@ plan = pipeline.resume("main-st", "compile")  # re-run steps 6-10 on the saved s
   same or a newer version), then published on `plan.updated`.
 - `planner/runner.py::PlannerService` is the `PlannerRunner` behind `POST /plans/requests`: it
   runs one plan at a time in a worker thread and puts finished plans in the `/plans` registry.
-  `ChunkFrames` gives the survey the last frame of each camera's chunks from the last 60 s.
+  `ChunkFrames` gives the survey and probes up to 3 evenly spaced frames (at least 1 s apart,
+  one ffmpeg call per chunk) of each camera's chunks from the last `PLANNER_SURVEY_WINDOW_S`
+  seconds (default 60), oldest first, so a 60 s window of 3 s chunks gives up to ~60 frames.
 
 ## Plan linter (P2-06b)
 

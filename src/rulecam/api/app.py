@@ -402,8 +402,8 @@ def build_planner(
     standards pages (`<data>/standards_cache`, for `citation_text_match`). Step 9 audits the plan
     with Spark Open and back-translates it with Glimmer (P2-07); either being unreachable marks
     the plan `audit_skipped` or `not back-translated` instead of failing it. Plans are saved
-    under `plans/`, survey frames come from the last 60 s of chunks, and finished plans go into
-    the `/plans` registry.
+    under `plans/`, survey and probe frames come from the last `planner_survey_window_s` (60 s)
+    of chunks, a few per chunk, and finished plans go into the `/plans` registry.
 
     Returns:
         The runner, or `None` (logged) when the clients cannot be built, e.g. in live mode
@@ -430,7 +430,10 @@ def build_planner(
         prove=prove_plan_hook(bus),
     )
     frames = ChunkFrames(
-        perception.chunks, clock=clock, out_dir=settings.rulecam_data_dir / "planner_frames"
+        perception.chunks,
+        clock=clock,
+        out_dir=settings.rulecam_data_dir / "planner_frames",
+        window_s=settings.planner_survey_window_s,
     )
     return PlannerService(pipeline, site_name=site, frames=frames, on_plan=plans.put)
 

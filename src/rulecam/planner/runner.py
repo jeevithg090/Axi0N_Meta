@@ -5,14 +5,18 @@ background worker thread (one plan at a time), so the API answers at once and th
 `planner.step`. A finished plan is handed to `on_plan` (the API's plan registry). A failed run is
 logged; the failing step has already been published as `failed`.
 
-`ChunkFrames` supplies the survey's camera frames: the last frame of each camera's chunks from
-the last 60 s, extracted with ffmpeg under content-addressed names (never a camera-supplied
-path).
+`ChunkFrames` supplies the survey's and probes' camera frames: up to 3 evenly spaced frames (at
+least 1 s apart) of each camera chunk from the last `window_s` seconds (60 s by default,
+`PLANNER_SURVEY_WINDOW_S`), extracted with one ffmpeg call per chunk under content-addressed
+names (never a camera-supplied path). A frame's name is `<chunk digest>-f<k>.jpg`, so the
+probe's sampler can spread its frames across chunks (`survey.frame_group`).
 """
 
 from __future__ import annotations
 
 import hashlib
+import math
+import shutil
 import subprocess
 import uuid
 from collections.abc import Callable, Mapping, Sequence
@@ -21,7 +25,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Final, Protocol
 
-from rulecam.capture.pair_phone.media import last_frame_args
 from rulecam.contracts import Chunk, Clock, RequestItem, SitePlan
 from rulecam.contracts.core import PrivacyMode, Zone
 from rulecam.log import get_logger
@@ -31,6 +34,8 @@ _log = get_logger(__name__)
 
 SURVEY_WINDOW_S: Final = 60.0
 FRAME_TIMEOUT_S: Final = 10.0
+MAX_FRAMES_PER_CHUNK: Final = 3
+MIN_FRAME_SPACING_S: Final = 1.0
 
 FramesSource = Callable[[], Mapping[str, Sequence[Path]]]
 
@@ -130,23 +135,86 @@ class ChunkLookup(Protocol):
         ...
 
 
-Extract = Callable[[Path, Path], None]
+Extract = Callable[[Path, Sequence[int], Path], None]
+"""Writes the given frame indices of a chunk into a directory as `1.jpg`, `2.jpg`, ... in order."""
 
 
-def ffmpeg_last_frame(chunk: Path, frame: Path) -> None:
-    """Write the last frame of `chunk` to `frame` (JPEG) with ffmpeg.
+def frame_indices(
+    chunk: Chunk,
+    *,
+    max_frames: int = MAX_FRAMES_PER_CHUNK,
+    min_spacing_s: float = MIN_FRAME_SPACING_S,
+) -> tuple[int, ...]:
+    """Pick evenly spaced frame indices of a chunk, at least `min_spacing_s` apart.
+
+    The chunk's duration is split into `k` equal parts (`k` = as many as fit at the spacing,
+    at most `max_frames`, at least 1) and the frame at the middle of each part is taken, so a
+    3 s chunk gives frames at 0.5 s, 1.5 s and 2.5 s.
+
+    Args:
+        chunk: The chunk (its `fps` and `n_frames` give the duration).
+        max_frames: Most frames to take.
+        min_spacing_s: Least time between two taken frames.
+
+    Returns:
+        Distinct frame indices, ascending.
+    """
+    duration_s = chunk.n_frames / chunk.fps
+    k = max(1, min(max_frames, math.floor(duration_s / min_spacing_s)))
+    picks = (min(chunk.n_frames - 1, int((i + 0.5) * duration_s / k * chunk.fps)) for i in range(k))
+    return tuple(sorted(set(picks)))
+
+
+def frames_args(chunk: Path, indices: Sequence[int], out_dir: Path) -> list[str]:
+    """Build the one ffmpeg command that writes the chosen frames of a chunk as JPEGs.
+
+    Args:
+        chunk: The video chunk.
+        indices: Frame indices to keep (0-based, ascending).
+        out_dir: Directory for `1.jpg`, `2.jpg`, ... (one per index, in order).
+
+    Returns:
+        The argument list, program first (no shell).
+    """
+    select = "+".join(f"eq(n\\,{i})" for i in indices)
+    return [
+        "ffmpeg",
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(chunk),
+        "-vf",
+        f"select='{select}'",
+        "-fps_mode",
+        "passthrough",
+        "-frames:v",
+        str(len(indices)),
+        "-q:v",
+        "3",
+        "-y",
+        str(out_dir / "%d.jpg"),
+    ]
+
+
+def ffmpeg_frames(chunk: Path, indices: Sequence[int], out_dir: Path) -> None:
+    """Write the chosen frames of `chunk` into `out_dir` with one ffmpeg run.
 
     Raises:
         subprocess.CalledProcessError: If ffmpeg fails.
         subprocess.TimeoutExpired: If it runs longer than 10 s.
     """
     subprocess.run(  # noqa: S603 - fixed argument list, no shell
-        last_frame_args(chunk, frame), check=True, capture_output=True, timeout=FRAME_TIMEOUT_S
+        frames_args(chunk, indices, out_dir),
+        check=True,
+        capture_output=True,
+        timeout=FRAME_TIMEOUT_S,
     )
 
 
 class ChunkFrames:
-    """Recent frames per camera, one per chunk (a `FramesSource`)."""
+    """Recent frames per camera, a few per chunk (a `FramesSource`)."""
 
     def __init__(
         self,
@@ -155,7 +223,9 @@ class ChunkFrames:
         clock: Clock,
         out_dir: Path,
         window_s: float = SURVEY_WINDOW_S,
-        extract: Extract = ffmpeg_last_frame,
+        extract: Extract = ffmpeg_frames,
+        max_frames_per_chunk: int = MAX_FRAMES_PER_CHUNK,
+        min_spacing_s: float = MIN_FRAME_SPACING_S,
     ) -> None:
         """Create the source.
 
@@ -164,18 +234,22 @@ class ChunkFrames:
             clock: Time source for the window.
             out_dir: Where extracted frames are stored.
             window_s: How far back to look.
-            extract: Writes a chunk's last frame to a path.
+            extract: Writes chosen frames of a chunk into a directory (one call per chunk).
+            max_frames_per_chunk: Most frames taken from one chunk.
+            min_spacing_s: Least time between two frames of one chunk.
         """
         self._chunks = chunks
         self._clock = clock
         self._out_dir = out_dir
         self._window = timedelta(seconds=window_s)
         self._extract = extract
+        self._max_frames = max_frames_per_chunk
+        self._min_spacing_s = min_spacing_s
 
     def __call__(self) -> dict[str, tuple[Path, ...]]:
         """Return camera id -> frames of the last window, oldest first (cameras with none omitted).
 
-        A chunk whose frame cannot be extracted is skipped with a warning.
+        A chunk whose frames cannot be extracted is skipped with a warning.
         """
         now = self._clock.now()
         self._out_dir.mkdir(parents=True, exist_ok=True)
@@ -184,23 +258,37 @@ class ChunkFrames:
             found = [
                 frame
                 for chunk in self._chunks.chunks(camera_id, now - self._window, now)
-                if (frame := self._frame(chunk)) is not None
+                for frame in self._frames(chunk)
             ]
             if found:
                 frames[camera_id] = tuple(found)
         return frames
 
-    def _frame(self, chunk: Chunk) -> Path | None:
-        digest = hashlib.sha256(f"{chunk.camera_id}|{chunk.path}".encode()).hexdigest()[:32]
-        frame = self._out_dir / f"{digest}.jpg"
-        if frame.is_file():
-            return frame
-        partial = frame.with_suffix(".part.jpg")
+    def _frames(self, chunk: Chunk) -> list[Path]:
+        indices = frame_indices(
+            chunk, max_frames=self._max_frames, min_spacing_s=self._min_spacing_s
+        )
+        key = f"{chunk.camera_id}|{chunk.path}|{','.join(map(str, indices))}"
+        digest = hashlib.sha256(key.encode()).hexdigest()[:32]
+        names = [self._out_dir / f"{digest}-f{k}.jpg" for k in range(len(indices))]
+        if all(name.is_file() for name in names):
+            return names
+        partial = self._out_dir / f"{digest}.part"
+        shutil.rmtree(partial, ignore_errors=True)
+        written = [partial / f"{k + 1}.jpg" for k in range(len(indices))]
         try:
-            self._extract(Path(chunk.path), partial)
-            partial.replace(frame)
+            partial.mkdir()
+            self._extract(Path(chunk.path), indices, partial)
+            complete = all(path.is_file() for path in written)
+            if complete:
+                for path, name in zip(written, names, strict=True):
+                    path.replace(name)
         except (OSError, subprocess.SubprocessError) as exc:
-            partial.unlink(missing_ok=True)
             _log.warning("planner_frame_failed", chunk_id=chunk.chunk_id, error=repr(exc))
-            return None
-        return frame
+            return []
+        finally:
+            shutil.rmtree(partial, ignore_errors=True)
+        if not complete:
+            _log.warning("planner_frame_failed", chunk_id=chunk.chunk_id, error="missing frames")
+            return []
+        return names

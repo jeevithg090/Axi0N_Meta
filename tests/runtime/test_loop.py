@@ -10,8 +10,16 @@ from rulecam.bus import Topic
 from rulecam.contracts import PrivacyMode
 from rulecam.evidence.chain import read_chain, verify_chain
 from rulecam.runtime.loop import ActionDone, ActivePlan, VerdictNew, chunk_end, plan_concepts
-from tests.fakes import FakeClock, FakeVerifier, make_chunk, make_verdict
-from tests.runtime.fakes import FailingTracker, FakeStrips, make_loop, sink_plan
+from tests.fakes import FakeClock, FakeVerifier, InMemoryTrackStore, make_chunk, make_verdict
+from tests.runtime.fakes import (
+    FailingTracker,
+    FakeStrips,
+    SteadyTracker,
+    make_loop,
+    persist_plan,
+    sequence_plan,
+    sink_plan,
+)
 
 
 def at_end_of(clock: FakeClock, index: int) -> FakeClock:
@@ -146,19 +154,48 @@ def test_active_plan_defaults_to_strict_privacy() -> None:
 
 def test_windows_over_a_skipped_chunk_are_blind_not_evaluated(tmp_path: Path) -> None:
     clock = FakeClock()
-    loop, bus, _, _ = make_loop(tmp_path, clock, max_lag_s=6.0, keyframe_stride=3)
-    loop.set_plan(sink_plan())
+    store = InMemoryTrackStore()
+    loop, bus, _, _ = make_loop(
+        tmp_path, clock, max_lag_s=6.0, keyframe_stride=3, tracker=SteadyTracker(store), store=store
+    )
+    loop.set_plan(persist_plan(seconds=4.0))
     clock.advance(60)
     for i in range(3):  # processed, skipped, skipped
         loop.handle_chunk(make_chunk(index=i))
     assert loop.metrics.chunks_skipped == 2
-    before = bus.topics().count(Topic.CANDIDATE_NEW)  # chunk 0 ran before the gap
-    at_end_of(clock, 3)  # caught up, but chunks 1-2 are inside the 30 s window
+    before = bus.topics().count(Topic.CANDIDATE_NEW)
+    at_end_of(clock, 3)  # caught up; only 3 s observed since the gap, the rule needs 4 s
     assert loop.handle_chunk(make_chunk(index=3)) == []
     assert loop.metrics.windows_blind >= 1
     assert bus.topics().count(Topic.CANDIDATE_NEW) == before
-    at_end_of(clock, 13)  # the window no longer reaches the gap
-    assert len(loop.handle_chunk(make_chunk(index=13))) == 1
+    at_end_of(clock, 4)  # 6 s observed after the gap: enough for a 4 s persist
+    assert len(loop.handle_chunk(make_chunk(index=4))) == 1
+
+
+def test_an_instantaneous_rule_is_judged_on_the_window_after_a_gap(tmp_path: Path) -> None:
+    clock = FakeClock()
+    loop, _, _, _ = make_loop(tmp_path, clock, max_lag_s=6.0, keyframe_stride=3)
+    loop.set_plan(sink_plan())
+    clock.advance(60)
+    for i in range(3):  # processed, skipped, skipped
+        loop.handle_chunk(make_chunk(index=i))
+    at_end_of(clock, 3)
+    blind = loop.metrics.windows_blind
+    assert len(loop.handle_chunk(make_chunk(index=3))) == 1  # not blind for a whole window
+    assert loop.metrics.windows_blind == blind
+
+
+def test_a_sequence_rule_needs_the_whole_window_after_a_gap(tmp_path: Path) -> None:
+    clock = FakeClock()
+    loop, _, _, _ = make_loop(tmp_path, clock, max_lag_s=6.0, keyframe_stride=3)
+    loop.set_plan(sequence_plan())
+    clock.advance(60)
+    for i in range(2):  # processed, skipped
+        loop.handle_chunk(make_chunk(index=i))
+    at_end_of(clock, 9)  # 24 s observed after the gap, still inside the 30 s window
+    blind = loop.metrics.windows_blind
+    loop.handle_chunk(make_chunk(index=9))
+    assert loop.metrics.windows_blind == blind + 1
 
 
 def test_dedup_entries_older_than_the_window_are_forgotten(tmp_path: Path) -> None:

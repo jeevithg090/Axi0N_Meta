@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     rulecam_replay_dir: Path | None = None
     rulecam_site_config: Path | None = None  # owner's site YAML (docs/site.example.yaml)
     rulecam_runtime: bool = False  # start the runtime loop (SAM, tracker, Glimmer) with the API
+    # Runtime SAM cost control (docs/deploy.md "Runtime SAM cost"): while nothing is happening on a
+    # camera, segment one chunk in N, per the strictest severity of the rules on that camera.
+    rulecam_idle_stride_low: int = Field(default=3, ge=1)
+    rulecam_idle_stride_medium: int = Field(default=3, ge=1)
+    rulecam_idle_stride_high: int = Field(default=2, ge=1, le=2)  # HIGH: every 2nd chunk at most
+    rulecam_idle_holdoff_s: float = Field(default=30.0, ge=0)  # every chunk for 30 s after activity
+    rulecam_sam_budget_frames_per_min: int = Field(default=1000, ge=0)  # per camera; 0 = no budget
+    rulecam_sam_budget_stride: int = Field(default=3, ge=1)  # over budget: one chunk in N
+    rulecam_runtime_concept_workers: int = Field(default=4, ge=1)  # concepts segmented at once
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None

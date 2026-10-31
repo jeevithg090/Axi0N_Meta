@@ -27,6 +27,13 @@ if ! command -v ffmpeg >/dev/null || ! command -v git >/dev/null || ! command -v
   apt-get update -qq
   apt-get install -y -qq --no-install-recommends ca-certificates curl git ffmpeg xz-utils >/dev/null
 fi
+# gitea-runner needs git >= 2.34; Ubuntu 20.04 images ship 2.25, so take it from the git-core PPA.
+if ! printf '2.34\n%s\n' "$(git --version | awk '{print $3}')" | sort -V -C; then
+  apt-get install -y -qq --no-install-recommends software-properties-common gpg-agent >/dev/null
+  add-apt-repository -y ppa:git-core/ppa >/dev/null
+  apt-get update -qq
+  apt-get install -y -qq git >/dev/null
+fi
 if ! node --version 2>/dev/null | grep -q "^v${NODE_VERSION%%.*}\."; then
   curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" \
     | tar -xJ -C /usr/local --strip-components=1

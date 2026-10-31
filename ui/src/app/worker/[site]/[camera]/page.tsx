@@ -118,36 +118,44 @@ export default function WorkerTransparencyPage({
         const result = await res.json();
         setDisputeStatus(result.outcome === "upheld" ? "UPHELD" : "PROCESSED");
         // Update client count state dynamically
-        if (data && data.public_counts[activeDisputeEvent.rule_id]) {
-          const prev = data.public_counts[activeDisputeEvent.rule_id];
-          setData({
-            ...data,
-            public_counts: {
-              ...data.public_counts,
-              [activeDisputeEvent.rule_id]: {
-                ...prev,
-                disputes: prev.disputes + 1,
-                upheld: result.outcome === "upheld" ? prev.upheld + 1 : prev.upheld,
+        if (data) {
+          const ruleId = activeDisputeEvent.rule_id;
+          const prev = data.public_counts[ruleId];
+          if (prev) {
+            const updatedCounts: RuleCounts = {
+              alerts: prev.alerts,
+              disputes: prev.disputes + 1,
+              upheld: result.outcome === "upheld" ? prev.upheld + 1 : prev.upheld,
+            };
+            setData({
+              ...data,
+              public_counts: {
+                ...data.public_counts,
+                [ruleId]: updatedCounts,
               },
-            },
-          });
+            });
+          }
         }
       } else {
         // Demo fallback update for test
-        if (data && data.public_counts[activeDisputeEvent.rule_id]) {
-          const prev = data.public_counts[activeDisputeEvent.rule_id];
-          setData({
-            ...data,
-            public_counts: {
-              ...data.public_counts,
-              [activeDisputeEvent.rule_id]: {
-                ...prev,
-                disputes: prev.disputes + 1,
-                upheld: prev.upheld + 1,
+        if (data) {
+          const ruleId = activeDisputeEvent.rule_id;
+          const prev = data.public_counts[ruleId];
+          if (prev) {
+            const updatedCounts: RuleCounts = {
+              alerts: prev.alerts,
+              disputes: prev.disputes + 1,
+              upheld: prev.upheld + 1,
+            };
+            setData({
+              ...data,
+              public_counts: {
+                ...data.public_counts,
+                [ruleId]: updatedCounts,
               },
-            },
-          });
-          setDisputeStatus("UPHELD");
+            });
+            setDisputeStatus("UPHELD");
+          }
         }
       }
     } catch {
@@ -208,7 +216,11 @@ export default function WorkerTransparencyPage({
         </h2>
         <div className="space-y-3">
           {data?.rules.map((rule) => {
-            const counts = data.public_counts[rule.rule_id] || { alerts: 0, disputes: 0, upheld: 0 };
+            const counts = data?.public_counts[rule.rule_id] ?? {
+              alerts: 0,
+              disputes: 0,
+              upheld: 0,
+            };
             return (
               <div
                 key={rule.rule_id}

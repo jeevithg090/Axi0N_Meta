@@ -235,6 +235,13 @@ outcome = loop.run(planned, feasibility)  # rules, feasibility, acceptance, ques
   (`SurveyResult.calibrations`, lowest `err_m` per camera; never from a bare box); a needed
   place (sink, counter, door, ...) becomes a polygon zone (`ProbeResult.zones`). The owner's
   calibration and zones win.
+- Reference probes: calibration must not depend on Spark's survey wording ("stacked pallet with
+  bags" is not a reference). When a concern's text asks for metres or a speed (`needs_metres`),
+  the probe step prompts SAM with `REFERENCE_PROMPTS` ("wooden pallet", "1 m floor square") on
+  every camera that saw one of that concern's concepts and is not calibrated by the owner or the
+  survey, on `REFERENCE_PROBE_FRAMES` = 3 of the survey's frames per prompt (at most 6 SAM calls
+  per camera). Tried prompts and counts go to `ProbeResult.reference_probes` and the step
+  detail; calibrations to `ProbeResult.calibrations`. No metric concern: no extra call.
 - `SiteGeometry.ground` runs on every compiled rule: candidate polygons replace the model's, an
   invented polygon zone is an error for the repair round, buffer zones keep only
   `buffer_of`/`buffer_m`, and `calibration` is `ground-plane@<cam>` only when the metric rule's

@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     whatsapp_token: SecretStr | None = None
     whatsapp_phone_number_id: str | None = None
     public_tunnel_url: str | None = None
+    public_ui_url: str | None = None  # public origin of the web UI (worker page QR on posters)
 
     @property
     def replay_dir(self) -> Path:

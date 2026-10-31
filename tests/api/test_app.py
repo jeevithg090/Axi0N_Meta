@@ -19,6 +19,7 @@ from rulecam.api.app import (
     _cameras,
     _log_task_end,
     create_app,
+    find_plan,
     openapi_json,
     services_from_settings,
 )
@@ -35,6 +36,7 @@ from rulecam.contracts import (
     SitePlan,
 )
 from rulecam.evidence.chain import EventChain
+from rulecam.planner.pipeline import PlanStore
 from rulecam.replay.cache import ModeChanged, ReplayCache
 from rulecam.runtime.factory import ChunkIndex
 from tests.fakes import EPOCH, FakeClock, make_chunk
@@ -171,8 +173,23 @@ def test_services_from_settings(tmp_path: Path) -> None:
         "/cameras",
         "/metrics/perception",
         "/mode",
+        "/worker/dispute",
+        "/worker/{plan_id}/{camera}",
+        "/worker/{plan_id}/{camera}/poster",
     ):
         assert path in paths, path
+
+
+def test_find_plan_uses_the_registry_then_saved_plans(tmp_path: Path) -> None:
+    registry = PlanRegistry()
+    registry.put(site_plan("in-registry"))
+    store = PlanStore(tmp_path)
+    store.save_plan(site_plan("saved"))
+    lookup = find_plan(registry, store)
+    assert lookup("in-registry") == site_plan("in-registry")
+    assert lookup("saved") == site_plan("saved")
+    assert lookup("missing") is None
+    assert lookup("../etc") is None
 
 
 def test_services_from_settings_with_runtime(tmp_path: Path) -> None:

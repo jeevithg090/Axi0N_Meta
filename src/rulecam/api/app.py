@@ -3,8 +3,9 @@
 `create_app(services)` builds the app from injected services, so tests and the demo wire exactly
 what they need. It mounts `/pair` (P1-09) and `/correction` (P1-10) when those services are set,
 plus `/plans`, `/cameras`, `/metrics/perception` and the static `/verify` page. Routers owned by
-tasks still in flight (`/worker`, `/ack`, `/interlock`, `/advice`, `/surprise`) are passed in
-through `AppServices.routers` as they land.
+tasks still in flight (`/ack`, `/interlock`, `/advice`, `/surprise`) are passed in through
+`AppServices.routers` as they land; `services_from_settings` passes the public `/worker` router
+(P2-11) that way.
 
 Anything that changes state (`PUT /mode`, `PUT /runtime/plan`, plan create/approve) and the `/ws`
 mirror are owner-only: both the target host and the client must be loopback, because the same app
@@ -39,7 +40,7 @@ from rulecam.clients.open_weights.glimmer import GlimmerClient
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
 from rulecam.config import Settings, get_settings
-from rulecam.contracts import Chunk, Clock
+from rulecam.contracts import Chunk, Clock, SitePlan
 from rulecam.evidence.chain import ChainReport, EventChain, verify_chain
 from rulecam.evidence.merkle import chain_root, read_day_roots
 from rulecam.log import get_logger
@@ -47,6 +48,7 @@ from rulecam.perception.correction import CorrectionService
 from rulecam.perception.correction_api import correction_router
 from rulecam.perception.metrics import PerceptionMetrics, PerceptionMetricsReport
 from rulecam.perception.router import Purpose
+from rulecam.planner.errors import PipelineError
 from rulecam.planner.pipeline import PlannerPipeline, PlanStore
 from rulecam.planner.runner import ChunkFrames, PlannerService
 from rulecam.planner.standards import StandardsLibrary
@@ -62,6 +64,7 @@ from rulecam.runtime.factory import (
 )
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
 from rulecam.verify.tier2 import SparkOpenVerifier
+from rulecam.worker import DisputeService, worker_router
 
 _log = get_logger(__name__)
 
@@ -426,11 +429,53 @@ def build_planner(
     return PlannerService(pipeline, site_name=site, frames=frames, on_plan=plans.put)
 
 
+def find_plan(plans: PlanRegistry, store: PlanStore) -> Callable[[str], SitePlan | None]:
+    """Look a plan up in the registry first, then among the saved plans (`plans/`).
+
+    Returns:
+        A lookup giving `None` for an unknown or unsafe plan id.
+    """
+
+    def lookup(plan_id: str) -> SitePlan | None:
+        try:
+            return plans.get(plan_id)[0]
+        except HTTPException:
+            pass
+        try:
+            return store.load_plan(plan_id)
+        except PipelineError:
+            _log.warning("worker_plan_unreadable", plan_id=plan_id)
+            return None
+
+    return lookup
+
+
+def build_worker_router(
+    settings: Settings,
+    *,
+    cache: ReplayCache,
+    clock: Clock,
+    bus: Bus,
+    chain: EventChain,
+    plans: PlanRegistry,
+) -> APIRouter:
+    """Build `/worker` (P2-11): disputes are re-reviewed by Spark Open through the replay cache."""
+    spark_open = SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+    return worker_router(
+        plans=find_plan(plans, PlanStore(PLANS_DIR)),
+        chain=chain,
+        disputes=DisputeService(chain, SparkOpenVerifier(spark_open), clock=clock),
+        clock=clock,
+        public_base_url=settings.public_ui_url,
+    )
+
+
 def services_from_settings(settings: Settings, site: str = "demo") -> AppServices:
     """Build the default services from settings.
 
     Always: bus, replay cache, evidence chain, perception (SAM router, metrics, track store),
-    Pair-a-Phone, the correction loop and the plan registry, plus the Site Planner runner when
+    Pair-a-Phone, the correction loop, the plan registry and the worker page (`/worker`,
+    P2-11), plus the Site Planner runner when
     its clients can be built. With `RULECAM_RUNTIME=true`, also the runtime loop.
 
     Args:
@@ -484,6 +529,11 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         uploads_dir=settings.rulecam_data_dir / "uploads",
         plans=plans,
         planner=planner,
+        routers=(
+            build_worker_router(
+                settings, cache=cache, clock=clock, bus=bus, chain=chain, plans=plans
+            ),
+        ),
     )
 
 

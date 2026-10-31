@@ -39,6 +39,8 @@ from rulecam.advisor.claims import (
     lint_claim_text,
 )
 from rulecam.advisor.errors import AskError, ClaimError, EvidenceError
+from rulecam.advisor.hypotheses import Hypothesis
+from rulecam.advisor.kitchen import KITCHEN_HYPOTHESES
 from rulecam.advisor.rank import calculate_rank_score
 from rulecam.advisor.safety import assess_change, describe, safety_check
 from rulecam.bus import Bus, Topic
@@ -190,18 +192,6 @@ class DevilsAdvocate(Protocol):
         ...
 
 
-@dataclass(frozen=True)
-class Hypothesis:
-    """A catalogue cause and the metric test that decides it."""
-
-    id: str
-    statement: str
-    metric: str
-    threshold: float
-    unit: str
-    keywords: tuple[str, ...]
-
-
 # Dock catalogue (task book P2-12 step 4). Thresholds are in the staged set's units; P4-08 tunes
 # them on recorded sessions. Metrics missing from the P4 catalogue leave a hypothesis untestable.
 DOCK_HYPOTHESES: Final = (
@@ -246,7 +236,11 @@ DOCK_HYPOTHESES: Final = (
         ("handling", "unload", "slower"),
     ),
 )
-CATALOGUES: Final[Mapping[str, tuple[Hypothesis, ...]]] = {"dock": DOCK_HYPOTHESES}
+CATALOGUES: Final[Mapping[str, tuple[Hypothesis, ...]]] = {
+    "dock": DOCK_HYPOTHESES,
+    "kitchen": KITCHEN_HYPOTHESES,
+    "pass": KITCHEN_HYPOTHESES,
+}
 
 
 @dataclass(frozen=True)
@@ -339,8 +333,11 @@ RECOMMEND_SYSTEM: Final = (
 
 
 def station_type(station_id: str) -> str:
-    """Return the station type from its id prefix (`dock_3` -> `dock`)."""
-    return station_id.split("_", 1)[0].lower()
+    """Return the station type from its id prefix (e.g. `dock_3` -> `dock`)."""
+    prefix = station_id.split("_", 1)[0].lower()
+    if prefix in ("pass", "kitchen"):
+        return "kitchen"
+    return prefix
 
 
 def window_recorded(

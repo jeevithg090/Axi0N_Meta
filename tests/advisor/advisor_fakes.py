@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
+from rulecam.advisor.kitchen import KITCHEN_METRICS_CATALOGUE
 from rulecam.advisor.pipeline import RecordedWindow, SiteAdvisorPipeline
 from rulecam.bus import Bus, Topic
 from rulecam.contracts.advisor import Change, Gain
@@ -23,14 +24,17 @@ from tests.fakes import EPOCH, FakeClock, FakeLLM
 
 T0 = EPOCH
 T1 = EPOCH + timedelta(hours=4)
-CATALOGUE = frozenset(
-    {
-        "turnaround",
-        "wait_for_forklift",
-        "handling",
-        "forklift_active_share",
-        "aisle_blocked_min",
-    }
+CATALOGUE = (
+    frozenset(
+        {
+            "turnaround",
+            "wait_for_forklift",
+            "handling",
+            "forklift_active_share",
+            "aisle_blocked_min",
+        }
+    )
+    | KITCHEN_METRICS_CATALOGUE
 )
 
 

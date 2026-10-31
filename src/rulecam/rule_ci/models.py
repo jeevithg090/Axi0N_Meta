@@ -1,4 +1,4 @@
-"""Data models for Rule CI (task P2-08, MP §3.4, V2 Pillar 3)."""
+"""Data models for Rule CI (tasks P2-08 and P2-09, MP §3.4, V2 Pillar 3)."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Final, Literal
 
 from rulecam.contracts.core import Calibration, Frozen, Track
 from rulecam.contracts.rule_ir import RuleIR
+from rulecam.rule_ci.red_team import RedTeamReport
 
 REQUIRED_KILL_RATIO: Final = 0.90
 
@@ -70,6 +71,7 @@ class RuleCIReport(Frozen):
         nonvacuous: The rule fired on the positive member and stayed silent on the negative
             member of at least one boundary pair.
         justification: Recorded reason to accept a kill ratio below `REQUIRED_KILL_RATIO`.
+        red_team: Part 2 (P2-09): scenes, lookalikes, injection signs and forecast, when run.
     """
 
     rule_id: str
@@ -80,6 +82,7 @@ class RuleCIReport(Frozen):
     failures: tuple[str, ...] = ()
     nonvacuous: bool
     justification: str | None = None
+    red_team: RedTeamReport | None = None
 
     @property
     def mutation_score(self) -> float:
@@ -88,7 +91,13 @@ class RuleCIReport(Frozen):
 
     @property
     def ci_green(self) -> bool:
-        """All traces pass and at least 90% of mutants die, or a justification is recorded."""
+        """All traces pass and at least 90% of mutants die (or a justification is recorded).
+
+        When part 2 ran, it must also pass: no lookalike fooled the rule and no injection sign
+        silenced its alert.
+        """
+        if self.red_team is not None and not self.red_team.passed:
+            return False
         if self.traces_total == 0 or self.traces_passed < self.traces_total:
             return False
         if self.mutants_total and self.mutation_score >= REQUIRED_KILL_RATIO:
@@ -96,11 +105,12 @@ class RuleCIReport(Frozen):
         return bool(self.justification and self.justification.strip())
 
     def summary(self) -> str:
-        """E.g. `boundary 16/16, mutations 5/5`."""
-        return (
+        """E.g. `boundary 16/16, mutations 5/5`, then part 2's summary when it ran."""
+        head = (
             f"boundary {self.traces_passed}/{self.traces_total}, "
             f"mutations {self.mutants_killed}/{self.mutants_total}"
         )
+        return head if self.red_team is None else f"{head}; {self.red_team.summary()}"
 
 
 class CIResult(Frozen):

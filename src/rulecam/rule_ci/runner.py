@@ -7,6 +7,8 @@ report is published on `ci.result` as a `CIResult` (`{rule_id, report}` plus `ci
 
 `prove_plan_hook` runs Rule CI for every rule of a plan and records `ci_green` and `nonvacuous`
 for each rule in the plan's acceptance trace (step 8 leaves them out until Rule CI has run).
+Given a red team (P2-09, `rule_ci.red_team.RedTeam`), it also runs part 2 for every rule and
+attaches the result to the rule's report, so it reaches `ci.result` and `ci_green`.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from rulecam.planner.acceptance import RULE_CI_CHECKS
 from rulecam.rule_ci.geometry import UnsupportedRuleError
 from rulecam.rule_ci.models import CIResult, MutationCase, RuleCIReport, TraceCase
 from rulecam.rule_ci.mutations import generate_mutations
+from rulecam.rule_ci.red_team import RedTeamReport
 from rulecam.rule_ci.traces import generate_rule_traces
 from rulecam.rules import RuleEvaluationError, evaluate
 
@@ -112,6 +115,7 @@ def run_rule_ci(
     traces: Sequence[TraceCase] | None = None,
     mutants: Sequence[MutationCase] | None = None,
     justification: str | None = None,
+    red_team: RedTeamReport | None = None,
 ) -> RuleCIReport:
     """Run boundary traces and mutation tests for one rule and publish the report.
 
@@ -121,6 +125,7 @@ def run_rule_ci(
         traces: Traces to use instead of `generate_rule_traces(rule)`.
         mutants: Mutants to use instead of `generate_mutations(rule)`.
         justification: Recorded reason to accept a kill ratio below 90%.
+        red_team: Part 2's result for the rule (P2-09); its problems join `failures`.
 
     Returns:
         The report. A rule Rule CI cannot generate traces for gets an empty, failing report.
@@ -138,6 +143,8 @@ def run_rule_ci(
     failures += [f"mutant {m.name} survived ({m.description})" for m in survivors]
     if unrun:
         failures.append(f"{unrun} mutants not run: no traces")
+    if red_team is not None:
+        failures += red_team.problems()
     report = RuleCIReport(
         rule_id=rule.id,
         traces_passed=sum(outcomes[t.name] == t.expected_violation for t in cases),
@@ -147,6 +154,7 @@ def run_rule_ci(
         failures=tuple(failures),
         nonvacuous=nonvacuous(cases, outcomes),
         justification=justification,
+        red_team=red_team,
     )
     if bus is not None:
         bus.publish(Topic.CI_RESULT, CIResult.of(report))
@@ -183,13 +191,17 @@ def with_rule_ci(plan: SitePlan, reports: Sequence[RuleCIReport]) -> SitePlan:
 
 
 def prove_plan_hook(
-    bus: Bus | None = None, *, justifications: Mapping[str, str] | None = None
+    bus: Bus | None = None,
+    *,
+    justifications: Mapping[str, str] | None = None,
+    red_team: Callable[[RuleIR], RedTeamReport] | None = None,
 ) -> Callable[[SitePlan], SitePlan]:
     """Build the pipeline's step 10 hook: Rule CI for every rule, recorded in the acceptance trace.
 
     Args:
         bus: Where to publish each rule's `ci.result`.
         justifications: Recorded reasons, by rule id, to accept a kill ratio below 90%.
+        red_team: Part 2 per rule (`RedTeam`); without it only part 1 runs.
 
     Returns:
         A `SitePlan -> SitePlan` hook.
@@ -198,7 +210,13 @@ def prove_plan_hook(
 
     def hook(plan: SitePlan) -> SitePlan:
         reports = [
-            run_rule_ci(rule, bus=bus, justification=reasons.get(rule.id)) for rule in plan.rules
+            run_rule_ci(
+                rule,
+                bus=bus,
+                justification=reasons.get(rule.id),
+                red_team=red_team(rule) if red_team is not None else None,
+            )
+            for rule in plan.rules
         ]
         return with_rule_ci(plan, reports)
 

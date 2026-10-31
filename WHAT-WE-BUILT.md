@@ -21,6 +21,7 @@ adds a row here with its licence.
 | Jinja2 | Templates | BSD-3-Clause |
 | PyYAML | YAML | MIT |
 | qrcode | QR codes | BSD |
+| Pillow | Rule CI injection-sign composites (`rule_ci/injection.py`) | MIT-CMU (HPND) |
 | python-kasa | Smart plug / light | GPL-3.0 (used as an external library; review before any commercial release) |
 | python-multipart | Uploads | Apache-2.0 |
 | Typer | CLI | MIT |

@@ -5,9 +5,10 @@ The Site Planner turns multimodal requests into proven, verifiable Site Plans.
 ## Pipeline Steps
 1. **Understand** (`planner/steps/understand.py`): Multimodal intake of text, photos/PDFs, voice, and video walk-throughs.
 2. **Survey & Probes** (`planner/steps/survey.py`, `probes.py`): Camera inventory and SAM detectability probes.
-3. **Compile** (`planner/steps/compile.py`): Compiles concerns into Rule IR with guardrail validation.
-4. **Lint & Acceptance** (`planner/lint.py`, `acceptance.py`): Static plan linter and executable acceptance checks.
-5. **Audit** (`planner/audit.py`): Spark Open plan audit and Glimmer back-translation.
+3. **Compile** (`planner/steps/compile.py`): Compiles concerns into typed RuleIR with guardrail validation, static concept tagging, and repair rounds.
+4. **Guardrails** (`planner/guardrails.py`): Deterministic (English + Spanish) and model guardrails declining banned surveillance categories with alternatives.
+5. **Lint & Acceptance** (`planner/lint.py`, `acceptance.py`): Static plan linter and executable acceptance checks.
+6. **Audit** (`planner/audit.py`): Spark Open plan audit and Glimmer back-translation.
 
 ## Understand Step API
 
@@ -35,8 +36,47 @@ res = understand(items, spark=spark, files=spark, voice=voice_client)
   .mp4; `voice`: .wav), or a missing uploader/transcriber raises `IntakeError`.
 - Every system prompt carries the data-not-instructions clause.
 
+## Guardrail Declines API
+
+```python
+from rulecam.planner.guardrails import check_request, Allowed, Declined
+
+result = check_request("who is slowest")
+if isinstance(result, Declined):
+    print(result.category)  # GuardrailCategory.PER_PERSON_PRODUCTIVITY
+    print(result.reason)
+    print(result.alternative)  # Suggests station throughput instead
+    verdict = result.to_feasibility_verdict(concern="who is slowest")
+```
+
+## Compile Step API
+
+```python
+from rulecam.planner.steps.compile import compile_rule
+
+rule = compile_rule(
+    concern,  # Concern or plain text
+    spark=spark_client,  # Spark 1.3; also runs the model guardrail pass
+    plan_id="main-st-kitchen",
+    zones=declared_zones,
+    inventory=surveyed_inventory,
+)
+```
+
+- `check_request` runs first (deterministic patterns, then Spark); a decline raises
+  `GuardrailDeclinedError` carrying the `Declined`. A model failure fails closed (it raises).
+- The hosted structured-output API rejects recursive schemas, so the model fills in
+  `RuleDraft`: the RuleIR fields with the predicate flattened into `predicate_nodes` that refer
+  to children by id. `draft_to_rule` rebuilds the tree, validates it as `RuleIR` and checks that
+  every concept and zone it names is declared. `rule_to_draft` is the inverse.
+- An invalid draft gets one repair round with the errors attached; a second failure raises
+  `RuleCompilationError`. Transport errors are not retried as "invalid output".
+- `apply_static_hints` marks fixed objects (sink, door, racks, shelving, exits) static by whole
+  word, plus any names in `static_concepts`.
+
 ## Tests
 
 ```bash
 uv run pytest tests/planner
+uv run pytest tests/guardrails/test_planner_declines.py
 ```

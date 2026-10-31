@@ -28,7 +28,7 @@ adds a row here with its licence.
 | Typer | CLI | MIT |
 | pytest, pytest-cov, pytest-asyncio, Hypothesis, mypy, ruff, pre-commit | Development only | MIT / Apache-2.0 / MPL-2.0 |
 | ffmpeg (system) | Video encoding | LGPL/GPL (system binary, not bundled) |
-| RTMPose (OpenMMLab) as ONNX, plus ONNX Runtime (`ml` extra) | CPU pose estimator (`pose/keypoints.py`, P4-04) | Apache-2.0 (code); weights are downloaded at run time, not bundled, so confirm their licence when fetching. ONNX Runtime is MIT |
+| RTMPose (OpenMMLab) as ONNX, plus ONNX Runtime (`ml` extra) | CPU pose estimator (`pose/keypoints.py`, P4-04) | Code Apache-2.0; ONNX Runtime MIT. **Weights: no checkpoint is chosen yet, and none is bundled.** Apache-2.0 on the code does not cover the weights: the common RTMPose "body7" and "aic-coco" checkpoints were trained on datasets with their own terms (AI Challenger, Halpe, PoseTrack18). Before first use, pick a COCO-only checkpoint (or review the rest) and record its exact name, download URL, sha256 and licence in this row. `RtmposeOnnx.load` requires that sha256 and refuses any other file |
 | Llama Prompt Guard 2 86M (`meta-llama/Llama-Prompt-Guard-2-86M`, gated) | Scene-text firewall (`verify/firewall.py`, P3-05) | Llama 4 Community License ("Built with Llama"); weights downloaded at run time, not bundled |
 
 ## Built during the hackathon

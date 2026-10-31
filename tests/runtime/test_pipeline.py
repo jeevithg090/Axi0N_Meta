@@ -383,7 +383,7 @@ async def test_depth_1_matches_the_sequential_loop(tmp_path: Path, tracker_type:
     def kinds(path: Path) -> list[str]:
         return [r.kind for r in read_chain(path)] if path.is_file() else []
 
-    latency = {"segment_latency_p50_s", "segment_latency_p95_s"}
+    latency = {"segment_latency_p50_s", "segment_latency_p95_s", "stages"}  # timings differ
     assert piped.metrics.model_dump(exclude=latency) == sequential.metrics.model_dump(
         exclude=latency
     )

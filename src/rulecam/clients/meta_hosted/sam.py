@@ -10,12 +10,20 @@ The HTTP layer is an injected `Transport` (a mapping in, a mapping out). `from_s
 in the replay cache (P3-02) in every mode, so REPLAY never touches the network, and tests can
 feed recorded-style JSON fixtures without any network. All knowledge of the wire format lives in
 `sam_wire`.
+
+Mask payloads are decoded by `meta-sam-parser` in pure Python, about 1.5 us of CPU per mask pixel
+while holding the GIL: a 30-frame reply of a large object costs seconds, and replies decoded in
+parallel threads only queue for the GIL. The runtime only needs foot points, so it segments with
+`runtime_view()` (boxes only, the foot point is the box's bottom centre); probes and calibration
+keep the masks. `set_stage_sink` reports each chunk upload and SAM request duration to the
+runtime's stage timings.
 """
 
 from __future__ import annotations
 
 import asyncio
 import base64
+import copy
 import hashlib
 import random
 import threading
@@ -75,6 +83,9 @@ RELAY_SEGMENT = "perception"
 REPLAY_PROVIDER = "meta"
 PROBE_CAMERA_ID = "probe"
 _FILE_ID_CACHE_SIZE = 256
+
+StageSink = Callable[[str, str, str, float], None]
+"""`(stage, camera_id, chunk_id, seconds)`: told the duration of an `upload` or `sam_request`."""
 
 
 @dataclass(frozen=True)
@@ -197,8 +208,37 @@ class HostedSam31:
         self._file_ids: OrderedDict[str, str] = OrderedDict()
         self._upload_lock = threading.Lock()  # guards the two dicts only, never the network
         self._digest_locks: dict[str, threading.Lock] = {}
+        self._stage_sink: StageSink | None = None
         if mask_decoder is None:
             _log.warning("sam_mask_decoder_missing", hint="masks fall back to boxes")
+
+    def runtime_view(self, *, masks: bool = False) -> HostedSam31:
+        """A client for the runtime path, sharing this one's limits and caches.
+
+        It shares the rate limiter, retries, cost ledger and uploaded-file cache, so the two
+        never upload a chunk twice or exceed the team's request budget together, but has its
+        own stage sink. Without `masks` it returns boxes only (`NO_MASK`): decoding a mask is
+        CPU-bound pure Python under the GIL (module docstring).
+
+        Args:
+            masks: Whether to decode masks (only if this client decodes them).
+
+        Returns:
+            The view.
+        """
+        view = copy.copy(self)
+        if not masks:
+            view._mask_decoder = None
+        view._stage_sink = None
+        return view
+
+    def set_stage_sink(self, sink: StageSink | None) -> None:
+        """Report each chunk upload (`upload`) and SAM request (`sam_request`) to `sink`.
+
+        Args:
+            sink: Called as `sink(stage, camera_id, chunk_id, seconds)`; `None` stops it.
+        """
+        self._stage_sink = sink
 
     @classmethod
     def from_settings(
@@ -378,10 +418,11 @@ class HostedSam31:
         include_confidence: bool,
     ) -> tuple[list[Detection], list[ModelUsed]]:
         prompts = build_prompts(chunk, concept, box_prompts, negative_points, direction)
-        file_id = self._upload(chunk)
+        file_id = self._timed_upload(chunk)
         detections: list[Detection] = []
         events: list[ModelUsed] = []
         for prompt in prompts:
+            started = self._monotonic()
             body = video_request(
                 prompt,
                 file_id=file_id,
@@ -394,6 +435,7 @@ class HostedSam31:
             reply = self._post(body)
             frames = frames_processed(reply.body)
             billed = self._ledger.record_video(chunk.camera_id, frames or chunk.n_frames)
+            replied = self._monotonic()
             records = parse_output(output_text(reply.body))
             detections.extend(
                 self._detection(
@@ -402,6 +444,8 @@ class HostedSam31:
                 for r in records
             )
             events.append(self._model_used(reply, chunk.camera_id))
+            done = self._monotonic()
+            self._report("sam_request", chunk, done - started)
             _log.info(
                 "sam_video",
                 camera_id=chunk.camera_id,
@@ -411,11 +455,33 @@ class HostedSam31:
                 n_records=len(records),
                 billed_frames=billed,
                 latency_ms=reply.latency_ms,
+                decode_ms=round((done - replied) * 1000),
+                masks=self._mask_decoder is not None,
             )
         detections.sort(key=lambda d: (d.frame_idx, d.object_id))
         return detections, events
 
-    def _upload(self, chunk: Chunk) -> str:
+    def _report(self, stage: str, chunk: Chunk, seconds: float) -> None:
+        if self._stage_sink is not None:
+            self._stage_sink(stage, chunk.camera_id, chunk.chunk_id, seconds)
+
+    def _timed_upload(self, chunk: Chunk) -> str:
+        """Upload the chunk (or reuse its file id) and report how long it took."""
+        started = self._monotonic()
+        file_id, uploaded = self._upload(chunk)
+        seconds = self._monotonic() - started
+        if uploaded:
+            self._report("upload", chunk, seconds)
+            _log.info(
+                "sam_upload",
+                camera_id=chunk.camera_id,
+                chunk_id=chunk.chunk_id,
+                latency_ms=round(seconds * 1000),
+            )
+        return file_id
+
+    def _upload(self, chunk: Chunk) -> tuple[str, bool]:
+        """Return the chunk's file id, and whether this call (rather than another) uploaded it."""
         path = Path(chunk.path)
         content = path.read_bytes()
         digest = hashlib.sha256(content).hexdigest()
@@ -423,7 +489,7 @@ class HostedSam31:
             cached = self._file_ids.get(digest)
             if cached is not None:
                 self._file_ids.move_to_end(digest)
-                return cached
+                return cached, False
             digest_lock = self._digest_locks.setdefault(digest, threading.Lock())
         # Different chunks upload in parallel (the runtime keeps several in flight); concurrent
         # calls for the same chunk (one per concept) wait for the first upload and reuse its id.
@@ -431,7 +497,7 @@ class HostedSam31:
             with self._upload_lock:
                 cached = self._file_ids.get(digest)
             if cached is not None:
-                return cached
+                return cached, False
             request: dict[str, object] = {
                 "method": "POST",
                 "path": FILES_PATH,
@@ -452,7 +518,7 @@ class HostedSam31:
                 if len(self._file_ids) > _FILE_ID_CACHE_SIZE:
                     self._file_ids.popitem(last=False)
                 self._digest_locks.pop(digest, None)
-            return file_id
+            return file_id, True
 
     def _post(self, body: dict[str, object]) -> _Reply:
         start = self._monotonic()

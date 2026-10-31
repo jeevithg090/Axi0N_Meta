@@ -10,17 +10,23 @@
 Runtime calls served by hosted SAM are recorded in `PerceptionMetrics`; self-hosted calls are
 recorded by `ModalSam31` itself, together with their GPU-seconds. `CallMeter` counts the runtime
 loop's own calls and billed frames per camera and per chunk (hosted pricing: `max(50, frames)`
-per request), which the loop's SAM budget and `/runtime/metrics` read.
+per request), which the loop's SAM budget and `/runtime/metrics` read. `LimitedSegmenter` caps
+how many runtime SAM calls are open at once, across cameras and chunks, and reports how long a
+call queued for a slot (`sam_queue`) and how long it then took (`sam`).
+
+The runtime path may use its own hosted segmenter (`runtime_hosted`, e.g. the box-only
+`HostedSam31.runtime_view()`), while probes and Rule CI keep the full one.
 """
 
 from __future__ import annotations
 
 import math
 import threading
+import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, Protocol
 
 from pydantic import Field
 
@@ -174,6 +180,78 @@ class CallMeter:
         return detections
 
 
+class StageRecorder(Protocol):
+    """Receives SAM stage durations (`runtime.timings.StageTimings`)."""
+
+    def record(self, stage: str, camera_id: str, chunk_id: str, seconds: float) -> None:
+        """Record one duration of `stage` for a chunk."""
+        ...
+
+    def record_sam(self, camera_id: str, chunk_id: str, concept: str, seconds: float) -> None:
+        """Record one concept's segmentation of a chunk."""
+        ...
+
+
+class LimitedSegmenter:
+    """Caps the SAM calls open at once and times each call's queueing and its work.
+
+    A hosted request's latency grows with the number of requests the team has open, so beyond
+    some concurrency more requests only make each one slower. The cap holds the extra calls in
+    a queue, measured as the `sam_queue` stage, instead.
+    """
+
+    def __init__(
+        self,
+        inner: Segmenter,
+        max_concurrent: int,
+        *,
+        timings: StageRecorder | None = None,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
+        """Wrap a segmenter.
+
+        Args:
+            inner: The segmenter to limit.
+            max_concurrent: Calls allowed at once (at least 1).
+            timings: Receives `sam_queue` and `sam` (per concept) durations.
+            monotonic: Seconds on a monotonic clock (injected in tests).
+        """
+        self._inner = inner
+        self._slots = threading.BoundedSemaphore(max(1, max_concurrent))
+        self._timings = timings
+        self._monotonic = monotonic
+        self.max_concurrent = max(1, max_concurrent)
+
+    def segment(
+        self,
+        chunk: Chunk,
+        concept: str,
+        *,
+        box_prompts: dict[int, tuple[float, float, float, float]] | None = None,
+        negative_points: list[tuple[int, float, float]] | None = None,
+        direction: Literal["forward", "backward"] = "forward",
+        include_confidence: bool = True,
+    ) -> list[Detection]:
+        """Wait for a slot, then delegate."""
+        asked = self._monotonic()
+        with self._slots:
+            started = self._monotonic()
+            try:
+                return self._inner.segment(
+                    chunk,
+                    concept,
+                    box_prompts=box_prompts,
+                    negative_points=negative_points,
+                    direction=direction,
+                    include_confidence=include_confidence,
+                )
+            finally:
+                if self._timings is not None:
+                    camera, chunk_id = chunk.camera_id, chunk.chunk_id
+                    self._timings.record("sam_queue", camera, chunk_id, started - asked)
+                    self._timings.record_sam(camera, chunk_id, concept, self._monotonic() - started)
+
+
 class FallbackSegmenter:
     """Runtime segmenter: self-hosted first, hosted while self-hosted is failing."""
 
@@ -273,6 +351,7 @@ class SegmenterRouter:
         policy: RoutingPolicy | None = None,
         metrics: PerceptionMetrics | None = None,
         on_fallback: FallbackAlert | None = None,
+        runtime_hosted: Segmenter | None = None,
     ) -> None:
         """Create the router.
 
@@ -283,10 +362,12 @@ class SegmenterRouter:
             policy: Per-site settings (defaults to `RoutingPolicy()`).
             metrics: Records runtime calls served by hosted SAM.
             on_fallback: Alert hook for runtime fallbacks.
+            runtime_hosted: Hosted SAM for the runtime path (and its fallback); `hosted` when
+                `None`. Probes and Rule CI always get `hosted`.
         """
         self._policy = policy or RoutingPolicy()
         self._hosted = hosted
-        metered_hosted = MeteredSegmenter(hosted, metrics)
+        metered_hosted = MeteredSegmenter(runtime_hosted or hosted, metrics)
         self._runtime: Segmenter
         if self._policy.runtime_backend is Backend.SELF_HOSTED:
             self._runtime = FallbackSegmenter(

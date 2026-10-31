@@ -1,23 +1,25 @@
-"""Unit tests for Muse Image client (`MuseImageClient`) (task P2-01)."""
+"""Unit tests for the hosted Muse Image client (task P2-01). No network."""
 
 from __future__ import annotations
 
 import base64
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from pydantic import SecretStr
 
 from rulecam.bus import Bus, Topic
-from rulecam.clients.errors import ClientConfigError
-from rulecam.clients.meta_hosted.image import ImageResult, MuseImageClient
+from rulecam.clients.errors import ClientConfigError, ModelResponseError
+from rulecam.clients.meta_hosted.image import MuseImageClient, parse_image
 from rulecam.clients.relay import ModelUsed
 from rulecam.config import Settings
 from rulecam.replay.cache import ReplayCache
 from rulecam.replay.errors import ReplayMiss
 from tests.clients.meta_hosted.transport_fakes import ScriptedTransport
 from tests.fakes import FakeClock
+
+FAKE_PNG = b"\x89PNG\r\n\x1a\nfake"
 
 
 class RecordingBus(Bus):
@@ -30,154 +32,173 @@ class RecordingBus(Bus):
         super().publish(topic, payload)
 
 
-class MonotonicClock:
-    def __init__(self) -> None:
-        self.now = 0.0
-
-    def time(self) -> float:
-        return self.now
-
-    def advance(self, dt: float) -> None:
-        self.now += dt
-
-
-def test_image_generate_success(tmp_path: Path) -> None:
-    fake_png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDRfake_image_content"
-    encoded_png = base64.b64encode(fake_png).decode("ascii")
-    reply = {
+def image_reply(rid: str = "resp_img1") -> dict[str, Any]:
+    """A reply in the documented shape: the image is an `image_generation_call` result."""
+    return {
         "status": 200,
         "headers": {},
         "json": {
-            "id": "img_resp_123",
-            "data": [{"b64_json": encoded_png}],
+            "id": rid,
+            "status": "completed",
+            "output": [
+                {"type": "reasoning", "summary": []},
+                {"type": "message", "content": [{"type": "output_text", "text": "Here it is"}]},
+                {
+                    "type": "image_generation_call",
+                    "id": "ig_signed_1",
+                    "status": "completed",
+                    "result": base64.b64encode(FAKE_PNG).decode("ascii"),
+                },
+            ],
         },
     }
-    transport = ScriptedTransport(reply)
+
+
+def _refs(tmp_path: Path, n: int) -> list[Path]:
+    paths = []
+    for i in range(n):
+        path = tmp_path / f"ref{i}.png"
+        path.write_bytes(FAKE_PNG + bytes([i]))
+        paths.append(path)
+    return paths
+
+
+def test_generate_sends_responses_request_and_saves_png(tmp_path: Path) -> None:
+    transport = ScriptedTransport(image_reply())
     bus = RecordingBus()
-    out_dir = tmp_path / "images"
-    client = MuseImageClient(transport, clock=FakeClock(), bus=bus, output_dir=out_dir)
+    client = MuseImageClient(transport, clock=FakeClock(), bus=bus, output_dir=tmp_path / "img")
 
-    result = client.generate("Industrial kitchen sink area", size="1024x1024")
+    result = client.generate("kitchen sink, nobody washing", size="1280x720")
 
-    assert isinstance(result, ImageResult)
-    assert result.response_id == "img_resp_123"
-    assert result.path.exists()
-    assert result.path.read_bytes() == fake_png
-
-    # Check relay telemetry
-    assert len(bus.published) == 1
-    topic, event = bus.published[0]
-    assert topic == Topic.RELAY_MODEL_USED
+    assert result.response_id == "resp_img1"
+    assert result.path == tmp_path / "img" / "resp_img1.png"
+    assert result.path.read_bytes() == FAKE_PNG
+    [request] = transport.requests
+    assert (request["method"], request["path"]) == ("POST", "/responses")
+    body = request["json"]
+    assert isinstance(body, dict)
+    assert body["model"] == "muse-image-1.0"
+    assert body["stream"] is False
+    assert body["tools"] == [
+        {"type": "image_generation", "size": "1280x720", "output_format": "png"}
+    ]
+    assert body["input"][0]["content"] == [
+        {"type": "input_text", "text": "kitchen sink, nobody washing"}
+    ]
+    [(_, event)] = bus.published
     assert isinstance(event, ModelUsed)
-    assert event.model == "muse-image"
-    assert event.segment == "image"
+    assert event.model == "muse-image-1.0"
+
+
+def test_reference_images_are_uploaded_and_referenced(tmp_path: Path) -> None:
+    transport = ScriptedTransport(image_reply())
+    client = MuseImageClient(transport, clock=FakeClock(), output_dir=tmp_path)
+
+    client.generate("same scene, no hard hat", reference_images=_refs(tmp_path, 2))
+
+    assert len(transport.uploads) == 2
+    assert transport.uploads[0]["file"]["content_type"] == "image/png"
+    content = transport.bodies()[0]["input"][0]["content"]
+    assert content[1:] == [{"type": "input_image", "file_id": "file-rec-0001"}] * 2
 
 
 def test_more_than_10_references_raises(tmp_path: Path) -> None:
     transport = ScriptedTransport()
     client = MuseImageClient(transport, clock=FakeClock(), output_dir=tmp_path)
-
-    # Create 11 dummy reference image files
-    refs = []
-    for i in range(11):
-        f = tmp_path / f"ref_{i}.png"
-        f.write_bytes(b"dummy")
-        refs.append(f)
-
-    with pytest.raises(ValueError, match="At most 10 reference images allowed"):
-        client.generate("Kitchen layout", reference_images=refs)
+    with pytest.raises(ValueError, match="at most 10"):
+        client.generate("p", reference_images=_refs(tmp_path, 11))
+    assert transport.requests == []
 
 
-def test_mask_parameter_raises(tmp_path: Path) -> None:
+@pytest.mark.parametrize("key", ["mask", "mask_image", "inpaint", "inpainting_strength"])
+def test_mask_parameter_raises(tmp_path: Path, key: str) -> None:
     transport = ScriptedTransport()
     client = MuseImageClient(transport, clock=FakeClock(), output_dir=tmp_path)
+    with pytest.raises(ValueError, match="no masks or inpainting"):
+        client.generate("p", **{key: "x"})  # type: ignore[arg-type]
+    assert transport.requests == []
 
-    with pytest.raises(ValueError, match="does not support masks or inpainting"):
-        client.generate("Kitchen layout", mask="mask.png")
 
-    with pytest.raises(ValueError, match="does not support masks or inpainting"):
-        client.generate("Kitchen layout", inpainting=True)
+def test_unknown_argument_and_bad_size_raise(tmp_path: Path) -> None:
+    client = MuseImageClient(ScriptedTransport(), clock=FakeClock(), output_dir=tmp_path)
+    with pytest.raises(ValueError, match="unsupported"):
+        client.generate("p", quality="hd")
+    with pytest.raises(ValueError, match="WxH"):
+        client.generate("p", size="square")
 
 
 def test_rpm_limiter_spaces_calls(tmp_path: Path) -> None:
-    fake_png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDRfake_image_content"
-    encoded_png = base64.b64encode(fake_png).decode("ascii")
-    replies = [
-        {
-            "status": 200,
-            "headers": {},
-            "json": {"id": f"img_{i}", "data": [{"b64_json": encoded_png}]},
-        }
-        for i in range(3)
-    ]
-    transport = ScriptedTransport(*replies)
+    now = [0.0]
     sleeps: list[float] = []
-    clock = MonotonicClock()
 
-    def mock_sleep(dt: float) -> None:
-        sleeps.append(dt)
-        clock.advance(dt)
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        now[0] += seconds
 
+    transport = ScriptedTransport(*(image_reply(f"r{i}") for i in range(4)))
     client = MuseImageClient(
-        transport,
-        clock=FakeClock(),
-        output_dir=tmp_path,
-        rpm=150.0,
-        sleep=mock_sleep,
-        monotonic=clock.time,
+        transport, clock=FakeClock(), output_dir=tmp_path, sleep=sleep, monotonic=lambda: now[0]
     )
+    for i in range(4):
+        client.generate(f"prompt {i}")
 
-    client.generate("Prompt 1")
-    client.generate("Prompt 2")
-    client.generate("Prompt 3")
-
-    # At 150 RPM, each call after capacity is depleted gets spaced
-    assert len(sleeps) >= 1
-    for s in sleeps:
-        assert s > 0.0
+    # 150 RPM is 2.5 per second: a burst of 2.5 tokens, then one token every 0.4 s.
+    assert sleeps
+    assert now[0] == pytest.approx(0.6, abs=0.05)
+    assert all(s <= 0.4 + 1e-9 for s in sleeps)
 
 
 def test_sequential_edits_via_previous_response_id(tmp_path: Path) -> None:
-    reply = {
-        "status": 200,
-        "headers": {},
-        "json": {"id": "img_seq_2", "b64_json": base64.b64encode(b"img2").decode("ascii")},
-    }
-    transport = ScriptedTransport(reply)
+    transport = ScriptedTransport(image_reply("resp_a"), image_reply("resp_b"))
     client = MuseImageClient(transport, clock=FakeClock(), output_dir=tmp_path)
 
-    result = client.generate("Add wet floor sign", previous_response_id="img_seq_1")
-    assert result.response_id == "img_seq_2"
-    req_json = cast(dict[str, Any], transport.requests[0]["json"])
-    assert req_json["previous_response_id"] == "img_seq_1"
+    first = client.generate("scene")
+    second = client.generate("now add a forklift", previous_response_id=first.response_id)
+
+    assert second.response_id == "resp_b"
+    first_body, second_body = transport.bodies()
+    assert "previous_response_id" not in first_body
+    assert second_body["previous_response_id"] == "resp_a"
+
+
+def test_reply_without_image_raises() -> None:
+    with pytest.raises(ModelResponseError, match="image_generation_call"):
+        parse_image({"id": "r", "output": [{"type": "message", "content": []}]})
+    with pytest.raises(ModelResponseError, match="usable id"):
+        parse_image({"output": []})
+    with pytest.raises(ModelResponseError, match="base64"):
+        parse_image({"id": "r", "output": [{"type": "image_generation_call", "result": "@@"}]})
+
+
+def test_unsafe_response_id_is_sanitised_for_the_file_name(tmp_path: Path) -> None:
+    transport = ScriptedTransport(image_reply("resp/../x.y"))
+    result = MuseImageClient(transport, clock=FakeClock(), output_dir=tmp_path).generate("p")
+    assert result.path == tmp_path / "resp____x_y.png"
+    assert result.response_id == "resp/../x.y"
 
 
 def test_replay_miss_raises_replay_miss(tmp_path: Path) -> None:
     clock = FakeClock()
     cache = ReplayCache(tmp_path, "replay", clock=clock)
-    raw_transport = ScriptedTransport({"status": 200, "headers": {}, "json": {"id": "img"}})
-    cached_transport = cache.wrap_transport("meta", "muse-image", raw_transport)
-    client = MuseImageClient(cached_transport, clock=clock, output_dir=tmp_path)
-
+    inner = ScriptedTransport()
+    client = MuseImageClient(
+        cache.wrap_transport("meta", "muse-image-1.0", inner), clock=clock, output_dir=tmp_path
+    )
     with pytest.raises(ReplayMiss):
-        client.generate("Unrecorded image prompt")
+        client.generate("p")
+    assert inner.requests == []
 
 
-def test_from_settings(tmp_path: Path) -> None:
-    settings_live = Settings(
+def test_from_settings_saves_under_data_images(tmp_path: Path) -> None:
+    live = Settings(
         rulecam_mode="live",
         meta_api_base_url="https://api.meta.ai/v1",
-        meta_api_key=SecretStr("image-secret"),
+        meta_api_key=SecretStr("k"),
+        rulecam_data_dir=tmp_path,
     )
-    client_live = MuseImageClient.from_settings(
-        settings_live, clock=FakeClock(), output_dir=tmp_path
-    )
-    assert isinstance(client_live, MuseImageClient)
-
-    settings_missing = Settings(
-        rulecam_mode="live",
-        meta_api_base_url=None,
-        meta_api_key=None,
-    )
+    assert isinstance(MuseImageClient.from_settings(live, clock=FakeClock()), MuseImageClient)
     with pytest.raises(ClientConfigError):
-        MuseImageClient.from_settings(settings_missing, clock=FakeClock())
+        MuseImageClient.from_settings(
+            Settings(rulecam_mode="live", meta_api_base_url=None, meta_api_key=None),
+            clock=FakeClock(),
+        )

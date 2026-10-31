@@ -12,59 +12,57 @@ HTTP calls.
 | `relay.py` | `ModelUsed`, the `relay.model_used` payload (`model`, `segment`, `latency_ms`, `camera_id`, `attempts`) |
 | `errors.py` | `ModelHTTPError`, `ModelResponseError`, `StructuredOutputError`, `ClientConfigError` |
 
-## `meta_hosted/spark.py` — `SparkClient` (P2-01, owner P2)
+## Wire format of the P2 clients (P2-01, owner P2)
 
-Implements `rulecam.contracts.StructuredLLM` on Meta's hosted Responses API.
+Spark and Muse Image use the same Responses + Files shape as hosted SAM 3.1, which was verified
+live (issue #5); the shared pieces are in `meta_hosted/responses.py`. Base URL
+`https://api.meta.ai/v1` (`META_API_BASE_URL`).
 
-```python
-spark = SparkClient(transport, clock=SystemClock(), bus=bus)
-response = spark.structured(
-    model="muse-spark-1.3",
-    messages=[{"role": "user", "content": "Extract safety hazards"}],
-    schema=HazardsOutput,
-    reasoning_effort="low",
-    background=False,
-    enable_web_search=True,
-    max_tool_calls=5,
-)
-```
+| Client | Model id | Request | Where the answer is |
+|---|---|---|---|
+| `SparkClient` | `muse-spark-1.3` (default), `muse-spark-1.2` (video with narration) | `POST /responses`, `stream: false` (or `background: true`, then `GET /responses/{id}` until not `queued`/`in_progress`); `text.format` = `json_schema`; `reasoning.effort`; `tools` (+ `{"type": "web_search"}`), `max_tool_calls`; never `tool_choice` | `output[]` `message` items, `content[]` parts of type `output_text`; `usage.input_tokens_details.cached_tokens` |
+| `MuseImageClient` | `muse-image-1.0` | `POST /responses`, `stream: false`, `tools: [{"type": "image_generation", "size", "output_format": "png"}]`, references as `input_image` parts with `file_id`, `previous_response_id` | base64 `result` of the `image_generation_call` output item |
+| `VoiceTranscribeClient` | `muse-voice-transcribe-1.0` | `POST /asr/transcribe`, multipart: `request` (JSON: `model`, `audioEncoding: "WAV"`, `mode`, `languageBias` as language names, `keywords`) and `audio` (mono 16-bit PCM WAV, 16/24 kHz, ≤ 10 min, ≤ 32 MB) | `{transcript, turns: [{transcript, speaker?}]}` |
 
-- Structured schema output via Pydantic model (`schema.model_json_schema()`).
-- Background job polling (`background=True`).
-- Validation error recovery: retries once with schema error feedback, then raises `StructuredOutputError`.
-- Tracks prompt caching via `cached_tokens`.
+Media for Spark and Muse Image is uploaded once with `POST /files` (`purpose: user_data`) and
+referenced by `file_id` (`SparkClient.attach(path)` returns the typed content part:
+`input_image`, `input_video`, `input_audio` or `input_file` for PDFs). The upload bytes are keyed
+by SHA-256 in the replay cache, so REPLAY serves recorded file ids and then recorded answers.
 
-## `meta_hosted/voice.py` — `VoiceTranscribeClient` (P2-01, owner P2)
-
-Implements `rulecam.contracts.Transcriber` for speech transcription and diarization.
+Field names come from the official guides (speech-to-text, image-generation, file-handling,
+structured-output, search-grounding and the Responses/voice API references, read Oct 31 2026).
+Only SAM has been exercised against the live API so far; the Spark, Voice and Image shapes are
+confirmed by the `live`-marked checks in `tests/clients/meta_hosted/test_p2_clients_live.py`
+(`make live-test`), which have not been run yet.
 
 ```python
-voice = VoiceTranscribeClient(transport, clock=SystemClock(), bus=bus)
-segments = voice.transcribe(
-    audio_bytes, lang_bias=["en", "es"], keywords=["sanitizer"], diarize=True
+spark = SparkClient.from_settings(settings, clock=clock, bus=bus)  # always via the replay cache
+pdf = spark.attach(Path("food_code.pdf"))
+out = spark.structured(
+    messages=[
+        {"role": "system", "content": SYSTEM},  # keep stable: prompt caching
+        {"role": "user", "content": [{"type": "input_text", "text": "Extract"}, pdf]},
+    ],
+    schema=Extracted,
 )
-# Streaming session with start-only parameters:
-session = voice.start_streaming_session("DIARIZATION", keywords=["safety"], language_bias=["en"])
+
+voice = VoiceTranscribeClient.from_settings(settings, clock=clock, bus=bus)
+voice.transcribe(wav, lang_bias=["en", "es"], keywords=["sanitizer"], diarize=True)
+session = voice.start_streaming_session("DIARIZATION", api_key=key, keywords=["LOTO"])
+session.handshake()  # first frame on wss://…/asr/realtime; keywords can't change afterwards
+
+image = MuseImageClient.from_settings(settings, clock=clock, bus=bus)
+image.generate("same scene, nobody at the sink", reference_images=[frame], size="1280x720")
 ```
 
-- Splits audio files exceeding 10 minutes or 32 MB into WAV chunks automatically.
-- Enforces session-start-only configuration for `keywords` and `languageBias`.
-
-## `meta_hosted/image.py` — `MuseImageClient` (P2-01, owner P2)
-
-Generates synthetic scenes, posters, and red-team visual lookalikes.
-
-```python
-image_client = MuseImageClient(
-    transport, clock=SystemClock(), bus=bus, output_dir=Path("data/images")
-)
-res = image_client.generate("Kitchen workstation with sanitizer bottle", size="1024x1024")
-# res.path -> Path to saved PNG
-```
-
-- Rate-limited to 150 RPM.
-- Accepts at most 10 reference images; rejects mask/inpainting parameters.
-- Chaining support via `previous_response_id`.
+- Spark: one validation retry with the errors appended, then `StructuredOutputError`. `strict`
+  is off because pydantic schemas (defaults, open dicts, root unions) fall outside the strict
+  subset; the reply is validated here instead.
+- Voice: WAVs over 10 min / 32 MB are split on frame boundaries; split files get chunk-prefixed
+  speaker labels. The API reports no language, so `lang` is the bias language when exactly one
+  was given, else `und`.
+- Image: 150 RPM bucket; more than 10 references, or any mask/inpainting argument, raises
+  `ValueError` before any call. Images are saved under `data/images/`.
 
 ## `meta_hosted/sam.py` — `HostedSam31` (P1-02, owner P1)
 

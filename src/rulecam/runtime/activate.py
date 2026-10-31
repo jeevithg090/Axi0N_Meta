@@ -185,18 +185,25 @@ def plan_zones(rules: Sequence[RuleIR]) -> dict[str, Zone]:
     return zones
 
 
+def rule_calibration_cameras(rule: RuleIR) -> set[str]:
+    """The cameras a rule uses: its zones' cameras and those its `calibration` names."""
+    named = (part.rsplit("@", 1)[-1] for part in (rule.calibration or "").split(",") if "@" in part)
+    return {spec.camera_id for spec in rule.zones.values()} | set(named)
+
+
 def pick_calibration(
     rules: Sequence[RuleIR], calibrations: Mapping[str, Calibration]
 ) -> Calibration | None:
     """The one ground calibration the `ActivePlan` can hold.
 
     `ActivePlan` carries a single calibration, so this takes the calibration of the camera the
-    most activated rules use through their zones (ties go to the smaller camera id). Cameras
-    used by no rule are ignored.
+    most activated rules use, through their zones or the calibration they name
+    (`ground-plane@<camera>`, set by the planner for a metric rule; ties go to the smaller camera
+    id). Cameras used by no rule are ignored.
     """
     uses: dict[str, int] = {}
     for rule in rules:
-        for camera_id in {spec.camera_id for spec in rule.zones.values()}:
+        for camera_id in rule_calibration_cameras(rule):
             if camera_id in calibrations:
                 uses[camera_id] = uses.get(camera_id, 0) + 1
     if not uses:

@@ -224,6 +224,24 @@ outcome = loop.run(planned, feasibility)  # rules, feasibility, acceptance, ques
   Failing only `detect_lb>=0.8`, `calibration_err<=tol` or `citation_text_match` (camera,
   calibration or source fixes): the rule stays, with a `caveat` verdict saying why.
 
+## Site config and geometry (P2-06)
+
+- `site_config.load_site_config(path)` reads the owner's YAML (`RULECAM_SITE_CONFIG`, example in
+  `docs/site.example.yaml`): site name, privacy mode, retention, roles, languages, and per camera
+  a click calibration and drawn polygon zones. No file means the defaults; an invalid file
+  raises `SiteConfigError`. `PlannerService(site=...)` puts it into every run's `input.json`.
+- `geometry`: the survey's and probe's SAM calls are recorded (`RecordingSegmenter`). A pallet
+  (48x40 in) or 1 m floor square with a decodable mask calibrates its camera
+  (`SurveyResult.calibrations`, lowest `err_m` per camera; never from a bare box); a needed
+  place (sink, counter, door, ...) becomes a polygon zone (`ProbeResult.zones`). The owner's
+  calibration and zones win.
+- `SiteGeometry.ground` runs on every compiled rule: candidate polygons replace the model's, an
+  invented polygon zone is an error for the repair round, buffer zones keep only
+  `buffer_of`/`buffer_m`, and `calibration` is `ground-plane@<cam>` only when the metric rule's
+  cameras are calibrated. Otherwise acceptance keeps the rule amber and asks the owner to mark a
+  known distance (`target_field="calibration"`).
+- `PlanStore.calibrations(plan_id)` is what approval hands to the runtime.
+
 ## Plan audit and back-translation (P2-07)
 
 ```python

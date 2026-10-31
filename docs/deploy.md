@@ -39,6 +39,25 @@ browser ──► https://rulecam.vercel.app  (Next.js, ui/)
   this setting: they also need a loopback Host, which the public proxy never sends (tested with
   spoofed `X-Forwarded-For` / `X-Forwarded-Host`: 403).
 
+### Site config (planner geometry)
+
+The planner reads the owner's site config from the YAML file named by `RULECAM_SITE_CONFIG`
+(put it in `.env`, e.g. `RULECAM_SITE_CONFIG=/workspace/rulecam/site.yaml`). Start from
+[`docs/site.example.yaml`](site.example.yaml): site name, privacy mode, retention, alert roles,
+crew languages and, per camera, an optional manual calibration (four or more floor pixels with
+their positions in metres; five or more give a real error estimate, four always fit exactly)
+and optional named polygon zones. It is validated at start-up: an invalid file disables the
+planner (`planner_disabled` in the log, `POST /plans/requests` answers 503); a missing file
+gives today's defaults (`site_config_missing` in the log). Restart the API after editing it.
+
+What the file does not give, the planner takes from the scene: a pallet (48x40 in) or a 1 m
+floor square that SAM finds lying on the floor calibrates its camera (the best fit per camera;
+the step detail says `cam1 calibrated from pallet_48x40in (0.03 m)`), and places a rule needs
+(sink, prep counter, door) become zones around their detections. The owner's calibration and
+zones always win. A rule that needs metres on a camera with neither stays amber and the plan
+asks the owner to mark a known distance; no scale is ever guessed. Approving the plan hands the
+calibration (`PlanStore.calibrations`) and the rules' zones to the runtime.
+
 Pair a phone (owner action, so it runs on the pod):
 
 ```bash

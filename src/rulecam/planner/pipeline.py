@@ -18,6 +18,14 @@ and the bounded repair loop (`planner.acceptance`, P2-06c): it fills the plan's 
 trace, re-compiles failing rules at most twice, and turns what still fails into amber verdicts
 and questions. Steps 9-10 are plan -> plan hooks for audit (P2-07) and Rule CI (P2-08/09); a
 hook that is not wired yet passes the plan through unchanged and says so in its step detail.
+
+Geometry (`planner.geometry`): steps 2 and 3 record their SAM detections. The survey turns
+reference objects (a pallet, a 1 m floor square) into ground calibrations
+(`SurveyResult.calibrations`), and the probe turns needed places (sink, prep counter, door)
+into polygon zones (`ProbeResult.zones`). Compile, lint and accept use the merge of those with
+the owner's site config (`PipelineInput.zones` and `.calibrations`), the owner's winning.
+`PlanStore.calibrations` gives the merged calibrations of a saved run, which plan approval
+(`runtime.activate`) hands to the runtime.
 """
 
 from __future__ import annotations
@@ -29,7 +37,6 @@ from functools import partial
 from pathlib import Path
 from typing import Final, Literal, TypeVar
 
-import cv2
 import yaml
 from pydantic import BaseModel, Field, ValidationError
 
@@ -44,12 +51,19 @@ from rulecam.contracts.plan import (
     RequestItem,
     SitePlan,
 )
-from rulecam.contracts.rule_ir import RuleIR, ZoneSpec
+from rulecam.contracts.rule_ir import RuleIR
 from rulecam.log import get_logger
 from rulecam.planner.acceptance import CitationResult, PlannedRule, RepairLoop, SiteFacts
 from rulecam.planner.errors import GuardrailDeclinedError, PipelineError, RuleCompilationError
 from rulecam.planner.feasibility import gauge_plan_feasibility
-from rulecam.planner.lint import CameraViews, FrameSize, LintFinding, lint_plan
+from rulecam.planner.geometry import (
+    RecordingSegmenter,
+    SiteGeometry,
+    frame_size,
+    scene_calibrations,
+    scene_zones,
+)
+from rulecam.planner.lint import CameraViews, LintFinding, lint_plan
 from rulecam.planner.models import Concern, UnderstandResult
 from rulecam.planner.standards import (
     GroundingLLM,
@@ -105,11 +119,13 @@ class PipelineInput(Frozen):
         site_name: Human-readable site name.
         request: The owner's request items (files are server-side paths, never client paths).
         camera_frames: Camera id -> recent frames, oldest first.
-        zones: Declared zones the rules may use.
+        zones: The owner's zones (site config); the rules may also use zones from the scene.
         roles: Role -> alert channel.
         privacy_mode: The site's privacy mode.
         retention_days: Evidence retention.
-        calibrations: Camera id -> ground calibration (for `calibration_err<=tol`).
+        calibrations: Camera id -> the owner's ground calibration (site config); it wins over a
+            calibration from the scene.
+        languages: Crew languages from the site config, listed before inferred ones.
         seed: Seed for frame sampling.
     """
 
@@ -122,20 +138,23 @@ class PipelineInput(Frozen):
     privacy_mode: PrivacyMode = PrivacyMode.STANDARD
     retention_days: int = 30
     calibrations: dict[str, Calibration] = Field(default_factory=dict)
+    languages: tuple[str, ...] = ()
     seed: int = 0
 
 
 class SurveyResult(Frozen):
-    """Step 2: what each camera sees."""
+    """Step 2: what each camera sees, and the calibrations its reference objects give."""
 
     inventory: tuple[InventoryItem, ...]
+    calibrations: dict[str, Calibration] = Field(default_factory=dict)
 
 
 class ProbeResult(Frozen):
-    """Step 3: the concepts each concern needs, and how reliably SAM sees them."""
+    """Step 3: the concepts each concern needs, how reliably SAM sees them, and place zones."""
 
     needs: dict[str, tuple[str, ...]]
     probes: tuple[Probe, ...]
+    zones: tuple[Zone, ...] = ()
 
 
 class GaugeResult(Frozen):
@@ -244,6 +263,25 @@ class PlanStore:
             raise PipelineError(msg)
         return inputs
 
+    def calibrations(self, plan_id: str) -> dict[str, Calibration]:
+        """The ground calibrations a saved run used: the scene's, overridden by the owner's.
+
+        Args:
+            plan_id: The plan.
+
+        Returns:
+            Camera id -> calibration; empty when the plan has no saved run.
+
+        Raises:
+            PipelineError: If the saved input or survey output is invalid.
+        """
+        if not self.input_path(plan_id).is_file():
+            return {}
+        owner = self.load_input(plan_id).calibrations
+        survey = self.load_step(plan_id, "survey", SurveyResult)
+        scene = survey.calibrations if survey is not None else {}
+        return {**scene, **owner}
+
     def save_step(self, plan_id: str, step: StepName, output: BaseModel) -> None:
         """Write one step's output."""
         atomic_write_text(self.step_path(plan_id, step), output.model_dump_json(indent=2))
@@ -313,19 +351,6 @@ class PlanStore:
             raise PipelineError(msg) from exc
 
 
-def _zone_specs(zones: Sequence[Zone]) -> dict[str, ZoneSpec]:
-    return {
-        z.zone_id: ZoneSpec(
-            kind=z.kind,
-            camera_id=z.camera_id,
-            polygon_px=z.polygon_px,
-            buffer_of=z.buffer_of_concept,
-            buffer_m=z.buffer_m,
-        )
-        for z in zones
-    }
-
-
 def _plan_request(items: Sequence[RequestItem]) -> tuple[RequestItem, ...]:
     """The request as the plan records it: file names only, never server paths."""
     return tuple(
@@ -339,14 +364,6 @@ def _verdict_counts(gauge: GaugeResult) -> str:
     return ", ".join(f"{verdicts.count(v)} {v}" for v in dict.fromkeys(verdicts))
 
 
-def _frame_size(frame: Path) -> FrameSize | None:
-    image = cv2.imread(str(frame), cv2.IMREAD_GRAYSCALE) if frame.is_file() else None
-    if image is None:
-        return None
-    height, width = image.shape[:2]
-    return width, height
-
-
 def camera_views(camera_frames: dict[str, tuple[Path, ...]]) -> CameraViews:
     """The site's cameras with the frame size of each camera's latest readable frame.
 
@@ -358,10 +375,25 @@ def camera_views(camera_frames: dict[str, tuple[Path, ...]]) -> CameraViews:
     """
     return {
         camera_id: next(
-            (size for f in reversed(frames) if (size := _frame_size(f)) is not None), None
+            (size for f in reversed(frames) if (size := frame_size(f)) is not None), None
         )
         for camera_id, frames in camera_frames.items()
     }
+
+
+def survey_summary(survey: SurveyResult) -> str:
+    """Step 2's detail, e.g. "12 things seen; cam1 calibrated from pallet_48x40in (0.03 m)"."""
+    calibrated = [
+        f"{cam} calibrated from {cal.reference or cal.method} ({cal.err_m:.2f} m)"
+        for cam, cal in survey.calibrations.items()
+    ]
+    return "; ".join([f"{len(survey.inventory)} things seen", *calibrated])
+
+
+def probe_summary(probe: ProbeResult) -> str:
+    """Step 3's detail, e.g. "6 probes; zones from the scene: sink"."""
+    zones = ", ".join(z.zone_id for z in probe.zones)
+    return f"{len(probe.probes)} probes" + (f"; zones from the scene: {zones}" if zones else "")
 
 
 def _lint_summary(result: LintResult) -> str:
@@ -502,25 +534,25 @@ class PlannerPipeline:
             "survey",
             SurveyResult,
             lambda: self._survey(inputs),
-            lambda out: f"{len(out.inventory)} things seen",
+            survey_summary,
         )
         probe = step(
             "probe",
             ProbeResult,
             lambda: self._probe(inputs, understood, survey),
-            lambda out: f"{len(out.probes)} probes",
+            probe_summary,
         )
         gauge = step("gauge", GaugeResult, lambda: self._gauge(understood, probe), _verdict_counts)
         step(
             "ask",
             AskResult,
-            lambda: self._ask(inputs, understood, survey),
+            lambda: self._ask(inputs, understood, survey, probe),
             lambda out: f"{len(out.questions)} questions",
         )
         compiled = step(
             "compile",
             CompileResult,
-            lambda: self._compile(inputs, understood, survey, gauge),
+            lambda: self._compile(inputs, understood, survey, probe, gauge),
             lambda out: f"{len(out.rules)} rules",
         )
         linted = step(
@@ -607,14 +639,16 @@ class PlannerPipeline:
         return understand(inputs.request, spark=self._spark, files=self._files, voice=self._voice)
 
     def _survey(self, inputs: PipelineInput) -> SurveyResult:
+        recorder = RecordingSegmenter(self._segmenter)
         inventory = survey_cameras(
             inputs.camera_frames,
             spark=self._spark,
             files=self._files,
-            segmenter=self._segmenter,
+            segmenter=recorder,
             seed=inputs.seed,
         )
-        return SurveyResult(inventory=inventory)
+        calibrations = scene_calibrations(recorder.sightings)
+        return SurveyResult(inventory=inventory, calibrations=calibrations)
 
     def _probe(
         self, inputs: PipelineInput, understood: UnderstandResult, survey: SurveyResult
@@ -623,10 +657,24 @@ class PlannerPipeline:
             understood.concerns, [i.concept for i in survey.inventory], spark=self._spark
         )
         concepts = [c for needed in needs.values() for c in needed]
+        recorder = RecordingSegmenter(self._segmenter)
         probes = probe_concepts(
-            concepts, inputs.camera_frames, segmenter=self._segmenter, seed=inputs.seed
+            concepts, inputs.camera_frames, segmenter=recorder, seed=inputs.seed
         )
-        return ProbeResult(needs=needs, probes=probes)
+        zones = scene_zones(recorder.sightings, concepts)
+        return ProbeResult(needs=needs, probes=probes, zones=zones)
+
+    def geometry(
+        self, inputs: PipelineInput, survey: SurveyResult, probe: ProbeResult
+    ) -> SiteGeometry:
+        """The zones and calibrations rules may use: the scene's, overridden by the owner's."""
+        return SiteGeometry.build(
+            inputs.camera_frames,
+            owner_zones=inputs.zones,
+            scene_zones=probe.zones,
+            owner_calibrations=inputs.calibrations,
+            scene_calibrations=survey.calibrations,
+        )
 
     def _gauge(self, understood: UnderstandResult, probe: ProbeResult) -> GaugeResult:
         requirements = {c.text: probe.needs.get(c.text, ()) for c in understood.concerns}
@@ -634,7 +682,11 @@ class PlannerPipeline:
         return GaugeResult(feasibility=feasibility)
 
     def _ask(
-        self, inputs: PipelineInput, understood: UnderstandResult, survey: SurveyResult
+        self,
+        inputs: PipelineInput,
+        understood: UnderstandResult,
+        survey: SurveyResult,
+        probe: ProbeResult,
     ) -> AskResult:
         if not understood.concerns:
             return AskResult(questions=())
@@ -645,8 +697,11 @@ class PlannerPipeline:
         }
         if inputs.roles:
             known["roles"] = inputs.roles
-        if inputs.zones:
-            known["zones"] = [z.zone_id for z in inputs.zones]
+        geometry = self.geometry(inputs, survey, probe)
+        if geometry.zones:
+            known["zones"] = list(geometry.zones)
+        if geometry.calibrations:
+            known["calibrated_cameras"] = list(geometry.calibrations)
         questions = propose_clarifying_questions(
             understood.concerns,
             known,
@@ -660,6 +715,7 @@ class PlannerPipeline:
         inputs: PipelineInput,
         understood: UnderstandResult,
         survey: SurveyResult,
+        probe: ProbeResult,
         gauge: GaugeResult,
     ) -> CompileResult:
         verdicts = {v.concern: v for v in gauge.feasibility}
@@ -669,7 +725,7 @@ class PlannerPipeline:
             if verdict is None or verdict.verdict not in COMPILED_VERDICTS:
                 continue
             try:
-                rule = self._compile_concern(inputs, survey, concern, ())
+                rule = self._compile_concern(inputs, survey, probe, concern, ())
             except GuardrailDeclinedError as declined:
                 verdicts[concern.text] = declined.declined.to_feasibility_verdict(concern.text)
                 continue
@@ -687,6 +743,7 @@ class PlannerPipeline:
         self,
         inputs: PipelineInput,
         survey: SurveyResult,
+        probe: ProbeResult,
         concern: Concern,
         feedback: Sequence[str],
     ) -> RuleIR:
@@ -694,10 +751,10 @@ class PlannerPipeline:
             concern,
             spark=self._spark,
             inventory=survey.inventory,
-            zones=_zone_specs(inputs.zones),
             site_name=inputs.site_name,
             plan_id=inputs.plan_id,
             feedback=feedback,
+            geometry=self.geometry(inputs, survey, probe),
         )
 
     # --- step 8 ---------------------------------------------------------------------------------
@@ -713,12 +770,12 @@ class PlannerPipeline:
         facts = SiteFacts(
             views=dict(camera_views(inputs.camera_frames)),
             probes=probe.probes,
-            calibrations=inputs.calibrations,
+            calibrations=self.geometry(inputs, survey, probe).calibrations,
             privacy_mode=inputs.privacy_mode,
         )
         loop = RepairLoop(
             facts,
-            recompile=partial(self._compile_concern, inputs, survey),
+            recompile=partial(self._compile_concern, inputs, survey, probe),
             probe=partial(self._probe_more, inputs),
             verify_citation=self._verify_citation,
         )
@@ -769,7 +826,7 @@ class PlannerPipeline:
             version=self.store.next_version(inputs.plan_id),
             site_name=inputs.site_name,
             setting_inferred=understood.setting_guess,
-            languages=understood.languages,
+            languages=tuple(dict.fromkeys((*inputs.languages, *understood.languages))),
             request=_plan_request(inputs.request),
             inventory=survey.inventory,
             feasibility=compiled.feasibility,

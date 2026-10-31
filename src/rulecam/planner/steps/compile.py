@@ -13,6 +13,11 @@ round runs with the errors attached; a second failure raises `RuleCompilationErr
 
 The guardrails (`planner.guardrails.check_request`, deterministic first, then Spark) run before
 anything is compiled. Static concepts (sink, door, racks, shelving) are tagged in code.
+
+Given a `ZoneGrounder` (the pipeline passes `planner.geometry.SiteGeometry`), the prompt lists
+the real candidate zones and camera calibrations, and every compiled rule is grounded: zone
+polygons are the candidates', a polygon the model made up is an error (fed to the repair round),
+and the rule's `calibration` names a real calibration or nothing.
 """
 
 from __future__ import annotations
@@ -20,7 +25,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator, Mapping
 from collections.abc import Sequence as Seq
-from typing import Final, Literal
+from typing import Final, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -142,7 +147,9 @@ _COMPILE_SYSTEM_PROMPT = (
     "- id: kebab-case, e.g. 'wash-before-line'.\n"
     "- concepts: short name -> {prompt, static}; prompt is ONE SAM noun phrase. Fixed objects "
     "(sink, door, racks) are static.\n"
-    "- zones: name -> polygon or buffer zone; reuse the zones you are given.\n"
+    "- zones: name -> polygon or buffer zone; reuse the zones you are given by name and never "
+    "invent pixel polygons. For 'N m around <thing>' use a buffer zone (buffer_of the thing's "
+    "concept name, buffer_m N from the request).\n"
     "- The predicate is a flat list of nodes plus predicate_root, the id of the top node. "
     "Composite nodes refer to other nodes by id: 'all'/'any' list two or more ids in "
     "'children'; 'not', 'persist' and 'rate' list exactly one; 'sequence' sets 'trigger' and "
@@ -157,6 +164,18 @@ _COMPILE_SYSTEM_PROMPT = (
     "- Never write rules that identify people, rank or time individuals, infer health or "
     "emotion, watch private spaces, or use speech."
 )
+
+
+class ZoneGrounder(Protocol):
+    """The site's real zones and calibrations (`planner.geometry.SiteGeometry`)."""
+
+    def prompt_lines(self) -> list[str]:
+        """Context lines describing the candidate zones and calibrations."""
+        ...
+
+    def ground(self, rule: RuleIR) -> RuleIR:
+        """Return the rule with real zones and calibration; raise `ValueError` if it cannot."""
+        ...
 
 
 # --- draft <-> RuleIR ---------------------------------------------------------------------------
@@ -366,6 +385,7 @@ def _build_compile_messages(
     zones: Mapping[str, ZoneSpec] | None,
     inventory: Seq[InventoryItem] | None,
     feedback: Seq[str] = (),
+    geometry: ZoneGrounder | None = None,
 ) -> list[dict[str, object]]:
     """Format the system prompt and the user context for the compile call."""
     user_lines = [f"Concern text: {concern_text}", f"Source reference: {concern_source}"]
@@ -377,7 +397,9 @@ def _build_compile_messages(
         user_lines.append(f"Site: {site_name}")
     if calibration:
         user_lines.append(f"Calibration: {calibration}")
-    if zones:
+    if geometry is not None:
+        user_lines.extend(geometry.prompt_lines())
+    elif zones:
         described = ", ".join(
             f"{name} ({spec.kind} on {spec.camera_id})" for name, spec in zones.items()
         )
@@ -397,15 +419,20 @@ def _build_compile_messages(
     ]
 
 
-def _compile_once(spark: StructuredLLM, messages: list[dict[str, object]]) -> RuleIR:
+def _compile_once(
+    spark: StructuredLLM, messages: list[dict[str, object]], geometry: ZoneGrounder | None
+) -> RuleIR:
     draft = spark.structured(model=COMPILE_MODEL, messages=messages, schema=RuleDraft)
-    return draft_to_rule(draft)
+    rule = draft_to_rule(draft)
+    return geometry.ground(rule) if geometry is not None else rule
 
 
-def _compile_with_repair(spark: StructuredLLM, messages: list[dict[str, object]]) -> RuleIR:
+def _compile_with_repair(
+    spark: StructuredLLM, messages: list[dict[str, object]], geometry: ZoneGrounder | None
+) -> RuleIR:
     """Compile once; on an invalid rule, run one repair round with the errors attached."""
     try:
-        return _compile_once(spark, messages)
+        return _compile_once(spark, messages, geometry)
     except (StructuredOutputError, ValidationError, ValueError) as first:
         logger.warning("compile_rule_repair_round", error=str(first))
         repair: list[dict[str, object]] = [
@@ -419,7 +446,7 @@ def _compile_with_repair(spark: StructuredLLM, messages: list[dict[str, object]]
             },
         ]
     try:
-        return _compile_once(spark, repair)
+        return _compile_once(spark, repair, geometry)
     except (StructuredOutputError, ValidationError, ValueError) as second:
         msg = f"Rule compilation failed after repair round: {second}"
         raise RuleCompilationError(msg) from second
@@ -436,6 +463,7 @@ def compile_rule(
     plan_id: str | None = None,
     static_concepts: set[str] | frozenset[str] | None = None,
     feedback: Seq[str] = (),
+    geometry: ZoneGrounder | None = None,
 ) -> RuleIR:
     """Compile a concern into a validated `RuleIR`, after the guardrails allow it.
 
@@ -450,6 +478,8 @@ def compile_rule(
         static_concepts: Extra concept names or prompts to mark static.
         feedback: Problems the plan checks found in the previous rule for this concern (the
             acceptance repair loop, P2-06c); given to the model as data.
+        geometry: The site's real zones and calibrations. When given, the prompt lists them
+            instead of `zones` and `calibration`, and the rule is grounded on them.
 
     Returns:
         The validated rule, with static concepts tagged.
@@ -480,6 +510,7 @@ def compile_rule(
         zones=zones,
         inventory=inventory,
         feedback=feedback,
+        geometry=geometry,
     )
-    rule = _compile_with_repair(spark, messages)
+    rule = _compile_with_repair(spark, messages, geometry)
     return apply_static_hints(rule, static_concepts=static_concepts)

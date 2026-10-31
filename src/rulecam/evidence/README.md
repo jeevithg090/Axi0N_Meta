@@ -45,8 +45,11 @@ uv run pytest tests/evidence
 - **Verify page** (`verify_page/`, served at `/verify/?day=YYYY-MM-DD`). `chain.js` recomputes
   every hash and the Merkle root in the browser with Web Crypto, then shows either
   "✓ Chain intact · N records · watched X%" or "✗ Chain broken at event N". It also compares the
-  result with the committed root (`GET /evidence/{day}/root`), and anyone can drop a `.jsonl` file
-  on it. Cross-language check: `tests/evidence/test_verify_page.py` writes the fixture, and
+  result with the committed root (`GET /evidence/{day}/root`): the chain's first `committed_n`
+  records must reproduce it, so a day that kept growing after its root was committed still
+  verifies, while dropped or rewritten records do not. Anyone can drop a `.jsonl` file on it.
+  Both verifiers accept only the record shape writers produce (integer `seq`, `ts` exactly as
+  `utc_iso` writes it), so they flag the same first bad event. Cross-language check: `tests/evidence/test_verify_page.py` writes the fixture, and
   `cd src/rulecam/evidence/verify_page && npm install && npx vitest run` checks the JS against it.
   That pytest also runs the JS directly when `node` is on PATH.
 - **Evidence packs** (`packs.py`, `templates/pack.html.j2`).

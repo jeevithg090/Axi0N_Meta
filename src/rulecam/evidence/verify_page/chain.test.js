@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { canonical, merkleRoot, verifyChainText } from "./chain.js";
+import { canonical, compareToCommitted, merkleRoot, verifyChainText } from "./chain.js";
 
 const fixtures = fileURLToPath(new URL("../../../../tests/fixtures/evidence/", import.meta.url));
 const chain = readFileSync(fixtures + "chain.jsonl", "utf8");
@@ -46,5 +46,15 @@ describe("verify page chain code", () => {
       '{"A":1e+21,"a":[2,{"c":"é","d":null}],"b":1}',
     );
     expect(() => canonical("\ud800")).toThrow(RangeError);
+  });
+
+  it("checks a growing chain against the committed root over its first n records", async () => {
+    const { hashes } = await verifyChainText(chain);
+    const prefix = await merkleRoot(hashes.slice(0, 3));
+    expect(await compareToCommitted(hashes, expected.root, hashes.length)).toBe("match");
+    expect(await compareToCommitted(hashes, prefix, 3)).toBe("extended");
+    expect(await compareToCommitted(hashes, prefix, 4)).toBe("mismatch");
+    expect(await compareToCommitted(hashes.slice(0, 2), prefix, 3)).toBe("mismatch");
+    expect(await compareToCommitted(hashes, expected.root, "5")).toBe("mismatch");
   });
 });

@@ -361,6 +361,12 @@ def test_verify_page_and_day_root(services: AppServices, tmp_path: Path) -> None
         before = client.get("/evidence/2026-10-30/root").json()
         assert before["n"] == 1
         assert before["committed_root"] is None
+        assert before["committed_n"] is None
         write_day_roots(services.chain_root, services.roots_dir, FakeClock().now().date())
         after = client.get("/evidence/2026-10-30/root").json()
         assert after["committed_root"] == after["root"]
+        assert after["committed_n"] == 1
+        EventChain(services.chain_root, "site", clock=FakeClock()).append("plan", {"n": 2})
+        grown = client.get("/evidence/2026-10-30/root").json()
+        assert (grown["n"], grown["committed_n"]) == (2, 1)
+        assert grown["committed_root"] == after["root"] != grown["root"]

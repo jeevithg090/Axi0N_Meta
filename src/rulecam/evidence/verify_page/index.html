@@ -28,13 +28,13 @@
   <div id="root" class="muted"></div>
   <label>Or check a chain file yourself: <input type="file" id="file" accept=".jsonl,application/x-ndjson"></label>
   <script type="module">
-    import { verifyChainText, merkleRoot } from "./chain.js";
+    import { compareToCommitted, merkleRoot, verifyChainText } from "./chain.js";
 
     const verdict = document.getElementById("verdict");
     const detail = document.getElementById("detail");
     const rootLine = document.getElementById("root");
 
-    async function show(text, committedRoot) {
+    async function show(text, committed) {
       const report = await verifyChainText(text);
       rootLine.textContent = "";
       if (!report.ok) {
@@ -44,16 +44,27 @@
         return;
       }
       const root = await merkleRoot(report.hashes);
-      if (committedRoot && root !== committedRoot) {
-        // Every link holds, but records were dropped, added or the whole chain was rewritten.
+      const status = committed
+        ? await compareToCommitted(report.hashes, committed.root, committed.n)
+        : null;
+      if (status === "mismatch") {
+        // Every link holds, but records were dropped, changed or the whole chain was rewritten.
         verdict.textContent = "✗ Chain does not match the committed daily root";
         verdict.className = "bad";
-        detail.textContent = `${report.n} records recomputed; their root differs from the one in git.`;
+        detail.textContent = `${report.n} records recomputed; they do not reproduce the root in git.`;
       } else {
         const watched = report.watched === null ? "" : ` · watched ${Math.round(report.watched * 100)}%`;
         verdict.textContent = `✓ Chain intact · ${report.n} records${watched}`;
         verdict.className = "ok";
-        detail.textContent = committedRoot ? "✓ Matches the committed daily root." : "";
+        if (status === "match") {
+          detail.textContent = "✓ Matches the committed daily root.";
+        } else if (status === "extended") {
+          detail.textContent =
+            `✓ The first ${committed.n} records match the committed daily root; ` +
+            `${report.n - committed.n} were added after it was committed.`;
+        } else {
+          detail.textContent = "";
+        }
       }
       const code = document.createElement("code");
       code.textContent = root;
@@ -73,7 +84,9 @@
         return;
       }
       const root = await fetch(`../evidence/${day}/root`);
-      const committed = root.ok ? (await root.json()).committed_root : null;
+      const body = root.ok ? await root.json() : null;
+      const committed =
+        body && body.committed_root ? { root: body.committed_root, n: body.committed_n } : null;
       await show(await chain.text(), committed);
     }
 

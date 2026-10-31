@@ -105,11 +105,16 @@ VERIFY_PAGE_DIR = Path(__file__).resolve().parent.parent / "evidence" / "verify_
 
 
 class DayRoot(BaseModel):
-    """Body of `GET /evidence/{day}/root`: the current and the committed Merkle root."""
+    """Body of `GET /evidence/{day}/root`: the current and the committed Merkle root.
+
+    `committed_n` is how many records the committed root covers: a chain that is still growing
+    must reproduce it over its first `committed_n` records.
+    """
 
     root: str
     n: int
     committed_root: str | None
+    committed_n: int | None
 
 
 class ModeRequest(BaseModel):
@@ -236,11 +241,14 @@ def _evidence_router(services: AppServices) -> APIRouter:
     @router.get("/{day}/root")
     def root(day: date) -> DayRoot:
         current, n = chain_root(_chain_file(services, day))
-        committed = None
         roots_file = services.roots_dir / f"{day.isoformat()}.txt"
-        if roots_file.is_file():
-            committed = read_day_roots(roots_file).get(services.site, (None, 0))[0]
-        return DayRoot(root=current, n=n, committed_root=committed)
+        committed = read_day_roots(roots_file).get(services.site) if roots_file.is_file() else None
+        return DayRoot(
+            root=current,
+            n=n,
+            committed_root=committed[0] if committed else None,
+            committed_n=committed[1] if committed else None,
+        )
 
     return router
 

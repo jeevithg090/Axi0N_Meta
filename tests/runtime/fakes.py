@@ -16,6 +16,7 @@ from rulecam.contracts import (
     VerifierVerdict,
 )
 from rulecam.evidence.chain import EventChain
+from rulecam.perception.tracking import SegmentedChunk
 from rulecam.replay.errors import ReplayMiss
 from rulecam.runtime.loop import ActivePlan, ChunkTracker, RuntimeLoop
 from rulecam.verify.decision import Decision
@@ -36,7 +37,24 @@ class RecordingBus(Bus):
         return [t for t, _ in self.published]
 
 
-class FakeTracker:
+class WholeChunkTracker:
+    """Adapts a fake with `process_chunk` to the loop's `segment`/`stitch` split.
+
+    `segment` only names the concepts; all the work happens in `stitch`, in chunk order.
+    """
+
+    def process_chunk(self, chunk: Chunk, concepts: Iterable[str]) -> list[Track]:
+        raise NotImplementedError
+
+    def segment(self, chunk: Chunk, concepts: Iterable[str]) -> SegmentedChunk:
+        unique = tuple(dict.fromkeys(concepts))
+        return SegmentedChunk(chunk_id=chunk.chunk_id, concepts=unique, detections={})
+
+    def stitch(self, chunk: Chunk, segmented: SegmentedChunk) -> list[Track]:
+        return self.process_chunk(chunk, segmented.concepts)
+
+
+class FakeTracker(WholeChunkTracker):
     """Appends a person standing in the sink zone for the chunk's first 2 s."""
 
     def __init__(self, store: InMemoryTrackStore) -> None:
@@ -51,7 +69,7 @@ class FakeTracker:
         return [track]
 
 
-class SteadyTracker:
+class SteadyTracker(WholeChunkTracker):
     """Appends a person standing in the sink zone for the whole chunk (no dropouts)."""
 
     def __init__(self, store: InMemoryTrackStore | None = None) -> None:
@@ -67,7 +85,7 @@ class SteadyTracker:
         return [track]
 
 
-class EmptyTracker:
+class EmptyTracker(WholeChunkTracker):
     """Finds nothing; records which concepts each chunk asked for."""
 
     def __init__(self) -> None:
@@ -78,7 +96,7 @@ class EmptyTracker:
         return []
 
 
-class FailingTracker:
+class FailingTracker(WholeChunkTracker):
     """Raises a `RulecamError` for the first chunk, then tracks like `FakeTracker`."""
 
     def __init__(self, store: InMemoryTrackStore | None = None) -> None:

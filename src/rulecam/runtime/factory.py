@@ -9,7 +9,10 @@ self-hosted worker (our own GPU pod when `SAM_BASE_URL` is set, otherwise Modal)
 On the runtime path the tracker's segmenter is, from the outside in: `StaticServedSegmenter`
 (static concepts from the static cache, no SAM call) -> `CallMeter` (requests and billed frames
 per camera, for the loop's budget and `/runtime/metrics`) -> the router's runtime segmenter. The
-loop also gets the motion gate and the idle-sampling/budget policy from settings.
+loop also gets the motion gate, the idle-sampling/budget policy and its pipeline depth
+(`RULECAM_RUNTIME_PIPELINE_DEPTH`) from settings. With more than one chunk in flight the tracker
+does not re-prompt: a re-prompt needs the previous chunk's tracks, which would make every chunk
+wait for one more SAM round trip in order, so identities are handed off by IoU.
 
 The policy (P3-05), actions (P3-06) and strip renderer (P4-05) have not landed yet, so the
 defaults here are deliberately conservative: nothing acts first, nothing is executed, and no
@@ -290,10 +293,12 @@ def build_runtime(
     """
     meter = CallMeter(perception.router.for_purpose(Purpose.RUNTIME))
     served = StaticServedSegmenter(meter)
+    depth = settings.rulecam_runtime_pipeline_depth
     tracker = Tracker(
         served,
         store=perception.store,
         bus=bus,
+        reprompt=depth == 1,
         max_workers=settings.rulecam_runtime_concept_workers,
     )
     verifier = GlimmerVerifier(
@@ -314,4 +319,5 @@ def build_runtime(
         usage=meter,
         static_sink=lambda concepts, version: served.set_static(concepts, generation=version),
         companions=(lambda: served.cache.run(bus),),
+        pipeline_depth=depth,
     )

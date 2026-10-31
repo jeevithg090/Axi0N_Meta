@@ -20,6 +20,7 @@ and are written atomically (temp file + `os.replace`).
 
 ```python
 from rulecam.replay import ReplayCache, cached_call, ReplayMiss
+from rulecam.replay.cache import using
 
 # Simple: the process-wide cache built from settings.
 reply = cached_call("meta", "muse-spark-1.3", request, lambda: transport(request))
@@ -29,7 +30,17 @@ cache = ReplayCache.from_settings(settings, clock=clock, bus=bus)
 transport = cache.wrap_transport("meta", "sam-3.1", HttpxTransport(base_url, key))
 
 cache.set_mode("replay")  # publishes mode.changed {mode, badge}
+
+with using(cache):  # make `cache` the process-wide one for a block (golden runs do this)
+    ...
 ```
+
+`wrap_transport` records **only 2xx replies** (429 and 5xx go back to the client's retry loop and
+are never stored), and a replay hit carries the recorded latency in the
+`x-rulecam-recorded-latency-ms` reply header so `relay.model_used` stays truthful in REPLAY.
+`HostedSam31.from_settings` always wraps its transport this way; `replay` needs no API key.
+Provider names may not be empty, `.`/`..`, or contain `|` or path separators; model IDs may not
+contain `|`. NaN and infinity in a request raise `ValueError`.
 
 Golden runs (`scenarios/README.md`): packages register step kinds with
 `rulecam.replay.golden.register_step("<kind>")`, then

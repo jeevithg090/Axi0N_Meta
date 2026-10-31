@@ -6,9 +6,18 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from rulecam.bus import Bus, Topic
-from rulecam.contracts import ActionRecord, CandidateEvent, Chunk, RuleIR, Track, VerifierVerdict
+from rulecam.contracts import (
+    ActionRecord,
+    CandidateEvent,
+    Chunk,
+    PrivacyMode,
+    RuleIR,
+    Track,
+    VerifierVerdict,
+)
 from rulecam.evidence.chain import EventChain
-from rulecam.runtime.loop import ActivePlan, RuntimeLoop
+from rulecam.replay.errors import ReplayMiss
+from rulecam.runtime.loop import ActivePlan, ChunkTracker, RuntimeLoop
 from rulecam.verify.decision import Decision
 from tests.fakes import FakeClock, FakeVerifier, InMemoryTrackStore
 from tests.rules.helpers import CAL, INSIDE_M, SINK_ZONE, make_rule, walk_track
@@ -42,6 +51,20 @@ class FakeTracker:
         return [track]
 
 
+class FailingTracker:
+    """Raises a `RulecamError` for the first chunk, then tracks like `FakeTracker`."""
+
+    def __init__(self, store: InMemoryTrackStore | None = None) -> None:
+        self.inner = FakeTracker(store or InMemoryTrackStore())
+        self.failed = False
+
+    def process_chunk(self, chunk: Chunk, concepts: Iterable[str]) -> list[Track]:
+        if not self.failed:
+            self.failed = True
+            raise ReplayMiss(provider="meta", model="sam-3.1", key="k")
+        return self.inner.process_chunk(chunk, concepts)
+
+
 class FakePolicy:
     def act_first(self, candidate: CandidateEvent, rule: RuleIR) -> bool:
         return candidate.severity == "high"
@@ -69,23 +92,39 @@ class FakeActions:
 
 
 class FakeStrips:
-    def render(self, candidate: CandidateEvent, chunk: Chunk) -> CandidateEvent:
+    def __init__(self) -> None:
+        self.modes: list[PrivacyMode] = []
+
+    def render(self, candidate: CandidateEvent, chunk: Chunk, mode: PrivacyMode) -> CandidateEvent:
+        self.modes.append(mode)
         return candidate.model_copy(update={"strip_paths": ("strip/f0.png",)})
 
 
-def sink_plan(severity: str = "medium") -> ActivePlan:
+def sink_plan(
+    severity: str = "medium", privacy_mode: PrivacyMode = PrivacyMode.ANONYMOUS
+) -> ActivePlan:
     rule = make_rule(
         {"op": "inside", "object": "person", "zone": "sink_zone"},
         rule_id="in-sink",
         severity=severity,
     )
     return ActivePlan(
-        rules=(rule,), zones={"sink_zone": SINK_ZONE}, calibration=CAL, plan_version_hash="pv1"
+        rules=(rule,),
+        privacy_mode=privacy_mode,
+        zones={"sink_zone": SINK_ZONE},
+        calibration=CAL,
+        plan_version_hash="pv1",
     )
 
 
 def make_loop(
-    tmp_path: Path, clock: FakeClock, verifier: FakeVerifier | None = None, **kwargs: float
+    tmp_path: Path,
+    clock: FakeClock,
+    verifier: FakeVerifier | None = None,
+    *,
+    strips: FakeStrips | None = None,
+    tracker: ChunkTracker | None = None,
+    **kwargs: float,
 ) -> tuple[RuntimeLoop, RecordingBus, EventChain, FakeActions]:
     bus = RecordingBus()
     store = InMemoryTrackStore()
@@ -94,12 +133,12 @@ def make_loop(
     loop = RuntimeLoop(
         bus=bus,
         clock=clock,
-        tracker=FakeTracker(store),
+        tracker=tracker or FakeTracker(store),
         store=store,
         verifier=verifier or FakeVerifier(),
         policy=FakePolicy(),
         actions=actions,
-        strips=FakeStrips(),
+        strips=strips or FakeStrips(),
         chain=chain,
         **kwargs,  # type: ignore[arg-type]
     )

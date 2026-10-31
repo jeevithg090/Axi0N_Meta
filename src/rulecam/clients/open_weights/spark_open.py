@@ -13,8 +13,8 @@ Every call asks for JSON-schema-constrained output, goes through the replay cach
 
 from __future__ import annotations
 
+import hashlib
 import time
-import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,15 +43,9 @@ CHAT_PATH = "/chat/completions"
 DEFAULT_TIMEOUT_S = 90.0
 DEFAULT_MAX_TOKENS = 4096
 TEAM_RPM = 120.0
+AUTH_SCHEME = "Api-Key"
+REASONING_ID_HEX = 16
 Effort = Literal["low", "medium", "high"]
-
-
-class _ApiKeyTransport(HttpxTransport):
-    """`HttpxTransport` with Baseten's `Api-Key` scheme instead of `Bearer`."""
-
-    def __init__(self, base_url: str, api_key: str, *, timeout_s: float) -> None:
-        super().__init__(base_url, api_key, timeout_s=timeout_s)
-        self._headers = {"Authorization": f"Api-Key {api_key}"}
 
 
 @dataclass(frozen=True)
@@ -106,25 +100,32 @@ def _parse(body: object) -> tuple[str, str, str | None]:
     return content, str(reasoning), str(response_id) if response_id else None
 
 
+def reasoning_id(text: str) -> str:
+    """Return the content-addressed id of a reasoning text (`so_` + 16 hex of its SHA-256).
+
+    The same reasoning always gets the same id, so replayed runs are byte-identical (§5.4).
+    """
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return f"so_{digest[:REASONING_ID_HEX]}"
+
+
 class ReasoningStore:
     """Writes reasoning text to `<directory>/<id>.txt` and returns the id."""
 
-    def __init__(self, directory: Path, new_id: Callable[[], str] | None = None) -> None:
+    def __init__(self, directory: Path) -> None:
         """Create the store.
 
         Args:
             directory: Usually `data/reasoning`.
-            new_id: Id generator (injected in tests); defaults to random hex.
         """
         self._directory = directory
-        self._new_id = new_id or (lambda: uuid.uuid4().hex[:16])
 
     def save(self, text: str) -> str:
-        """Store `text` and return its id."""
-        reasoning_id = f"so_{self._new_id()}"
+        """Store `text` under its content-addressed id and return the id."""
+        reasoning_id_ = reasoning_id(text)
         self._directory.mkdir(parents=True, exist_ok=True)
-        (self._directory / f"{reasoning_id}.txt").write_text(text, encoding="utf-8")
-        return reasoning_id
+        (self._directory / f"{reasoning_id_}.txt").write_text(text, encoding="utf-8")
+        return reasoning_id_
 
     def load(self, reasoning_id: str) -> str:
         """Return stored reasoning by id.
@@ -192,7 +193,9 @@ class SparkOpenClient:
             model=settings.baseten_spark_open_model,
             images_supported=settings.spark_open_images_supported,
         )
-        http = _ApiKeyTransport(settings.baseten_base_url, key, timeout_s=DEFAULT_TIMEOUT_S)
+        http = HttpxTransport(
+            settings.baseten_base_url, key, timeout_s=DEFAULT_TIMEOUT_S, auth_scheme=AUTH_SCHEME
+        )
         return cls(
             cache.wrap_transport(PROVIDER, config.model, http),
             clock=clock,

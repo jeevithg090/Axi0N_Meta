@@ -3,12 +3,14 @@
 llama-server exposes an OpenAI-compatible chat API (`POST /v1/chat/completions`). Every call:
 
 - asks for **JSON-schema-constrained output** through `response_format`, built from a pydantic
-  model, and validates the reply against it; a malformed reply is retried once, then
+  model, and validates the reply against it; a malformed reply is retried once with a
+  corrective message (so the retry is a different request with its own replay-cache key), then
   `ModelResponseError` is raised (callers decide the fallback);
 - runs at temperature 0 with a low reasoning setting;
 - goes through the replay cache via the injected `Transport`;
 - publishes `relay.model_used` and appends one line to the open-weight evidence log
-  (model, quant, hardware, latency, request hash; never image data).
+  (model, quant, hardware, latency, request hash; never image data). Replayed calls are not
+  logged as evidence, because no inference ran.
 
 Images are sent as base64 data URLs.
 """
@@ -27,7 +29,7 @@ from typing import Literal, TypeVar
 from pydantic import BaseModel, ValidationError
 
 from rulecam.bus import Bus
-from rulecam.clients.errors import ModelResponseError
+from rulecam.clients.errors import ModelHTTPError, ModelResponseError
 from rulecam.clients.open_weights.evidence_log import EvidenceLog, InferenceLine
 from rulecam.clients.ratelimit import TokenBucket
 from rulecam.clients.relay import ModelUsed, publish_model_used
@@ -47,6 +49,10 @@ DEFAULT_TIMEOUT_S = 60.0
 DEFAULT_MAX_TOKENS = 1024
 LOCAL_RPM = 600.0
 JSON_ATTEMPTS = 2
+RETRY_PROMPT = (
+    "Your previous reply did not match the required JSON schema ({error}). "
+    "Reply again with only a JSON object that matches the schema."
+)
 IMAGE_TYPES: Mapping[str, str] = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -109,6 +115,13 @@ def _message_content(body: object) -> str:
     return content
 
 
+def _with_retry_hint(messages: list[dict[str, object]], error: str) -> list[dict[str, object]]:
+    """Return `messages`, plus a corrective user turn when a previous reply was malformed."""
+    if not error:
+        return messages
+    return [*messages, {"role": "user", "content": RETRY_PROMPT.format(error=error)}]
+
+
 @dataclass(frozen=True)
 class GlimmerConfig:
     """Static facts about the Glimmer deployment.
@@ -140,6 +153,7 @@ class GlimmerClient:
         bus: Bus | None = None,
         evidence: EvidenceLog | None = None,
         monotonic: Callable[[], float] = time.perf_counter,
+        replaying: Callable[[], bool] = lambda: False,
     ) -> None:
         """Create the client.
 
@@ -150,6 +164,8 @@ class GlimmerClient:
             bus: Bus for `relay.model_used`.
             evidence: Open-weight evidence log; `None` disables it (unit tests of other modules).
             monotonic: Timer for latency (injected in tests).
+            replaying: Whether calls are currently served from the replay cache; replayed calls
+                are not written to the evidence log.
         """
         self._config = config or GlimmerConfig()
         self._sender = Sender(transport, TokenBucket(LOCAL_RPM), RetryPolicy(max_attempts=2))
@@ -157,6 +173,7 @@ class GlimmerClient:
         self._bus = bus
         self._evidence = evidence
         self._monotonic = monotonic
+        self._replaying = replaying
 
     @classmethod
     def from_settings(
@@ -181,7 +198,14 @@ class GlimmerClient:
         http = HttpxTransport(settings.glimmer_base_url, "local", timeout_s=DEFAULT_TIMEOUT_S)
         transport = cache.wrap_transport(PROVIDER, config.model, http)
         evidence = EvidenceLog(settings.evidence_dir / "glimmer" / "inference-log.jsonl")
-        return cls(transport, clock=clock, config=config, bus=bus, evidence=evidence)
+        return cls(
+            transport,
+            clock=clock,
+            config=config,
+            bus=bus,
+            evidence=evidence,
+            replaying=lambda: cache.mode == "replay",
+        )
 
     @property
     def model(self) -> str:
@@ -210,17 +234,29 @@ class GlimmerClient:
     def _send(self, body: dict[str, object], camera_id: str | None) -> str:
         started = self._monotonic()
         ok = False
+        attempts = 1
         try:
             reply = self._sender.send({"method": "POST", "path": CHAT_PATH, "json": body})
+            attempts = reply.attempts
             content = _message_content(reply.reply.body)
             ok = True
+        except ModelHTTPError as exc:
+            attempts = exc.attempts
+            raise
+        else:
             return content
         finally:
             latency_ms = max(0, round((self._monotonic() - started) * 1000))
-            self._record(body, latency_ms, ok=ok, camera_id=camera_id)
+            self._record(body, latency_ms, ok=ok, attempts=attempts, camera_id=camera_id)
 
     def _record(
-        self, body: Mapping[str, object], latency_ms: int, *, ok: bool, camera_id: str | None
+        self,
+        body: Mapping[str, object],
+        latency_ms: int,
+        *,
+        ok: bool,
+        attempts: int,
+        camera_id: str | None,
     ) -> None:
         publish_model_used(
             self._bus,
@@ -229,9 +265,10 @@ class GlimmerClient:
                 segment=self._config.segment,
                 latency_ms=latency_ms,
                 camera_id=camera_id,
+                attempts=attempts,
             ),
         )
-        if self._evidence is not None:
+        if self._evidence is not None and not self._replaying():
             self._evidence.append(
                 InferenceLine(
                     ts=self._clock.now(),
@@ -273,9 +310,9 @@ class GlimmerClient:
         """
         if model != self._config.model or background:
             _log.debug("glimmer_call_options_ignored", model=model, background=background)
-        body = self._body(messages, schema, reasoning_effort)
         last_error = ""
         for attempt in range(1, JSON_ATTEMPTS + 1):
+            body = self._body(_with_retry_hint(messages, last_error), schema, reasoning_effort)
             content = self._send(body, camera_id)
             try:
                 return schema.model_validate_json(content)

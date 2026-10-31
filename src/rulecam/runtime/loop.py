@@ -13,13 +13,22 @@ The steps owned by other tasks (strip rendering, the safety policy, actions) are
 protocols, so the loop runs end to end with fakes until P4-05, P3-05 and P3-06 land.
 
 **Backpressure:** when a chunk arrives more than `max_lag_s` after it ended, the loop switches to
-keyframe mode and processes only one chunk in `keyframe_stride` until it catches up. The lag and
-mode are exposed in `metrics` (and served at `/metrics/runtime`).
+keyframe mode and processes only one chunk in `keyframe_stride` until it catches up. A skipped
+chunk is a coverage gap, never an observed absence: a rule window that overlaps a gap is not
+evaluated (it is counted in `windows_blind`), so a duration rule cannot fail just because frames
+were dropped. The lag and mode are exposed in `metrics` (and served at `/runtime/metrics`).
+
+**Privacy:** the strip renderer receives the plan's `PrivacyMode` (P4-05 `render_strip(event,
+mode)`), so only skeleton renders leave the loop in `anonymous` and `strict` mode.
+
+A failing chunk (any `RulecamError`, e.g. a `ReplayMiss` or a model error) is logged and skipped;
+it never stops the loop.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -35,6 +44,7 @@ from rulecam.contracts import (
     Chunk,
     Clock,
     Frozen,
+    PrivacyMode,
     RuleIR,
     Track,
     TrackStore,
@@ -42,6 +52,7 @@ from rulecam.contracts import (
     VerifierVerdict,
     Zone,
 )
+from rulecam.errors import RulecamError
 from rulecam.evidence.chain import EventChain
 from rulecam.log import get_logger
 from rulecam.rules.engine import evaluate, relevant_concepts
@@ -66,8 +77,8 @@ class ChunkTracker(Protocol):
 class StripRenderer(Protocol):
     """Fills `strip_paths` with a 6-frame strip in the site's privacy mode (P4-05)."""
 
-    def render(self, candidate: CandidateEvent, chunk: Chunk) -> CandidateEvent:
-        """Return the candidate with its strip."""
+    def render(self, candidate: CandidateEvent, chunk: Chunk, mode: PrivacyMode) -> CandidateEvent:
+        """Return the candidate with its strip; in `anonymous`/`strict` mode, skeletons only."""
         ...
 
 
@@ -97,6 +108,7 @@ class ActivePlan(Frozen):
     """What the loop enforces: the approved plan's rules and their geometry."""
 
     rules: tuple[RuleIR, ...]
+    privacy_mode: PrivacyMode = PrivacyMode.STRICT
     zones: dict[str, Zone] = Field(default_factory=dict)
     calibration: Calibration | None = None
     plan_version_hash: str = ""
@@ -110,6 +122,8 @@ class LoopMetrics(Frozen):
     lag_s: float = 0.0
     keyframe_mode: bool = False
     candidates: int = 0
+    windows_blind: int = 0
+    chunks_failed: int = 0
 
 
 @dataclass
@@ -120,7 +134,10 @@ class _State:
     keyframe_mode: bool = False
     stride_count: int = 0
     candidates: int = 0
+    windows_blind: int = 0
+    failed: int = 0
     last_end: dict[tuple[str, str, str], datetime] = field(default_factory=dict)
+    gap_end: dict[str, datetime] = field(default_factory=dict)
 
 
 def chunk_end(chunk: Chunk) -> datetime:
@@ -202,6 +219,8 @@ class RuntimeLoop:
             lag_s=round(s.lag_s, 3),
             keyframe_mode=s.keyframe_mode,
             candidates=s.candidates,
+            windows_blind=s.windows_blind,
+            chunks_failed=s.failed,
         )
 
     def set_plan(self, plan: ActivePlan) -> None:
@@ -217,10 +236,23 @@ class RuntimeLoop:
         )
 
     async def run(self) -> None:
-        """Process `chunk.ready` messages until cancelled (blocking work runs in a thread)."""
-        async for message in self._bus.subscribe(Topic.CHUNK_READY):
-            if isinstance(message.payload, Chunk):
-                await asyncio.to_thread(self.handle_chunk, message.payload)
+        """Process `chunk.ready` messages until cancelled (blocking work runs in a thread).
+
+        A chunk that fails with a `RulecamError` is logged and counted in `chunks_failed`; the
+        loop carries on with the next chunk.
+        """
+        async with contextlib.aclosing(self._bus.subscribe(Topic.CHUNK_READY)) as messages:
+            async for message in messages:
+                chunk = message.payload
+                if not isinstance(chunk, Chunk):
+                    continue
+                try:
+                    await asyncio.to_thread(self.handle_chunk, chunk)
+                except RulecamError:
+                    self._state.failed += 1
+                    _log.exception(
+                        "runtime_chunk_failed", chunk_id=chunk.chunk_id, camera_id=chunk.camera_id
+                    )
 
     def _should_process(self, chunk: Chunk) -> bool:
         s = self._state
@@ -252,12 +284,15 @@ class RuntimeLoop:
             return []
         if not self._should_process(chunk):
             self._state.skipped += 1
+            self._state.gap_end[chunk.camera_id] = chunk_end(chunk)
             return []
         self._state.processed += 1
         self._tracker.process_chunk(chunk, plan_concepts(plan))
         new = [c for rule in plan.rules for c in self._evaluate(rule, plan, chunk)]
         for candidate in new:
-            self._handle_candidate(candidate, self._rule(plan, candidate.rule_id), chunk)
+            self._handle_candidate(
+                candidate, self._rule(plan, candidate.rule_id), chunk, plan.privacy_mode
+            )
         return new
 
     @staticmethod
@@ -267,6 +302,12 @@ class RuntimeLoop:
     def _evaluate(self, rule: RuleIR, plan: ActivePlan, chunk: Chunk) -> list[CandidateEvent]:
         t1 = chunk_end(chunk)
         t0 = t1 - self._window
+        self._forget_before(chunk.camera_id, t0)
+        gap_end = self._state.gap_end.get(chunk.camera_id)
+        if gap_end is not None and gap_end > t0:
+            # Frames in this window were skipped under backpressure: blind, not compliant.
+            self._state.windows_blind += 1
+            return []
         tracks = self._store.window(chunk.camera_id, t0, t1)
         candidates = evaluate(
             rule,
@@ -279,6 +320,13 @@ class RuntimeLoop:
         )
         return [c for c in candidates if self._is_new(c)]
 
+    def _forget_before(self, camera_id: str, t0: datetime) -> None:
+        """Drop de-duplication entries that can no longer merge with a window starting at `t0`."""
+        horizon = t0 - timedelta(seconds=EPISODE_MERGE_S)
+        last_end = self._state.last_end
+        for key in [k for k, end in last_end.items() if k[1] == camera_id and end < horizon]:
+            del last_end[key]
+
     def _is_new(self, candidate: CandidateEvent) -> bool:
         """Drop episodes already reported by an earlier, overlapping window."""
         key = (candidate.rule_id, candidate.camera_id, str(candidate.predicate_trace["subject"]))
@@ -289,11 +337,14 @@ class RuntimeLoop:
         self._state.last_end[key] = candidate.ts_end
         return True
 
-    def _handle_candidate(self, candidate: CandidateEvent, rule: RuleIR, chunk: Chunk) -> None:
+    def _handle_candidate(
+        self, candidate: CandidateEvent, rule: RuleIR, chunk: Chunk, mode: PrivacyMode
+    ) -> Decision:
+        """Strip, verify, decide and act on one candidate; return the policy's decision."""
         self._state.candidates += 1
         self._chain.append("candidate", candidate)
         self._bus.publish(Topic.CANDIDATE_NEW, candidate)
-        candidate = self._strips.render(candidate, chunk)
+        candidate = self._strips.render(candidate, chunk, mode)
         act_first = self._policy.act_first(candidate, rule)
         if act_first:
             immediate = Decision(alert=True, route="auto", act_first=True, reason="act first")
@@ -304,12 +355,13 @@ class RuntimeLoop:
         decision = self._policy.decide(candidate, rule, tier1)
         if not act_first:
             self._record_actions(candidate, self._actions.run(candidate, rule, decision))
-            return
+            return decision
         # Actions already ran. Chain the after-the-fact decision, and if a verifier demoted the
         # alert, ask a person to review it (notify/escalate only: nothing is re-cut or re-spoken).
         self._chain.append("verdict", {"event_id": candidate.event_id, "decision": _dump(decision)})
         if decision.route == "human_queue":
             self._record_actions(candidate, self._actions.run(candidate, rule, decision))
+        return decision
 
     def _record_actions(self, candidate: CandidateEvent, records: Sequence[ActionRecord]) -> None:
         for record in records:

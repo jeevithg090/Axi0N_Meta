@@ -36,5 +36,5 @@ adds a row here with its licence.
 | `src/rulecam/bus.py`, `config.py`, `log.py`, `clock.py`, `cli.py` | Platform basics | #1 |
 | `tests/fakes/`, `tests/guardrails/` | Test doubles and static guardrails | #1 |
 | CI, Makefile, pre-commit, coverage floors | Engineering scaffold | #1 |
-| `.gitlab-ci.yml`, `scripts/ci/github_status.py` | GitLab CI with job results reported to GitHub | #1 |
+| `.gitea/workflows/ci.yml`, `scripts/ci/github_status.py`, `scripts/ci/runner/` | Gitea Actions CI (moved from GitLab) on a RunPod runner, job results reported to GitHub | #1 |
 | `src/rulecam/capture/` + `rulecam capture` CLI | Webcam / RTSP / file → 3 s H.264 faststart chunks, published on the bus (P1-01) | #2 |

@@ -17,7 +17,7 @@ ENV = {
     "GITHUB_STATUS_TOKEN": "token-value",
     "CI_COMMIT_SHA": "abc123",
     "CI_JOB_NAME": "check",
-    "CI_JOB_URL": "https://gitlab.com/x/y/-/jobs/1",
+    "CI_JOB_URL": "https://gitea.com/x/y/actions/runs/1",
 }
 
 
@@ -33,20 +33,27 @@ def load_script() -> ModuleType:
 
 @pytest.mark.parametrize(
     ("job_status", "expected"),
-    [("success", "success"), ("failed", "failure"), ("canceled", "error"), ("weird", "error")],
+    [
+        ("success", "success"),
+        ("failure", "failure"),
+        ("failed", "failure"),
+        ("cancelled", "error"),
+        ("canceled", "error"),
+        ("weird", "error"),
+    ],
 )
-def test_maps_gitlab_job_status(job_status: str, expected: str) -> None:
+def test_maps_job_status(job_status: str, expected: str) -> None:
     assert load_script().map_job_status(job_status) == expected
 
 
-def test_request_targets_the_commit_with_a_gitlab_context() -> None:
+def test_request_targets_the_commit_with_a_gitea_context() -> None:
     request = load_script().build_request("success", ENV)
     body = json.loads(request.data)
     assert request.full_url == (
         "https://api.github.com/repos/jeevithg090/Axi0N_Meta/statuses/abc123"
     )
     assert request.get_method() == "POST"
-    assert body["context"] == "gitlab/check"
+    assert body["context"] == "gitea/check"
     assert body["state"] == "success"
     assert body["target_url"] == ENV["CI_JOB_URL"]
     assert "token-value" not in request.data.decode()
@@ -132,3 +139,7 @@ def test_gives_up_after_three_attempts_without_failing_the_job() -> None:
 def test_retries_rate_limits() -> None:
     assert load_script().is_retryable(_http_error(429))
     assert not load_script().is_retryable(_http_error(404))
+
+
+def test_status_prefix_is_configurable() -> None:
+    assert load_script().context({**ENV, "CI_STATUS_PREFIX": "ci"}) == "ci/check"

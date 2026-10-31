@@ -27,7 +27,7 @@ Scaffold, shared contracts and CI are in place. Feature work follows the task bo
 ```bash
 make setup        # uv sync + pre-commit hooks
 cp .env.example .env
-make remotes GITLAB=https://gitlab.com/<namespace>/<project>.git   # pushes go to GitHub + GitLab CI
+make remotes GITEA=https://gitea.com/<owner>/<repo>.git   # pushes go to GitHub + Gitea CI
 make check        # lint + types + tests + coverage floors — must pass before every push
 uv run rulecam version
 ```
@@ -36,8 +36,9 @@ Requires Python 3.12 (via `uv`), `ffmpeg`, and Node 20+ once the UI lands.
 
 ## How we work
 
-Code and pull requests live on GitHub; **CI runs on GitLab** (`.gitlab-ci.yml`) and reports each
-job back to the GitHub PR as `gitlab/<job>`. Every task ends in a pull request with all `gitlab/*`
+Code and pull requests live on GitHub; **CI runs on Gitea Actions** (`.gitea/workflows/ci.yml`, on a
+self-hosted RunPod runner: `scripts/ci/runner/bootstrap.sh`) and reports each job back to the
+GitHub PR as `gitea/<job>`. Every task ends in a pull request with all `gitea/*`
 checks green; see `docs/TASKS.md` §0 and §3.4, and `CLAUDE.md`.
 
 ## Model map

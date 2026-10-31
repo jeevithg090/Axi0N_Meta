@@ -1,15 +1,15 @@
-"""Report a GitLab CI job's status to the matching GitHub commit, so GitHub PRs show checks.
+"""Report a CI job's status to the matching GitHub commit, so GitHub PRs show checks.
 
-Code and pull requests live on GitHub; CI runs on GitLab. Every GitLab job calls this script in
-`before_script` (state `pending`) and `after_script` (state from `$CI_JOB_STATUS`). The status
-appears on the GitHub PR as `gitlab/<job name>`.
+Code and pull requests live on GitHub; CI runs on Gitea Actions (`.gitea/workflows/ci.yml`). Every
+job calls this script first (state `pending`) and last (state from `$CI_JOB_STATUS`). The status
+appears on the GitHub PR as `<CI_STATUS_PREFIX>/<job name>`, i.e. `gitea/check`.
 
 Usage (stdlib only, so it runs before dependencies are installed):
 
     python3 scripts/ci/github_status.py pending
     python3 scripts/ci/github_status.py from-job     # maps $CI_JOB_STATUS
 
-Required CI/CD variables: `GITHUB_REPO` (owner/name) and `GITHUB_STATUS_TOKEN` (a fine-grained
+Required variables: `GITHUB_REPO` (owner/name) and `GITHUB_STATUS_TOKEN` (a fine-grained
 GitHub token with "Commit statuses: read and write" on that repository, stored masked). When the
 token is absent the script skips quietly, so pipelines still run before the bridge is set up.
 """
@@ -30,30 +30,40 @@ GitHubState = Literal["pending", "success", "failure", "error"]
 MAX_ATTEMPTS = 3
 BACKOFF_S = (1.0, 3.0)
 
+DEFAULT_PREFIX = "gitea"
+
+# Gitea/GitHub Actions `job.status` values, plus GitLab's `$CI_JOB_STATUS` spellings.
 _JOB_TO_GITHUB: dict[str, GitHubState] = {
     "success": "success",
+    "failure": "failure",
     "failed": "failure",
+    "cancelled": "error",
     "canceled": "error",
     "skipped": "error",
 }
 _DESCRIPTIONS: dict[GitHubState, str] = {
-    "pending": "Running on GitLab CI",
-    "success": "Passed on GitLab CI",
-    "failure": "Failed on GitLab CI",
-    "error": "Did not complete on GitLab CI",
+    "pending": "Running in CI",
+    "success": "Passed in CI",
+    "failure": "Failed in CI",
+    "error": "Did not complete in CI",
 }
 
 
 def map_job_status(job_status: str) -> GitHubState:
-    """Map GitLab's `$CI_JOB_STATUS` to a GitHub commit-status state.
+    """Map the job's final status to a GitHub commit-status state.
 
     Args:
-        job_status: The value of `$CI_JOB_STATUS` (`success`, `failed`, `canceled`, ...).
+        job_status: The value of `$CI_JOB_STATUS` (`success`, `failure`, `cancelled`, ...).
 
     Returns:
         The GitHub state; unknown values map to `error`.
     """
     return _JOB_TO_GITHUB.get(job_status, "error")
+
+
+def context(env: Mapping[str, str]) -> str:
+    """Return the GitHub status context for this job, e.g. `gitea/check`."""
+    return f"{env.get('CI_STATUS_PREFIX') or DEFAULT_PREFIX}/{env.get('CI_JOB_NAME', 'job')}"
 
 
 def build_request(state: GitHubState, env: Mapping[str, str]) -> urllib.request.Request:
@@ -62,7 +72,7 @@ def build_request(state: GitHubState, env: Mapping[str, str]) -> urllib.request.
     Args:
         state: The GitHub state to report.
         env: The CI environment (needs `GITHUB_REPO`, `GITHUB_STATUS_TOKEN`, `CI_COMMIT_SHA`,
-            `CI_JOB_NAME`, `CI_JOB_URL`).
+            `CI_JOB_NAME`, `CI_JOB_URL`; optional `CI_STATUS_PREFIX`).
 
     Returns:
         A POST request; the token is only placed in the Authorization header.
@@ -70,7 +80,7 @@ def build_request(state: GitHubState, env: Mapping[str, str]) -> urllib.request.
     url = f"https://api.github.com/repos/{env['GITHUB_REPO']}/statuses/{env['CI_COMMIT_SHA']}"
     body = {
         "state": state,
-        "context": f"gitlab/{env['CI_JOB_NAME']}",
+        "context": context(env),
         "description": _DESCRIPTIONS[state],
         "target_url": env.get("CI_JOB_URL", ""),
     }
@@ -150,7 +160,7 @@ def run(
     except OSError as exc:
         print(f"github_status: could not report {state}: {exc}")
         return 0
-    print(f"github_status: reported {state} for gitlab/{env.get('CI_JOB_NAME')} (HTTP {code})")
+    print(f"github_status: reported {state} for {context(env)} (HTTP {code})")
     return 0
 
 

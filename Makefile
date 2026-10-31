@@ -54,20 +54,21 @@ golden:
 live-test:
 	uv run pytest -m live
 
-# --- GitHub (code + PRs) and GitLab (CI) ------------------------------------------------------
-# One-time per clone: make every `git push` go to GitHub AND the GitLab CI mirror.
-#   make remotes GITLAB=https://gitlab.com/<namespace>/<project>.git
+# --- GitHub (code + PRs) and Gitea (CI) -------------------------------------------------------
+# One-time per clone: make every `git push` go to GitHub AND the Gitea CI mirror.
+#   make remotes GITEA=https://gitea.com/<owner>/<repo>.git
 GITHUB := https://github.com/jeevithg090/Axi0N_Meta.git
 
 remotes:
-ifndef GITLAB
-	$(error usage: make remotes GITLAB=https://gitlab.com/<namespace>/<project>.git)
+ifndef GITEA
+	$(error usage: make remotes GITEA=https://gitea.com/<owner>/<repo>.git)
 endif
-	git remote set-url --push origin $(GITHUB)
-	git remote set-url --add --push origin $(GITLAB)
+	-git config --unset-all remote.origin.pushurl
+	git remote set-url --add --push origin $(GITHUB)
+	git remote set-url --add --push origin $(GITEA)
 	git remote get-url --all --push origin
 
-# After squash-merging a PR on GitHub, update main on the GitLab mirror so its pipeline runs.
+# After squash-merging a PR on GitHub, update main on the Gitea mirror so its workflow runs.
 sync-main:
 	git fetch origin main
 	git push origin origin/main:refs/heads/main

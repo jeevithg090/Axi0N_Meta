@@ -1,0 +1,79 @@
+# Rulecam CI on Gitea Actions. Code and pull requests live on GitHub (jeevithg090/Axi0N_Meta);
+# every `git push` also goes to the Gitea mirror (see `make remotes`), which runs this workflow on
+# our self-hosted runner (a RunPod pod, scripts/ci/runner/bootstrap.sh). Each job reports its
+# result back to the GitHub commit as `gitea/<job>` (scripts/ci/github_status.py).
+#
+# Gitea repository settings → Actions:
+#   Secrets:    GITHUB_STATUS_TOKEN  fine-grained GitHub token, "Commit statuses: read and write"
+#   Variables:  GITHUB_REPO          jeevithg090/Axi0N_Meta
+name: ci
+
+on:
+  push:
+    branches: ["**"]
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GITHUB_REPO: ${{ vars.GITHUB_REPO }}
+  GITHUB_STATUS_TOKEN: ${{ secrets.GITHUB_STATUS_TOKEN }}
+  CI_COMMIT_SHA: ${{ github.sha }}
+  CI_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}
+  CI_STATUS_PREFIX: gitea
+  UV_LINK_MODE: copy
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  check:
+    runs-on: rulecam
+    env:
+      CI_JOB_NAME: check
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/ci/github_status.py pending
+      - run: uv sync --group dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy src tests
+      - run: uv run pytest --cov --cov-report=json
+      - run: uv run python scripts/coverage_floors.py coverage.json
+      - if: always()
+        run: python3 scripts/ci/github_status.py from-job
+        env:
+          CI_JOB_STATUS: ${{ job.status }}
+
+  guardrails:
+    runs-on: rulecam
+    env:
+      CI_JOB_NAME: guardrails
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/ci/github_status.py pending
+      - run: uv sync --group dev
+      - run: uv run pytest tests/guardrails
+      - if: always()
+        run: python3 scripts/ci/github_status.py from-job
+        env:
+          CI_JOB_STATUS: ${{ job.status }}
+
+  ml-cpu:
+    # Torch-based tests (world model, pose, voice out); skipped when none of those packages exist.
+    runs-on: rulecam
+    env:
+      CI_JOB_NAME: ml-cpu
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/ci/github_status.py pending
+      - run: uv sync --group dev --extra ml
+      - run: |
+          dirs=""
+          for d in tests/worldmodel tests/pose tests/voice_out; do [ -d "$d" ] && dirs="$dirs $d"; done
+          if [ -n "$dirs" ]; then uv run pytest $dirs; else echo "no ML test packages yet"; fi
+      - if: always()
+        run: python3 scripts/ci/github_status.py from-job
+        env:
+          CI_JOB_STATUS: ${{ job.status }}
+
+# The `ui` job (lint, typecheck, vitest, build) is added by P3 together with the ui/ scaffold.

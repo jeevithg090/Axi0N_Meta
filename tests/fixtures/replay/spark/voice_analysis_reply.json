@@ -1,0 +1,29 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "json": {
+    "id": "resp_spark_voice_01",
+    "object": "response",
+    "model": "muse-spark-1.3",
+    "status": "completed",
+    "output": [
+      {
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "{\"concerns\": [{\"text\": \"Hard hat required in active area\", \"source_ref\": \"crew_briefing.wav\", \"standard_ref\": null, \"speaker\": \"foreman_es\"}, {\"text\": \"Safety vest mandatory\", \"source_ref\": \"crew_briefing.wav\", \"standard_ref\": null, \"speaker\": \"supervisor_en\"}], \"languages\": [\"es\", \"en\"]}"
+          }
+        ]
+      }
+    ],
+    "usage": {
+      "input_tokens_details": {
+        "cached_tokens": 20
+      }
+    }
+  }
+}

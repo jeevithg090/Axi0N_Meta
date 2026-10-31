@@ -334,7 +334,11 @@ class RuntimeLoop:
         return True
 
     def _handle_candidate(
-        self, candidate: CandidateEvent, context: DecisionContext, chunk: Chunk, mode: PrivacyMode
+        self,
+        candidate: CandidateEvent,
+        context: DecisionContext,
+        chunk: Chunk,
+        mode: PrivacyMode,
     ) -> Decision:
         """Strip, verify, decide and act on one candidate; return the policy's decision."""
         rule = context.rule
@@ -352,6 +356,12 @@ class RuntimeLoop:
         self._bus.publish(Topic.VERDICT_NEW, VerdictNew(event_id=candidate.event_id, verdict=tier1))
         decision = self._policy.decide(candidate, rule, tier1)
         if not act_first:
+            self._record_actions(candidate, self._actions.run(candidate, rule, decision))
+            return decision
+        # Actions already ran. Chain the after-the-fact decision, and if a verifier demoted the
+        # alert, ask a person to review it (notify/escalate only: nothing is re-cut or re-spoken).
+        self._chain.append("verdict", {"event_id": candidate.event_id, "decision": _dump(decision)})
+        if decision.route == "human_queue":
             self._record_actions(candidate, self._actions.run(candidate, rule, decision))
         return decision
 

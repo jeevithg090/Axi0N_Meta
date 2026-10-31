@@ -27,7 +27,6 @@ Scaffold, shared contracts and CI are in place. Feature work follows the task bo
 ```bash
 make setup        # uv sync + pre-commit hooks
 cp .env.example .env
-make remotes GITLAB=https://gitlab.com/<namespace>/<project>.git   # pushes go to GitHub + GitLab CI
 make check        # lint + types + tests + coverage floors — must pass before every push
 uv run rulecam version
 ```
@@ -36,8 +35,8 @@ Requires Python 3.12 (via `uv`), `ffmpeg`, and Node 20+ once the UI lands.
 
 ## How we work
 
-Code and pull requests live on GitHub; **CI runs on GitLab** (`.gitlab-ci.yml`) and reports each
-job back to the GitHub PR as `gitlab/<job>`. Every task ends in a pull request with all `gitlab/*`
+Code, pull requests and **CI all live on GitHub** (GitHub Actions, `.github/workflows/ci.yml`: the
+`check`, `guardrails` and `ml-cpu` jobs). Every task ends in a pull request with all
 checks green; see `docs/TASKS.md` §0 and §3.4, and `CLAUDE.md`.
 
 ## Model map
@@ -46,16 +45,16 @@ Only models that actually run in the product are listed; this table is updated a
 
 | Meta model | Job | Runs where | Status |
 |---|---|---|---|
-| Muse Spark 1.3 (+1.2 for narrated video) | Planner, compiler, standards grounding | Hosted API | planned |
-| Muse Voice Transcribe | Spoken requests, disputes, voice round-trip check | Hosted API | planned |
+| Muse Spark 1.3 (+1.2 for narrated video) | Planner, compiler, standards grounding | Hosted API | integrated (P2-01) |
+| Muse Voice Transcribe | Spoken requests, disputes, voice round-trip check | Hosted API | integrated (P2-01) |
 | SAM 3.1 | Survey, probes, tracking, coverage, masks | Hosted + self-hosted | planned |
 | Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute | Site laptop (llama-server) | client + Tier 1 verifier (P3-03) |
-| Muse Spark Open (open weights) | Tier 2 verifier, plan audit, devil's advocate | Baseten | planned |
-| Muse Image | Rule CI scenes, lookalikes, posters | Hosted API | planned |
+| Muse Spark Open (open weights) | Tier 2 verifier, dispute review, plan audit, devil's advocate | Baseten | client + Tier 2 (P3-04) |
+| Muse Image | Rule CI scenes, lookalikes, posters | Hosted API | integrated (P2-01) |
 | Sapiens (FAIR) | Pose and skeletons | GPU | planned |
 | MMS-TTS (FAIR) | Spoken warnings | CPU | planned |
 | V-JEPA 2 (FAIR) | Surprise Lens world model | GPU | planned (gated) |
-| Llama Prompt Guard 2 | Scene-text firewall | CPU | planned |
+| Llama Prompt Guard 2 (86M) | Scene-text firewall | CPU (transformers, `ml` extra) | firewall (P3-05) |
 
 ## Results
 

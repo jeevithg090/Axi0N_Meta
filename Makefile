@@ -1,5 +1,5 @@
 # Rulecam developer commands (task book §3.3). `make check` must pass before every push.
-.PHONY: setup fmt lint type test check ui-check api ui openapi preflight golden live-test remotes sync-main
+.PHONY: setup fmt lint type test check ui-check api ui openapi preflight golden live-test
 
 UI_EXISTS := $(wildcard ui/package.json)
 
@@ -53,21 +53,3 @@ golden:
 
 live-test:
 	uv run pytest -m live
-
-# --- GitHub (code + PRs) and GitLab (CI) ------------------------------------------------------
-# One-time per clone: make every `git push` go to GitHub AND the GitLab CI mirror.
-#   make remotes GITLAB=https://gitlab.com/<namespace>/<project>.git
-GITHUB := https://github.com/jeevithg090/Axi0N_Meta.git
-
-remotes:
-ifndef GITLAB
-	$(error usage: make remotes GITLAB=https://gitlab.com/<namespace>/<project>.git)
-endif
-	git remote set-url --push origin $(GITHUB)
-	git remote set-url --add --push origin $(GITLAB)
-	git remote get-url --all --push origin
-
-# After squash-merging a PR on GitHub, update main on the GitLab mirror so its pipeline runs.
-sync-main:
-	git fetch origin main
-	git push origin origin/main:refs/heads/main

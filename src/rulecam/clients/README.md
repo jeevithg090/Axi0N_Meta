@@ -10,7 +10,59 @@ HTTP calls.
 | `transport.py` | `Transport` (a request mapping in, a reply mapping out — the seam the P3-02 replay cache wraps), `HttpxTransport` (real HTTPS, bearer auth), `Sender` (token bucket + jittered backoff on 429/5xx, at most 4 tries, honours `Retry-After`, drains on `x-ratelimit-remaining-requests: 0`) |
 | `ratelimit.py` | Thread-safe `TokenBucket` |
 | `relay.py` | `ModelUsed`, the `relay.model_used` payload (`model`, `segment`, `latency_ms`, `camera_id`, `attempts`) |
-| `errors.py` | `ModelHTTPError`, `ModelResponseError`, `ClientConfigError` |
+| `errors.py` | `ModelHTTPError`, `ModelResponseError`, `StructuredOutputError`, `ClientConfigError` |
+
+## Wire format of the P2 clients (P2-01, owner P2)
+
+Spark and Muse Image use the same Responses + Files shape as hosted SAM 3.1, which was verified
+live (issue #5); the shared pieces are in `meta_hosted/responses.py`. Base URL
+`https://api.meta.ai/v1` (`META_API_BASE_URL`).
+
+| Client | Model id | Request | Where the answer is |
+|---|---|---|---|
+| `SparkClient` | `muse-spark-1.3` (default), `muse-spark-1.2` (video with narration) | `POST /responses`, `stream: false` (or `background: true`, then `GET /responses/{id}` until not `queued`/`in_progress`); `text.format` = `json_schema`; `reasoning.effort`; `tools` (+ `{"type": "web_search"}`), `max_tool_calls`; never `tool_choice` | `output[]` `message` items, `content[]` parts of type `output_text`; `usage.input_tokens_details.cached_tokens` |
+| `MuseImageClient` | `muse-image-1.0` | `POST /responses`, `stream: false`, `tools: [{"type": "image_generation", "size", "output_format": "png"}]`, references as `input_image` parts with `file_id`, `previous_response_id` | base64 `result` of the `image_generation_call` output item |
+| `VoiceTranscribeClient` | `muse-voice-transcribe-1.0` | `POST /asr/transcribe`, multipart: `request` (JSON: `model`, `audioEncoding: "WAV"`, `mode`, `languageBias` as language names, `keywords`) and `audio` (mono 16-bit PCM WAV, 16/24 kHz, ≤ 10 min, ≤ 32 MB) | `{transcript, turns: [{transcript, speaker?}]}` |
+
+Media for Spark and Muse Image is uploaded once with `POST /files` (`purpose: user_data`) and
+referenced by `file_id` (`SparkClient.attach(path)` returns the typed content part:
+`input_image`, `input_video`, `input_audio` or `input_file` for PDFs). The upload bytes are keyed
+by SHA-256 in the replay cache, so REPLAY serves recorded file ids and then recorded answers.
+
+Field names come from the official guides (speech-to-text, image-generation, file-handling,
+structured-output, search-grounding and the Responses/voice API references, read Oct 31 2026).
+Only SAM has been exercised against the live API so far; the Spark, Voice and Image shapes are
+confirmed by the `live`-marked checks in `tests/clients/meta_hosted/test_p2_clients_live.py`
+(`make live-test`), which have not been run yet.
+
+```python
+spark = SparkClient.from_settings(settings, clock=clock, bus=bus)  # always via the replay cache
+pdf = spark.attach(Path("food_code.pdf"))
+out = spark.structured(
+    messages=[
+        {"role": "system", "content": SYSTEM},  # keep stable: prompt caching
+        {"role": "user", "content": [{"type": "input_text", "text": "Extract"}, pdf]},
+    ],
+    schema=Extracted,
+)
+
+voice = VoiceTranscribeClient.from_settings(settings, clock=clock, bus=bus)
+voice.transcribe(wav, lang_bias=["en", "es"], keywords=["sanitizer"], diarize=True)
+session = voice.start_streaming_session("DIARIZATION", api_key=key, keywords=["LOTO"])
+session.handshake()  # first frame on wss://…/asr/realtime; keywords can't change afterwards
+
+image = MuseImageClient.from_settings(settings, clock=clock, bus=bus)
+image.generate("same scene, nobody at the sink", reference_images=[frame], size="1280x720")
+```
+
+- Spark: one validation retry with the errors appended, then `StructuredOutputError`. `strict`
+  is off because pydantic schemas (defaults, open dicts, root unions) fall outside the strict
+  subset; the reply is validated here instead.
+- Voice: WAVs over 10 min / 32 MB are split on frame boundaries; split files get chunk-prefixed
+  speaker labels. The API reports no language, so `lang` is the bias language when exactly one
+  was given, else `und`.
+- Image: 150 RPM bucket; more than 10 references, or any mask/inpainting argument, raises
+  `ValueError` before any call. Images are saved under `data/images/`.
 
 ## `meta_hosted/sam.py` — `HostedSam31` (P1-02, owner P1)
 

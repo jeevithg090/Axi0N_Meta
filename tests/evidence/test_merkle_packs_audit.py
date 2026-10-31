@@ -185,6 +185,7 @@ def test_thumbnails_respect_privacy_mode() -> None:
 @pytest.mark.usefixtures("strips")
 def test_anonymous_pack_has_watched_fraction_and_no_raw_paths() -> None:
     html = render_html(make_pack(PrivacyMode.ANONYMOUS))
+    assert render_html(make_pack(PrivacyMode.ANONYMOUS)) == html  # deterministic, QR included
     assert "92%" in html
     assert f"data:image/png;base64,{b64('png-skeleton')}" in html  # inlined, prints in a PDF
     assert b64("png-masked") not in html

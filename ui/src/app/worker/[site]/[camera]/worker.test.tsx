@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { workerPage } from "@/fixtures/worker-page";
@@ -84,9 +84,16 @@ describe("worker rules page", () => {
     expect(disputes).toEqual([
       { event_code: "1A2B3C4D", reason_choice: "lookalike_object", reason_text: "era mi mochila" },
     ]);
-    expect(await screen.findAllByText("Disputa aceptada")).toHaveLength(2);
-    const counts = screen.getAllByRole("definition").map((d) => d.textContent);
-    expect(counts.slice(0, 3)).toEqual(["3", "2", "2"]);
+    // findAll resolves on the first match; wait until the page has re-rendered with both labels.
+    await waitFor(() => expect(screen.getAllByText("Disputa aceptada")).toHaveLength(2));
+    await waitFor(() =>
+      expect(
+        screen
+          .getAllByRole("definition")
+          .slice(0, 3)
+          .map((d) => d.textContent),
+      ).toEqual(["3", "2", "2"]),
+    );
 
     fireEvent.click(within(sheet).getByRole("button", { name: "Cerrar" }));
     expect(screen.queryByRole("dialog")).toBeNull();

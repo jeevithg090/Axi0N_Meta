@@ -3,8 +3,17 @@
 import { useRef, useState, type FormEvent } from "react";
 
 import { api, ApiError, type RequestItemInput } from "@/lib/api";
+import { recordingToWav } from "@/lib/wav";
 
 type Recorder = { recorder: MediaRecorder; chunks: Blob[] };
+
+/** The request kind a file's type maps to (demo mode makes no upload call to ask the server). */
+function kindOf(type: string): RequestItemInput["kind"] {
+  if (type === "application/pdf") return "pdf";
+  if (type.startsWith("image/")) return "photo";
+  if (type.startsWith("video/")) return "video";
+  return "voice";
+}
 
 function describe(item: RequestItemInput): string {
   if (item.kind === "text") return `“${item.text ?? ""}”`;
@@ -31,7 +40,7 @@ export function RequestComposer({
 
   const addUpload = async (blob: Blob, name: string): Promise<void> => {
     if (demo) {
-      setItems((prev) => [...prev, { kind: "voice", file: `uploads/demo-${name}` }]);
+      setItems((prev) => [...prev, { kind: kindOf(blob.type), file: `uploads/demo-${name}` }]);
       return;
     }
     setStatus(`Uploading ${name}…`);
@@ -58,10 +67,11 @@ export function RequestComposer({
         stream.getTracks().forEach((track) => track.stop());
         recorderRef.current = null;
         setRecording(false);
-        void addUpload(
-          new Blob(state.chunks, { type: recorder.mimeType || "audio/webm" }),
-          "voice-note.webm",
-        );
+        const recording = new Blob(state.chunks, { type: recorder.mimeType || "audio/webm" });
+        // Voice Transcribe takes WAV only: re-encode the browser's WebM/MP4 recording first.
+        recordingToWav(recording)
+          .then((wav) => addUpload(wav, "voice-note.wav"))
+          .catch(() => setStatus("Could not convert the recording; type the request instead."));
       };
       recorderRef.current = state;
       recorder.start();
@@ -108,7 +118,7 @@ export function RequestComposer({
           Attach photo, PDF or video
           <input
             type="file"
-            accept="image/jpeg,image/png,application/pdf,video/mp4,video/quicktime"
+            accept="image/jpeg,image/png,image/webp,application/pdf,video/mp4"
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) void addUpload(file, file.name);

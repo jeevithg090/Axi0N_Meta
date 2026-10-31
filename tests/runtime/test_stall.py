@@ -140,6 +140,10 @@ def chain_records(loop: RuntimeLoop, tmp_path: Path) -> list[tuple[str, dict[str
     return [(r.kind, dict(r.payload)) for r in read_chain(path)] if path.is_file() else []
 
 
+def verdicts(loop: RuntimeLoop, tmp_path: Path) -> int:
+    return [kind for kind, _ in chain_records(loop, tmp_path)].count("verdict")
+
+
 def event_id(kind: str, payload: dict[str, object]) -> str:
     if kind == "candidate":
         candidate = payload["candidate"]
@@ -187,6 +191,7 @@ async def test_a_slow_verdict_does_not_block_later_chunks_or_other_cameras(tmp_p
         # cam1's verdict is stuck, yet every chunk of both cameras is consumed and cam2's
         # candidate is verified and chained.
         await wait_until(lambda: loop.metrics.chunks_processed == 8)
+        await wait_until(lambda: verdicts(loop, tmp_path) == 1)
         await wait_until(lambda: loop.metrics.verify_pending == 1)
         kinds = [kind for kind, _ in chain_records(loop, tmp_path)]
         assert kinds.count("candidate") == 2
@@ -213,7 +218,9 @@ async def test_verdicts_finishing_out_of_order_keep_the_chain_rules(tmp_path: Pa
             bus.publish(Topic.CHUNK_READY, make_chunk("cam1", i))
             bus.publish(Topic.CHUNK_READY, make_chunk("cam2", i))
         await wait_until(lambda: loop.metrics.chunks_processed == 6)
-        await wait_until(lambda: loop.metrics.verify_pending == 3)  # cam1's three
+        # cam2's three verdicts are chained while cam1's three wait.
+        await wait_until(lambda: verdicts(loop, tmp_path) == 3)
+        await wait_until(lambda: loop.metrics.verify_pending == 3)
         verifier.gate.set()
         await wait_until(lambda: loop.metrics.verify_pending == 0)
     records = chain_records(loop, tmp_path)
@@ -272,9 +279,11 @@ async def test_a_failing_verification_is_counted_and_the_loop_carries_on(tmp_pat
             for i in range(2):
                 bus.publish(Topic.CHUNK_READY, make_chunk(camera, i))
         await wait_until(
+            lambda: loop.metrics.verifications_failed == 1 and verdicts(loop, tmp_path) == 1
+        )
+        await wait_until(
             lambda: loop.metrics.chunks_processed == 4 and loop.metrics.verify_pending == 0
         )
-        await wait_until(lambda: loop.metrics.verifications_failed == 1)
     metrics = loop.metrics
     assert metrics.chunks_failed == 0
     kinds = [kind for kind, _ in chain_records(loop, tmp_path)]
@@ -298,9 +307,8 @@ async def test_each_stage_runs_on_its_own_executor(tmp_path: Path) -> None:
     async with running(loop, bus):
         for i in range(3):
             bus.publish(Topic.CHUNK_READY, make_chunk("cam1", i))
-        await wait_until(
-            lambda: loop.metrics.chunks_processed == 3 and loop.metrics.verify_pending == 0
-        )
+        await wait_until(lambda: loop.metrics.chunks_processed == 3)
+        await wait_until(lambda: verdicts(loop, tmp_path) == 1)
 
     def prefixes(names: set[str]) -> set[str]:
         return {name.rsplit("_", 1)[0] for name in names}

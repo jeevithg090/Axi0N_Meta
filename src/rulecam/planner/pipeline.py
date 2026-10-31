@@ -371,6 +371,19 @@ def _lint_summary(result: LintResult) -> str:
     return ", ".join(f"{codes.count(c)} {c}" for c in dict.fromkeys(codes))
 
 
+def prove_summary(plan: SitePlan) -> str:
+    """Describe step 10's outcome, e.g. "Rule CI green for 2/3 rules", from the trace.
+
+    Args:
+        plan: The plan after the prove step.
+
+    Returns:
+        The `planner.step` detail.
+    """
+    green = [c for c in plan.acceptance.checks if c.check == "ci_green"]
+    return f"Rule CI green for {sum(c.passed for c in green)}/{len(green)} rules"
+
+
 def _accept_summary(result: AcceptResult) -> str:
     acceptance = result.plan.acceptance
     passed = sum(c.passed for c in acceptance.checks)
@@ -415,7 +428,7 @@ class PlannerPipeline:
             standards: Cited pages, for `citation_text_match`; without it (or `grounding`) a
                 rule citing a standard fails that check.
             audit: Step 9 hook (P2-07, `planner.steps.audit.audit_hook`).
-            prove: Step 10 hook (P2-08/09).
+            prove: Step 10 hook (P2-08/09, `rule_ci.prove_plan_hook`).
         """
         self._spark = spark
         self._files = files
@@ -539,7 +552,7 @@ class PlannerPipeline:
     def _hook_summary(self, name: StepName, plan: SitePlan) -> str:
         if self._hooks[name] is None:
             return f"not wired yet ({HOOK_TASKS[name]}); plan passed through"
-        return audit_summary(plan) if name == "audit" else ""
+        return audit_summary(plan) if name == "audit" else prove_summary(plan)
 
     def _run_hook(self, name: StepName, plan: SitePlan) -> SitePlan:
         hook = self._hooks[name]

@@ -52,6 +52,7 @@ from rulecam.planner.runner import ChunkFrames, PlannerService
 from rulecam.planner.standards import StandardsLibrary
 from rulecam.planner.steps.audit import audit_hook
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
+from rulecam.rule_ci import prove_plan_hook
 from rulecam.runtime.factory import (
     ChainEventSource,
     ChunkIndex,
@@ -417,6 +418,7 @@ def build_planner(
         standards=StandardsLibrary.from_settings(settings),
         store=PlanStore(PLANS_DIR),
         audit=audit_hook(SparkOpenVerifier(spark_open), glimmer, glimmer_model=glimmer.model),
+        prove=prove_plan_hook(bus),
     )
     frames = ChunkFrames(
         perception.chunks, clock=clock, out_dir=settings.rulecam_data_dir / "planner_frames"

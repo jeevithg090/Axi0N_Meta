@@ -124,13 +124,14 @@ class World:
         self.chain = EventChain(self.tmp / "chain", SITE, clock=self.clock)
         plans = {self.plan.plan_id: self.plan}
         app = FastAPI()
+        self.disputes = DisputeService(
+            self.chain, self.reviewer, clock=self.clock, limiter=self.limiter(self.clock)
+        )
         app.include_router(
             worker_router(
                 plans=plans.get,
                 chain=self.chain,
-                disputes=DisputeService(
-                    self.chain, self.reviewer, clock=self.clock, limiter=self.limiter(self.clock)
-                ),
+                disputes=self.disputes,
                 clock=self.clock,
                 public_base_url=self.base_url,
             )

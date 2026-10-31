@@ -6,9 +6,10 @@ objects. 429 and 5xx answers are retried with jittered exponential backoff (at m
 Every request is costed (`max(50, frames)` frames at $0.20 per 1,000; images $2.50 per 1,000) and
 publishes `relay.model_used` with its latency.
 
-The HTTP layer is an injected `Transport` (a mapping in, a mapping out), so the replay cache
-(P3-02) can wrap it and tests can feed recorded-style JSON fixtures without any network. All
-knowledge of the wire format lives in `sam_wire`.
+The HTTP layer is an injected `Transport` (a mapping in, a mapping out). `from_settings` wraps it
+in the replay cache (P3-02) in every mode, so REPLAY never touches the network, and tests can
+feed recorded-style JSON fixtures without any network. All knowledge of the wire format lives in
+`sam_wire`.
 """
 
 from __future__ import annotations
@@ -52,18 +53,26 @@ from rulecam.clients.meta_hosted.sam_wire import (
 )
 from rulecam.clients.ratelimit import TokenBucket
 from rulecam.clients.relay import ModelUsed, publish_model_used
-from rulecam.clients.transport import HttpxTransport, RetryPolicy, Sender, Transport
+from rulecam.clients.transport import (
+    RECORDED_LATENCY_HEADER,
+    HttpxTransport,
+    RetryPolicy,
+    Sender,
+    Transport,
+)
 from rulecam.config import Settings
 from rulecam.contracts import Chunk, Clock, Detection, Mask
 from rulecam.contracts.core import BoxXYXY
 from rulecam.log import get_logger
 from rulecam.perception.masks import NO_MASK
+from rulecam.replay.cache import ReplayCache
 
 _log = get_logger(__name__)
 
 DEFAULT_RPM = 2500.0
 DEFAULT_MAX_CONCURRENCY = 8
 RELAY_SEGMENT = "perception"
+REPLAY_PROVIDER = "meta"
 PROBE_CAMERA_ID = "probe"
 _FILE_ID_CACHE_SIZE = 256
 
@@ -192,31 +201,35 @@ class HostedSam31:
 
     @classmethod
     def from_settings(
-        cls, settings: Settings, *, clock: Clock, bus: Bus | None = None
+        cls,
+        settings: Settings,
+        *,
+        clock: Clock,
+        bus: Bus | None = None,
+        cache: ReplayCache | None = None,
     ) -> HostedSam31:
-        """Build a live client from `META_API_BASE_URL` and `META_API_KEY`.
+        """Build a client whose transport always goes through the replay cache.
+
+        In `replay` mode no API key is needed: hits come from the cache and a miss raises
+        `ReplayMiss`. In `live` and `record` mode the cache wraps a real `HttpxTransport`.
 
         Args:
             settings: Application settings.
             clock: Time source.
-            bus: Bus for `relay.model_used`.
+            bus: Bus for `relay.model_used` (and `mode.changed` of a cache built here).
+            cache: The replay cache to use; by default one is built from `settings`.
 
         Returns:
-            A client that calls the real API.
+            The client.
 
         Raises:
-            ClientConfigError: In replay mode (replay must go through the replay cache, never the
-                network) or when the base URL or key is missing.
+            ClientConfigError: In `live` or `record` mode when `META_API_BASE_URL` or
+                `META_API_KEY` is missing.
         """
-        if settings.rulecam_mode == "replay":
-            msg = "RULECAM_MODE=replay must serve SAM from the replay cache (P3-02), not HTTP"
-            raise ClientConfigError(msg)
-        if not settings.meta_api_base_url or settings.meta_api_key is None:
-            msg = "META_API_BASE_URL and META_API_KEY are required for hosted SAM 3.1"
-            raise ClientConfigError(msg)
-        transport = HttpxTransport(
-            settings.meta_api_base_url, settings.meta_api_key.get_secret_value()
-        )
+        if cache is None:
+            cache = ReplayCache.from_settings(settings, clock=clock, bus=bus)
+        inner = _live_transport(settings, required=cache.mode != "replay")
+        transport = cache.wrap_transport(REPLAY_PROVIDER, SAM_MODEL, inner)
         return cls(transport, clock=clock, bus=bus)
 
     @property
@@ -433,7 +446,9 @@ class HostedSam31:
     def _post(self, body: dict[str, object]) -> _Reply:
         start = self._monotonic()
         result = self._sender.send({"method": "POST", "path": RESPONSES_PATH, "json": body})
-        latency_ms = max(0, round((self._monotonic() - start) * 1000))
+        latency_ms = _recorded_latency_ms(result.reply.header(RECORDED_LATENCY_HEADER))
+        if latency_ms is None:
+            latency_ms = max(0, round((self._monotonic() - start) * 1000))
         return _Reply(body=result.reply.body, attempts=result.attempts, latency_ms=latency_ms)
 
     def _model_used(self, reply: _Reply, camera_id: str) -> ModelUsed:
@@ -469,6 +484,32 @@ class HostedSam31:
                 confidence=confidence if include_confidence else None,
             ),
         )
+
+
+def _live_transport(settings: Settings, *, required: bool) -> Transport:
+    """Return the real HTTP transport, or a no-network stand-in when allowed and unconfigured."""
+    if settings.meta_api_base_url and settings.meta_api_key is not None:
+        return HttpxTransport(settings.meta_api_base_url, settings.meta_api_key.get_secret_value())
+    if required:
+        msg = "META_API_BASE_URL and META_API_KEY are required for hosted SAM 3.1"
+        raise ClientConfigError(msg)
+    return _no_network
+
+
+def _no_network(request: Mapping[str, object]) -> Mapping[str, object]:
+    """Stand-in transport for replay without credentials; reached only after a mode switch."""
+    msg = f"no Meta API credentials configured to send {request.get('path')} live"
+    raise ClientConfigError(msg)
+
+
+def _recorded_latency_ms(value: str | None) -> int | None:
+    """Parse the replay cache's recorded-latency header; `None` when absent or invalid."""
+    if value is None:
+        return None
+    try:
+        return max(0, int(value))
+    except ValueError:
+        return None
 
 
 def _frame_ts(chunk: Chunk, record: WireRecord) -> datetime:

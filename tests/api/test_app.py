@@ -344,3 +344,29 @@ async def test_dead_background_task_is_logged() -> None:
     with contextlib.suppress(asyncio.CancelledError):
         await cancelled
     _log_task_end(cancelled)
+
+
+def test_verify_page_and_day_root(services: AppServices, tmp_path: Path) -> None:
+    from rulecam.api.app import VERIFY_PAGE_DIR  # noqa: PLC0415
+    from rulecam.evidence.merkle import write_day_roots  # noqa: PLC0415
+
+    EventChain(services.chain_root, "site", clock=FakeClock()).append("plan", {})
+    services.roots_dir = tmp_path / "roots"
+    services.verify_dir = VERIFY_PAGE_DIR
+    with TestClient(create_app(services)) as client:
+        page = client.get("/verify/")
+        assert page.status_code == 200
+        assert "Rulecam evidence check" in page.text
+        assert client.get("/verify/chain.js").status_code == 200
+        before = client.get("/evidence/2026-10-30/root").json()
+        assert before["n"] == 1
+        assert before["committed_root"] is None
+        assert before["committed_n"] is None
+        write_day_roots(services.chain_root, services.roots_dir, FakeClock().now().date())
+        after = client.get("/evidence/2026-10-30/root").json()
+        assert after["committed_root"] == after["root"]
+        assert after["committed_n"] == 1
+        EventChain(services.chain_root, "site", clock=FakeClock()).append("plan", {"n": 2})
+        grown = client.get("/evidence/2026-10-30/root").json()
+        assert (grown["n"], grown["committed_n"]) == (2, 1)
+        assert grown["committed_root"] == after["root"] != grown["root"]

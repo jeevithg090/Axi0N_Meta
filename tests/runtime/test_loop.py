@@ -119,13 +119,16 @@ async def test_run_consumes_chunk_ready(tmp_path: Path) -> None:
     task = asyncio.create_task(loop.run())
     await asyncio.sleep(0)
     bus.publish(Topic.CHUNK_READY, make_chunk(index=0))
-    for _ in range(200):
-        if loop.metrics.chunks_processed:
+    path = chain.path_for(clock.now().date())
+    # `chunks_processed` counts at the start of handle_chunk, which runs in a worker thread, so
+    # wait for the chain's verdict record itself rather than the counter.
+    for _ in range(500):
+        if path.is_file() and "verdict" in kinds(path):
             break
         await asyncio.sleep(0.01)
     task.cancel()
     assert loop.metrics.chunks_processed == 1
-    assert "verdict" in kinds(chain.path_for(clock.now().date()))
+    assert "verdict" in kinds(path)
 
 
 def test_strip_gets_the_plans_privacy_mode(tmp_path: Path) -> None:
@@ -188,3 +191,19 @@ async def test_run_survives_a_failing_chunk(tmp_path: Path) -> None:
         await task
     assert loop.metrics.chunks_failed == 1
     assert loop.metrics.chunks_processed == 2
+
+
+def test_candidate_records_rederive_in_the_audit(tmp_path: Path) -> None:
+    from rulecam.evidence.audit import audit_chain  # noqa: PLC0415
+
+    clock = at_end_of(FakeClock(), 0)
+    loop, _, chain, _ = make_loop(tmp_path, clock)
+    loop.set_plan(sink_plan())
+    loop.handle_chunk(make_chunk(index=0))
+    record = next(
+        r for r in read_chain(chain.path_for(clock.now().date())) if r.kind == "candidate"
+    )
+    assert set(record.payload) == {"candidate", "context"}
+    store = loop._store  # the same store the loop evaluated on
+    report = audit_chain(chain.path_for(clock.now().date()), store)
+    assert report.summary().endswith("1/1 decisions reproduced")

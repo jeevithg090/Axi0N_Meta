@@ -348,6 +348,34 @@ def deterministic_check(text: str) -> Declined | None:
     return None
 
 
+def curated_decline(reason: str) -> Declined | None:
+    """Return the curated decline whose fixed reason is exactly `reason`, if there is one.
+
+    A `declined` `FeasibilityVerdict` keeps the reason but not the category; for a decline made
+    by the deterministic check the reason is one of the fixed policy texts, which names it.
+
+    Args:
+        reason: A recorded decline reason.
+
+    Returns:
+        The curated `Declined` (category, fixed reason and alternative), or `None` when the
+        reason was written by the model.
+    """
+    for category, _pattern, fixed_reason, alternative in _PATTERNS:
+        if reason == fixed_reason:
+            return Declined(category=category, reason=fixed_reason, alternative=alternative)
+    return None
+
+
+def policy_words() -> frozenset[str]:
+    """Return every word (case-folded) of the curated decline reasons and alternatives."""
+    return frozenset(
+        word.casefold()
+        for _category, _pattern, reason, alternative in _PATTERNS
+        for word in re.findall(r"\w+", f"{reason} {alternative}")
+    )
+
+
 def check_request(text: str, *, spark: StructuredLLM | None = None) -> GuardrailVerdict:
     """Evaluate a rule request against the guardrails.
 

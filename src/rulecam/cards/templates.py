@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 RULE_CARD_TEMPLATE = """<!DOCTYPE html>
-<html lang="{{ card.language }}">
+<html lang="{{ card.lang }}">
 <head>
   <meta charset="UTF-8">
-  <title>Rule Card: {{ card.rule_id }}</title>
+  <title>Rule card: {{ card.rule_id }}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -141,68 +141,114 @@ RULE_CARD_TEMPLATE = """<!DOCTYPE html>
     .verified-badge {
       color: #38bdf8;
     }
-    .qr-text {
-      font-size: 16px;
-      color: #64748b;
-      text-align: right;
-    }
+    .qr { width: 180px; height: 180px; background: #ffffff; padding: 8px; border-radius: 8px; }
+    .qr svg { width: 100%; height: 100%; }
+    .missing { color: #fbbf24; font-size: 36px; }
+    .wide { grid-column: 1 / -1; }
+    .ci-verdict { font-size: 22px; color: #94a3b8; font-weight: 600; }
   </style>
 </head>
 <body>
   <div class="header">
     <div class="brand">Rulecam</div>
     <div class="meta-pills">
-      <span class="pill">{{ card.site_id }} · {{ card.camera_id }}</span>
-      <span class="pill verdict-{{ card.feasibility_verdict }}">
-        Feasibility: {{ card.feasibility_verdict|upper }}
+      <span class="pill">{{ card.site_name }} · v{{ card.plan_version }}</span>
+      {% if card.feasibility %}
+      <span class="pill verdict-{{ verdict_class }}">
+        Feasibility: {{ card.feasibility|replace("_", " ")|upper }}
       </span>
-      <span class="pill">{{ card.language|upper }}</span>
+      {% else %}
+      <span class="pill">Feasibility: not recorded</span>
+      {% endif %}
+      <span class="pill">{{ card.lang|upper }}</span>
     </div>
   </div>
 
   <div class="body">
+    {% if card.plain_language %}
     <h1 class="rule-title">{{ card.plain_language }}</h1>
+    {% else %}
+    <h1 class="rule-title missing">{{ card.rule_id }}: {{ card.not_back_translated }}</h1>
+    {% endif %}
 
     <div class="standard-box">
-      <div class="standard-label">Cited Regulatory Standard</div>
-      <div class="standard-text">{{ card.cited_standard }}</div>
+      <div class="standard-label">
+        Cited standard
+        {%- if card.citation_verified %} · quote verified
+        {%- elif card.citation_verified is false %} · quote not verified{% endif %}
+      </div>
+      <div class="standard-text">
+        {{ card.standards|join(" · ") if card.standards else "No standard cited" }}
+      </div>
     </div>
 
     <div class="ci-grid">
+      {% if card.rule_ci %}
       <div class="ci-card">
-        <div class="ci-val">{{ card.boundary_traces_passed }}/{{ card.boundary_traces_total }}</div>
-        <div class="ci-label">Boundary Traces</div>
+        <div class="ci-val">
+          {{ card.rule_ci.boundary_passed }}/{{ card.rule_ci.boundary_total }}
+        </div>
+        <div class="ci-label">Boundary traces passed</div>
       </div>
       <div class="ci-card">
-        <div class="ci-val">{{ card.mutants_killed }}/{{ card.mutants_total }}</div>
-        <div class="ci-label">Mutants Killed</div>
+        <div class="ci-val">{{ card.rule_ci.mutants_killed }}/{{ card.rule_ci.mutants_total }}</div>
+        <div class="ci-label">Mutants killed</div>
       </div>
       <div class="ci-card">
-        <div class="ci-val">{{ card.lookalikes_fooled }}/{{ card.lookalikes_tested }}</div>
-        <div class="ci-label">Lookalikes Fooled</div>
+        {% if card.rule_ci.lookalikes %}
+        <div class="ci-val">
+          {{ card.rule_ci.lookalikes.fooled }}/{{ card.rule_ci.lookalikes.tested }}
+        </div>
+        <div class="ci-label">Lookalikes that fooled it</div>
+        {% else %}
+        <div class="ci-val">&ndash;</div>
+        <div class="ci-label">Lookalikes not run</div>
+        {% endif %}
       </div>
+      {% else %}
+      <div class="ci-card wide">
+        <div class="ci-val">&ndash;</div>
+        <div class="ci-label">Rule CI has not run</div>
+      </div>
+      {% endif %}
     </div>
+    {% if card.rule_ci %}
+    <div class="ci-verdict">
+      Rule CI {{ "green" if card.rule_ci.ci_green else "not green" }}
+      {%- if card.calibrated_alpha is not none %} · calibrated false-alarm rate
+      {{ "%.3f"|format(card.calibrated_alpha) }}{% endif %}
+    </div>
+    {% elif card.calibrated_alpha is not none %}
+    <div class="ci-verdict">
+      Calibrated false-alarm rate {{ "%.3f"|format(card.calibrated_alpha) }}
+    </div>
+    {% endif %}
 
     <div class="thumbnail-box">
-      {% if card.skeleton_thumbnail_b64 %}
-        <img src="data:image/png;base64,{{ card.skeleton_thumbnail_b64 }}" alt="Skeleton Thumbnail">
+      {% if skeleton_uri %}
+        <img src="{{ skeleton_uri }}" alt="Skeleton render">
       {% else %}
-        <div class="thumbnail-placeholder">Skeleton Thumbnail (Verified Detection Region)</div>
+        <div class="thumbnail-placeholder">No skeleton render</div>
       {% endif %}
     </div>
   </div>
 
   <div class="footer">
     <div class="verified-by">
-      Checked by <span class="verified-badge">{{ card.verified_by }}</span>
-      {% if card.calibrated_false_alarm_rate is not none %}
-        · FAR: {{ "%.3f"|format(card.calibrated_false_alarm_rate) }}/shift
+      {% if checked_by %}
+      Checked by <span class="verified-badge">{{ checked_by|join(" + ") }}</span>
+      {% else %}
+      Not independently checked
+      {% endif %}
+      {% if card.spark_open == "findings" %}
+      · {{ card.audit_findings }} audit finding{{ "" if card.audit_findings == 1 else "s" }}
+      {% elif card.spark_open == "skipped" %}
+      · Spark Open audit skipped
       {% endif %}
     </div>
-    <div class="qr-text">
-      Scan to view hash-chained evidence<br>
-      <code>{{ card.qr_code_url }}</code>
-    </div>
+    {% if qr_svg %}
+    <div class="qr">{{ qr_svg }}</div>
+    {% endif %}
   </div>
 </body>
 </html>
@@ -212,7 +258,7 @@ DECLINED_CARD_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Declined Request Card</title>
+  <title>Declined request</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -303,19 +349,6 @@ DECLINED_CARD_TEMPLATE = """<!DOCTYPE html>
       font-weight: 500;
     }
 
-    .guarantee-box {
-      background: #090d16;
-      border: 1px solid #334155;
-      border-radius: 16px;
-      padding: 24px 32px;
-      font-size: 20px;
-      color: #94a3b8;
-      line-height: 1.4;
-    }
-    .guarantee-highlight {
-      color: #38bdf8;
-      font-weight: 600;
-    }
 
     .footer {
       border-top: 2px solid #334155;
@@ -330,36 +363,34 @@ DECLINED_CARD_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body>
   <div class="header">
-    <div class="brand">Rulecam Ethics & Governance</div>
-    <div class="declined-badge">Request Declined</div>
+    <div class="brand">Rulecam</div>
+    <div class="declined-badge">Request declined</div>
   </div>
 
   <div class="body">
     <div>
-      <div class="category-pill">{{ card.category }}</div>
-      <h1 class="category-title">Safety and Privacy Boundary Enforced</h1>
+      <div class="category-pill">
+        {{ card.category|replace("_", " ") if card.category else "category not recorded" }}
+      </div>
+      <h1 class="category-title">This is something Rulecam will not do</h1>
     </div>
 
     <div class="section-box">
-      <div class="section-label reason-label">Why this was declined</div>
+      <div class="section-label reason-label">Why it was declined</div>
       <div class="section-text">{{ card.reason }}</div>
     </div>
 
     <div class="alt-box">
-      <div class="section-label alt-label">Compliant Station Alternative</div>
-      <div class="section-text">{{ card.station_alternative }}</div>
-    </div>
-
-    <div class="guarantee-box">
-      <span class="guarantee-highlight">Core Design Principle:</span>
-      Rulecam monitors stations, equipment, and workflows. Individual worker tracking,
-      per-person speed quotas, and biometric recognition are architecturally prohibited.
+      <div class="section-label alt-label">What we can do instead</div>
+      <div class="section-text">
+        {{ card.alternative if card.alternative else "No alternative recorded." }}
+      </div>
     </div>
   </div>
 
   <div class="footer">
-    <div>{{ card.site_id }}</div>
-    <div>{{ card.policy_reference }}</div>
+    <div>{{ card.site_name }}</div>
+    <div>Rulecam guardrails (MP §3.6, SA §5)</div>
   </div>
 </body>
 </html>

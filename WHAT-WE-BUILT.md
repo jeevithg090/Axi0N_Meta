@@ -19,6 +19,7 @@ adds a row here with its licence.
 | OpenCV (headless) | Video and geometry | Apache-2.0 |
 | Shapely | Zone geometry | BSD-3-Clause |
 | Jinja2 | Templates | BSD-3-Clause |
+| Playwright for Python (`ui` extra) | Rule card PNGs via headless Chromium (`cards/render.py`, P2-10) | Apache-2.0 |
 | PyYAML | YAML | MIT |
 | qrcode | QR codes | BSD |
 | Pillow | Rule CI injection-sign composites (`rule_ci/injection.py`) | MIT-CMU (HPND) |

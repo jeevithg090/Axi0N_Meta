@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Declined request</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 1080px;
+      height: 1350px;
+      background: #0f172a;
+      color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 64px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #334155;
+      padding-bottom: 24px;
+    }
+    .brand {
+      font-size: 28px;
+      font-weight: 800;
+      color: #94a3b8;
+    }
+    .declined-badge {
+      font-size: 20px;
+      font-weight: 800;
+      padding: 10px 24px;
+      border-radius: 9999px;
+      background: #7f1d1d;
+      color: #fca5a5;
+      border: 1px solid #ef4444;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .body {
+      flex: 1;
+      padding: 64px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+    }
+    .category-title {
+      font-size: 52px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.2;
+    }
+    .category-pill {
+      display: inline-block;
+      font-size: 22px;
+      font-weight: 700;
+      padding: 8px 20px;
+      border-radius: 8px;
+      background: #334155;
+      color: #f87171;
+      margin-bottom: 8px;
+    }
+
+    .section-box {
+      background: #1e293b;
+      padding: 32px;
+      border-radius: 16px;
+      border-left: 6px solid #ef4444;
+    }
+    .alt-box {
+      background: #1e293b;
+      padding: 32px;
+      border-radius: 16px;
+      border-left: 6px solid #10b981;
+    }
+    .section-label {
+      font-size: 18px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+    .reason-label { color: #f87171; }
+    .alt-label { color: #34d399; }
+
+    .section-text {
+      font-size: 26px;
+      line-height: 1.45;
+      color: #e2e8f0;
+      font-weight: 500;
+    }
+
+
+    .footer {
+      border-top: 2px solid #334155;
+      padding-top: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 18px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">Rulecam</div>
+    <div class="declined-badge">Request declined</div>
+  </div>
+
+  <div class="body">
+    <div>
+      <div class="category-pill">
+        per person productivity
+      </div>
+      <h1 class="category-title">This is something Rulecam will not do</h1>
+    </div>
+
+    <div class="section-box">
+      <div class="section-label reason-label">Why it was declined</div>
+      <div class="section-text">Per-person productivity tracking, rankings, and individual idle tracking are prohibited.</div>
+    </div>
+
+    <div class="alt-box">
+      <div class="section-label alt-label">What we can do instead</div>
+      <div class="section-text">
+        We can measure station throughput, queue wait times, or process cycle times at equipment/stations without attributing metrics to individuals.
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>Main St &lt;Kitchen&gt;</div>
+    <div>Rulecam guardrails (MP §3.6, SA §5)</div>
+  </div>
+</body>
+</html>

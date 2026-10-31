@@ -43,7 +43,17 @@ SAM3_COMMIT = "f1647e8d0c1d280991f4d1b7d974c2704537fe66"
 SAM3_PACKAGE = f"sam3 @ git+https://github.com/facebookresearch/sam3.git@{SAM3_COMMIT}"
 TORCH_PACKAGES = ("torch==2.10.0", "torchvision")
 TORCH_INDEX_URL = "https://download.pytorch.org/whl/cu128"
-IMAGE_PACKAGES = (SAM3_PACKAGE, "opencv-python-headless", "setuptools<81")
+# sam3 imports einops, pycocotools and psutil without declaring them; masks -> contracts needs
+# pydantic. Keep in step with scripts/sam_pod/setup.sh.
+IMAGE_PACKAGES = (
+    SAM3_PACKAGE,
+    "opencv-python-headless",
+    "setuptools<81",
+    "pydantic>=2.7",
+    "einops",
+    "pycocotools",
+    "psutil",
+)
 
 WireObject = dict[str, Any]
 

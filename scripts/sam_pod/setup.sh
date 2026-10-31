@@ -53,9 +53,11 @@ install_venv() {
   uv pip install --quiet --python "$PY" "torch==2.10.0" torchvision \
     --index-url https://download.pytorch.org/whl/cu128
   # sam_worker imports rulecam.perception.masks -> rulecam.contracts, which needs pydantic.
+  # sam3 does not declare einops, pycocotools or psutil but imports them (found on a RunPod L4).
   uv pip install --quiet --python "$PY" \
     "sam3 @ git+https://github.com/facebookresearch/sam3.git@$commit" \
-    opencv-python-headless "setuptools<81" "numpy<2" "pydantic>=2.7" huggingface_hub
+    opencv-python-headless "setuptools<81" "numpy<2" "pydantic>=2.7" huggingface_hub \
+    einops pycocotools psutil
   PYTHONPATH="$RULECAM_DIR/src" "$PY" -c \
     "import sam3.model_builder, torch, rulecam.perception.sam_server; assert torch.cuda.is_available()" \
     || die "the venv does not import sam3/rulecam or sees no CUDA GPU"

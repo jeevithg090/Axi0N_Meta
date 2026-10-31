@@ -394,3 +394,6 @@ def test_pod_setup_script_uses_the_pinned_commit_and_torch() -> None:
     # sam3 imports these without declaring them; the pod venv failed without them.
     for undeclared in ("einops", "pycocotools", "psutil"):
         assert undeclared in script
+    # uv's Python must survive a pod restart (container disk is wiped), and a broken venv rebuilt.
+    assert "UV_PYTHON_INSTALL_DIR" in script
+    assert "has no working Python; rebuilding it" in script

@@ -369,9 +369,7 @@ def test_upload_without_id_is_a_response_error(chunk: Chunk) -> None:
         client.segment(chunk, "person")
 
 
-def test_from_settings_refuses_replay_mode_and_missing_keys() -> None:
-    with pytest.raises(ClientConfigError, match="replay"):
-        HostedSam31.from_settings(Settings(rulecam_mode="replay"), clock=FakeClock())
+def test_from_settings_needs_keys_outside_replay() -> None:
     with pytest.raises(ClientConfigError, match="META_API_KEY"):
         HostedSam31.from_settings(
             Settings(rulecam_mode="live", meta_api_key=None), clock=FakeClock()

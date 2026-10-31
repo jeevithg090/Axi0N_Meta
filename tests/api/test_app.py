@@ -297,9 +297,11 @@ def test_plans_create_list_get_approve(services: AppServices) -> None:
         assert client.get("/plans/main-st").json()["plan_id"] == "main-st"
         assert client.get("/plans/nope").status_code == 404
         assert client.get("/plans/bad%20id").status_code == 422
-        assert client.post("/plans/main-st/approve").json()["approved"] is True
         assert client.post("/plans/nope/approve").status_code == 404
-    assert received == [(Topic.PLAN_UPDATED, site_plan())]
+        # No activator here: approving is refused and nothing is published (see test_approve).
+        assert client.post("/plans/main-st/approve").status_code == 503
+        assert client.get("/plans").json()[0]["approved"] is False
+    assert received == []
     with TestClient(create_app(services), **TUNNEL) as remote:  # type: ignore[arg-type]
         assert remote.post("/plans", json=body).status_code == 403
         assert remote.post("/plans/main-st/approve").status_code == 403

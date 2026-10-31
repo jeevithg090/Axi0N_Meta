@@ -1,0 +1,45 @@
+plan_id: plan-heldout-10-r2
+version: 1
+site_name: Site Warehouse
+setting_inferred: warehouse
+languages:
+- en
+request:
+- kind: text
+  file: null
+  lang: null
+  text: Check whether any fragile glassware is broken inside the sealed corrugated
+    shipping cartons.
+  extracted: []
+inventory: []
+feasibility:
+- concern: Check whether any fragile glassware is broken inside the sealed corrugated
+    shipping cartons.
+  verdict: not_observable
+  says: I cannot verify internal temperature or hidden contents with optical cameras.
+  evidence:
+  - concept: internal_sensor_or_hidden_state
+    camera_id: cam1
+    n_frames: 30
+    detect_rate: 0.0
+    detect_lb: 0.0
+    median_px_height: 0.0
+  alternative: Use physical IoT probes or direct manifest checks instead of camera
+    rules.
+  reason: null
+rules: []
+privacy_mode: standard
+retention_days: 30
+protected_two_key: []
+roles: {}
+acceptance:
+  checks:
+  - item: feasibility
+    check: observability_honest
+    passed: true
+    detail: optical camera physical boundary honest verdict
+  rounds: 0
+audit: []
+back_translation: ''
+standards: []
+cost_usd_per_cam_hour: null

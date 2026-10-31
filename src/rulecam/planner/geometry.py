@@ -36,7 +36,8 @@ name wins.
 `ground` replaces every polygon a model wrote with the candidate of that name and rejects a
 polygon zone that is not a candidate (the compile repair round sees the error), strips any
 pixels from buffer zones (a buffer is measured in metres at run time, around its concept), and
-sets the rule's `calibration` name only when every camera the metric rule runs on is calibrated.
+sets the rule's `calibration` name only when every camera the metric rule runs on (its camera
+scope, `planner.scope`) is calibrated.
 A metric rule on an uncalibrated camera is still compiled; acceptance then fails its
 `calibration_err<=tol` check, keeps it amber and asks the owner to mark a known distance.
 """
@@ -56,6 +57,7 @@ import numpy as np
 from pydantic import Field
 
 from rulecam.contracts.core import BoxXYXY, Calibration, Detection, Frozen, PointXY, Zone
+from rulecam.contracts.plan import FeasibilityVerdict
 from rulecam.contracts.rule_ir import RuleIR, ZoneSpec
 from rulecam.log import get_logger
 from rulecam.perception.calibration import (
@@ -66,7 +68,8 @@ from rulecam.perception.calibration import (
 )
 from rulecam.perception.errors import CalibrationError
 from rulecam.perception.masks import NO_MASK, decode_rle
-from rulecam.planner.acceptance import is_metric, rule_cameras
+from rulecam.planner.acceptance import is_metric
+from rulecam.planner.scope import scoped_cameras
 from rulecam.planner.steps.survey import DEFAULT_SURVEY_FRAMES, ImageSegmenter, sample_frames
 
 _log = get_logger(__name__)
@@ -452,12 +455,14 @@ class SiteGeometry(Frozen):
         zones: Candidate zone name -> its spec.
         zone_origins: Candidate zone name -> where it came from, for the prompt.
         calibrations: Camera id -> ground calibration (owner's over the scene's).
+        feasibility: The gauge's verdicts, which scope each rule to its cameras.
     """
 
     cameras: tuple[str, ...]
     zones: dict[str, ZoneSpec] = Field(default_factory=dict)
     zone_origins: dict[str, str] = Field(default_factory=dict)
     calibrations: dict[str, Calibration] = Field(default_factory=dict)
+    feasibility: tuple[FeasibilityVerdict, ...] = ()
 
     @classmethod
     def build(
@@ -468,6 +473,7 @@ class SiteGeometry(Frozen):
         scene_zones: Sequence[Zone] = (),
         owner_calibrations: Mapping[str, Calibration] | None = None,
         scene_calibrations: Mapping[str, Calibration] | None = None,
+        feasibility: Sequence[FeasibilityVerdict] = (),
     ) -> SiteGeometry:
         """Merge the owner's and the scene's geometry; the owner's wins on a clash.
 
@@ -477,6 +483,7 @@ class SiteGeometry(Frozen):
             scene_zones: Zones built from detections.
             owner_calibrations: Calibrations from the site config.
             scene_calibrations: Calibrations from reference objects.
+            feasibility: The gauge's verdicts (they scope each rule's calibration name).
 
         Returns:
             The geometry.
@@ -495,6 +502,7 @@ class SiteGeometry(Frozen):
             zones=dict(sorted(zones.items())),
             zone_origins=dict(sorted(origins.items())),
             calibrations=dict(sorted(calibrations.items())),
+            feasibility=tuple(feasibility),
         )
 
     def prompt_lines(self) -> list[str]:
@@ -566,10 +574,13 @@ class SiteGeometry(Frozen):
         return grounded.model_copy(update={"calibration": self.calibration_name(grounded)})
 
     def calibration_name(self, rule: RuleIR) -> str | None:
-        """`ground-plane@<camera>[,...]` for a metric rule all of whose cameras are calibrated."""
+        """`ground-plane@<camera>[,...]` for a metric rule all of whose cameras are calibrated.
+
+        The cameras are the rule's scope (`planner.scope`), else every site camera.
+        """
         if not is_metric(rule):
             return None
-        cameras = rule_cameras(rule, dict.fromkeys(self.cameras))
+        cameras = scoped_cameras(rule, self.cameras, self.feasibility)
         if not cameras or any(c not in self.calibrations for c in cameras):
             return None
         return ",".join(f"ground-plane@{c}" for c in cameras)

@@ -722,15 +722,24 @@ class PlannerPipeline:
         )
 
     def geometry(
-        self, inputs: PipelineInput, survey: SurveyResult, probe: ProbeResult
+        self,
+        inputs: PipelineInput,
+        survey: SurveyResult,
+        probe: ProbeResult,
+        feasibility: Sequence[FeasibilityVerdict] = (),
     ) -> SiteGeometry:
-        """The zones and calibrations rules may use: the scene's, overridden by the owner's."""
+        """The zones and calibrations rules may use: the scene's, overridden by the owner's.
+
+        `feasibility` (the gauge's verdicts) scopes each rule to its cameras
+        (`planner.scope`), so a rule's calibration name covers only the cameras it runs on.
+        """
         return SiteGeometry.build(
             inputs.camera_frames,
             owner_zones=inputs.zones,
             scene_zones=probe.zones,
             owner_calibrations=inputs.calibrations,
             scene_calibrations={**survey.calibrations, **probe.calibrations},
+            feasibility=feasibility,
         )
 
     def _gauge(self, understood: UnderstandResult, probe: ProbeResult) -> GaugeResult:
@@ -782,7 +791,9 @@ class PlannerPipeline:
             if verdict is None or verdict.verdict not in COMPILED_VERDICTS:
                 continue
             try:
-                rule = self._compile_concern(inputs, survey, probe, concern, ())
+                rule = self._compile_concern(
+                    inputs, survey, probe, concern, (), feasibility=gauge.feasibility
+                )
             except GuardrailDeclinedError as declined:
                 verdicts[concern.text] = declined.declined.to_feasibility_verdict(concern.text)
                 continue
@@ -803,6 +814,8 @@ class PlannerPipeline:
         probe: ProbeResult,
         concern: Concern,
         feedback: Sequence[str],
+        *,
+        feasibility: Sequence[FeasibilityVerdict],
     ) -> RuleIR:
         return compile_rule(
             concern,
@@ -811,7 +824,7 @@ class PlannerPipeline:
             site_name=inputs.site_name,
             plan_id=inputs.plan_id,
             feedback=feedback,
-            geometry=self.geometry(inputs, survey, probe),
+            geometry=self.geometry(inputs, survey, probe, feasibility),
         )
 
     # --- step 8 ---------------------------------------------------------------------------------
@@ -832,7 +845,9 @@ class PlannerPipeline:
         )
         loop = RepairLoop(
             facts,
-            recompile=partial(self._compile_concern, inputs, survey, probe),
+            recompile=partial(
+                self._compile_concern, inputs, survey, probe, feasibility=compiled.feasibility
+            ),
             probe=partial(self._probe_more, inputs),
             verify_citation=self._verify_citation,
         )

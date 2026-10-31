@@ -13,6 +13,7 @@ from rulecam.contracts import (
     PrivacyMode,
     RuleIR,
     Track,
+    Verifier,
     VerifierVerdict,
 )
 from rulecam.evidence.chain import EventChain
@@ -194,7 +195,7 @@ def sequence_plan() -> ActivePlan:
 def make_loop(
     tmp_path: Path,
     clock: FakeClock,
-    verifier: FakeVerifier | None = None,
+    verifier: Verifier | None = None,
     *,
     strips: FakeStrips | None = None,
     tracker: ChunkTracker | None = None,

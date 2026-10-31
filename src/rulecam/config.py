@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     rulecam_sam_budget_stride: int = Field(default=3, ge=1)  # over budget: one chunk in N
     rulecam_runtime_concept_workers: int = Field(default=4, ge=1)  # concepts segmented at once
     rulecam_runtime_pipeline_depth: int = Field(default=4, ge=1)  # chunks per camera in flight
+    # Runtime SAM calls open at once, across cameras (docs/deploy.md "Stage timings").
+    rulecam_sam_max_concurrency: int = Field(default=8, ge=1)
+    rulecam_runtime_verify_workers: int = Field(default=4, ge=1)  # Tier 1 verifications at once
+    # Decode hosted SAM masks on the runtime path (pure-Python, GIL-bound; boxes suffice for feet).
+    rulecam_runtime_sam_masks: bool = False
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None

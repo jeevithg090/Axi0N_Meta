@@ -14,7 +14,7 @@ from rulecam.config import Settings
 from rulecam.contracts import PrivacyMode
 from rulecam.evidence.chain import EventChain
 from rulecam.perception.metrics import Backend, PerceptionMetrics
-from rulecam.perception.router import Purpose
+from rulecam.perception.router import LimitedSegmenter, Purpose
 from rulecam.perception.sam_runtime import HttpSamWorker, ModalWorker
 from rulecam.replay.cache import ReplayCache
 from rulecam.replay.errors import ReplayMiss
@@ -181,3 +181,28 @@ def test_http_outage_falls_back_to_hosted_and_is_counted(tmp_path: Path) -> None
     with pytest.raises(ReplayMiss):  # nothing listens on port 9: hosted (replay-only) is tried
         perception.router.for_purpose(Purpose.RUNTIME).segment(chunk, "person")
     assert perception.metrics.report().total.sam_fallbacks == 1
+
+
+@pytest.mark.parametrize("masks", [False, True])
+def test_runtime_hosted_sam_is_box_only_by_default_and_reports_stages(
+    tmp_path: Path, masks: bool
+) -> None:
+    bus = Bus()
+    clock = FakeClock()
+    cache = ReplayCache(tmp_path / "replay", "replay", clock=clock, bus=bus)
+    cfg = settings(tmp_path, rulecam_runtime_sam_masks=masks, rulecam_sam_max_concurrency=3)
+    perception = build_perception(cfg, cache=cache, clock=clock, bus=bus)
+    runtime_hosted = perception.runtime_hosted
+    assert runtime_hosted is not None
+    assert runtime_hosted is not perception.hosted
+    assert (runtime_hosted._mask_decoder is None) is not masks
+    assert perception.hosted._mask_decoder is not None  # probes and calibration keep masks
+    assert runtime_hosted.costs is perception.hosted.costs
+    chain = EventChain(tmp_path / "chain", "site", clock=clock)
+    loop = build_runtime(cfg, perception, cache=cache, clock=clock, bus=bus, chain=chain)
+    assert runtime_hosted._stage_sink is not None
+    runtime_hosted._stage_sink("upload", "cam1", "c1", 2.0)
+    assert loop.metrics.stages["upload"].p50_s == 2.0
+    limited = loop._tracker._segmenter._inner._inner  # type: ignore[attr-defined]
+    assert isinstance(limited, LimitedSegmenter)
+    assert limited.max_concurrent == 3

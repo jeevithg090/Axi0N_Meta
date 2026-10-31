@@ -9,7 +9,10 @@
 #   /workspace/.hf_token      Hugging Face token with access to facebook/sam3.1 (setup only)
 #   /workspace/.sam_api_key   Bearer key the API pod sends as SAM_API_KEY
 #
-# Paths can be overridden with RULECAM_DIR, SAM_VENV, HF_HOME, SAM_LOG, SAM_PORT.
+# Paths can be overridden with RULECAM_DIR, SAM_VENV, HF_HOME, SAM_LOG, SAM_PORT. Engine settings
+# (SAM_MEMORY_GUARD_GB, SAM_COMPILE, SAM_DET_THRESH, SAM_NEW_DET_THRESH, SAM_HOTSTART_*; see
+# docs/deploy.md) come from the environment or from /workspace/sam.env (KEY=value lines, no
+# secrets), which also survives a reboot through boot.sh.
 set -euo pipefail
 umask 077
 
@@ -20,6 +23,13 @@ SAM_LOG="${SAM_LOG:-/workspace/sam.log}"
 SAM_PORT="${SAM_PORT:-8090}"
 HF_TOKEN_FILE="${HF_TOKEN_FILE:-/workspace/.hf_token}"
 SAM_KEY_FILE="${SAM_KEY_FILE:-/workspace/.sam_api_key}"
+SAM_ENV_FILE="${SAM_ENV_FILE:-/workspace/sam.env}"
+if [[ -f "$SAM_ENV_FILE" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$SAM_ENV_FILE"
+  set +a
+fi
 WORKER_PY="$RULECAM_DIR/src/rulecam/perception/sam_worker.py"
 PY="$SAM_VENV/bin/python"
 HEALTH_URL="http://127.0.0.1:$SAM_PORT/health"

@@ -198,9 +198,8 @@ async def test_bus_publish_from_worker_thread_is_delivered() -> None:
 
 
 def test_verify_page_and_day_root(services: AppServices, tmp_path: Path) -> None:
-    from rulecam.evidence.merkle import write_day_roots  # noqa: PLC0415
-
     from rulecam.api.app import VERIFY_PAGE_DIR  # noqa: PLC0415
+    from rulecam.evidence.merkle import write_day_roots  # noqa: PLC0415
 
     EventChain(services.chain_root, "site", clock=FakeClock()).append("plan", {})
     services.roots_dir = tmp_path / "roots"

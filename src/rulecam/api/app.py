@@ -302,6 +302,7 @@ def create_app(services: AppServices) -> FastAPI:
     for router in _routers(services):
         app.include_router(router)
     if services.verify_dir is not None:
+        services.verify_dir.mkdir(parents=True, exist_ok=True)
         app.mount("/verify", StaticFiles(directory=services.verify_dir, html=True), name="verify")
     return app
 

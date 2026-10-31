@@ -16,8 +16,10 @@ probe's sampler can spread its frames across chunks (`survey.frame_group`).
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import math
+import re
 import shutil
 import subprocess
 import uuid
@@ -164,6 +166,34 @@ def frame_indices(
     return tuple(sorted(set(picks)))
 
 
+def passthrough_flag(version_banner: str) -> list[str]:
+    """Return the "keep only the selected frames" option for this ffmpeg build.
+
+    `-fps_mode` arrived in ffmpeg 5.1 and replaced `-vsync`, which newer builds drop; Ubuntu
+    22.04 (the RunPod base image) ships ffmpeg 4.4, which only knows `-vsync`.
+    """
+    match = re.search(r"ffmpeg version n?(\d+)\.(\d+)", version_banner)
+    if match and (int(match[1]), int(match[2])) < (5, 1):
+        return ["-vsync", "passthrough"]
+    return ["-fps_mode", "passthrough"]
+
+
+@functools.cache
+def passthrough_args() -> tuple[str, ...]:
+    """`passthrough_flag` for the installed ffmpeg (asked once per process)."""
+    try:
+        banner = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-version"],  # noqa: S607 - ffmpeg from PATH, as everywhere
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=FRAME_TIMEOUT_S,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        banner = ""
+    return tuple(passthrough_flag(banner))
+
+
 def frames_args(chunk: Path, indices: Sequence[int], out_dir: Path) -> list[str]:
     """Build the one ffmpeg command that writes the chosen frames of a chunk as JPEGs.
 
@@ -186,8 +216,7 @@ def frames_args(chunk: Path, indices: Sequence[int], out_dir: Path) -> list[str]
         str(chunk),
         "-vf",
         f"select='{select}'",
-        "-fps_mode",
-        "passthrough",
+        *passthrough_args(),
         "-frames:v",
         str(len(indices)),
         "-q:v",

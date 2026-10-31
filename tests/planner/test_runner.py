@@ -18,6 +18,7 @@ from rulecam.api.plans import PlannerRunner, PlanRegistry
 from rulecam.bus import Bus
 from rulecam.config import Settings
 from rulecam.contracts import Chunk, RequestItem, SitePlan
+from rulecam.planner import runner as runner_module
 from rulecam.planner.feasibility import OBSERVABLE_LB
 from rulecam.planner.pipeline import PipelineInput
 from rulecam.planner.runner import (
@@ -325,3 +326,22 @@ def test_the_survey_window_is_a_setting(tmp_path: Path, monkeypatch: pytest.Monk
     frames = planner._frames
     assert isinstance(frames, ChunkFrames)
     assert frames._window == timedelta(seconds=45)
+
+
+@pytest.mark.parametrize(
+    ("banner", "expected"),
+    [
+        (
+            "ffmpeg version 4.4.2-0ubuntu0.22.04.1 Copyright (c) 2000-2021",
+            ["-vsync", "passthrough"],
+        ),
+        ("ffmpeg version 5.0.1 Copyright", ["-vsync", "passthrough"]),
+        ("ffmpeg version 5.1.2 Copyright", ["-fps_mode", "passthrough"]),
+        ("ffmpeg version n7.1 Copyright", ["-fps_mode", "passthrough"]),
+        ("ffmpeg version 9.0 Copyright", ["-fps_mode", "passthrough"]),
+        ("ffmpeg version N-117000-g1234abcd Copyright", ["-fps_mode", "passthrough"]),
+        ("", ["-fps_mode", "passthrough"]),
+    ],
+)
+def test_passthrough_flag_matches_the_ffmpeg_version(banner: str, expected: list[str]) -> None:
+    assert runner_module.passthrough_flag(banner) == expected

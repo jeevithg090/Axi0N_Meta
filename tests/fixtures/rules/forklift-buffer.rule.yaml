@@ -1,0 +1,25 @@
+# The buffer-zone form the compiler also writes for "Keep people at least 2 metres away from a
+# moving forklift." (live finding on main 6c6ca2f); forklift-proximity is the distance_m form.
+id: forklift-buffer
+version: 1
+source:
+  kind: text
+  text: "Keep people at least 2 metres away from a moving forklift."
+  lang: en
+concepts:
+  person: {prompt: person}
+  forklift: {prompt: forklift}
+zones:
+  forklift_buffer: {kind: buffer, camera_id: cam1, buffer_of: forklift, buffer_m: 2.0}
+calibration: ground-plane@cam1
+predicate:
+  op: all
+  of:
+    - {op: inside, object: person, zone: forklift_buffer}
+    - {op: moving, object: forklift, speed_mps_gt: 0.2}
+severity: high
+actions:
+  - {kind: visual_signal}
+  - {kind: notify, role: dock_lead}
+  - {kind: log}
+verify: {tier1: glimmer, tier2: spark-open-on-disagree}

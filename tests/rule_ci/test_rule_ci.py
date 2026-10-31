@@ -151,7 +151,13 @@ def test_the_report_schema_validates_and_gates_ci_green() -> None:
 
 @pytest.mark.parametrize(
     "name",
-    ["wash-before-line", "forklift-proximity", "excavator-swing-radius", "fire-exit-blocked"],
+    [
+        "wash-before-line",
+        "forklift-proximity",
+        "excavator-swing-radius",
+        "fire-exit-blocked",
+        "forklift-buffer",
+    ],
 )
 def test_every_supported_example_rule_is_green(name: str) -> None:
     report = run_rule_ci(_rule(name))
@@ -314,3 +320,25 @@ def test_an_engine_error_counts_as_a_trace_failure() -> None:
     outcome = fires(broken, trace)
     assert isinstance(outcome, str)
     assert outcome.startswith("error:")
+
+
+@pytest.mark.parametrize("persist", [True, False], ids=["persist", "bare"])
+def test_inside_a_polygon_zone_keeps_the_polygon_generator(persist: bool) -> None:
+    raw = _raw("fire-exit-blocked")
+    raw["zones"] = {
+        "egress": {
+            "kind": "polygon",
+            "camera_id": "cam1",
+            "polygon_px": [[100, 100], [300, 100], [300, 250], [100, 250]],
+        }
+    }
+    if not persist:
+        raw["predicate"] = raw["predicate"]["of"]
+    rule = RuleIR.model_validate(raw)
+    traces = {t.name: t for t in generate_rule_traces(rule)}
+    assert {"zone_inside", "zone_outside"} <= set(traces)
+    assert ("interrupted_persist" in traces) is persist
+    assert "stationary" not in traces  # the buffer generator's
+    report = run_rule_ci(rule)
+    assert report.ci_green, report.failures
+    assert report.nonvacuous

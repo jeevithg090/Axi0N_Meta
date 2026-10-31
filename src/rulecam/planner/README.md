@@ -6,10 +6,11 @@ The Site Planner turns multimodal requests into proven, verifiable Site Plans.
 1. **Understand** (`planner/steps/understand.py`): Multimodal intake of text, photos/PDFs, voice, and video walk-throughs.
 2. **Survey & Probes** (`planner/steps/survey.py`, `probe.py`): Camera inventory and SAM detectability probes.
 3. **Gauge** (`planner/feasibility.py`): Per-concern feasibility verdicts from the probes.
-4. **Compile** (`planner/steps/compile.py`): Compiles concerns into typed RuleIR with guardrail validation, static concept tagging, and repair rounds.
-5. **Guardrails** (`planner/guardrails.py`): Deterministic (English + Spanish) and model guardrails declining banned surveillance categories with alternatives.
-6. **Lint & Acceptance** (`planner/lint.py`, `acceptance.py`): Static plan linter and executable acceptance checks.
-7. **Audit** (`planner/audit.py`): Spark Open plan audit and Glimmer back-translation.
+4. **Ask & Standards** (`planner/steps/ask.py`, `planner/standards.py`): Clarifying questions with frame taps; cited standards with a quote check.
+5. **Compile** (`planner/steps/compile.py`): Compiles concerns into typed RuleIR with guardrail validation, static concept tagging, and repair rounds.
+6. **Guardrails** (`planner/guardrails.py`): Deterministic (English + Spanish) and model guardrails declining banned surveillance categories with alternatives.
+7. **Lint & Acceptance** (`planner/lint.py`, `acceptance.py`): Static plan linter and executable acceptance checks.
+8. **Audit** (`planner/audit.py`): Spark Open plan audit and Glimmer back-translation.
 
 ## Understand Step API
 
@@ -102,6 +103,31 @@ verdicts = gauge_plan_feasibility(
   -> `caveat` with the cheapest camera fix (Spark, template fallback); otherwise `observable`.
   All of a concern's concepts must be seen by one camera. `says` is always a fixed template;
   model text only goes into `alternative`.
+
+## Ask and Standards API
+
+```python
+from rulecam.planner.steps.ask import propose_clarifying_questions, map_tap_to_zone
+from rulecam.planner.standards import StandardsLibrary, check_citation, ground_concern_standard
+
+questions = propose_clarifying_questions(concerns, {"schedule": "06-22"}, spark=spark)
+zone = map_tap_to_zone(FrameTapAnswer(camera_id="cam1", x=412, y=230), zones)
+
+library = StandardsLibrary.from_settings(settings)  # <data>/standards_cache, RULECAM_MODE
+citation = ground_concern_standard(concern, spark=spark)  # Spark 1.3 + web_search
+check = check_citation(citation, library) if citation else None  # CitationCheck(matched, detail)
+```
+
+- At most 5 questions, one per missing field: questions about `known_fields` or repeated
+  fields are dropped in code. A tap maps to the smallest zone polygon (or object box) on that
+  camera containing the point; person detections are never matched.
+- A citation is only a claim until `check_citation` finds its quote (at least 20 characters,
+  compared after NFKC, case-folding, quote/dash and whitespace normalisation) in the text of the
+  cited page. Pages go through a `ReplayCache` at `<data>/standards_cache/` (provider `web`):
+  `record` stores the text, `replay` serves it or raises `ReplayMiss`.
+- Live fetches accept only `https` to public host names (redirects re-checked), HTML or plain
+  text up to 10 MB. PDF pages are refused (`StandardsFetchError`), so the check fails with an
+  `unverifiable: ...` detail.
 
 ## Tests
 

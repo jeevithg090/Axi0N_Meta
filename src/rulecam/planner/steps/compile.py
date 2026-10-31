@@ -269,16 +269,24 @@ def rule_to_draft(rule: RuleIR) -> RuleDraft:
     )
 
 
-def _predicates(pred: Predicate) -> Iterator[Predicate]:
+def walk_predicates(pred: Predicate) -> Iterator[Predicate]:
+    """Yield `pred` and every predicate nested in it, depth first.
+
+    Args:
+        pred: A predicate tree.
+
+    Yields:
+        Each node of the tree, the root first.
+    """
     yield pred
     if isinstance(pred, All | Any_):
         for child in pred.of:
-            yield from _predicates(child)
+            yield from walk_predicates(child)
     elif isinstance(pred, Not_ | Persist | Rate):
-        yield from _predicates(pred.of)
+        yield from walk_predicates(pred.of)
     elif isinstance(pred, Sequence):
-        yield from _predicates(pred.trigger)
-        yield from _predicates(pred.requirement)
+        yield from walk_predicates(pred.trigger)
+        yield from walk_predicates(pred.requirement)
 
 
 def reference_errors(rule: RuleIR) -> list[str]:
@@ -294,7 +302,7 @@ def reference_errors(rule: RuleIR) -> list[str]:
         Human-readable problems, empty when every reference resolves.
     """
     problems: list[str] = []
-    for pred in _predicates(rule.predicate):
+    for pred in walk_predicates(rule.predicate):
         for field in _OBJECT_FIELDS:
             ref = getattr(pred, field, None)
             if isinstance(ref, str) and ref.split(".", 1)[0] not in rule.concepts:

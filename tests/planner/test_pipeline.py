@@ -8,6 +8,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Literal, TypeVar
 
+import cv2
+import numpy as np
 import pytest
 import yaml
 from pydantic import BaseModel
@@ -32,10 +34,12 @@ from rulecam.planner.pipeline import (
     PIPELINE_STEPS,
     AskResult,
     CompileResult,
+    LintResult,
     PipelineInput,
     PlannerPipeline,
     PlannerStepEvent,
     PlanStore,
+    camera_views,
     plan_from_yaml,
     plan_to_yaml,
 )
@@ -381,10 +385,10 @@ def test_hooks_run_in_order_on_the_draft_plan(tmp_path: Path) -> None:
         return run
 
     bus = Recorder()
-    hooks = {name: hook(name) for name in ("lint", "accept", "audit", "prove")}
+    hooks = {name: hook(name) for name in ("accept", "audit", "prove")}
     plan = _pipeline(tmp_path, _spark(), bus, **hooks).run(_inputs(tmp_path))
 
-    assert seen == ["lint", "accept", "audit", "prove"]
+    assert seen == ["accept", "audit", "prove"]
     assert plan.acceptance.checks[0].check == "zone_in_view"
     details = {
         m.payload.step: m.payload.detail
@@ -402,9 +406,38 @@ def test_unwired_hooks_say_so_in_their_step_detail(tmp_path: Path) -> None:
         for m in bus.messages
         if isinstance(m.payload, PlannerStepEvent) and m.payload.status == "done"
     }
-    assert done["lint"] == "not wired yet (P2-06b); plan passed through"
+    assert done["lint"] == "no lint errors"
     assert done["prove"] == "not wired yet (P2-08); plan passed through"
     assert done["gauge"] == "1 observable, 1 not_observable, 1 declined"
+
+
+def test_lint_findings_are_saved_with_the_draft_plan(tmp_path: Path) -> None:
+    bus = Recorder()
+    spark = _spark()
+    raw = _rule().model_dump()
+    raw["zones"]["line_entry"]["camera_id"] = "cam9"
+    spark._answers["RuleDraft"] = rule_to_draft(RuleIR.model_validate(raw))
+    _pipeline(tmp_path, spark, bus).run(_inputs(tmp_path))
+
+    linted = PlanStore(tmp_path / "plans").load_step("main-st", "lint", LintResult)
+    assert linted is not None
+    assert {f.code for f in linted.findings} == {"zone_out_of_view"}
+    assert linted.plan.rules[0].id == "wash-before-line"
+    done = {
+        m.payload.step: m.payload.detail
+        for m in bus.messages
+        if isinstance(m.payload, PlannerStepEvent) and m.payload.status == "done"
+    }
+    assert done["lint"] == "1 zone_out_of_view"
+
+
+def test_camera_views_read_the_latest_readable_frame(tmp_path: Path) -> None:
+    frame = tmp_path / "f.png"
+    assert cv2.imwrite(str(frame), np.zeros((48, 64, 3), dtype=np.uint8))
+    views = camera_views(
+        {"cam1": (frame, tmp_path / "missing.png"), "cam2": (tmp_path / "no.png",)}
+    )
+    assert views == {"cam1": (64, 48), "cam2": None}
 
 
 def test_a_hook_may_not_change_the_plan_version(tmp_path: Path) -> None:

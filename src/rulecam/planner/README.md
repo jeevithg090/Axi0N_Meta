@@ -159,9 +159,11 @@ plan = pipeline.resume("main-st", "compile")  # re-run steps 6-10 on the saved s
 - Probe asks Spark 1.3 which concepts each concern needs (`concepts_for_concerns`), then probes
   them. Compile runs only for `observable` and `caveat` concerns; a compile-time guardrail
   decline turns the concern's verdict into `declined`.
-- Steps 7-10 are `SitePlan -> SitePlan` hooks (`lint`, `accept`, `audit`, `prove`) for P2-06b,
-  P2-06c, P2-07 and P2-08/09. Until one is wired it passes the plan through and its step detail
-  says "not wired yet", so the acceptance trace stays empty instead of claiming checks.
+- Step 7 lints the draft plan (below) against the site's cameras and saves
+  `LintResult{plan, findings}`; its detail counts the findings by code.
+- Steps 8-10 are `SitePlan -> SitePlan` hooks (`accept`, `audit`, `prove`) for P2-06c, P2-07
+  and P2-08/09. Until one is wired it passes the plan through and its step detail says "not
+  wired yet", so the acceptance trace stays empty instead of claiming checks.
 - Every step publishes `planner.step` (`PlannerStepEvent{plan_id, step, status, detail}`,
   status `running` then `done` or `failed`; resumed steps report `done`, "loaded from the
   saved output"). The plan is saved with version = saved version + 1 (never overwriting the
@@ -169,6 +171,25 @@ plan = pipeline.resume("main-st", "compile")  # re-run steps 6-10 on the saved s
 - `planner/runner.py::PlannerService` is the `PlannerRunner` behind `POST /plans/requests`: it
   runs one plan at a time in a worker thread and puts finished plans in the `/plans` registry.
   `ChunkFrames` gives the survey the last frame of each camera's chunks from the last 60 s.
+
+## Plan linter (P2-06b)
+
+```python
+from rulecam.planner.lint import lint_plan, require_lint_clean
+from rulecam.planner.pipeline import camera_views
+
+views = camera_views(frames)  # camera id -> (width, height) of its latest readable frame
+findings = lint_plan(plan, views=views)  # tuple[LintFinding{code, rule_id, message}]
+require_lint_clean(plan, views=views)  # raises PlanLintError(findings)
+```
+
+- Deterministic, no model calls. Codes: `undefined_concept`, `undefined_zone`,
+  `zone_out_of_view` (camera not at the site, or polygon outside its frame), `unreasonable_threshold`
+  (distance or buffer outside 0.3-20 m, duration outside 1-3,600 s), `contradictory_rules` (same
+  subject and zone, inside vs. not inside or absent; within an `all` or across two rules),
+  `privacy_inconsistency` (Anonymous/Strict Mode with a face concept), `private_space_zone`
+  (zone names matched with the guardrails' private-space patterns), `missing_action`,
+  `missing_severity`.
 
 ## Tests
 

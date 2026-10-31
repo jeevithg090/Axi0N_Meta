@@ -64,6 +64,13 @@ class FakeEngine:
         self.calls.append((video, request))
         return self.respond(request)
 
+    def memory_stats(self) -> dict[str, Any]:
+        return {
+            "allocated_bytes": 4 * 2**30,
+            "reserved_bytes": 5 * 2**30,
+            "sessions": len(self.calls),
+        }
+
 
 class Running:
     """A `SamHTTPServer` on a loopback port, served from a background thread."""
@@ -110,7 +117,15 @@ def test_health_is_open(running: Running) -> None:
         "model_version": MODEL_VERSION,
         "busy": False,
         "waiting": 0,
+        "memory": {"allocated_bytes": 4 * 2**30, "reserved_bytes": 5 * 2**30, "sessions": 0},
     }
+
+
+def test_health_reports_the_engines_memory_after_each_call(running: Running) -> None:
+    httpx.post(f"{running.url}/segment", json=_body(), headers=_auth())
+    memory = httpx.get(f"{running.url}/health").json()["memory"]
+    assert memory["sessions"] == 1
+    assert memory["allocated_bytes"] == 4 * 2**30
 
 
 @pytest.mark.parametrize("headers", [{}, _auth("wrong"), {"Authorization": KEY}])
@@ -376,3 +391,9 @@ def test_pod_setup_script_uses_the_pinned_commit_and_torch() -> None:
     assert f'"{sam_worker.TORCH_PACKAGES[0]}"' in script
     assert sam_worker.TORCH_INDEX_URL in script
     assert "SAM_PORT:-8090" in script
+    # sam3 imports these without declaring them; the pod venv failed without them.
+    for undeclared in ("einops", "pycocotools", "psutil"):
+        assert undeclared in script
+    # uv's Python must survive a pod restart (container disk is wiped), and a broken venv rebuilt.
+    assert "UV_PYTHON_INSTALL_DIR" in script
+    assert "has no working Python; rebuilding it" in script

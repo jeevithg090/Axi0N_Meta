@@ -2,7 +2,11 @@
 
 The API pod reaches it through `sam_runtime.HttpSamWorker`. Routes:
 
-- `GET /health`: open, `{"status": "ok", "model_version": ..., "busy": bool, "waiting": int}`;
+- `GET /health`: open, `{"status": "ok", "model_version": ..., "busy": bool, "waiting": int,
+  "memory": {...}}`. `memory` is `Sam31Engine.memory_stats()`: CUDA allocated, reserved, peak,
+  free and total bytes now and after the last session, the session count, the memory guard and
+  its trips, and the effective model settings. Watch `allocated_bytes` across calls: it should
+  return to the same level after every session;
 - `POST /segment`: needs `Authorization: Bearer <SAM_API_KEY>`. The body is JSON
   `{"request": <SamRequest JSON>, "video_b64": "<base64 MP4 bytes>"}`, the same two arguments
   `ModalWorker` passes to the Modal method; the answer is the `SamResponse` JSON.
@@ -53,6 +57,10 @@ class Engine(Protocol):
 
     def segment(self, video: bytes, request: dict[str, Any]) -> dict[str, Any]:
         """Return a `SamResponse` dict for a `SamRequest` dict and the chunk's MP4 bytes."""
+        ...
+
+    def memory_stats(self) -> dict[str, Any]:
+        """Return GPU memory counters for `/health` (see `Sam31Engine.memory_stats`)."""
         ...
 
 
@@ -214,6 +222,7 @@ class SamRequestHandler(BaseHTTPRequestHandler):
                     "model_version": MODEL_VERSION,
                     "busy": slot.busy,
                     "waiting": slot.waiting,
+                    "memory": self.server.engine.memory_stats(),
                 },
             )
             return

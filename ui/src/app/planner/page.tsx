@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { OwnerOnly } from "@/components/OwnerOnly";
 import { CameraTiles } from "@/components/plan/CameraTiles";
+import { QuestionsPanel } from "@/components/plan/QuestionsPanel";
 import { RequestComposer } from "@/components/plan/RequestComposer";
 import { StepProgress } from "@/components/plan/StepProgress";
 import { api, type CameraInfo } from "@/lib/api";
+import { useAuth, useOwnerControls } from "@/lib/auth";
 import { useDemo, useStream } from "@/lib/stream";
 import { usePlans } from "@/lib/usePlans";
 
@@ -15,6 +18,8 @@ export default function PlannerPage() {
   const { plans } = usePlans();
   const [cameras, setCameras] = useState<CameraInfo[]>([]);
   const demo = useDemo() === true;
+  const owner = useOwnerControls();
+  const { phase } = useAuth();
 
   useEffect(() => {
     setCameras([]);
@@ -33,7 +38,11 @@ export default function PlannerPage() {
     <div className="planner">
       <section aria-label="Request">
         <h2>Planner</h2>
-        <RequestComposer demo={demo} />
+        {owner ? (
+          <RequestComposer demo={demo} />
+        ) : (
+          <OwnerOnly checking={phase === "checking"} what="Planning a site" />
+        )}
       </section>
       <section aria-label="Progress">
         <h2>Steps{planId ? ` · ${planId}` : ""}</h2>
@@ -42,6 +51,12 @@ export default function PlannerPage() {
           <p>
             <Link href={`/plans/${plan.plan_id}${query}`}>Open plan v{plan.version} →</Link>
           </p>
+        )}
+        {planId && owner && !demo && (
+          <>
+            <h3>Questions</h3>
+            <QuestionsPanel planId={planId} version={plan?.version} />
+          </>
         )}
       </section>
       <section aria-label="Cameras">

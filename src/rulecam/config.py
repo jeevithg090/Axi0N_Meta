@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     rulecam_sam_budget_frames_per_min: int = Field(default=1000, ge=0)  # per camera; 0 = no budget
     rulecam_sam_budget_stride: int = Field(default=3, ge=1)  # over budget: one chunk in N
     rulecam_runtime_concept_workers: int = Field(default=4, ge=1)  # concepts segmented at once
+    rulecam_runtime_pipeline_depth: int = Field(default=4, ge=1)  # chunks per camera in flight
+    # YuNet face-detector ONNX (opencv_zoo) for blurring faces in evidence strips; without it
+    # only the head regions of tracked people are blurred (runtime.strips).
+    rulecam_face_model: Path | None = None
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None
@@ -53,8 +57,14 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str | None = None
     public_tunnel_url: str | None = None
     public_ui_url: str | None = None  # public origin of the web UI (worker page QR on posters)
-    # Demo sites only: let non-owners read the live feed, plans and evidence chain. Never on a real
-    # site, where those reads stay owner-only (W-01).
+    # Owner login (docs/deploy.md "Owner login"): `rulecam owner set-passphrase` prints the hash.
+    owner_passphrase_hash: SecretStr | None = None
+    session_secret: SecretStr | None = None  # signs owner session cookies; 32+ characters
+    session_ttl_s: int = Field(default=12 * 3600, ge=300, le=7 * 24 * 3600)
+    # Shared with the UI's middleware, which then forwards the browser's IP (per-client limits).
+    ui_proxy_secret: SecretStr | None = None
+    # Demo sites only: let non-owners watch the live feed and read plans. Never on a real site,
+    # where those reads stay owner-only (W-01).
     public_demo: bool = False
     planner_survey_window_s: float = (
         60.0  # seconds of recent chunks the planner samples frames from

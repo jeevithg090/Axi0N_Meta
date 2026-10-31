@@ -36,7 +36,7 @@ from rulecam.contracts import (
     RequestItem,
     SitePlan,
 )
-from rulecam.evidence.chain import EventChain
+from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.planner.pipeline import PlanStore
 from rulecam.replay.cache import ModeChanged, ReplayCache
 from rulecam.runtime.factory import ChunkIndex
@@ -88,12 +88,25 @@ def test_evidence_routes(services: AppServices) -> None:
     chain.append("plan", {"p": 1})
     chain.append("ack", {"role": "lead"})
     with owner(create_app(services)) as client:
-        assert client.get("/evidence/days").json() == ["2026-10-30"]
         text = client.get("/evidence/2026-10-30/chain").text
         assert len(text.splitlines()) == 2
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        # The public sees days, hashes, roots and the verdict, never a record or payload.
+        assert client.get("/evidence/2026-10-30/chain").status_code == 403
+        assert client.get("/evidence/days").json() == ["2026-10-30"]
+        hashes = client.get("/evidence/2026-10-30/hashes").json()
+        assert hashes == {
+            "n": 2,
+            "hashes": [r.hash for r in read_chain(chain.path_for(EPOCH.date()))],
+        }
+        assert "lead" not in json.dumps(hashes)
+        assert client.get("/evidence/2026-10-30/root").json()["n"] == 2
         assert client.get("/evidence/2026-10-30/verify").json()["ok"] is True
         assert client.get("/evidence/2026-10-29/verify").status_code == 404
+        assert client.get("/evidence/2026-10-29/hashes").status_code == 404
         assert client.get("/evidence/not-a-day/verify").status_code == 422
+        chain.path_for(EPOCH.date()).write_text("{not json}\n", encoding="utf-8")
+        assert client.get("/evidence/2026-10-30/hashes").status_code == 409
 
 
 def test_evidence_days_empty(services: AppServices) -> None:
@@ -449,21 +462,21 @@ def test_public_ui_origin_alone_cannot_watch_ws(services: AppServices) -> None:
             ws.receive_json()
 
 
-def test_content_reads_are_owner_only_unless_public_demo(services: AppServices) -> None:
+def test_plan_reads_are_owner_only_unless_public_demo(services: AppServices) -> None:
     EventChain(services.chain_root, "site", clock=FakeClock()).append("plan", {"p": 1})
     services.plans.put(site_plan("p1"))
-    content = ("/evidence/2026-10-30/chain", "/plans", "/plans/p1")
-    public = ("/evidence/days", "/evidence/2026-10-30/verify", "/evidence/2026-10-30/root")
+    plans = ("/plans", "/plans/p1")
+    chain = "/evidence/2026-10-30/chain"
 
     with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
-        assert [client.get(path).status_code for path in content] == [403, 403, 403]
-        assert [client.get(path).status_code for path in public] == [200, 200, 200]
+        assert [client.get(path).status_code for path in plans] == [403, 403]
     with owner(create_app(services)) as client:
-        assert [client.get(path).status_code for path in content] == [200, 200, 200]
+        assert [client.get(path).status_code for path in plans] == [200, 200]
 
     services.public_demo = True
     with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
-        assert [client.get(path).status_code for path in content] == [200, 200, 200]
+        assert [client.get(path).status_code for path in plans] == [200, 200]
+        assert client.get(chain).status_code == 403  # the chain stays owner-only
 
 
 def test_correction_is_owner_only_through_the_tunnel(tmp_path: Path) -> None:

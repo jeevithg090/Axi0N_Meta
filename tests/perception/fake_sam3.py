@@ -41,24 +41,37 @@ def frame_outputs(objects: list[tuple[int, float, tuple[int, int, int, int]]]) -
 
 
 class FakePredictor:
-    """Yields preset per-frame outputs in the given order and records every request."""
+    """Yields preset per-frame outputs in the given order and records every request.
 
-    def __init__(self, frames: list[tuple[int, dict[str, Any]]]) -> None:
+    Like `Sam3BasePredictor`, open sessions live in `_all_inference_states`.
+    """
+
+    def __init__(
+        self,
+        frames: list[tuple[int, dict[str, Any]]],
+        prompt_outputs: dict[str, Any] | None = None,
+    ) -> None:
         self._frames = frames
+        self._prompt_outputs = prompt_outputs
         self.requests: list[dict[str, Any]] = []
         self.video_bytes: bytes | None = None
-        self.open_sessions: set[str] = set()
+        self._all_inference_states: dict[str, dict[str, Any]] = {}
+
+    @property
+    def open_sessions(self) -> set[str]:
+        return set(self._all_inference_states)
 
     def handle_request(self, request: dict[str, Any]) -> dict[str, Any]:
         self.requests.append(request)
         if request["type"] == "start_session":
             self.video_bytes = Path(request["resource_path"]).read_bytes()
-            self.open_sessions.add("session-1")
+            self._all_inference_states["session-1"] = {"state": {}}
             return {"session_id": "session-1"}
         if request["type"] == "close_session":
-            self.open_sessions.discard(request["session_id"])
+            self._all_inference_states.pop(request["session_id"], None)
             return {"is_success": True}
-        return {"frame_index": request["frame_index"], "outputs": frame_outputs([])}
+        outputs = self._prompt_outputs if self._prompt_outputs is not None else frame_outputs([])
+        return {"frame_index": request["frame_index"], "outputs": outputs}
 
     def handle_stream_request(self, request: dict[str, Any]) -> Iterator[dict[str, Any]]:
         self.requests.append(request)

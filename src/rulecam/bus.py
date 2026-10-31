@@ -36,6 +36,13 @@ class Topic(StrEnum):
 ALL_TOPICS: frozenset[Topic] = frozenset(Topic)
 
 
+def _on_loop(loop: asyncio.AbstractEventLoop) -> bool:
+    try:
+        return asyncio.get_running_loop() is loop
+    except RuntimeError:
+        return False
+
+
 @dataclass(frozen=True)
 class Message:
     """A published message: its topic and payload."""
@@ -59,15 +66,35 @@ class Bus:
         """
         self._max_queue = max_queue
         self._queues: dict[Topic, list[asyncio.Queue[Message]]] = defaultdict(list)
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def bind_loop(self, loop: asyncio.AbstractEventLoop | None) -> None:
+        """Make `publish` safe to call from worker threads by delivering on `loop`.
+
+        Args:
+            loop: The event loop the subscribers run on (`None` unbinds).
+        """
+        self._loop = loop
 
     def publish(self, topic: Topic, payload: object) -> None:
         """Deliver `payload` to every current subscriber of `topic`.
+
+        When the bus is bound to a running loop and this is called from another thread, delivery
+        is handed to that loop with `call_soon_threadsafe` (asyncio queues are not thread-safe).
 
         Args:
             topic: The topic to publish on.
             payload: Usually a contract model; see §4.8 for the type per topic.
         """
         message = Message(topic=topic, payload=payload)
+        loop = self._loop
+        if loop is not None and loop.is_running() and not _on_loop(loop):
+            loop.call_soon_threadsafe(self._deliver, message)
+            return
+        self._deliver(message)
+
+    def _deliver(self, message: Message) -> None:
+        topic = message.topic
         for queue in self._queues[topic]:
             try:
                 queue.put_nowait(message)

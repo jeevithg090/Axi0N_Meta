@@ -1590,7 +1590,7 @@ An in-process async pub/sub with typed topics, mirrored to the UI over a WebSock
 - **Read first:** MP §3.2 (feasibility gauge), §5 UC1 (thermometer example); `competitor_gaps.md` F7 (pixel density; stretch).
 - **Build:**
   1. `planner/steps/survey.py`: sample 8 frames per camera across the last 60 s (seeded). Spark 1.3 proposes up to 30 noun phrases. SAM 3.1 `segment_image` runs each concept in parallel, giving `InventoryItem`s.
-  2. `planner/steps/probe.py`: for each concept the concerns need, run SAM on 12 sampled frames. Compute `detect_rate`, **Wilson 95% lower bound**, and median pixel height.
+  2. `planner/steps/probe.py`: for each concept the concerns need, run SAM on 24 sampled frames (`DEFAULT_PROBE_FRAMES = 24`, resolving the Wilson 95% lower bound requirement where $n=12$ maxes at 0.758 and $n \ge 16$ is required to clear $\text{detect\_lb} \ge 0.8$; $24/24 \rightarrow 0.862$). Compute `detect_rate`, **Wilson 95% lower bound**, and median pixel height.
      - Add `rulecam/stats/intervals.py::wilson_interval` (tiny, fully tested; P4 reviews and reuses it).
   3. `planner/feasibility.py`: verdict rules, documented and tested.
      - All required concepts have `detect_lb ≥ 0.8`: **observable**.

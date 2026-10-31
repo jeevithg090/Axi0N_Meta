@@ -7,7 +7,7 @@
 # Run it as the pod's start command, or once in the pod's web terminal:
 #   GITEA_RUNNER_TOKEN=<registration token> bash bootstrap.sh
 # The token comes from the Gitea repository: Settings → Actions → Runners → Create new runner.
-# It is only needed on first boot; the registration is kept in $RUNNER_HOME (put it on the pod's
+# Or write it to /workspace/.gitea_runner_token. It is only needed on first boot; the registration is kept in $RUNNER_HOME (put it on the pod's
 # persistent /workspace volume so restarts reuse it).
 set -euo pipefail
 
@@ -51,7 +51,11 @@ if [ ! -f config.yaml ]; then
   "$runner" config set runner.labels "$RUNNER_LABELS"
 fi
 if [ ! -f .runner ]; then
-  : "${GITEA_RUNNER_TOKEN:?set GITEA_RUNNER_TOKEN for the first registration}"
+  token_file="${GITEA_RUNNER_TOKEN_FILE:-/workspace/.gitea_runner_token}"
+  if [ -z "${GITEA_RUNNER_TOKEN:-}" ] && [ -f "$token_file" ]; then
+    GITEA_RUNNER_TOKEN="$(tr -d '[:space:]' < "$token_file")"
+  fi
+  : "${GITEA_RUNNER_TOKEN:?set GITEA_RUNNER_TOKEN or write it to $token_file}"
   "$runner" -c config.yaml register --no-interactive \
     --instance "$GITEA_URL" --token "$GITEA_RUNNER_TOKEN" --name "$RUNNER_NAME"
 fi

@@ -1,0 +1,12 @@
+# PLACEHOLDER: the owner records this clip (eval/README.md, "Recording the owner's clips").
+# Intended label: NEGATIVE for forklift_2m. Once recorded, set `source`, `duration_s`,
+# `placeholder: false` and `status: negative`.
+# Also label box tracks in CVAT (MOT 1.1 export) and add a `tracks:` block.
+name: owner_fl_neg_driver_only
+description: Only the driver rides the moving forklift; nobody else in view.
+camera_id: owner-warehouse
+placeholder: true
+rules:
+  - id: forklift_2m
+    request: Keep people at least 2 metres away from a moving forklift.
+    status: unlabelled

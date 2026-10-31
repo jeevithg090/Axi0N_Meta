@@ -1,0 +1,11 @@
+# PLACEHOLDER: the owner records this clip (eval/README.md, "Recording the owner's clips").
+# Intended label: NEGATIVE for forklift_2m. Once recorded, set `source`, `duration_s`,
+# `placeholder: false` and `status: negative`.
+name: owner_fl_neg_far
+description: A pedestrian walks past the moving forklift at 3 to 6 m, never closer.
+camera_id: owner-warehouse
+placeholder: true
+rules:
+  - id: forklift_2m
+    request: Keep people at least 2 metres away from a moving forklift.
+    status: unlabelled

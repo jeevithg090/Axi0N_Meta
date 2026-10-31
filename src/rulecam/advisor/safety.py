@@ -1,13 +1,28 @@
-"""Safety veto check for Site Advisor recommendations (task P2-12, SA §4 step 11).
+"""Safety veto for Site Advisor changes (task P2-12, SA §4 step 11). It fails closed.
 
-Fails closed: Any change adding vehicles or people to a zone with an active
-proximity or safety rule is vetoed unless a concrete mitigation is listed.
-Vetoed changes are recorded in `considered_not_recommended`.
+Minimum viable version of the task book: a change that may add vehicles or people to a zone
+covered by an active proximity rule is vetoed unless the owner has recorded a mitigation for
+that rule. The decision never trusts model output:
+
+- `add_capacity` and `move_location` count as adding vehicles or people unless their `resource`
+  is on a short code-side list of non-agent resources; any other op counts when its params say
+  it adds a vehicle or person ("extra forklift", "assign another runner");
+- the zones checked are the recommendation's scope plus every zone the params name, and a
+  change that names no zone is checked against every rule;
+- a `mitigation` written into the params by the model is ignored; only `mitigations` supplied by
+  the caller (entered by the owner, keyed by rule id) count.
+
+Vetoed changes are recorded in `SafetyCheck.considered_not_recommended` and never recommended.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import re
+from collections.abc import Iterator, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Final, Literal
+
+from pydantic import BaseModel
 
 from rulecam.contracts.advisor import Change, SafetyCheck
 from rulecam.contracts.rule_ir import DistanceM, RuleIR
@@ -15,106 +30,131 @@ from rulecam.log import get_logger
 
 _log = get_logger(__name__)
 
-VEHICLE_KEYWORDS = ("forklift", "truck", "vehicle", "cart", "equipment")
-PERSON_KEYWORDS = ("person", "worker", "operator", "crew", "aide", "runner")
+EXPOSURE_OPS: Final = frozenset({"add_capacity", "move_location"})
+NON_AGENT_RESOURCES: Final = frozenset(
+    {"dock_door", "staging_space", "staging_lane", "rack", "shelving", "scanner", "signage"}
+)
+ADDS_AGENTS: Final = re.compile(
+    r"\b(add|adds|adding|extra|additional|more|another|second|third|hire|deploy|assign)\b"
+    r".*\b(forklifts?|trucks?|vehicles?|carts?|jacks?|agvs?|loaders?|tugs?|persons?|people|"
+    r"workers?|operators?|crews?|aides?|runners?|staff|pickers?)\b",
+    re.IGNORECASE,
+)
+PROXIMITY_ID_HINTS: Final = ("proximity", "ped-", "collision", "clearance")
+ZONE_PARAMS: Final = ("zone", "location", "station", "to", "from")
+
+ChangeVerdict = Literal["pass", "pass_with_mitigation", "veto"]
+
+
+@dataclass(frozen=True)
+class ChangeSafety:
+    """The safety outcome for one change."""
+
+    change: Change
+    verdict: ChangeVerdict
+    reasons: tuple[str, ...]
+
+
+def _sub_predicates(node: object) -> Iterator[BaseModel]:
+    """Yield every predicate model in a Rule IR predicate tree, depth first."""
+    if isinstance(node, BaseModel):
+        yield node
+        for name in type(node).model_fields:
+            yield from _sub_predicates(getattr(node, name))
+    elif isinstance(node, tuple):
+        for item in node:
+            yield from _sub_predicates(item)
 
 
 def is_proximity_rule(rule: RuleIR) -> bool:
-    """Check whether a safety rule enforces proximity / anti-collision constraints."""
-    rule_id_lower = rule.id.lower()
-    if any(k in rule_id_lower for k in ("proximity", "dist", "ped-forklift", "collision")):
+    """Return whether a rule constrains distance between objects anywhere in its predicate."""
+    if any(hint in rule.id.lower() for hint in PROXIMITY_ID_HINTS):
         return True
+    return any(isinstance(node, DistanceM) for node in _sub_predicates(rule.predicate))
 
-    # Check predicate
-    pred = rule.predicate
-    if isinstance(pred, DistanceM) or getattr(pred, "op", "") == "distance_m":
+
+def adds_agents(change: Change) -> bool:
+    """Return whether a change may add vehicles or people somewhere (fails closed)."""
+    if change.op in EXPOSURE_OPS:
+        return change.params.get("resource", "").lower() not in NON_AGENT_RESOURCES
+    params = " ".join(f"{key} {value}" for key, value in change.params.items())
+    return ADDS_AGENTS.search(params.replace("_", " ")) is not None
+
+
+def _zones_of(change: Change, scope_ids: Sequence[str]) -> set[str]:
+    named = {change.params[key] for key in ZONE_PARAMS if change.params.get(key)}
+    return {zone.lower() for zone in (*scope_ids, *named)}
+
+
+def rule_covers(rule: RuleIR, zones: set[str]) -> bool:
+    """Return whether a rule applies in any of `zones` (site-wide rules and no zones: always)."""
+    if not rule.zones or not zones:
         return True
-
-    for sub in getattr(pred, "rules", ()):
-        if isinstance(sub, DistanceM) or getattr(sub, "op", "") == "distance_m":
-            return True
-
-    return False
+    rule_zones = {zone.lower() for zone in rule.zones}
+    return any(z == r or z.startswith(r) or r.startswith(z) for z in zones for r in rule_zones)
 
 
-def rule_covers_zone(rule: RuleIR, zone: str) -> bool:
-    """Check whether a rule applies to a specific zone or site-wide."""
-    if not rule.zones:  # site-wide rule applies everywhere
-        return True
-    return any(z.lower() == zone.lower() or zone.lower() in z.lower() for z in rule.zones)
-
-
-def check_safety_veto(
-    changes: Sequence[Change],
+def assess_change(
+    change: Change,
     active_rules: Sequence[RuleIR],
-) -> SafetyCheck:
-    """Evaluate candidate changes against active safety rules.
+    *,
+    scope_ids: Sequence[str],
+    mitigations: Mapping[str, str],
+) -> ChangeSafety:
+    """Decide whether one change may be recommended under the active safety rules.
 
     Args:
-        changes: List of proposed operations from the closed vocabulary.
-        active_rules: Active safety rules currently deployed at the site.
+        change: A proposed change.
+        active_rules: The site's active rules.
+        scope_ids: The recommendation's scope (station ids).
+        mitigations: Owner-entered mitigations keyed by rule id; model text never counts.
 
     Returns:
-        SafetyCheck with verdict ('pass', 'pass_with_mitigation', 'veto')
-        and considered_not_recommended records for any rejected changes.
+        `veto` if any covering proximity rule has no mitigation, `pass_with_mitigation` if every
+        covering rule has one, else `pass`, with a reason per affected rule.
     """
-    rules_checked = tuple(r.id for r in active_rules)
-    considered_not_recommended: list[tuple[str, str]] = []
+    if not adds_agents(change):
+        return ChangeSafety(change=change, verdict="pass", reasons=())
+    zones = _zones_of(change, scope_ids)
+    affected = [r for r in active_rules if is_proximity_rule(r) and rule_covers(r, zones)]
+    vetoes = tuple(
+        f"may add vehicles or people where active safety rule {rule.id!r} applies, "
+        "and no mitigation is recorded for it"
+        for rule in affected
+        if rule.id not in mitigations
+    )
+    if vetoes:
+        _log.warning("advisor_change_vetoed", op=change.op, rules=[r.id for r in affected])
+        return ChangeSafety(change=change, verdict="veto", reasons=vetoes)
+    if affected:
+        mitigated = tuple(f"{rule.id}: {mitigations[rule.id]}" for rule in affected)
+        return ChangeSafety(change=change, verdict="pass_with_mitigation", reasons=mitigated)
+    return ChangeSafety(change=change, verdict="pass", reasons=())
 
-    has_mitigation = False
-    has_veto = False
 
-    for change in changes:
-        params_str = " ".join(f"{k}={v}" for k, v in change.params.items()).lower()
-        zone = change.params.get("zone", change.params.get("location", ""))
-        mitigation = change.params.get("mitigation")
+def describe(change: Change) -> str:
+    """Return a stable one-line description of a change."""
+    params = ", ".join(f"{key}={value}" for key, value in sorted(change.params.items()))
+    return f"{change.op}({params})"
 
-        adds_vehicle = (
-            change.op in ("add_capacity", "move_location")
-            and any(v in params_str for v in VEHICLE_KEYWORDS)
-        ) or any(v in params_str for v in ("add a forklift", "extra forklift", "additional truck"))
 
-        adds_person = change.op in ("add_capacity", "move_location") and any(
-            p in params_str for p in PERSON_KEYWORDS
-        )
+def safety_check(
+    chosen: ChangeSafety | None,
+    considered: Sequence[tuple[str, str]],
+    active_rules: Sequence[RuleIR],
+) -> SafetyCheck:
+    """Summarise the safety outcome of a recommendation.
 
-        if adds_vehicle or adds_person:
-            # Check against active proximity rules
-            for rule in active_rules:
-                if is_proximity_rule(rule) and (not zone or rule_covers_zone(rule, zone)):
-                    change_desc = f"{change.op}({change.params})"
-                    if mitigation:
-                        _log.info(
-                            "safety_change_mitigated",
-                            change=change_desc,
-                            rule=rule.id,
-                            mitigation=mitigation,
-                        )
-                        has_mitigation = True
-                    else:
-                        reason = (
-                            f"Active safety rule '{rule.id}' restricts "
-                            f"vehicle/pedestrian proximity in zone '{zone or 'site'}'. "
-                            "Adding capacity without mitigation increases collision risk."
-                        )
-                        _log.warning(
-                            "safety_change_vetoed",
-                            change=change_desc,
-                            rule=rule.id,
-                            reason=reason,
-                        )
-                        considered_not_recommended.append((change_desc, reason))
-                        has_veto = True
+    Args:
+        chosen: The change being recommended, or None if no change survived.
+        considered: `(change, reason)` for every change considered and not recommended.
+        active_rules: The rules that were checked.
 
-    if has_veto:
-        verdict = "veto"
-    elif has_mitigation:
-        verdict = "pass_with_mitigation"
-    else:
-        verdict = "pass"
-
+    Returns:
+        The contract `SafetyCheck`; its verdict is the chosen change's, or `veto` without one.
+    """
     return SafetyCheck(
-        rules_checked=rules_checked,
-        verdict=verdict,
-        considered_not_recommended=tuple(considered_not_recommended),
+        rules_checked=tuple(rule.id for rule in active_rules),
+        verdict="veto" if chosen is None else chosen.verdict,
+        considered_not_recommended=tuple(considered),
     )

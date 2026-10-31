@@ -67,8 +67,43 @@ or hides a finding.
 | Fragment rate | the share of process-object tracks shorter than 2 s is ≤ 10% |
 | Incomplete cases | the share of cases cut by the window edges is ≤ 25% |
 
+## `pipeline.py`: the reasoning pipeline (P2-12)
+
+```python
+from rulecam.advisor.pipeline import SiteAdvisorPipeline
+
+advisor = SiteAdvisorPipeline(
+    spark=spark,                    # Muse Spark 1.3: Ask and Recommend
+    devil=spark_open_verifier,      # SparkOpenVerifier.devil_advocate (stores reasoning)
+    stats=p4_stats,                 # AdvisorStats: catalogue, detect, gap shares, what-ifs (P4-08)
+    bus=bus, clock=clock,
+    recorded_windows=windows,       # what was actually recorded, per station
+    active_rules=rules,
+    mitigations={"ped-forklift-2m": "fenced walkway"},  # owner-entered, keyed by rule id
+)
+outcome = advisor.run("Why was dock 3 slow this afternoon?")
+```
+
+`run` returns a `Recommendation` (also published on `advice.new`), a `DeclinedQuestionResult`,
+a `WindowGuardResult` or a `NoAdviceResult`. Model and devil's-advocate failures raise; nothing
+falls back to made-up advice.
+
+- **Numbers come only from P4.** Saw claims are code templates whose `{slots}` name metric
+  result ids; the gain and the 20th-percentile weekly value come from P4's what-if. Spark's
+  schemas carry no numbers. `numbers_reproduced` stays 0 until Glimmer recomputes (P3-10).
+- **Explain.** Each dock hypothesis is a metric test: `supported` when the whole interval clears
+  its threshold, `ruled_out` when none of it does, `partly` when it straddles, `untestable`
+  when the metric is missing or under k. Shares of the gap are P4's mix/rate shares.
+- **Station, not person** (`claims.py`, SA §5). Per-person questions are declined before any
+  model call; results grouped by a track id raise; results under 5 tracks or 3 shifts are not
+  shown; claims framed around people are rejected.
+- **Safety veto** (`safety.py`). Fails closed and never trusts model output: see its docstring.
+- **Claim linter** (`claims.py`). No digits outside slots; causal verbs become "coincided with"
+  below grade A (a switchback verdict); SA §13 overclaims are rejected.
+
 ## Tests
 
 ```bash
-uv run pytest tests/advisor tests/guardrails/test_process_log_people.py
+uv run pytest tests/advisor tests/guardrails/test_process_log_people.py \
+  tests/guardrails/test_advisor_per_person.py
 ```

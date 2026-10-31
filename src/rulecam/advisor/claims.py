@@ -1,158 +1,189 @@
-"""Slot-only text templates and claim strength linter (task P2-12, SA §4, §13).
+"""Slot-only claim text and the claim-strength linter (task P2-12, SA §4 step 13, §5, §13).
 
-Enforces:
-1. Model-written templates contain only text and {slots}, never raw digits.
-2. Code populates {slots} from verified MetricResults.
-3. Claim linter caps causal verbs at the evidence grade:
-   - Grade A (switchback randomized trial): "caused", "reduced", "improved".
-   - Grade B (interrupted time series / before-and-after):
-     "coincided with", "associated with", "followed by".
-   - Grade C (cross-sectional / observational): "correlated with", "observed alongside".
-4. Bans over-claims ("proves", "guarantees", "hallucination-free", "eliminates").
+- Templates contain words and `{slots}`, never digits; code fills each slot from a measured
+  metric result, so no number on a card is written by a model.
+- Causal wording is capped at the evidence grade. Grade "A" means a switchback verdict and is the
+  only grade that may say "caused"; below it, causal verbs become "coincided with".
+- Overclaims from SA §13 ("proves", "guarantees", "hallucination-free", ...) and per-person
+  framing (SA §5) are rejected outright, never rewritten.
 """
 
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from typing import Final, Literal
 
+from rulecam.advisor.errors import ClaimError
 from rulecam.contracts.advisor import SlotClaim
 
-DIGIT_PATTERN: Final[re.Pattern[str]] = re.compile(r"\d")
+Grade = Literal["A", "B", "C"]
 
-# Strong causal verbs that require randomized switchback trial (Grade A)
-STRONG_CAUSAL_PATTERNS: Final[tuple[tuple[re.Pattern[str], str], ...]] = (
-    (re.compile(r"\bcaused\b", re.IGNORECASE), "coincided with"),
-    (re.compile(r"\bcauses\b", re.IGNORECASE), "coincides with"),
-    (re.compile(r"\bcausing\b", re.IGNORECASE), "coinciding with"),
-    (re.compile(r"\bproved\b", re.IGNORECASE), "showed"),
-    (re.compile(r"\bproves\b", re.IGNORECASE), "suggests"),
-    (re.compile(r"\bguarantees\b", re.IGNORECASE), "indicates"),
-    (re.compile(r"\beliminated\b", re.IGNORECASE), "decreased"),
-    (re.compile(r"\beliminates\b", re.IGNORECASE), "decreases"),
+SLOT: Final = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+DIGIT: Final = re.compile(r"\d")
+
+# Causal wording allowed only with a switchback verdict (grade A); longest phrases first.
+CAUSAL_DOWNGRADES: Final[tuple[tuple[re.Pattern[str], str], ...]] = tuple(
+    (re.compile(rf"\b{pattern}\b", re.IGNORECASE), replacement)
+    for pattern, replacement in (
+        (r"resulted\s+in", "coincided with"),
+        (r"results\s+in", "coincides with"),
+        (r"led\s+to", "coincided with"),
+        (r"leads\s+to", "coincides with"),
+        (r"due\s+to", "alongside"),
+        (r"because\s+of", "alongside"),
+        (r"caused\s+by", "coincided with"),
+        (r"caused", "coincided with"),
+        (r"causes", "coincides with"),
+        (r"causing", "coinciding with"),
+        (r"drove", "coincided with"),
+        (r"reduced", "coincided with lower"),
+        (r"improved", "coincided with better"),
+    )
 )
 
-# Forbidden phrases from SA §13 (Never say)
-BANNED_CLAIM_PATTERNS: Final[tuple[tuple[re.Pattern[str], str], ...]] = (
-    (re.compile(r"\bhallucination-free\b", re.IGNORECASE), "verified against data"),
-    (
-        re.compile(r"\bproves the change caused the gain\b", re.IGNORECASE),
-        "measures the observed gain",
+# SA §13 "never say": rejected at every grade.
+OVERCLAIMS: Final = re.compile(
+    r"\b(proves?|proved|proven|guarantee[sd]?|eliminate[sd]?|hallucination-free|"
+    r"learns\s+your\s+business|certainly|definitely)\b",
+    re.IGNORECASE,
+)
+
+# Questions or claims about individual people (SA §5). Matching declines; false positives are
+# safe (the owner gets a station alternative), misses are not.
+PER_PERSON: Final[tuple[re.Pattern[str], ...]] = (
+    re.compile(
+        r"\bwho\s+(is|was|were|are|took|takes|made|makes|spent|spends|walked|did|does|has|had|"
+        r"works?|worked)\b",
+        re.IGNORECASE,
     ),
-    (re.compile(r"\blearns your business\b", re.IGNORECASE), "analyses your workflow"),
+    re.compile(
+        r"\b(which|what)\s+(worker|employee|driver|operator|picker|packer|person|staff|aide|"
+        r"cook|crew\s+member)s?\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(by|per)[\s-](worker|employee|person|driver|operator|picker|individual|"
+        r"staff\s+member|name)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(rank|compare|score|rate)\s+(the\s+)?(workers|employees|drivers|operators|pickers|"
+        r"staff|people|crew)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(slowest|fastest|laziest|best|worst)\s+(\w+\s+)?(worker|employee|driver|operator|"
+        r"picker|packer|person|aide|cook)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bindividual\s+(productivity|performance|speed|output)\b", re.IGNORECASE),
+    re.compile(r"\b(meet|met|missed)\s+(their|his|her)\s+quotas?\b", re.IGNORECASE),
+    re.compile(r"\b(most|longest)\s+breaks?\b|\bbreak\s?room\b", re.IGNORECASE),
+    re.compile(r"\btrack\s+\w+'s\b", re.IGNORECASE),
+    re.compile(r"\btrack_id\b", re.IGNORECASE),
+    re.compile(r"\bcompare\s+[A-Z][a-z]+\s+(and|with|vs\.?)\s+[A-Z][a-z]+\b"),
+    re.compile(r"\bqui[eé]n(es)?\b", re.IGNORECASE),
+    re.compile(r"\b(cu[aá]l|qu[eé])\s+(empleado|trabajador|operador|conductor)", re.IGNORECASE),
+    re.compile(r"\brendimiento\s+individual\b", re.IGNORECASE),
+    re.compile(r"\bempac[oó]\s+[A-ZÁÉÍÓÚÑ]"),
+)
+
+# Person nouns that make a claim per-person framed, even without a question form.
+PERSON_NOUNS: Final = re.compile(
+    r"\b(worker|employee|driver|operator|picker|packer|individual|staff\s+member|aide|"
+    r"person|people)s?\b",
+    re.IGNORECASE,
 )
 
 
-def assert_template_has_no_digits(template: str) -> None:
-    """Assert that a model-written template has no raw digit characters.
+def is_per_person(text: str) -> bool:
+    """Return whether `text` asks about, or frames a claim around, individual people."""
+    return any(pattern.search(text) for pattern in PER_PERSON)
 
-    Numbers must come exclusively from data via {slots}, never generated by LLM text.
+
+def assert_no_digits(template: str) -> None:
+    """Reject a template with a digit outside its `{slots}`.
 
     Args:
-        template: The string template containing text and {slots}.
+        template: Text with `{slots}`.
 
     Raises:
-        ValueError: If any digit character 0-9 is present in the template.
+        ClaimError: If any digit appears outside a slot name.
     """
-    # Allow numbers inside slot names if any (e.g. {dock_1_wait_min}), but not outside
-    # Remove all {slot_name} tokens before testing
-    text_without_slots = re.sub(r"\{[a-zA-Z0-9_]+\}", "", template)
-    match = DIGIT_PATTERN.search(text_without_slots)
-    if match:
-        msg = f"Model-written template contains raw digit '{match.group(0)}': {template!r}"
-        raise ValueError(msg)
+    found = DIGIT.search(SLOT.sub("", template))
+    if found is not None:
+        msg = f"template contains the digit {found.group(0)!r} outside a slot: {template!r}"
+        raise ClaimError(msg)
 
 
-def lint_claim_text(
-    text: str,
-    grade: Literal["A", "B", "C"],
-    *,
-    is_switchback: bool = False,
-) -> str:
-    """Lint claim text according to evidence grade and SA §13 rules.
-
-    Causal verbs like 'caused' are only permitted if is_switchback=True (Grade A).
-    Otherwise they are downgraded to 'coincided with' or 'associated with'.
+def lint_claim_text(text: str, grade: Grade) -> str:
+    """Cap the wording of `text` at the evidence grade.
 
     Args:
-        text: Claim or explanation text.
-        grade: Evidence grade ("A", "B", "C").
-        is_switchback: Whether evidence comes from a switchback randomized experiment.
+        text: Claim or explanation text (no digits are checked here; see `assert_no_digits`).
+        grade: Evidence grade; only "A" (a switchback verdict) may keep causal verbs.
 
     Returns:
-        Linted text with compliant verb strength and banned phrases replaced.
+        The text with causal verbs downgraded to "coincided with" below grade A.
+
+    Raises:
+        ClaimError: If the text overclaims (SA §13) or is framed around people (SA §5).
     """
+    overclaim = OVERCLAIMS.search(text)
+    if overclaim is not None:
+        msg = f"claim overstates the evidence ({overclaim.group(0)!r}): {text!r}"
+        raise ClaimError(msg)
+    if is_per_person(text) or PERSON_NOUNS.search(text):
+        msg = f"claim is framed around people, not stations: {text!r}"
+        raise ClaimError(msg)
+    if grade == "A":
+        return text
     result = text
-
-    # Remove banned marketing phrases
-    for pattern, replacement in BANNED_CLAIM_PATTERNS:
+    for pattern, replacement in CAUSAL_DOWNGRADES:
         result = pattern.sub(replacement, result)
-
-    # Downgrade causal verbs if not switchback
-    if not is_switchback or grade != "A":
-        for pattern, replacement in STRONG_CAUSAL_PATTERNS:
-            result = pattern.sub(replacement, result)
-
     return result
 
 
-def build_slot_claim(
-    template: str,
-    slots: dict[str, str],
-    grade: Literal["A", "B", "C"],
-    *,
-    is_switchback: bool = False,
-) -> SlotClaim:
-    """Build a validated, linted SlotClaim.
-
-    Validates that template contains no digits, lints verbs, and checks that
-    all slots in template are declared.
+def build_slot_claim(template: str, slots: Mapping[str, str], grade: Grade) -> SlotClaim:
+    """Build a linted `SlotClaim` whose slots exactly match the measured results named.
 
     Args:
-        template: Text with {slots}.
-        slots: Mapping from slot name to metric id.
+        template: Text with `{slots}`, never digits.
+        slots: Slot name to metric result id.
         grade: Evidence grade.
-        is_switchback: Whether evidence comes from a switchback trial.
 
     Returns:
-        A frozen SlotClaim.
+        The claim, with wording capped at `grade`.
+
+    Raises:
+        ClaimError: If the template has digits, overclaims, is per-person, or its slots do not
+            match `slots` exactly.
     """
-    assert_template_has_no_digits(template)
-    linted_template = lint_claim_text(template, grade, is_switchback=is_switchback)
-    assert_template_has_no_digits(linted_template)
-
-    # Check that referenced slots in template are provided
-    placeholders = set(re.findall(r"\{([a-zA-Z0-9_]+)\}", linted_template))
-    missing = placeholders - set(slots.keys())
-    if missing:
-        msg = f"Template references slots not provided in mapping: {missing}"
-        raise ValueError(msg)
-
-    return SlotClaim(
-        template=linted_template,
-        slots=dict(slots),
-        grade=grade,
-    )
+    assert_no_digits(template)
+    linted = lint_claim_text(template, grade)
+    named = set(SLOT.findall(linted))
+    if named != set(slots):
+        msg = f"template slots {sorted(named)} do not match the evidence slots {sorted(slots)}"
+        raise ClaimError(msg)
+    return SlotClaim(template=linted, slots=dict(slots), grade=grade)
 
 
-def render_slot_claim(claim: SlotClaim, metric_values: dict[str, str | float | int]) -> str:
-    """Render a SlotClaim by injecting formatted metric values into slots.
+def render_slot_claim(claim: SlotClaim, values: Mapping[str, str]) -> str:
+    """Fill a claim's slots with formatted measured values, keyed by metric result id.
 
     Args:
-        claim: The SlotClaim to render.
-        metric_values: Mapping of slot names (or metric_ids) to their rendered values.
+        claim: The claim.
+        values: Metric result id to its formatted value.
 
     Returns:
-        Final rendered string with verified numbers in place.
-    """
-    filled: dict[str, str] = {}
-    for slot_name, metric_id in claim.slots.items():
-        if slot_name in metric_values:
-            val = metric_values[slot_name]
-        elif metric_id in metric_values:
-            val = metric_values[metric_id]
-        else:
-            val = "[unmeasured]"
-        filled[slot_name] = str(val)
+        The rendered sentence.
 
-    return claim.template.format(**filled)
+    Raises:
+        ClaimError: If a slot's metric result has no value (a number is never made up).
+    """
+    missing = sorted(rid for rid in claim.slots.values() if rid not in values)
+    if missing:
+        msg = f"no measured value for metric results {missing}"
+        raise ClaimError(msg)
+    return claim.template.format(**{slot: values[rid] for slot, rid in claim.slots.items()})

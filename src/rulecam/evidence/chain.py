@@ -19,7 +19,12 @@ loop, the API, the CLI) never fork the chain.
 
 from __future__ import annotations
 
-import fcntl
+import sys
+
+if sys.platform != "win32":
+    import fcntl
+else:
+    fcntl = None
 import hashlib
 import json
 import math
@@ -243,11 +248,13 @@ def _record_line(record: EventRecord) -> str:
 def _locked(path: Path) -> Iterator[None]:
     lock_path = path.with_name(path.name + ".lock")
     with lock_path.open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        if fcntl is not None:
+            fcntl.flock(lock, fcntl.LOCK_EX)
         try:
             yield
         finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+            if fcntl is not None:
+                fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def _last_line(path: Path) -> str | None:

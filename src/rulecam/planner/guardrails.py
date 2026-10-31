@@ -1,15 +1,27 @@
-"""Guardrails and safety checks for user rule requests (MP §3.6, SA §5, task book §4.2).
+"""Planner guardrails: decline banned requests before anything is compiled (MP §3.6, SA §5).
 
-Deterministic pattern checks run first (English and Spanish) and cannot be overridden by
-any model. An optional second-pass StructuredLLM classifier categorizes non-pattern requests
-into the same closed set of banned categories.
+`check_request(text)` returns `Allowed` or `Declined(category, reason, alternative)`.
+
+1. A deterministic check runs first and cannot be overridden by any model. The request is
+   accent-folded and lower-cased, then matched against curated English and Spanish patterns
+   (plus a few French ones). The patterns name what is banned (a person-ranking superlative, a
+   face-recognition verb, a private room), so ordinary safety rules that merely contain a risky
+   word ("safety shower", "disability ramp", "race through the aisle", "área de servicio",
+   "who is in the exclusion zone") stay allowed.
+2. When a `StructuredLLM` is given, Spark then classifies the request into the same closed set of
+   categories. A model failure is not swallowed: the check fails closed by raising.
+
+A decline becomes a `FeasibilityVerdict(verdict="declined", reason=…, alternative=…)`.
 """
 
 from __future__ import annotations
 
 import re
+import unicodedata
 from enum import StrEnum
-from typing import Literal
+from typing import Final, Literal
+
+from pydantic import model_validator
 
 from rulecam.contracts.core import Frozen
 from rulecam.contracts.plan import FeasibilityVerdict
@@ -18,6 +30,8 @@ from rulecam.log import get_logger
 from rulecam.planner.models import DATA_NOT_INSTRUCTIONS_CLAUSE
 
 logger = get_logger(__name__)
+
+GUARDRAIL_MODEL: Final = "muse-spark-1.3"
 
 
 class GuardrailCategory(StrEnum):
@@ -47,12 +61,18 @@ class Declined(Frozen):
     alternative: str | None = None
 
     def to_feasibility_verdict(self, concern: str = "") -> FeasibilityVerdict:
-        """Convert this decline into a FeasibilityVerdict contract."""
-        says = f"I cannot accept this request: {self.reason}"
+        """Convert this decline into a `FeasibilityVerdict`.
+
+        Args:
+            concern: The declined request text; defaults to the reason.
+
+        Returns:
+            A `declined` verdict carrying the reason and the alternative.
+        """
         return FeasibilityVerdict(
             concern=concern or self.reason,
             verdict="declined",
-            says=says,
+            says=f"I cannot accept this request: {self.reason}",
             reason=self.reason,
             alternative=self.alternative,
         )
@@ -61,32 +81,76 @@ class Declined(Frozen):
 GuardrailVerdict = Allowed | Declined
 
 
-# Curated deterministic pattern rules: (category, pattern, reason, alternative)
-_PATTERNS: tuple[tuple[GuardrailCategory, re.Pattern[str], str, str], ...] = (
-    # 1. Per-person productivity / ranking / worker speed (checked before general identity)
+def normalize(text: str) -> str:
+    """Accent-fold, lower-case and collapse punctuation and whitespace to single spaces.
+
+    Args:
+        text: Any request text.
+
+    Returns:
+        The normalised text, e.g. "¿Quién es el MÁS lento?" -> "quien es el mas lento".
+    """
+    folded = unicodedata.normalize("NFKD", text)
+    stripped = "".join(c for c in folded if not unicodedata.combining(c)).lower()
+    return " ".join(re.sub(r"[^\w\s-]", " ", stripped).split())
+
+
+def _rx(*alternatives: str) -> re.Pattern[str]:
+    return re.compile(r"\b(?:" + "|".join(alternatives) + r")\b")
+
+
+# People nouns, singular or plural (normalised text, so no accents).
+_PEOPLE = (
+    r"(?:workers?|employees?|cooks?|chefs?|cashiers?|packers?|pickers?|drivers?|operators?|"
+    r"servers?|waiters?|waitress(?:es)?|staff(?:\s+members?)?|persons?|people|individuals?|"
+    r"crew\s+members?|residents?|customers?|nurses?|guards?|team\s+members?)"
+)
+_PERSONAS = (
+    r"(?:trabajador(?:es|as?)?|emplead[oa]s?|cociner[oa]s?|cajer[oa]s?|personal|personas?|"
+    r"operari[oa]s?|meser[oa]s?|conductor(?:es)?)"
+)
+_SUPERLATIVE = (
+    r"(?:slowest|fastest|laziest|quickest|worst|best|least\s+productive|most\s+productive|"
+    r"least\s+efficient|most\s+efficient|least\s+active|most\s+idle)"
+)
+_PERSON_METRIC = (
+    r"(?:productiv\w*|efficien\w*|idle\w*|idling|scan\s+rate|throughput|output|performance|"
+    r"how\s+long|breaks?|lunch)"
+)
+_MOOD = (
+    r"(?:sick|ill|unwell|drunk|intoxicated|stoned|stressed|depressed|anxious|confused|tired|"
+    r"fatigued|exhausted|sad|upset|angry|nervous|in\s+pain)"
+)
+_ESTADO = r"(?:enferm\w*|borrach\w*|cansad\w*|estresad\w*|confundid\w*|trist\w*|deprimid\w*)"
+
+_PATTERNS: Final[tuple[tuple[GuardrailCategory, re.Pattern[str], str, str], ...]] = (
     (
         GuardrailCategory.PER_PERSON_PRODUCTIVITY,
-        re.compile(
-            r"\b("
-            r"who\s+is\s+(?:the\s+)?(?:slowest|fastest|laziest|most\s+productive|least\s+productive)|"
-            r"which\s+(?:worker|cashier|employee|person)\s+is\s+(?:the\s+)?(?:slowest|fastest)|"
-            r"which\s+(?:worker|cashier|employee)\s+has\s+the\s+lowest\s+(?:scan\s+rate|throughput)|"
-            r"track\s+(?:per-person|individual|worker|employee)\s+productivity|"
-            r"rank\s+(?:workers?|employees?|staff)|"
-            r"ranking\s+de\s+trabajadores|"
-            r"ranking\s+of\s+(?:workers?|employees?)|"
-            r"who\s+(?:worked|did)\s+(?:the\s+)?(?:least|most)|"
-            r"worker\s+efficiency\s+per\s+person|"
-            r"idle\s+time\s+per\s+(?:worker|employee|person)|"
-            r"who\s+took\s+the\s+longest\s+break|"
-            r"qui[eé]n\s+es\s+el\s+m[aá]s\s+(?:lento|r[aá]pido|flojo|productivo)|"
-            r"qu[eé]\s+empleado\s+tarda\s+m[aá]s|"
-            r"productividad\s+(?:por\s+persona|individual|de\s+cada\s+empleado)|"
-            r"qui[eé]n\s+trabaja\s+menos|"
-            r"qui[eé]n\s+toma\s+pausas\s+m[aá]s\s+largas|"
-            r"identify\s+workers\s+who\s+take\s+too\s+long"
-            r")\b",
-            re.IGNORECASE,
+        _rx(
+            rf"{_SUPERLATIVE}\s+(?:\w+\s+)?{_PEOPLE}",
+            rf"who\s+(?:is|was|s)\s+(?:the\s+)?{_SUPERLATIVE}",
+            r"who\s+(?:is|was)\s+(?:the\s+)?(?:slowest|fastest|laziest)",
+            rf"which\s+{_PEOPLE}\s+(?:is|was)\s+(?:the\s+)?{_SUPERLATIVE}",
+            rf"which\s+{_PEOPLE}\s+(?:has|had)\s+the\s+(?:lowest|highest|most|least|worst|best)",
+            rf"which\s+{_PEOPLE}\s+takes?\s+(?:the\s+)?(?:longest|most|least)",
+            rf"(?:rank|ranks|ranking|rate|rating|score|scoring|leaderboard\s+of|compare)\s+"
+            rf"(?:the\s+|our\s+|all\s+)?{_PEOPLE}",
+            rf"{_PEOPLE}\s+(?:by|on)\s+(?:speed|productivity|efficiency|output|performance)",
+            rf"(?:per|each|every|individual)\s+{_PEOPLE}\W*(?:\w+\W+){{0,4}}?{_PERSON_METRIC}",
+            rf"{_PERSON_METRIC}\s+(?:\w+\s+){{0,3}}?(?:per|each|of\s+each|for\s+each|by)\s+{_PEOPLE}",
+            rf"(?:per-person|per\s+person)\s+{_PERSON_METRIC}",
+            r"who\s+(?:worked|works|did|does)\s+(?:the\s+)?(?:least|most|less|more)",
+            r"who\s+took\s+the\s+longest",
+            rf"{_PEOPLE}\s+who\s+take\s+too\s+long",
+            rf"quien\s+es\s+(?:el|la)\s+(?:{_PERSONAS}\s+)?mas\s+"
+            r"(?:lent|rapid|floj|productiv|vag)\w*",
+            rf"{_PERSONAS}\s+mas\s+(?:lent|rapid|floj|productiv|vag)\w*",
+            rf"(?:ranking|clasificacion)\s+de\s+{_PERSONAS}",
+            rf"que\s+{_PERSONAS}\s+tarda\s+mas",
+            rf"cuanto\s+tarda\s+cada\s+{_PERSONAS}",
+            r"productividad\s+(?:por\s+persona|individual|de\s+cada)",
+            r"quien\s+trabaja\s+(?:menos|mas)",
+            r"quien\s+toma\s+(?:pausas|descansos)",
         ),
         "Per-person productivity tracking, rankings, and individual idle tracking are prohibited.",
         (
@@ -94,27 +158,23 @@ _PATTERNS: tuple[tuple[GuardrailCategory, re.Pattern[str], str, str], ...] = (
             "equipment/stations without attributing metrics to individuals."
         ),
     ),
-    # 2. Identity / face recognition / biometrics
     (
         GuardrailCategory.IDENTITY,
-        re.compile(
-            r"\b("
-            r"recogni[sz]e\s+faces?|"
-            r"face\s+recogni[sz]|"
-            r"facial\s+recogni[sz]|"
-            r"reconocimiento\s+facial|"
-            r"reconoc(?:er|imiento)\s+de\s+rostros?|"
-            r"reconnaissance\s+faciale|"
-            r"identify\s+(?:the\s+)?(?:workers?|persons?|people|individuals?|employees?|staff|who)|"
-            r"identificar\s+(?:a\s+los\s+|al\s+)?(?:trabajador(?:es)?|emplead(?:os?|as?)|personal)|"
-            r"match\s+(?:employee\s+)?faces?|"
-            r"match\s+.*against\s+photos?|"
-            r"biometrics?|biometr[ií]a|"
-            r"scan\s+faces?|"
-            r"who\s+is\s+(?:this|that|in\s+the|the\s+person)|"
-            r"qui[eé]n\s+es\s+(?:esta\s+persona|este|ese|aquel)"
-            r")\b",
-            re.IGNORECASE,
+        _rx(
+            r"fac(?:e|es|ial)\s+(?:id|ids|recogni\w*|match\w*|scan\w*|identif\w*)",
+            r"(?:recogni\w*|match\w*|scan\w*|identif\w*|track\w*)\s+(?:\w+\s+){0,2}?faces?",
+            r"facial\s+\w+",
+            r"biometric\w*|biometria",
+            r"re-?identif\w*",
+            rf"identif(?:y|ies|ying)\s+(?:the\s+|which\s+|each\s+|every\s+)?(?:{_PEOPLE}|who)",
+            rf"track\w*\s+(?:individual|each|every|specific|named)\s+{_PEOPLE}",
+            rf"follow\s+(?:each|every|individual|specific)\s+{_PEOPLE}",
+            r"who\s+is\s+(?:this|that)\s+(?:person|man|woman|guy|girl|worker)",
+            r"who\s+is\s+the\s+person\s+(?:in|at|on|near)",
+            r"reconocimiento\s+facial|reconnaissance\s+faciale",
+            r"reconoc\w*\s+(?:de\s+)?(?:las\s+|los\s+)?(?:caras?|rostros?)",
+            rf"identificar\s+(?:a\s+)?(?:los\s+|las\s+|al\s+|el\s+|la\s+)?{_PERSONAS}",
+            r"quien\s+es\s+(?:esta|esa|este|ese|aquel)\s+(?:persona|hombre|mujer|senor\w*|chic[oa])",
         ),
         "Identity, facial recognition, and biometric individual identification are prohibited.",
         (
@@ -122,27 +182,21 @@ _PATTERNS: tuple[tuple[GuardrailCategory, re.Pattern[str], str, str], ...] = (
             "people without identifying anyone."
         ),
     ),
-    # 3. Clinical, emotional, or illness inference
     (
         GuardrailCategory.CLINICAL_OR_EMOTION,
-        re.compile(
-            r"\b("
-            r"looks?\s+confused|"
-            r"tell\s+me\s+if\s+.*looks?\s+confused|"
-            r"is\s+(?:a\s+)?(?:cook|worker|employee|person|someone)\s+sick|"
-            r"detect\s+(?:illness|sickness|disease|fever|fatigue|emotions?|distress|sadness)|"
-            r"emotional\s+distress|"
-            r"detect\s+worker\s+fatigue|"
-            r"is\s+worker\s+tired|"
-            r"fever\s+detection|"
-            r"est[aá]\s+enfermo|"
-            r"cocinero\s+est[aá]\s+enfermo|"
-            r"parece\s+confundid[oa]|"
-            r"detectar\s+(?:enfermedad|fiebre|fatiga|tristeza|cansancio|depresi[oó]n|emociones?)|"
-            r"estornudos?\s+de\s+cocinero|"
-            r"diagnos(?:e|is)|clinical\s+inference"
-            r")\b",
-            re.IGNORECASE,
+        _rx(
+            rf"(?:looks?|looking|seems?|appears?)\s+(?:to\s+be\s+|very\s+|a\s+bit\s+)?{_MOOD}",
+            rf"(?:is|are|was|were|gets?)\s+(?:\w+\s+){{0,2}}?{_MOOD}",
+            r"detect\w*\s+(?:\w+\s+){0,2}?(?:illness|sickness|disease|fever|fatigue|emotions?|"
+            r"distress|sadness|stress|intoxication|drunkenness|mood|pain|seizures?|symptoms?)",
+            r"fever|emotional\s+\w+|emotion\s+(?:detection|recognition)|mental\s+health|"
+            r"clinical\s+inference|dementia|alzheimer\w*|intoxicat\w*|drunkenness",
+            rf"diagnos\w*\s+(?:the\s+)?(?:illness|disease|condition|{_PEOPLE})",
+            rf"esta\s+(?:\w+\s+)?{_ESTADO}",
+            rf"(?:parece|se\s+ve)\s+(?:\w+\s+)?{_ESTADO}",
+            r"detectar\s+(?:\w+\s+){0,2}?(?:enfermedad|fiebre|fatiga|tristeza|cansancio|"
+            r"depresion|emociones?|estado\s+de\s+animo|estres)",
+            r"estornudos?\s+de\s+(?:los\s+)?cociner[oa]s?",
         ),
         "Clinical, medical, illness, or emotional state inferences are strictly prohibited.",
         (
@@ -150,19 +204,18 @@ _PATTERNS: tuple[tuple[GuardrailCategory, re.Pattern[str], str, str], ...] = (
             "or scheduled cleaning cadences."
         ),
     ),
-    # 4. Private spaces (bathroom, bedroom, break room)
     (
         GuardrailCategory.PRIVATE_SPACE,
-        re.compile(
-            r"\b("
-            r"bathrooms?|restrooms?|toilets?|water\s*closets?|w\.?c\.?|"
-            r"bedrooms?|private\s+quarters?|"
-            r"break\s*rooms?|staff\s+bedroom|"
-            r"changing\s*rooms?|locker\s*rooms?|showers?|"
-            r"ba[nñ]os?|servicios?|sanitarios?|dormitorios?|rec[aá]maras?|cuartos?\s+de\s+ba[nñ]o|"
-            r"salas?\s+de\s+descanso|vestuarios?|vestidores?"
-            r")\b",
-            re.IGNORECASE,
+        _rx(
+            r"bathrooms?|restrooms?|toilets?|washrooms?|lavator(?:y|ies)|wc",
+            r"bedrooms?|(?:private|sleeping|staff)\s+quarters",
+            r"break\s*rooms?|breakrooms?|staff\s+lounge",
+            r"(?:changing|locker|dressing|nursing|lactation|prayer)\s*rooms?",
+            r"(?<!safety\s)(?<!emergency\s)(?<!eyewash\s)showers?(?!\s+station)",
+            r"banos?(?!\s+maria)|aseos?|servicios\s+higienicos|cuartos?\s+de\s+bano",
+            r"dormitorios?|recamaras?",
+            r"(?:salas?|cuartos?)\s+de\s+descanso",
+            r"vestuarios?|vestidores?|regaderas?|duchas?",
         ),
         "Cameras and visual monitoring inside private spaces are strictly prohibited.",
         (
@@ -170,43 +223,41 @@ _PATTERNS: tuple[tuple[GuardrailCategory, re.Pattern[str], str, str], ...] = (
             "outside private areas."
         ),
     ),
-    # 5. Covert / secret monitoring
     (
         GuardrailCategory.COVERT,
-        re.compile(
-            r"\b("
-            r"hidden\s+camera|"
-            r"spy\s+(?:camera|on)|"
-            r"secret\s+(?:camera|monitoring|surveillance)|"
-            r"covert\s+(?:camera|monitoring)|"
-            r"without\s+(?:them|workers?|employees?)\s+knowing|"
-            r"unannounced\s+camera|"
-            r"undercover\s+camera|"
-            r"c[aá]mara\s+oculta|"
-            r"c[aá]mara\s+esp[ií]a|"
-            r"espiar\s+(?:a\s+los\s+)?trabajadores|"
-            r"monitoreo\s+secreto|"
-            r"sin\s+que\s+(?:se\s+den\s+cuenta|lo\s+sepan)"
-            r")\b",
-            re.IGNORECASE,
+        _rx(
+            r"(?:hidden|spy|covert|secret|undercover|concealed|disguised|pinhole)\s+"
+            r"(?:cam\w*|monitor\w*|surveil\w*|record\w*)",
+            r"spy\s+on|spying\s+on|covertly",
+            r"secretly\s+(?:watch|monitor|record|film|track|observe)\w*",
+            rf"without\s+(?:them|their|anyone|the\s+)?\s*(?:{_PEOPLE}\s+)?"
+            r"(?:knowing|noticing|knowledge|being\s+told|consent)",
+            rf"without\s+(?:telling|informing|notifying)\s+(?:them|anyone|the\s+|our\s+)?\s*"
+            rf"(?:{_PEOPLE})?",
+            r"hide\s+(?:a|the)\s+(?:\w+\s+){0,2}?cam\w*",
+            r"unannounced\s+cam\w*",
+            r"camara\s+(?:oculta|espia|escondida|secreta)",
+            r"espiar|monitoreo\s+secreto|vigilancia\s+secreta|en\s+secreto",
+            r"sin\s+que\s+(?:se\s+den\s+cuenta|lo\s+sepan|sepan)",
+            r"sin\s+(?:avisar|decirles|informar)",
         ),
         "Covert or unannounced worker surveillance is prohibited. Rules must be transparent.",
         "All active rules are published openly on the worker rules portal with dispute mechanisms.",
     ),
-    # 6. Protected attributes (gender, race, religion, pregnancy, disability)
     (
         GuardrailCategory.PROTECTED_ATTRIBUTE,
-        re.compile(
-            r"\b("
-            r"pregnant|pregnancy|"
-            r"gender|sex\b|race\b|ethnicity|religion|"
-            r"religious\s+attire|hijab|turban|yarmulke|skullcap|"
-            r"skin\s+colou?r|sexual\s+orientation|disabilit(?:y|ies)|"
-            r"embarazad[ao]|embarazo|g[eé]nero|raza|etnia|religi[oó]n|"
-            r"vestimenta\s+religiosa|hiyab|turbante|color\s+de\s+piel|"
-            r"orientaci[oó]n\s+sexual|discapacidad"
-            r")\b",
-            re.IGNORECASE,
+        _rx(
+            r"pregnan\w*|gender|sex|sexual\s+orientation|racial|ethnic\w*|religio\w*",
+            r"(?:by|their|of)\s+race|race\s+of",
+            r"hijab|headscarf|turbans?|yarmulke|kippah|skullcap",
+            r"skin\s+colou?r|nationality|immigra\w*",
+            rf"disabled\s+{_PEOPLE}|{_PEOPLE}\s+with\s+disabilit\w*",
+            rf"age\s+of\s+(?:the\s+)?{_PEOPLE}|how\s+old\s+(?:is|are)|"
+            rf"(?:older|elderly|younger)\s+{_PEOPLE}",
+            r"women|woman|females?|males?|men(?!\s+at\s+work)",
+            r"embarazad\w*|embarazo|raza|etnia|etnic\w*|religion|religios\w*",
+            r"hiyab|velo\s+islamico|turbante|color\s+de\s+piel|orientacion\s+sexual",
+            r"nacionalidad|inmigrant\w*|mujeres|hombres",
         ),
         "Rules targeting protected personal attributes are prohibited.",
         (
@@ -214,23 +265,27 @@ _PATTERNS: tuple[tuple[GuardrailCategory, re.Pattern[str], str, str], ...] = (
             "uniformly across all roles."
         ),
     ),
-    # 7. Ambient speech audio transcription
     (
         GuardrailCategory.SPEECH_AUDIO,
-        re.compile(
-            r"\b("
-            r"transcribe\s+(?:what\s+workers\s+say|speech|conversations?|audio|talk|crew\s+gossip)|"
-            r"record\s+audio\s+conversations?|"
-            r"listen\s+to\s+(?:what\s+they\s+say|talk|conversations?)|"
-            r"eavesdrop(?:ping)?|"
-            r"speech\s+(?:surveillance|monitoring)|"
-            r"what\s+workers\s+are\s+talking\s+about|"
-            r"transcribir\s+(?:lo\s+que\s+dicen|las\s+conversaciones|el\s+audio|la\s+charla)|"
-            r"escuchar\s+(?:conversaciones|a\s+los\s+empleados|lo\s+que\s+hablan)|"
-            r"grabar\s+conversaciones|"
-            r"qu[eé]\s+est[aá]n\s+hablando"
-            r")\b",
-            re.IGNORECASE,
+        _rx(
+            r"transcrib\w*\s+(?:\w+\s+){0,3}?(?:say|says|said|saying|speech|conversations?|audio|"
+            r"talk\w*|chatter|gossip|calls?|discussions?|what)",
+            r"(?:record|recording|capture|log|store)\w*\s+(?:\w+\s+){0,3}?(?:conversations?|speech|"
+            r"chatter|gossip|voices)",
+            r"(?:record|recording|capture|log)\w*\s+what\s+(?:\w+\s+){0,2}?"
+            r"(?:say|says|saying|said|talk\w*)",
+            r"listen\w*\s+(?:in\s+)?(?:to\s+|on\s+)?(?:\w+\s+){0,2}?(?:conversations?|talk\w*|"
+            r"chatter|gossip|what\s+(?:they|\w+)\s+say)",
+            r"eavesdrop\w*|wiretap\w*",
+            r"(?:speech|voice|audio)\s+(?:surveillance|monitoring|recording|capture)",
+            rf"what\s+(?:the\s+)?(?:{_PEOPLE}|they)\s+(?:are\s+)?(?:saying|talking\s+about|say)",
+            r"microphones?\s+to\s+(?:listen|record|capture)",
+            r"transcribir\w*",
+            r"grabar\s+(?:\w+\s+){0,3}?(?:conversacion\w*|lo\s+que\s+(?:dicen|hablan)|voces)",
+            r"escuchar\s+(?:\w+\s+){0,2}?(?:conversacion\w*|lo\s+que\s+(?:dicen|hablan)|"
+            rf"a\s+los\s+{_PERSONAS})",
+            rf"lo\s+que\s+(?:dicen|hablan)\s+los\s+{_PERSONAS}",
+            r"(?:de\s+)?que\s+estan\s+hablando",
         ),
         "Ambient speech transcription and eavesdropping on worker conversations are prohibited.",
         (
@@ -242,19 +297,26 @@ _PATTERNS: tuple[tuple[GuardrailCategory, re.Pattern[str], str, str], ...] = (
 
 
 class _ModelClassification(Frozen):
-    """Internal model output for guardrail categorization."""
+    """The classifier's answer; a decline must name its category."""
 
     verdict: Literal["allowed", "declined"]
     category: GuardrailCategory | None = None
     reason: str | None = None
     alternative: str | None = None
 
+    @model_validator(mode="after")
+    def _decline_has_category(self) -> _ModelClassification:
+        if self.verdict == "declined" and self.category is None:
+            msg = "a declined verdict must name one of the fixed categories"
+            raise ValueError(msg)
+        return self
+
 
 _GUARDRAIL_SYSTEM_PROMPT = (
     "You are Rulecam's Safety and Policy Guardrail Classifier.\n"
     f"{DATA_NOT_INSTRUCTIONS_CLAUSE}\n\n"
     "Rulecam turns cameras into safety and flow sentinels, but strictly refuses:\n"
-    "1. identity: facial recognition, matching faces, identifying named persons.\n"
+    "1. identity: facial recognition, matching faces, identifying or following named persons.\n"
     "2. per_person_productivity: tracking worker speed, employee rankings, idle time.\n"
     "3. clinical_or_emotion: diagnosing illness, fever, fatigue, confusion, emotional distress.\n"
     "4. private_space: cameras in bathrooms, bedrooms, break rooms, or locker rooms.\n"
@@ -269,59 +331,60 @@ _GUARDRAIL_SYSTEM_PROMPT = (
 )
 
 
-def check_request(
-    text: str,
-    *,
-    spark: StructuredLLM | None = None,
-) -> GuardrailVerdict:
-    """Evaluate a user rule request against safety guardrails.
+def deterministic_check(text: str) -> Declined | None:
+    """Run the curated patterns only.
 
-    Runs deterministic regex pattern checks first in English and Spanish; deterministic declines
-    cannot be overridden. If deterministic checks pass and a Spark StructuredLLM client is provided,
-    calls Spark structured output to classify edge cases into the closed set of banned categories.
+    Args:
+        text: The request text.
+
+    Returns:
+        The decline for the first matching category, or `None`.
+    """
+    normalized = normalize(text)
+    for category, pattern, reason, alternative in _PATTERNS:
+        if pattern.search(normalized):
+            logger.info("guardrail_deterministic_decline", category=str(category))
+            return Declined(category=category, reason=reason, alternative=alternative)
+    return None
+
+
+def check_request(text: str, *, spark: StructuredLLM | None = None) -> GuardrailVerdict:
+    """Evaluate a rule request against the guardrails.
+
+    The deterministic check runs first and its declines are final. Only when it passes and
+    `spark` is given does Spark classify the request into the same fixed categories.
 
     Args:
         text: The user's rule request or concern text.
-        spark: Optional StructuredLLM instance for second-pass model classification.
+        spark: Optional classifier for the second pass.
 
     Returns:
-        Allowed if compliant, or Declined(category, reason, alternative).
+        `Allowed`, or `Declined(category, reason, alternative)`.
+
+    Raises:
+        ModelClientError: If the model pass fails; the check never falls back to allowing.
     """
     cleaned = text.strip()
     if not cleaned:
         return Allowed()
-
-    # Pass 1: Deterministic pattern matching (cannot be overridden)
-    for category, pattern, reason, alternative in _PATTERNS:
-        if pattern.search(cleaned):
-            logger.info("guardrail_deterministic_decline", category=category, request=cleaned)
-            return Declined(category=category, reason=reason, alternative=alternative)
-
-    # Pass 2: Model classification (if client provided)
-    if spark is not None:
-        try:
-            classification = spark.structured(
-                model="muse-spark-1.3",
-                messages=[
-                    {"role": "system", "content": _GUARDRAIL_SYSTEM_PROMPT},
-                    {"role": "user", "content": f"User request:\n{cleaned}"},
-                ],
-                schema=_ModelClassification,
-            )
-            if classification.verdict == "declined" and classification.category is not None:
-                default_reason = f"Request violates policy on {classification.category}."
-                reason = classification.reason or default_reason
-                logger.info(
-                    "guardrail_model_decline",
-                    category=classification.category,
-                    request=cleaned,
-                )
-                return Declined(
-                    category=classification.category,
-                    reason=reason,
-                    alternative=classification.alternative,
-                )
-        except Exception as exc:
-            logger.warning("guardrail_model_check_failed", error=str(exc))
-
+    declined = deterministic_check(cleaned)
+    if declined is not None:
+        return declined
+    if spark is None:
+        return Allowed()
+    result = spark.structured(
+        model=GUARDRAIL_MODEL,
+        messages=[
+            {"role": "system", "content": _GUARDRAIL_SYSTEM_PROMPT},
+            {"role": "user", "content": f"User request:\n{cleaned}"},
+        ],
+        schema=_ModelClassification,
+    )
+    if result.verdict == "declined" and result.category is not None:
+        logger.info("guardrail_model_decline", category=str(result.category))
+        return Declined(
+            category=result.category,
+            reason=result.reason or f"Request violates policy on {result.category}.",
+            alternative=result.alternative,
+        )
     return Allowed()

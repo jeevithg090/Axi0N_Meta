@@ -6,6 +6,10 @@ and benign safety/station requests are allowed.
 
 from __future__ import annotations
 
+import pytest
+from pydantic import ValidationError
+
+from rulecam.clients.errors import ModelHTTPError
 from rulecam.contracts.plan import FeasibilityVerdict
 from rulecam.planner.guardrails import (
     Allowed,
@@ -13,6 +17,7 @@ from rulecam.planner.guardrails import (
     GuardrailCategory,
     _ModelClassification,
     check_request,
+    normalize,
 )
 
 DECLINED_REQUESTS: list[tuple[str, GuardrailCategory]] = [
@@ -156,3 +161,88 @@ def test_model_declines_when_pattern_not_matched() -> None:
     assert result.category == GuardrailCategory.PER_PERSON_PRODUCTIVITY
     assert result.reason == "Subtle employee speed monitoring."
     assert result.alternative == "Use station cycle metrics."
+
+
+# Paraphrases outside the 20 required cases: the patterns must generalise, not memorise.
+MORE_DECLINED: list[tuple[str, GuardrailCategory]] = [
+    ("flag the slowest cook", GuardrailCategory.PER_PERSON_PRODUCTIVITY),
+    ("rank cooks by speed", GuardrailCategory.PER_PERSON_PRODUCTIVITY),
+    ("how long does each cashier take per customer", GuardrailCategory.PER_PERSON_PRODUCTIVITY),
+    ("track how long each worker idles", GuardrailCategory.PER_PERSON_PRODUCTIVITY),
+    ("¿Quién es el trabajador más lento?", GuardrailCategory.PER_PERSON_PRODUCTIVITY),
+    ("face id at the door", GuardrailCategory.IDENTITY),
+    ("track individual workers across cameras", GuardrailCategory.IDENTITY),
+    ("reconocer caras de los empleados", GuardrailCategory.IDENTITY),
+    ("camera in the staff restroom", GuardrailCategory.PRIVATE_SPACE),
+    ("cámara en el vestuario", GuardrailCategory.PRIVATE_SPACE),
+    ("record what the cooks are saying", GuardrailCategory.SPEECH_AUDIO),
+    ("grabar lo que dicen los trabajadores", GuardrailCategory.SPEECH_AUDIO),
+    ("detect if someone is drunk", GuardrailCategory.CLINICAL_OR_EMOTION),
+    ("is the worker stressed", GuardrailCategory.CLINICAL_OR_EMOTION),
+    ("tell me if anyone looks sad", GuardrailCategory.CLINICAL_OR_EMOTION),
+    ("detectar si el trabajador está borracho", GuardrailCategory.CLINICAL_OR_EMOTION),
+    ("count how many women are on the floor", GuardrailCategory.PROTECTED_ATTRIBUTE),
+    ("detect the age of customers", GuardrailCategory.PROTECTED_ATTRIBUTE),
+    ("secretly watch the cashiers", GuardrailCategory.COVERT),
+    ("monitor staff without telling them", GuardrailCategory.COVERT),
+]
+
+# Benign safety rules that contain a risky word; the deterministic pass must not decline them.
+MORE_ALLOWED: list[str] = [
+    "alert if anyone who is in the exclusion zone is closer than 2 m to the excavator",
+    "who is in the forklift lane? alert if a person is in the lane",
+    "eyewash station and safety shower must stay unobstructed",
+    "keep the disability ramp clear of pallets",
+    "diagnose why the dock door alarm keeps triggering",
+    "el área de servicio debe estar despejada",
+    "servicio de comida: lavarse las manos antes de entrar a la línea",
+    "mantener el baño maría por encima de 57 grados",
+    "forklift must not race through the aisle",
+    "alert when the cold room door is open for more than 5 minutes",
+    "count people waiting in the queue at register 2",
+    "every person entering the line must wash hands for 20 seconds",
+    "each worker must wear a hard hat in the active zone",
+    "identify spills on the floor within 60 seconds",
+    "alert if a person is down near the press",
+    "pallet stack is too high near the racking",
+    "KEEP OUT - MEN AT WORK",
+]
+
+
+def test_paraphrased_banned_requests_are_declined() -> None:
+    for text, expected in MORE_DECLINED:
+        result = check_request(text)
+        assert isinstance(result, Declined), text
+        assert result.category == expected, text
+
+
+def test_benign_requests_with_risky_words_are_allowed() -> None:
+    for text in MORE_ALLOWED:
+        assert isinstance(check_request(text), Allowed), text
+
+
+def test_named_person_requests_rely_on_the_model_pass() -> None:
+    """No pattern can know that 'Maria' is a person; the model pass declines it."""
+    assert isinstance(check_request("tell me when Maria arrives"), Allowed)
+    result = check_request("tell me when Maria arrives", spark=_FakeDeclineModel())  # type: ignore[arg-type]
+    assert isinstance(result, Declined)
+
+
+class _FailingModel:
+    def structured(self, **kwargs: object) -> object:
+        raise ModelHTTPError("HTTP 500 from /responses", status=500, attempts=4)
+
+
+def test_model_failure_fails_closed() -> None:
+    """A model error must surface; it never silently turns into Allowed."""
+    with pytest.raises(ModelHTTPError):
+        check_request("calculate metric X for station 4", spark=_FailingModel())  # type: ignore[arg-type]
+
+
+def test_model_decline_without_category_is_invalid() -> None:
+    with pytest.raises(ValidationError, match="fixed categories"):
+        _ModelClassification(verdict="declined")
+
+
+def test_normalize_folds_accents_and_punctuation() -> None:
+    assert normalize("¿Quién es el MÁS lento?") == "quien es el mas lento"

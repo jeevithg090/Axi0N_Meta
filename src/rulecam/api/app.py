@@ -11,10 +11,16 @@ Approving a plan (`POST /plans/{id}/approve`) activates it in the runtime throug
 `AppServices.activator` (`rulecam.runtime.activate`); `services_from_settings` persists the active
 plan under `<data>/runtime/active_plan.json` and restores it at start-up.
 
-Anything that changes state (`PUT /mode`, `PUT /runtime/plan`, plan create/approve) is owner-only:
-both the target host and the client must be loopback, because the same app is reachable through
-the Pair-a-Phone tunnel. The read-only `/ws` mirror is owner-only too, except for a browser whose
-`Origin` is the public web UI (`PUBLIC_UI_URL`).
+Anything that changes state (`PUT /mode`, `PUT /runtime/plan`, plan create/approve/answers,
+`POST /correction`, pairing) is owner-only: the request comes from this machine (loopback host
+and client), or carries a signed owner session from `POST /auth/login` plus, for writes, an
+allowed `Origin` and the CSRF header (`rulecam.api.auth`). The read-only `/ws` mirror is
+owner-only too, except for a browser whose `Origin` is the public web UI (`PUBLIC_UI_URL`).
+
+Evidence: the chain itself (`GET /evidence/{day}/chain`, every record and payload) is owner-only.
+The public verify page gets `GET /evidence/{day}/hashes` (record hashes only) and
+`GET /evidence/{day}/root` (the current and the committed Merkle root), so anyone can check that
+the day's log still reproduces the root committed to git without seeing a single record.
 
 `make api` serves the module-level `app`, built from settings with the replay cache, the bus, the
 evidence chain, perception and Pair-a-Phone; `RULECAM_RUNTIME=true` also starts the runtime loop.
@@ -34,9 +40,10 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket, status
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
-from rulecam.api.plans import PlannerRunner, PlanRegistry, plans_router
+from rulecam.api.auth import ClientAddress, OwnerAuth
+from rulecam.api.plans import PlannerRunner, PlanRegistry, QuestionsService, plans_router
 from rulecam.api.ws import mirror_bus
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
@@ -47,7 +54,7 @@ from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
 from rulecam.config import Settings, get_settings
 from rulecam.contracts import Calibration, Chunk, Clock, SitePlan
-from rulecam.evidence.chain import ChainReport, EventChain, verify_chain
+from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
 from rulecam.evidence.merkle import chain_root, read_day_roots
 from rulecam.log import get_logger
 from rulecam.perception.correction import CorrectionService
@@ -101,6 +108,8 @@ class AppServices:
         activator: Activates approved plans in the runtime; approval answers 503 without one.
         viewer_origins: Browser origins (e.g. the public web UI) that may watch the read-only
             `/ws` mirror without being the owner. Nothing that changes state accepts them.
+        auth: Owner login (`rulecam.api.auth`); `None` means loopback only, with login off.
+        questions: The planner's questions and re-runs (`PlannerService`).
     """
 
     bus: Bus
@@ -121,6 +130,8 @@ class AppServices:
     planner: PlannerRunner | None = None
     activator: PlanActivator | None = None
     viewer_origins: frozenset[str] = frozenset()
+    auth: OwnerAuth | None = None
+    questions: QuestionsService | None = None
 
 
 TICK_S = 1.0
@@ -151,6 +162,13 @@ class DayRoot(BaseModel):
     n: int
     committed_root: str | None
     committed_n: int | None
+
+
+class DayHashes(BaseModel):
+    """Body of `GET /evidence/{day}/hashes`: the day's record hashes in order, nothing else."""
+
+    n: int
+    hashes: list[str]
 
 
 class ModeRequest(BaseModel):
@@ -187,7 +205,7 @@ def _chain_file(services: AppServices, day: date) -> Path:
 _OWNER = [Depends(require_owner)]
 
 
-def _core_router(services: AppServices) -> APIRouter:
+def _core_router(services: AppServices, auth: OwnerAuth) -> APIRouter:
     router = APIRouter()
 
     @router.get("/health")
@@ -213,7 +231,7 @@ def _core_router(services: AppServices) -> APIRouter:
     async def ws(websocket: WebSocket) -> None:
         if websocket.headers.get("origin") not in services.viewer_origins:
             try:
-                require_owner(websocket)
+                auth.require_owner(websocket)
             except HTTPException:
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                 return
@@ -266,10 +284,20 @@ def _evidence_router(services: AppServices) -> APIRouter:
     def days() -> list[date]:
         return _chain_days(services.chain_root / services.site)
 
-    @router.get("/{day}/chain", response_class=PlainTextResponse)
+    @router.get("/{day}/chain", response_class=PlainTextResponse, dependencies=_OWNER)
     def chain(day: date) -> PlainTextResponse:
         text = _chain_file(services, day).read_text(encoding="utf-8")
-        return PlainTextResponse(text, media_type="application/x-ndjson")
+        return PlainTextResponse(
+            text, media_type="application/x-ndjson", headers={"Cache-Control": "no-store"}
+        )
+
+    @router.get("/{day}/hashes")
+    def hashes(day: date) -> DayHashes:
+        try:
+            found = [record.hash for record in read_chain(_chain_file(services, day))]
+        except (ValidationError, ValueError) as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, "the chain file is unreadable") from exc
+        return DayHashes(n=len(found), hashes=found)
 
     @router.get("/{day}/verify")
     def verify(day: date) -> ChainReport:
@@ -310,9 +338,10 @@ def _runtime_router(services: AppServices) -> APIRouter:
     return router
 
 
-def _routers(services: AppServices) -> list[APIRouter]:
+def _routers(services: AppServices, auth: OwnerAuth) -> list[APIRouter]:
     routers = [
-        _core_router(services),
+        auth.router(),
+        _core_router(services, auth),
         _evidence_router(services),
         _runtime_router(services),
         plans_router(
@@ -321,12 +350,15 @@ def _routers(services: AppServices) -> list[APIRouter]:
             uploads_dir=services.uploads_dir,
             planner=services.planner,
             activator=services.activator,
+            questions=services.questions,
         ),
     ]
     if services.pair is not None:
         routers.append(build_router(services.pair))
     if services.correction is not None:
-        routers.append(correction_router(services.correction, services.bus))
+        correction = APIRouter(dependencies=_OWNER)
+        correction.include_router(correction_router(services.correction, services.bus))
+        routers.append(correction)
     return [*routers, *services.routers]
 
 
@@ -362,14 +394,17 @@ def create_app(services: AppServices) -> FastAPI:
     """Build the API around `services`.
 
     Args:
-        services: The injected bus, cache, chain location, runtime and extra routers.
+        services: The injected bus, cache, chain location, runtime, owner login and extra routers.
 
     Returns:
-        The FastAPI app. On start-up it binds the bus to the event loop (so worker threads can
+        The FastAPI app; every owner route takes `services.auth` (loopback, or an owner
+        session). On start-up it binds the bus to the event loop (so worker threads can
         publish) and starts the runtime loop if there is one; on shutdown it stops it.
     """
     app = FastAPI(title="Rulecam", version="0.1.0", lifespan=_lifespan(services))
-    for router in _routers(services):
+    auth = services.auth or OwnerAuth(clock=SystemClock(), allowed_origins=services.viewer_origins)
+    app.dependency_overrides[require_owner] = auth.require_owner
+    for router in _routers(services, auth):
         app.include_router(router)
     if services.verify_dir is not None:
         services.verify_dir.mkdir(parents=True, exist_ok=True)
@@ -473,7 +508,7 @@ def build_planner(
         out_dir=settings.rulecam_data_dir / "planner_frames",
         window_s=settings.planner_survey_window_s,
     )
-    return PlannerService(pipeline, site=site_config, frames=frames, on_plan=plans.put)
+    return PlannerService(pipeline, site=site_config, frames=frames, on_plan=plans.put, clock=clock)
 
 
 def find_plan(plans: PlanRegistry, store: PlanStore) -> Callable[[str], SitePlan | None]:
@@ -505,6 +540,7 @@ def build_worker_router(
     bus: Bus,
     chain: EventChain,
     plans: PlanRegistry,
+    client_address: ClientAddress | None = None,
 ) -> APIRouter:
     """Build `/worker` (P2-11): disputes are re-reviewed by Spark Open through the replay cache."""
     spark_open = SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
@@ -514,6 +550,7 @@ def build_worker_router(
         disputes=DisputeService(chain, SparkOpenVerifier(spark_open), clock=clock),
         clock=clock,
         public_base_url=settings.public_ui_url,
+        client_address=client_address or ClientAddress(),
     )
 
 
@@ -571,6 +608,11 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     planner = build_planner(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, plans=plans, site=site
     )
+    origins = viewer_origins(settings.public_ui_url)
+    auth = OwnerAuth.from_settings(settings, clock=clock, allowed_origins=origins)
+    client_address = ClientAddress(
+        settings.ui_proxy_secret.get_secret_value() if settings.ui_proxy_secret else None
+    )
     return AppServices(
         bus=bus,
         cache=cache,
@@ -585,11 +627,19 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         uploads_dir=settings.rulecam_data_dir / "uploads",
         plans=plans,
         planner=planner,
+        questions=planner,
         activator=activator,
-        viewer_origins=viewer_origins(settings.public_ui_url),
+        viewer_origins=origins,
+        auth=auth,
         routers=(
             build_worker_router(
-                settings, cache=cache, clock=clock, bus=bus, chain=chain, plans=plans
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                chain=chain,
+                plans=plans,
+                client_address=client_address,
             ),
         ),
     )

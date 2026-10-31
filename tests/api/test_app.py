@@ -36,7 +36,7 @@ from rulecam.contracts import (
     RequestItem,
     SitePlan,
 )
-from rulecam.evidence.chain import EventChain
+from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.planner.pipeline import PlanStore
 from rulecam.replay.cache import ModeChanged, ReplayCache
 from rulecam.runtime.factory import ChunkIndex
@@ -87,13 +87,26 @@ def test_evidence_routes(services: AppServices) -> None:
     chain = EventChain(services.chain_root, "site", clock=clock)
     chain.append("plan", {"p": 1})
     chain.append("ack", {"role": "lead"})
-    with TestClient(create_app(services)) as client:
-        assert client.get("/evidence/days").json() == ["2026-10-30"]
+    with owner(create_app(services)) as client:
         text = client.get("/evidence/2026-10-30/chain").text
         assert len(text.splitlines()) == 2
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        # The public sees days, hashes, roots and the verdict, never a record or payload.
+        assert client.get("/evidence/2026-10-30/chain").status_code == 403
+        assert client.get("/evidence/days").json() == ["2026-10-30"]
+        hashes = client.get("/evidence/2026-10-30/hashes").json()
+        assert hashes == {
+            "n": 2,
+            "hashes": [r.hash for r in read_chain(chain.path_for(EPOCH.date()))],
+        }
+        assert "lead" not in json.dumps(hashes)
+        assert client.get("/evidence/2026-10-30/root").json()["n"] == 2
         assert client.get("/evidence/2026-10-30/verify").json()["ok"] is True
         assert client.get("/evidence/2026-10-29/verify").status_code == 404
+        assert client.get("/evidence/2026-10-29/hashes").status_code == 404
         assert client.get("/evidence/not-a-day/verify").status_code == 422
+        chain.path_for(EPOCH.date()).write_text("{not json}\n", encoding="utf-8")
+        assert client.get("/evidence/2026-10-30/hashes").status_code == 409
 
 
 def test_evidence_days_empty(services: AppServices) -> None:

@@ -16,6 +16,7 @@ from rulecam.evidence.chain import EventChain
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.replay.cache import ReplayCache
 from rulecam.replay.errors import ReplayMiss
+from rulecam.rules.backtest import DecisionContext, candidate_payload, read_candidate_payload
 from rulecam.rules.store import ParquetTrackStore
 from rulecam.runtime.factory import (
     ChainEventSource,
@@ -29,7 +30,7 @@ from rulecam.runtime.factory import (
     hosted_sam,
 )
 from tests.fakes import EPOCH, FakeClock, make_chunk, make_track, make_verdict
-from tests.rules.helpers import make_rule
+from tests.rules.helpers import CAL, make_rule
 from tests.verify.helpers import make_candidate
 
 
@@ -55,12 +56,21 @@ def test_chunk_index_filters_by_camera_and_time() -> None:
 def test_chain_event_source_finds_candidate_records(tmp_path: Path) -> None:
     chain = EventChain(tmp_path, "site", clock=FakeClock())
     candidate = make_candidate()
+    context = DecisionContext(
+        rule=make_rule({"op": "inside", "object": "person", "zone": "sink_zone"}),
+        calibration=CAL,
+        zones={},
+        t0=EPOCH,
+        t1=EPOCH + timedelta(seconds=3),
+    )
     chain.append("plan", {"p": 1})
-    chain.append("candidate", candidate)
+    chain.append("candidate", {"legacy": True, "event_id": candidate.event_id})
+    chain.append("candidate", candidate_payload(candidate, context))
     source = ChainEventSource(tmp_path, "site")
     found = source.find(candidate.event_id)
     assert found is not None
-    assert found.kind == "candidate"
+    assert found.seq == 3  # the runtime's nested payload, which the correction loop can read
+    assert read_candidate_payload(found)[0] == candidate
     assert source.find("missing") is None
     assert ChainEventSource(tmp_path, "other").find(candidate.event_id) is None
 

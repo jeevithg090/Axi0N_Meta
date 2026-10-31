@@ -37,6 +37,7 @@ from rulecam.clock import SystemClock
 from rulecam.config import Settings, get_settings
 from rulecam.contracts import Chunk
 from rulecam.evidence.chain import ChainReport, EventChain, verify_chain
+from rulecam.evidence.merkle import chain_root, read_day_roots
 from rulecam.log import get_logger
 from rulecam.perception.correction import CorrectionService
 from rulecam.perception.correction_api import correction_router
@@ -65,7 +66,8 @@ class AppServices:
         correction: The correction loop (P1-10); mounted at `/correction` when set.
         chunks: Index of recent chunks, fed from `chunk.ready` (feeds `/cameras`).
         plans: The `/plans` registry.
-        verify_dir: Directory served at `/verify` (created if missing); `None` skips it.
+        verify_dir: Directory served at `/verify` (the packaged browser verify page in
+            production, P3-07b); `None` skips it.
         tickers: Called once a second off the event loop (e.g. `EscalationManager.tick`).
     """
 
@@ -74,6 +76,7 @@ class AppServices:
     chain_root: Path
     site: str
     runtime: RuntimeLoop | None = None
+    roots_dir: Path = Path("evidence/roots")
     routers: Sequence[APIRouter] = field(default_factory=tuple)
     perception_metrics: PerceptionMetrics = field(default_factory=PerceptionMetrics)
     pair: PairPhone | None = None
@@ -96,6 +99,22 @@ async def _tick_forever(tickers: Sequence[Callable[[], object]]) -> None:
             except Exception:  # one failing ticker must not stop the escalation timers
                 _log.exception("ticker_failed", ticker=getattr(tick, "__qualname__", repr(tick)))
         await asyncio.sleep(TICK_S)
+
+
+VERIFY_PAGE_DIR = Path(__file__).resolve().parent.parent / "evidence" / "verify_page"
+
+
+class DayRoot(BaseModel):
+    """Body of `GET /evidence/{day}/root`: the current and the committed Merkle root.
+
+    `committed_n` is how many records the committed root covers: a chain that is still growing
+    must reproduce it over its first `committed_n` records.
+    """
+
+    root: str
+    n: int
+    committed_root: str | None
+    committed_n: int | None
 
 
 class ModeRequest(BaseModel):
@@ -218,6 +237,18 @@ def _evidence_router(services: AppServices) -> APIRouter:
     @router.get("/{day}/verify")
     def verify(day: date) -> ChainReport:
         return verify_chain(_chain_file(services, day))
+
+    @router.get("/{day}/root")
+    def root(day: date) -> DayRoot:
+        current, n = chain_root(_chain_file(services, day))
+        roots_file = services.roots_dir / f"{day.isoformat()}.txt"
+        committed = read_day_roots(roots_file).get(services.site) if roots_file.is_file() else None
+        return DayRoot(
+            root=current,
+            n=n,
+            committed_root=committed[0] if committed else None,
+            committed_n=committed[1] if committed else None,
+        )
 
     return router
 
@@ -367,7 +398,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         pair=pair,
         correction=correction,
         chunks=perception.chunks,
-        verify_dir=settings.rulecam_data_dir / "verify",
+        verify_dir=VERIFY_PAGE_DIR,
     )
 
 

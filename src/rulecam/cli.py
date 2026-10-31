@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 from pathlib import Path
 from typing import Annotated
 
@@ -87,6 +88,81 @@ def golden_verify(
     typer.echo(f"{scenario}: {report.steps - len(report.diffs)}/{report.steps} steps reproduced")
     if not report.ok:
         raise typer.Exit(code=1)
+
+
+evidence_app = typer.Typer(help="Evidence chain: daily Merkle roots.")
+app.add_typer(evidence_app, name="evidence")
+
+
+AUDIT_FAILED = 1
+USAGE_ERROR = 2
+
+
+def _chain_dir() -> Path:
+    return get_settings().rulecam_data_dir / "evidence" / "chain"
+
+
+def _parse_day(day: str) -> date:
+    try:
+        return date.fromisoformat(day)
+    except ValueError as exc:
+        msg = f"{day!r} is not a YYYY-MM-DD day"
+        raise typer.BadParameter(msg, param_hint="DAY") from exc
+
+
+@evidence_app.command("root")
+def evidence_root(
+    day: Annotated[str, typer.Argument(help="UTC day, YYYY-MM-DD")],
+    *,
+    roots_dir: Annotated[Path, typer.Option(help="Committed roots folder")] = Path(
+        "evidence/roots"
+    ),
+    chain_dir: Annotated[Path | None, typer.Option(help="Chain folder (default data/…)")] = None,
+) -> None:
+    """Write evidence/roots/<day>.txt (one `<site> <root> <n>` line per site); commit it."""
+    from rulecam.evidence.merkle import write_day_roots  # noqa: PLC0415
+
+    try:
+        path = write_day_roots(chain_dir or _chain_dir(), roots_dir, _parse_day(day))
+    except FileNotFoundError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    typer.echo(path.read_text(encoding="utf-8").rstrip())
+    typer.echo(f"wrote {path}; commit it in today's evidence PR")
+
+
+@app.command()
+def audit(
+    day: Annotated[str, typer.Argument(help="UTC day, YYYY-MM-DD")],
+    site: Annotated[str, typer.Argument(help="Site name")],
+    *,
+    store_dir: Annotated[
+        Path | None, typer.Option(help="Track store (default data/tracks)")
+    ] = None,
+    chain_dir: Annotated[Path | None, typer.Option(help="Chain folder (default data/…)")] = None,
+) -> None:
+    """Verify a day's chain and re-derive every decision from the track store (E9).
+
+    Exits 0 when the chain is intact and every decision reproduces, 1 when either fails, and 2
+    when there is nothing to audit (bad day or site, no chain file).
+    """
+    from rulecam.evidence.audit import audit_chain  # noqa: PLC0415
+    from rulecam.rules.store import ParquetTrackStore  # noqa: PLC0415
+
+    if not site or Path(site).name != site or site in {".", ".."}:
+        msg = f"invalid site name {site!r}"
+        raise typer.BadParameter(msg, param_hint="SITE")
+    path = (chain_dir or _chain_dir()) / site / f"{_parse_day(day).isoformat()}.jsonl"
+    if not path.is_file():
+        typer.echo(f"no chain at {path}", err=True)
+        raise typer.Exit(code=USAGE_ERROR)
+    store = ParquetTrackStore(store_dir or get_settings().rulecam_data_dir / "tracks")
+    report = audit_chain(path, store)
+    typer.echo(report.summary())
+    if report.failed_seqs:
+        typer.echo("not reproduced: " + ", ".join(f"event {seq}" for seq in report.failed_seqs))
+    if not report.ok:
+        raise typer.Exit(code=AUDIT_FAILED)
 
 
 @app.command()

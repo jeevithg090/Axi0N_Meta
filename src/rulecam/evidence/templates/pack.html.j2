@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title }} · {{ pack.site }} · {{ pack.period }}</title>
+  <style>
+    body { font: 11pt/1.45 system-ui, sans-serif; color: #1b1b1f; margin: 24px; }
+    h1 { font-size: 18pt; margin: 0; }
+    .meta { color: #5f6368; margin: 4px 0 16px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border-bottom: 1px solid #ddd; padding: 6px 4px; text-align: left; vertical-align: top; }
+    th { font-size: 9pt; text-transform: uppercase; color: #5f6368; }
+    .thumbs img { height: 64px; margin: 2px; border-radius: 4px; }
+    .verify { display: flex; gap: 16px; align-items: center; margin-top: 24px;
+              border-top: 2px solid #1b1b1f; padding-top: 12px; }
+    .verify img { width: 120px; height: 120px; }
+    .bad { color: #b3261e; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>{{ title }}</h1>
+  <div class="meta">{{ pack.site }} · {{ pack.period }} · privacy: {{ pack.privacy_mode.value }}</div>
+  <p>{{ intro }}</p>
+  <table>
+    <thead>
+      <tr><th>Clause</th><th>Rule</th><th>Compliance (95% CI)</th><th>Checks</th><th>Watched</th><th>Stills</th><th>Corrective actions</th></tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr>
+        <td>{{ row.clause }}</td>
+        <td>{{ row.rule_text }}<br><small>{{ row.rule_id }}</small></td>
+        <td>{% if row.rate %}{{ row.rate }} ({{ row.ci }}){% else %}no checks{% endif %}</td>
+        <td>{{ row.checks }}</td>
+        <td>{{ row.watched }}</td>
+        <td class="thumbs">{% for src in row.thumbnails %}<img src="{{ src }}" alt="anonymised still">{% endfor %}</td>
+        <td>{% for action in row.actions %}{{ action }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="verify">
+    <img src="{{ qr }}" alt="QR code to the verify page">
+    <div>
+      {% if pack.chain_ok %}
+      Evidence chain intact: {{ pack.chain_records }} records.
+      {% else %}
+      <span class="bad">Evidence chain failed verification.</span>
+      {% endif %}
+      <br>Scan to recompute every hash yourself: <br><small>{{ pack.verify_url }}</small>
+      <br><small>The hash proves the records are unchanged. It does not prove what the camera saw was real.</small>
+    </div>
+  </div>
+</body>
+</html>

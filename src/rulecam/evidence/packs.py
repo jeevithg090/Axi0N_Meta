@@ -9,9 +9,9 @@ templates:
 - `f689`: the nursing-home supervision log (accidents and supervision);
 - `generic`.
 
-**Privacy:** packs never contain clip paths. In anonymous and strict modes only skeleton
-thumbnails are kept; raw frames are never allowed in any mode. HTML is rendered with Jinja2
-(auto-escaped) and printed to PDF with Playwright (the `ui` extra).
+**Privacy:** packs never contain clip or file paths: stills are inlined as data URIs. In anonymous
+and strict modes only skeleton thumbnails are kept; raw frames are never allowed in any mode. HTML
+is rendered with Jinja2 (auto-escaped) and printed to PDF with Playwright (the `ui` extra).
 """
 
 from __future__ import annotations
@@ -31,6 +31,12 @@ from rulecam.contracts import Frozen, PrivacyMode
 
 TemplateName = Literal["food_code", "f689", "generic"]
 Z_95 = 1.959963984540054
+IMAGE_TYPES: dict[str, str] = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+}
 
 LEAD_CLAUSES: dict[str, tuple[str, ...]] = {
     "food_code": ("§2-103.11(G)", "§2-301.12"),
@@ -132,6 +138,23 @@ def qr_data_uri(url: str) -> str:
     return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
+def image_data_uri(path: Path) -> str:
+    """Inline a still as a data URI, so a pack is self-contained and names no file on disk.
+
+    Playwright prints from `about:blank`, where Chromium refuses `file://` images, and a shared
+    pack must not reveal where the server keeps its renders.
+
+    Raises:
+        ValueError: If the file is not a PNG, JPEG or WebP image.
+        FileNotFoundError: If the file does not exist.
+    """
+    mime = IMAGE_TYPES.get(path.suffix.lower())
+    if mime is None:
+        msg = f"thumbnail {path.name!r} is not a PNG, JPEG or WebP image"
+        raise ValueError(msg)
+    return f"data:{mime};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
+
+
 def _row_view(row: PackRow, mode: PrivacyMode) -> dict[str, object]:
     lo, hi = wilson_interval(row.passes, row.checks)
     rate = row.passes / row.checks if row.checks else None
@@ -144,7 +167,7 @@ def _row_view(row: PackRow, mode: PrivacyMode) -> dict[str, object]:
         "ci": f"{lo:.0%} to {hi:.0%}",
         "watched": f"{row.watched_fraction:.0%}",
         "thumbnails": [
-            Path(t.path).resolve().as_uri() for t in allowed_thumbnails(row.thumbnails, mode)
+            image_data_uri(Path(t.path)) for t in allowed_thumbnails(row.thumbnails, mode)
         ],
         "actions": list(row.corrective_actions),
     }

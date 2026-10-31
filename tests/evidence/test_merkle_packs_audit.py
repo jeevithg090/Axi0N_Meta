@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from datetime import date
@@ -27,6 +28,7 @@ from rulecam.evidence.packs import (
     PackRow,
     Thumbnail,
     allowed_thumbnails,
+    image_data_uri,
     render_html,
     wilson_interval,
 )
@@ -115,6 +117,19 @@ THUMBS = (
 )
 
 
+@pytest.fixture
+def strips(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Write the THUMBS stills (relative paths) under a temporary working directory."""
+    monkeypatch.chdir(tmp_path)
+    for thumb in THUMBS:
+        Path(thumb.path).parent.mkdir(parents=True, exist_ok=True)
+        Path(thumb.path).write_bytes(f"png-{thumb.kind}".encode())
+
+
+def b64(text: str) -> str:
+    return base64.b64encode(text.encode()).decode("ascii")
+
+
 def make_pack(
     mode: PrivacyMode, template: str = "food_code", chain_ok: bool = True
 ) -> EvidencePack:
@@ -167,16 +182,20 @@ def test_thumbnails_respect_privacy_mode() -> None:
     ]
 
 
+@pytest.mark.usefixtures("strips")
 def test_anonymous_pack_has_watched_fraction_and_no_raw_paths() -> None:
     html = render_html(make_pack(PrivacyMode.ANONYMOUS))
     assert "92%" in html
-    assert "a_skeleton.png" in html
-    assert "a_masked.png" not in html
-    assert "a_raw.png" not in html
+    assert f"data:image/png;base64,{b64('png-skeleton')}" in html  # inlined, prints in a PDF
+    assert b64("png-masked") not in html
+    assert b64("png-raw") not in html
+    assert "data/strips" not in html
+    assert "file:" not in html
     assert ".mp4" not in html
     assert "data:image/png;base64," in html  # the QR code
 
 
+@pytest.mark.usefixtures("strips")
 def test_food_code_pack_leads_with_monitoring_then_handwashing() -> None:
     html = render_html(make_pack(PrivacyMode.STANDARD))
     first, second, third = (
@@ -189,11 +208,22 @@ def test_food_code_pack_leads_with_monitoring_then_handwashing() -> None:
     assert "Evidence chain intact: 117 records." in html
 
 
+@pytest.mark.usefixtures("strips")
 @pytest.mark.parametrize("template", ["f689", "generic"])
 def test_other_templates_and_broken_chain(template: str) -> None:
     html = render_html(make_pack(PrivacyMode.STRICT, template, chain_ok=False))
     assert "Evidence chain failed verification." in html
     assert ("F689" in html) is (template == "f689")
+
+
+def test_thumbnails_must_be_images(tmp_path: Path) -> None:
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"x")
+    with pytest.raises(ValueError, match="not a PNG"):
+        image_data_uri(clip)
+    still = tmp_path / "s.JPG"
+    still.write_bytes(b"jpg")
+    assert image_data_uri(still) == f"data:image/jpeg;base64,{b64('jpg')}"
 
 
 # --- audit ------------------------------------------------------------------------------------

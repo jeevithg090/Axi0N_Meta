@@ -89,6 +89,19 @@ def golden_verify(
         raise typer.Exit(code=1)
 
 
+@app.command()
+def openapi(
+    out: Annotated[Path, typer.Argument(help="Where to write the OpenAPI JSON")],
+) -> None:
+    """Export the API's OpenAPI schema (input to the UI's generated client)."""
+    from rulecam.api.app import app as api_app  # noqa: PLC0415 - heavy import, only here
+    from rulecam.api.app import openapi_json  # noqa: PLC0415
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(openapi_json(api_app), encoding="utf-8")
+    typer.echo(f"wrote {out}")
+
+
 @app.callback()
 def main() -> None:
     """Rulecam command line."""

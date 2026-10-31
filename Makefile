@@ -1,5 +1,5 @@
 # Rulecam developer commands (task book §3.3). `make check` must pass before every push.
-.PHONY: setup fmt lint type test check ui-check api ui preflight golden live-test remotes sync-main
+.PHONY: setup fmt lint type test check ui-check api ui openapi preflight golden live-test remotes sync-main
 
 UI_EXISTS := $(wildcard ui/package.json)
 
@@ -35,6 +35,12 @@ ui-check:
 
 api:
 	uv run uvicorn rulecam.api.app:app --reload
+
+openapi:
+	uv run rulecam openapi ui/src/api/openapi.json
+ifneq ($(UI_EXISTS),)
+	cd ui && npx openapi-typescript src/api/openapi.json -o src/api/schema.d.ts
+endif
 
 ui:
 	cd ui && npm run dev

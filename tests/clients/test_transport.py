@@ -59,6 +59,23 @@ def test_httpx_transport_sends_json_with_bearer_auth() -> None:
     assert seen[0].headers["authorization"] == "Bearer secret"
 
 
+def test_httpx_transport_custom_auth_scheme() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={})
+
+    transport = HttpxTransport(
+        "https://api.example.test/v1",
+        "secret",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        auth_scheme="Api-Key",
+    )
+    transport({"method": "POST", "path": "/chat/completions", "json": {}})
+    assert seen[0].headers["authorization"] == "Api-Key secret"
+
+
 def test_httpx_transport_sends_named_multipart_parts() -> None:
     seen: list[httpx.Request] = []
 

@@ -49,13 +49,13 @@ Only models that actually run in the product are listed; this table is updated a
 | Muse Spark 1.3 (+1.2 for narrated video) | Planner, compiler, standards grounding | Hosted API | integrated (P2-01) |
 | Muse Voice Transcribe | Spoken requests, disputes, voice round-trip check | Hosted API | integrated (P2-01) |
 | SAM 3.1 | Survey, probes, tracking, coverage, masks | Hosted + self-hosted | planned |
-| Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute | Site laptop | planned |
-| Muse Spark Open (open weights) | Tier 2 verifier, plan audit, devil's advocate | Baseten | planned |
+| Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute | Site laptop (llama-server) | client + Tier 1 verifier (P3-03) |
+| Muse Spark Open (open weights) | Tier 2 verifier, dispute review, plan audit, devil's advocate | Baseten | client + Tier 2 (P3-04) |
 | Muse Image | Rule CI scenes, lookalikes, posters | Hosted API | integrated (P2-01) |
 | Sapiens (FAIR) | Pose and skeletons | GPU | planned |
 | MMS-TTS (FAIR) | Spoken warnings | CPU | planned |
 | V-JEPA 2 (FAIR) | Surprise Lens world model | GPU | planned (gated) |
-| Llama Prompt Guard 2 | Scene-text firewall | CPU | planned |
+| Llama Prompt Guard 2 (86M) | Scene-text firewall | CPU (transformers, `ml` extra) | firewall (P3-05) |
 
 ## Results
 

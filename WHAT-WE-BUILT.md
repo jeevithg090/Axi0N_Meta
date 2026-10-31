@@ -26,6 +26,7 @@ adds a row here with its licence.
 | Typer | CLI | MIT |
 | pytest, pytest-cov, pytest-asyncio, Hypothesis, mypy, ruff, pre-commit | Development only | MIT / Apache-2.0 / MPL-2.0 |
 | ffmpeg (system) | Video encoding | LGPL/GPL (system binary, not bundled) |
+| Llama Prompt Guard 2 86M (`meta-llama/Llama-Prompt-Guard-2-86M`, gated) | Scene-text firewall (`verify/firewall.py`, P3-05) | Llama 4 Community License ("Built with Llama"); weights downloaded at run time, not bundled |
 
 ## Built during the hackathon
 

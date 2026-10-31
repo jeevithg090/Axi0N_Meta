@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, SecretStr
 
 from rulecam.bus import Bus, Topic
 from rulecam.clients.errors import ClientConfigError, ModelResponseError, StructuredOutputError
-from rulecam.clients.meta_hosted.spark import SparkClient, build_request
+from rulecam.clients.meta_hosted.spark import SparkClient, answer_schema, build_request
 from rulecam.clients.relay import ModelUsed
 from rulecam.config import Settings
 from rulecam.replay.cache import ReplayCache
@@ -103,7 +103,7 @@ def test_request_body_follows_the_responses_schema() -> None:
     fmt = body["text"]["format"]
     assert fmt["type"] == "json_schema"
     assert fmt["name"] == "SampleOutput"
-    assert fmt["schema"] == SampleOutput.model_json_schema()
+    assert fmt["schema"] == answer_schema(SampleOutput)
     assert "tool_choice" not in body
     assert "response_format" not in body
     assert "reasoning_effort" not in body
@@ -310,3 +310,24 @@ def test_message_items_only_contribute_output_text() -> None:
     )
     assert result.score == 2
     assert json.loads('{"title": "a", "score": 2}') == result.model_dump()
+
+
+class _Need(BaseModel):
+    concern: str
+    concepts: list[str] = Field(default_factory=list)
+    note: str | None = None
+
+
+class _Needs(BaseModel):
+    needs: list[_Need] = Field(default_factory=list)
+
+
+def test_answer_schema_requires_every_property_including_nested() -> None:
+    schema = answer_schema(_Needs)
+    assert schema["required"] == ["needs"]
+    defs = schema["$defs"]
+    assert isinstance(defs, dict)
+    assert defs["_Need"]["required"] == ["concern", "concepts", "note"]
+    # Defaults stay valid: a reply that fills them with empty values is accepted.
+    reply = _Needs.model_validate({"needs": [{"concern": "c", "concepts": [], "note": None}]})
+    assert reply.needs[0].concepts == []

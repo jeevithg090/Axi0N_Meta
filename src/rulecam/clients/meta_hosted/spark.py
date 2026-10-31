@@ -5,7 +5,9 @@ One `POST /responses` per call, the same Responses + Files shape as hosted SAM 3
 
 - structured output in `text.format` (`type: json_schema`, `name`, `schema`). `strict` is off:
   pydantic schemas use defaults, open dicts and root unions, which the strict subset rejects, so
-  the reply is validated here instead, with one retry that carries the validation errors;
+  the reply is validated here instead, with one retry that carries the validation errors. Every
+  object property is sent as `required` (`answer_schema`): with fields left optional, the model
+  answered from the schema's minimum, e.g. one concern with no concepts when asked for two;
 - `reasoning.effort`; `background: true` creates the response, then `GET /responses/{id}` is
   polled until it leaves `queued`/`in_progress` (background cannot be combined with `stream`, so
   every call sends `stream: false` unless it is a background call);
@@ -27,7 +29,7 @@ import time
 from collections.abc import Callable, Mapping
 from functools import partial
 from pathlib import Path
-from typing import Literal, TypeVar
+from typing import Any, Literal, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -67,6 +69,28 @@ POLL_TIMEOUT_S = 600.0
 WEB_SEARCH_TOOL: dict[str, object] = {"type": "web_search"}
 
 Effort = Literal["low", "medium", "high"]
+
+
+def answer_schema(schema: type[BaseModel]) -> dict[str, object]:
+    """Return `schema`'s JSON schema with every object property marked `required`.
+
+    Defaults still validate (a field the model fills with `null`, `[]` or `{}` is accepted); the
+    model just may no longer leave a field out.
+    """
+    required: dict[str, object] = _require_all(schema.model_json_schema())
+    return required
+
+
+def _require_all(node: object) -> Any:
+    if isinstance(node, dict):
+        out = {key: _require_all(value) for key, value in node.items()}
+        properties = out.get("properties")
+        if isinstance(properties, dict) and properties:
+            out["required"] = list(properties)
+        return out
+    if isinstance(node, list):
+        return [_require_all(item) for item in node]
+    return node
 
 
 def build_request(
@@ -111,7 +135,7 @@ def build_request(
             "format": {
                 "type": "json_schema",
                 "name": schema.__name__,
-                "schema": schema.model_json_schema(),
+                "schema": answer_schema(schema),
                 "strict": False,
             }
         },

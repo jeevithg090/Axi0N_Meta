@@ -7,6 +7,11 @@ privacy mode, retention, roles, languages, and the cameras' click calibrations a
 (saved in the run's `input.json`). A finished plan is handed to `on_plan` (the API's plan
 registry). A failed run is logged; the failing step has already been published as `failed`.
 
+Questions (WS4): `questions` lists a plan's saved step 5 and step 8 questions, `frame` gives the
+camera frame a tap answer refers to, and `answer` validates the owner's answers and queues a
+re-run of the same plan with them (`planner.answers`); a plan that is still being planned
+refuses answers (`PlanBusyError`) until its run ends.
+
 `ChunkFrames` supplies the survey's and probes' camera frames: up to 3 evenly spaced frames (at
 least 1 s apart) of each camera chunk from the last `window_s` seconds (60 s by default,
 `PLANNER_SURVEY_WINDOW_S`), extracted with one ffmpeg call per chunk under content-addressed
@@ -22,6 +27,7 @@ import math
 import re
 import shutil
 import subprocess
+import threading
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -29,8 +35,21 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Final, Protocol
 
+from rulecam.clock import SystemClock
 from rulecam.contracts import Chunk, Clock, RequestItem, SitePlan
 from rulecam.log import get_logger
+from rulecam.planner.answers import (
+    Answer,
+    AnswerRecord,
+    PlanBusyError,
+    PlanQuestions,
+    apply_answers,
+    plan_zones,
+    record_answers,
+    saved_answers,
+    saved_questions,
+)
+from rulecam.planner.errors import PipelineError
 from rulecam.planner.pipeline import PipelineInput, PlannerPipeline
 from rulecam.planner.site_config import SiteConfig
 
@@ -60,6 +79,7 @@ class PlannerService:
         on_plan: Callable[[SitePlan], object],
         site: SiteConfig | None = None,
         new_id: Callable[[], str] = new_plan_id,
+        clock: Clock | None = None,
     ) -> None:
         """Create the runner.
 
@@ -69,6 +89,7 @@ class PlannerService:
             on_plan: Receives each finished plan.
             site: The owner's site config (validated); the defaults when `None`.
             new_id: Makes plan ids.
+            clock: Stamps saved answers.
         """
         self._pipeline = pipeline
         self._frames = frames
@@ -77,7 +98,10 @@ class PlannerService:
         self._zones = self._site.zones()
         self._calibrations = self._site.calibrations()
         self._new_id = new_id
+        self._clock = clock or SystemClock()
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="planner")
+        self._running: set[str] = set()
+        self._lock = threading.Lock()
 
     def submit(self, items: Sequence[RequestItem]) -> str:
         """Queue a planning run and return its plan id.
@@ -89,10 +113,87 @@ class PlannerService:
             The new plan's id.
         """
         plan_id = self._new_id()
-        future = self._executor.submit(self._run, plan_id, tuple(items))
-        future.add_done_callback(lambda done: _log_failure(plan_id, done))
+        with self._lock:
+            self._running.add(plan_id)
+        self._queue(plan_id, self._run, plan_id, tuple(items))
         _log.info("planner_submitted", plan_id=plan_id, items=len(items))
         return plan_id
+
+    def questions(self, plan_id: str) -> PlanQuestions:
+        """The plan's open questions from its last run (none yet while its first run starts).
+
+        Raises:
+            PipelineError: If the plan has no saved run here and none is queued.
+        """
+        store = self._pipeline.store
+        with self._lock:
+            running = plan_id in self._running
+        try:
+            questions = saved_questions(store, plan_id)
+        except PipelineError:
+            if not running:
+                raise
+            questions = ()
+        return PlanQuestions(
+            plan_id=plan_id,
+            questions=questions,
+            running=running,
+            answered=len(saved_answers(store, plan_id)),
+        )
+
+    def frame(self, plan_id: str, camera_id: str) -> Path | None:
+        """The latest saved frame of a camera in the plan's run (what tap answers refer to).
+
+        Raises:
+            PipelineError: If the plan has no saved run here.
+        """
+        frames = self._pipeline.store.load_input(plan_id).camera_frames.get(camera_id, ())
+        return next((f for f in reversed(frames) if f.is_file()), None)
+
+    def answer(self, plan_id: str, answers: Sequence[Answer]) -> None:
+        """Check the answers, save them and queue a re-run of the plan with them.
+
+        Raises:
+            PlanBusyError: While a run of this plan is queued or running.
+            AnswerError: If an answer cannot be used (nothing is saved or queued then).
+            PipelineError: If the plan has no saved run here.
+        """
+        store = self._pipeline.store
+        with self._lock:
+            if plan_id in self._running:
+                msg = f"plan {plan_id!r} is still being planned; answer when it has finished"
+                raise PlanBusyError(msg)
+            inputs = store.load_input(plan_id)
+            updated = apply_answers(
+                inputs, saved_questions(store, plan_id), answers, plan_zones(store, inputs)
+            )
+            self._running.add(plan_id)
+        saved = store.load_plan(plan_id)
+        record_answers(
+            store,
+            plan_id,
+            AnswerRecord(
+                at=self._clock.now(),
+                plan_version=saved.version if saved else None,
+                answers=tuple(answers),
+            ),
+        )
+        self._queue(plan_id, self._rerun, updated)
+        _log.info("planner_answers_submitted", plan_id=plan_id, answers=len(answers))
+
+    def _queue(self, plan_id: str, fn: Callable[..., SitePlan], *args: object) -> None:
+        future = self._executor.submit(fn, *args)
+        future.add_done_callback(lambda done: self._finished(plan_id, done))
+
+    def _finished(self, plan_id: str, done: Future[SitePlan]) -> None:
+        with self._lock:
+            self._running.discard(plan_id)
+        _log_failure(plan_id, done)
+
+    def _rerun(self, inputs: PipelineInput) -> SitePlan:
+        plan = self._pipeline.run(inputs)
+        self._on_plan(plan)
+        return plan
 
     def shutdown(self) -> None:
         """Wait for the queued runs, then stop the worker."""

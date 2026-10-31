@@ -44,8 +44,8 @@ predicates need none; `persist`, `absence` and `dwell` their seconds; `rate` a m
 proximity rule is not blind for a whole window after an idle chunk. The lag, mode and cost
 counters are exposed in `metrics` (and served at `/runtime/metrics`).
 
-**Privacy:** the strip renderer receives the plan's `PrivacyMode` (P4-05 `render_strip(event,
-mode)`), so only skeleton renders leave the loop in `anonymous` and `strict` mode.
+**Privacy:** the strip renderer receives the plan's `PrivacyMode` and the evaluation context
+(P4-05, `runtime.strips`), so no person pixel leaves the loop in `anonymous` and `strict` mode.
 
 A failing chunk (any `RulecamError`, e.g. a `ReplayMiss` or a model error) is logged, counted
 and treated as a coverage gap; it never stops the loop.
@@ -128,8 +128,18 @@ class ChunkTracker(Protocol):
 class StripRenderer(Protocol):
     """Fills `strip_paths` with a 6-frame strip in the site's privacy mode (P4-05)."""
 
-    def render(self, candidate: CandidateEvent, chunk: Chunk, mode: PrivacyMode) -> CandidateEvent:
-        """Return the candidate with its strip; in `anonymous`/`strict` mode, skeletons only."""
+    def render(
+        self,
+        candidate: CandidateEvent,
+        chunk: Chunk,
+        mode: PrivacyMode,
+        context: DecisionContext,
+    ) -> CandidateEvent:
+        """Return the candidate with its strip; in `anonymous`/`strict` mode, skeletons only.
+
+        `context` carries the rule (whose subjects are drawn), its zones and the camera's
+        calibration (the distance ruler). A renderer never raises: on failure the strip is empty.
+        """
         ...
 
 
@@ -811,7 +821,7 @@ class RuntimeLoop:
         # The context lets `rulecam audit` re-derive this decision from the track store (E9).
         self._chain.append("candidate", candidate_payload(candidate, context))
         self._bus.publish(Topic.CANDIDATE_NEW, candidate)
-        candidate = self._strips.render(candidate, chunk, mode)
+        candidate = self._strips.render(candidate, chunk, mode, context)
         act_first = self._policy.act_first(candidate, rule)
         if act_first:
             immediate = Decision(alert=True, route="auto", act_first=True, reason="act first")

@@ -35,7 +35,7 @@ Outcome = bool | str
 """Whether the rule fired on a trace, or the evaluation error's text."""
 
 
-def fires(rule: RuleIR, trace: TraceCase) -> Outcome:
+def fires(rule: RuleIR, trace: TraceCase, *, operator_exclusion: bool = True) -> Outcome:
     """Run the rules engine on one trace.
 
     Zones are not passed in, so the engine resolves them from the rule itself (a mutant's
@@ -44,6 +44,8 @@ def fires(rule: RuleIR, trace: TraceCase) -> Outcome:
     Args:
         rule: The rule (or a mutant).
         trace: The trace.
+        operator_exclusion: The engine's operator exclusion (on, as in production; the
+            `drop_operator_exclusion` mutant turns it off).
 
     Returns:
         True if at least one candidate was emitted, False if none, or the error text if the
@@ -51,7 +53,13 @@ def fires(rule: RuleIR, trace: TraceCase) -> Outcome:
     """
     try:
         events = evaluate(
-            rule, trace.tracks, calibration=trace.calibration, zones={}, t0=trace.t0, t1=trace.t1
+            rule,
+            trace.tracks,
+            calibration=trace.calibration,
+            zones={},
+            t0=trace.t0,
+            t1=trace.t1,
+            operator_exclusion=operator_exclusion,
         )
     except RuleEvaluationError as exc:
         return f"error: {exc}"
@@ -106,7 +114,11 @@ def killed(
     mutant: MutationCase, traces: Sequence[TraceCase], baseline: Mapping[str, Outcome]
 ) -> bool:
     """Whether some trace's outcome under the mutant differs from the unmutated rule's."""
-    return any(fires(mutant.rule, trace) != baseline[trace.name] for trace in traces)
+    return any(
+        fires(mutant.rule, trace, operator_exclusion=mutant.operator_exclusion)
+        != baseline[trace.name]
+        for trace in traces
+    )
 
 
 def run_rule_ci(

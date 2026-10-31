@@ -8,7 +8,10 @@ self-hosted worker (our own GPU pod when `SAM_BASE_URL` is set, otherwise Modal)
 
 On the runtime path the tracker's segmenter is, from the outside in: `StaticServedSegmenter`
 (static concepts from the static cache, no SAM call) -> `CallMeter` (requests and billed frames
-per camera, for the loop's budget and `/runtime/metrics`) -> the router's runtime segmenter. The
+per camera, for the loop's budget and `/runtime/metrics`) -> `LimitedSegmenter` (at most
+`RULECAM_SAM_MAX_CONCURRENCY` SAM calls open at once, queue time timed) -> the router's runtime
+segmenter, whose hosted SAM returns boxes only unless `RULECAM_RUNTIME_SAM_MASKS` is set (mask
+decoding is GIL-bound pure Python; the runtime needs foot points only). The
 loop also gets the motion gate, the idle-sampling/budget policy and its pipeline depth
 (`RULECAM_RUNTIME_PIPELINE_DEPTH`) from settings. With more than one chunk in flight the tracker
 does not re-prompt: a re-prompt needs the previous chunk's tracks, which would make every chunk
@@ -51,15 +54,23 @@ from rulecam.log import get_logger
 from rulecam.perception.errors import SamRuntimeError
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.perception.motion_gate import MotionGate
-from rulecam.perception.router import CallMeter, Purpose, RoutingPolicy, SegmenterRouter
+from rulecam.perception.router import (
+    CallMeter,
+    LimitedSegmenter,
+    Purpose,
+    RoutingPolicy,
+    SegmenterRouter,
+)
 from rulecam.perception.sam_runtime import HttpSamWorker, ModalSam31, ModalWorker, SamWorker
 from rulecam.perception.static_cache import StaticServedSegmenter
 from rulecam.perception.tracking import Tracker
 from rulecam.replay.cache import ReplayCache
+from rulecam.rules.operators import OperatorExclusion
 from rulecam.rules.store import ParquetTrackStore
 from rulecam.runtime.loop import RuntimeLoop, chunk_end
 from rulecam.runtime.sampling import SamplingPolicy
 from rulecam.runtime.strips import EpisodeStrips, face_detector
+from rulecam.runtime.timings import StageTimings
 from rulecam.verify.decision import Decision
 from rulecam.verify.tier1 import GlimmerVerifier
 
@@ -209,6 +220,7 @@ class Perception:
     metrics: PerceptionMetrics
     store: LockedTrackStore
     chunks: ChunkIndex
+    runtime_hosted: HostedSam31 | None = None  # the runtime path's view of `hosted`
 
 
 def self_hosted_worker(settings: Settings) -> tuple[SamWorker, str] | None:
@@ -240,6 +252,7 @@ def build_perception(
     """
     metrics = PerceptionMetrics()
     hosted = hosted_sam(settings, cache, clock=clock, bus=bus)
+    runtime_hosted = hosted.runtime_view(masks=settings.rulecam_runtime_sam_masks)
     picked = self_hosted_worker(settings)
     backend = Backend.SELF_HOSTED if picked is not None else Backend.HOSTED
     worker, worker_name = picked if picked is not None else (ModalWorker(settings), "none")
@@ -254,11 +267,17 @@ def build_perception(
         policy=RoutingPolicy(runtime_backend=backend),
         metrics=metrics,
         on_fallback=on_fallback,
+        runtime_hosted=runtime_hosted,
     )
     store = LockedTrackStore(ParquetTrackStore(settings.rulecam_data_dir / "tracks"))
     _log.info("perception_built", runtime_backend=str(backend), self_hosted_worker=worker_name)
     return Perception(
-        hosted=hosted, router=router, metrics=metrics, store=store, chunks=ChunkIndex(metrics)
+        hosted=hosted,
+        router=router,
+        metrics=metrics,
+        store=store,
+        chunks=ChunkIndex(metrics),
+        runtime_hosted=runtime_hosted,
     )
 
 
@@ -284,7 +303,15 @@ def build_runtime(
     Returns:
         The loop, with placeholder policy and actions until P3-05 and P3-06.
     """
-    meter = CallMeter(perception.router.for_purpose(Purpose.RUNTIME))
+    timings = StageTimings()
+    if perception.runtime_hosted is not None:
+        perception.runtime_hosted.set_stage_sink(timings.record)
+    limited = LimitedSegmenter(
+        perception.router.for_purpose(Purpose.RUNTIME),
+        settings.rulecam_sam_max_concurrency,
+        timings=timings,
+    )
+    meter = CallMeter(limited)
     served = StaticServedSegmenter(meter)
     depth = settings.rulecam_runtime_pipeline_depth
     tracker = Tracker(
@@ -318,4 +345,7 @@ def build_runtime(
         static_sink=lambda concepts, version: served.set_static(concepts, generation=version),
         companions=(lambda: served.cache.run(bus),),
         pipeline_depth=depth,
+        timings=timings,
+        verify_workers=settings.rulecam_runtime_verify_workers,
+        operators=OperatorExclusion.from_csv(settings.rulecam_operator_exclusion_off),
     )

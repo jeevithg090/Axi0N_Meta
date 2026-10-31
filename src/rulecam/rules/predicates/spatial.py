@@ -46,7 +46,12 @@ def distance_m(node: DistanceM, scene: Scene) -> Signal:
         candidates = tuple(o for o in others if o.track_id != subject.track_id)
         nears = [
             nearest_distance(
-                scene, points.m, subject.start, candidates, footprint=b_part != "foot_point"
+                scene,
+                points.m,
+                subject.start,
+                candidates,
+                footprint=b_part != "foot_point",
+                subject=subject,
             )
             for points in ref_points(scene, subject, a_part)
         ]
@@ -74,7 +79,7 @@ def inside(node: Inside, scene: Scene) -> Signal:
     for subject in scene.tracks_of(concept):
         hit = np.zeros(len(subject.present), dtype=np.bool_)
         for points in ref_points(scene, subject, part):
-            hit |= zone_contains(scene, zone, points, subject.start)
+            hit |= zone_contains(scene, zone, points, subject.start, subject)
         series[subject.track_id] = make_series(
             subject.start, hit, hit.astype(np.float64), subject.present
         )

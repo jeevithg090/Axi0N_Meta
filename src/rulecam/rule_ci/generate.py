@@ -7,6 +7,10 @@
 | `[persist] inside(x, polygon)` | `traces.inside_traces` |
 | `[persist] distance_m`, alone or with `moving` under `all` | `traces.proximity_traces` |
 
+For buffer rules and `distance_m(lt=...)` rules, `kinematic_traces` adds the approach, pass-by
+and co-moving-far traces the near-miss (TTC) metrics describe, and, for person-vehicle rules,
+the operator-vs-pedestrian traces.
+
 Anything else raises `UnsupportedRuleError` naming the shape.
 """
 
@@ -20,6 +24,13 @@ from rulecam.contracts.rule_ir import Inside, Persist, Predicate, RuleIR
 from rulecam.contracts.rule_ir import Sequence as SequenceNode
 from rulecam.rule_ci.buffer_traces import buffer_shape, buffer_traces, ground_plane
 from rulecam.rule_ci.geometry import UnsupportedRuleError
+from rulecam.rule_ci.kinematic_traces import (
+    Separation,
+    from_buffer,
+    from_proximity,
+    kinematic_traces,
+    operator_traces,
+)
 from rulecam.rule_ci.models import TraceCase
 from rulecam.rule_ci.traces import (
     Proximity,
@@ -74,11 +85,19 @@ def generate_rule_traces(
         return sequence_traces(rule, node)
     buffer = buffer_shape(rule, node, persist_s)
     if buffer is not None:
-        return buffer_traces(buffer, ground_plane(rule, buffer, calibrations or {}))
+        cases = buffer_traces(buffer, ground_plane(rule, buffer, calibrations or {}))
+        return cases + _separation_traces(from_buffer(rule, buffer))
     if isinstance(node, Inside):
         return inside_traces(rule, node, persist_s)
     parts = proximity_parts(node)
     if parts is not None:
-        return proximity_traces(Proximity(_camera(rule), parts[0], parts[1], persist_s))
+        scene = Proximity(_camera(rule), parts[0], parts[1], persist_s)
+        return proximity_traces(scene) + _separation_traces(from_proximity(rule, scene))
     msg = f"no boundary-trace generator for {shape_of(rule.predicate)}"
     raise UnsupportedRuleError(msg)
+
+
+def _separation_traces(separation: Separation | None) -> list[TraceCase]:
+    if separation is None:
+        return []
+    return kinematic_traces(separation) + operator_traces(separation)

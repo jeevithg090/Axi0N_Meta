@@ -10,7 +10,7 @@ forecast. Owner: P2.
 | Name | What it does |
 |---|---|
 | `generate_rule_traces(rule, *, calibrations) -> list[TraceCase]` | Synthetic tracks from the rule's own thresholds and zones, each with its expected outcome. Raises `UnsupportedRuleError` for shapes it has no generator for, or a buffer zone without a calibration |
-| `generate_mutations(rule) -> list[MutationCase]` | Every applicable mutant: thresholds x0.1 and x10, flip `lt`/`gt`, drop `not`, swap `all`/`any`, remove `persist`, switch `semantics`, widen each zone by 50% |
+| `generate_mutations(rule) -> list[MutationCase]` | Every applicable mutant: thresholds x0.1 and x10, flip `lt`/`gt`, drop `not`, swap `all`/`any`, remove `persist`, switch `semantics`, widen each zone by 50%, and `drop_operator_exclusion` for person-vehicle rules (`MutationCase.operator_exclusion=False`) |
 | `run_rule_ci(rule, *, bus, traces, mutants, justification, red_team, calibrations) -> RuleCIReport` | Runs traces, then every mutant on every trace; publishes `ci.result` (`CIResult{rule_id, report, ci_green, summary}`) |
 | `prove_plan_hook(bus, *, justifications, red_team, calibrations) -> PlanHook` | The planner's step 10: Rule CI for every rule (part 2 too when `red_team` is given; buffer traces through the run's calibrations, `api.app.run_calibrations`), recorded as `ci_green` and `nonvacuous` checks in the acceptance trace (re-running replaces them) |
 | `RedTeam(...)(rule) -> RedTeamReport` | Part 2 for one rule on its real camera frame: scenes, lookalikes, injection signs, forecast; a stage that cannot run is listed in `skipped` with why |
@@ -46,11 +46,24 @@ when the run has one (`calibrations`), else the synthetic plane when the rule na
 After layout, shapely re-measures each sample's distance and the moving object's speed against
 the design, so a homography that bends the layout is refused rather than mis-expected.
 
-*Decision: no normalisation.* The planner could rewrite one form into the other, but both are
-valid Rule IR, and the forms differ slightly (`distance_m < 2` is strict, a buffer contains its
-edge; a buffer zone is also a drawable zone for lint and the UI). Rewriting compiler output
-would hide the form the owner was shown and touch the compile contract tests, so Rule CI proves
-both forms instead. A rule's Rule CI result is deterministic for a given compiled form.
+*Decision (updated, WS1e): the compiler canonicalises.* Live, the forms behaved differently, and
+one compile wrote the inverted `distance_m(gt=2)`, which Rule CI then proved against its own
+(wrong) semantics. `planner.canonical.canonicalize_rule` now rewrites every person-vehicle
+separation rule after compile into `[persist] all(distance_m(person, vehicle, lt=d),
+moving(vehicle))`; buffer zones remain for fixed things and polygons the owner drew. Rule CI
+still proves both forms, so a buffer rule written by hand keeps working.
+
+**Kinematic and operator traces** (`kinematic_traces.py`, WS1c/WS1d). For `distance_m(lt=d)` and
+buffer rules: an approach pair (drives straight at the other and turns `d -/+ eps` away) and a
+pass-by pair (passes `d -/+ eps` to the side), both without `persist`; and a co-moving trace
+3.2 d away (6.4 m for 2 m, the live far candidate: `closest_m` 6.4, `ttc_s` none), which must
+never fire and kills `flip_lt_gt`. When the subject is person-like and the other vehicle-like:
+a person riding the vehicle inside its box `min(d/2, 0.5)` m from its footprint (must not fire:
+operator exclusion, `rules.operators`), a pedestrian walking beside it at the same distance and
+one standing in front of it while it passes (both must fire). These rules also get the
+`drop_operator_exclusion` mutant (the same rule run with exclusion off), killed by the riding
+trace. Kinematic traces use the synthetic plane even when the buffer traces use a real
+homography: they test the rule's kinematics and the image-box operator logic, not the camera.
 
 `nonvacuous`: every threshold and zone-edge pair has a positive member the rule fires on and a
 negative member it does not. `ci_green`: all traces pass and at least 90% of mutants are killed,

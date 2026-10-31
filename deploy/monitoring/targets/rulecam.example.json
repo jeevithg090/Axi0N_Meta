@@ -1,0 +1,6 @@
+[
+  {
+    "targets": ["<api-pod-id>-8000.proxy.runpod.net:443"],
+    "labels": {"deployment": "rulecam"}
+  }
+]

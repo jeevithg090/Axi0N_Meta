@@ -1,0 +1,12 @@
+# PLACEHOLDER: the owner records this clip (eval/README.md, "Recording the owner's clips").
+# Intended label: POSITIVE for handwash_20s. Once recorded, set `source`, `duration_s`,
+# `placeholder: false` and `status: labelled` with its events.
+# Also label box tracks in CVAT (MOT 1.1 export) and add a `tracks:` block.
+name: owner_hw_pos_10s
+description: One person washes their hands for about 10 s, then leaves (too short).
+camera_id: owner-sink
+placeholder: true
+rules:
+  - id: handwash_20s
+    request: Staff must wash their hands for at least 20 seconds.
+    status: unlabelled

@@ -217,6 +217,11 @@ outcome = loop.run(planned, feasibility)  # rules, feasibility, acceptance, ques
   `err_m <= 0.10`), `privacy_consistent`, `citation_text_match` (Spark grounding + quote on the
   cited page) and `no_private_spaces`. `ci_green` and `nonvacuous` are added per rule by the
   prove step (`rule_ci.prove_plan_hook`, P2-08).
+- Per-camera checks (`detect_lb>=0.8`, `calibration_err<=tol` and its calibration questions)
+  measure the rule's camera scope (`planner.scope.rule_scope`: the cameras of its
+  `observable`/`caveat` feasibility evidence, its zones and the calibration it names), the
+  same definition runtime activation uses to pick the cameras a rule runs on. A rule with no
+  camera evidence is measured on every site camera.
 - Strict AND; the trace keeps the last round's failures. Only items failing `concern_covered`,
   `zone_in_view`, `privacy_consistent` or `no_private_spaces` are re-compiled, with the failures
   as feedback, for at most 2 rounds; a repair that lowers severity or drops an action is
@@ -245,7 +250,7 @@ outcome = loop.run(planned, feasibility)  # rules, feasibility, acceptance, ques
 - `SiteGeometry.ground` runs on every compiled rule: candidate polygons replace the model's, an
   invented polygon zone is an error for the repair round, buffer zones keep only
   `buffer_of`/`buffer_m`, and `calibration` is `ground-plane@<cam>` only when the metric rule's
-  cameras are calibrated. Otherwise acceptance keeps the rule amber and asks the owner to mark a
+  cameras (its camera scope) are calibrated. Otherwise acceptance keeps the rule amber and asks the owner to mark a
   known distance (`target_field="calibration"`).
 - `PlanStore.calibrations(plan_id)` is what approval hands to the runtime.
 

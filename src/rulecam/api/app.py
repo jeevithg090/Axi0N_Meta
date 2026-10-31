@@ -7,9 +7,10 @@ tasks still in flight (`/ack`, `/interlock`, `/advice`, `/surprise`) are passed 
 `AppServices.routers` as they land; `services_from_settings` passes the public `/worker` router
 (P2-11) that way.
 
-Anything that changes state (`PUT /mode`, `PUT /runtime/plan`, plan create/approve) and the `/ws`
-mirror are owner-only: both the target host and the client must be loopback, because the same app
-is reachable through the Pair-a-Phone tunnel.
+Anything that changes state (`PUT /mode`, `PUT /runtime/plan`, plan create/approve) is owner-only:
+both the target host and the client must be loopback, because the same app is reachable through
+the Pair-a-Phone tunnel. The read-only `/ws` mirror is owner-only too, except for a browser whose
+`Origin` is the public web UI (`PUBLIC_UI_URL`).
 
 `make api` serves the module-level `app`, built from settings with the replay cache, the bus, the
 evidence chain, perception and Pair-a-Phone; `RULECAM_RUNTIME=true` also starts the runtime loop.
@@ -24,6 +25,7 @@ from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket, status
 from fastapi.responses import PlainTextResponse
@@ -90,6 +92,8 @@ class AppServices:
         tickers: Called once a second off the event loop (e.g. `EscalationManager.tick`).
         uploads_dir: Where planner uploads are stored (`POST /plans/uploads`).
         planner: The Site Planner runner (P2-06); `POST /plans/requests` needs it.
+        viewer_origins: Browser origins (e.g. the public web UI) that may watch the read-only
+            `/ws` mirror without being the owner. Nothing that changes state accepts them.
     """
 
     bus: Bus
@@ -108,6 +112,7 @@ class AppServices:
     tickers: Sequence[Callable[[], object]] = field(default_factory=tuple)
     uploads_dir: Path | None = None
     planner: PlannerRunner | None = None
+    viewer_origins: frozenset[str] = frozenset()
 
 
 TICK_S = 1.0
@@ -198,11 +203,12 @@ def _core_router(services: AppServices) -> APIRouter:
 
     @router.websocket("/ws")
     async def ws(websocket: WebSocket) -> None:
-        try:
-            require_owner(websocket)
-        except HTTPException:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
+        if websocket.headers.get("origin") not in services.viewer_origins:
+            try:
+                require_owner(websocket)
+            except HTTPException:
+                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                return
         await mirror_bus(websocket, services.bus)
 
     @router.get("/metrics/perception", tags=["metrics"])
@@ -529,12 +535,24 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         uploads_dir=settings.rulecam_data_dir / "uploads",
         plans=plans,
         planner=planner,
+        viewer_origins=viewer_origins(settings.public_ui_url),
         routers=(
             build_worker_router(
                 settings, cache=cache, clock=clock, bus=bus, chain=chain, plans=plans
             ),
         ),
     )
+
+
+def viewer_origins(public_ui_url: str | None) -> frozenset[str]:
+    """Return the origin of the public web UI (scheme://host[:port]) as the only viewer origin."""
+    if not public_ui_url:
+        return frozenset()
+    parts = urlsplit(public_ui_url)
+    if parts.scheme not in {"http", "https"} or not parts.netloc:
+        msg = f"PUBLIC_UI_URL must be an http(s) URL, got {public_ui_url!r}"
+        raise ValueError(msg)
+    return frozenset({f"{parts.scheme}://{parts.netloc}"})
 
 
 def openapi_json(app: FastAPI) -> str:

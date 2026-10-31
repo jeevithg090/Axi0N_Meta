@@ -22,6 +22,7 @@ from rulecam.api.app import (
     find_plan,
     openapi_json,
     services_from_settings,
+    viewer_origins,
 )
 from rulecam.api.plans import PlanRegistry
 from rulecam.api.ws import frame
@@ -399,3 +400,38 @@ def test_verify_page_and_day_root(services: AppServices, tmp_path: Path) -> None
         grown = client.get("/evidence/2026-10-30/root").json()
         assert (grown["n"], grown["committed_n"]) == (2, 1)
         assert grown["committed_root"] == after["root"] != grown["root"]
+
+
+PUBLIC_UI = "https://rulecam.vercel.app"
+
+
+def test_public_ui_can_watch_ws_but_not_change_state(services: AppServices) -> None:
+    services.viewer_origins = viewer_origins(PUBLIC_UI + "/worker")
+    app = create_app(services)
+    with TestClient(app, **TUNNEL) as client:  # type: ignore[arg-type]
+        client.headers["Origin"] = PUBLIC_UI
+        with client.websocket_connect("wss://rulecam-demo.trycloudflare.com/ws") as ws:
+            threading.Timer(0.2, lambda: services.cache.set_mode("record")).start()
+            assert ws.receive_json()["topic"] == Topic.MODE_CHANGED
+        assert client.put("/mode", json={"mode": "live"}).status_code == 403
+        client.headers["Origin"] = "https://evil.example"
+        with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws") as ws:
+            ws.receive_json()
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        (None, frozenset()),
+        ("", frozenset()),
+        ("https://rulecam.vercel.app/", frozenset({"https://rulecam.vercel.app"})),
+        ("http://localhost:3000/x?y=1", frozenset({"http://localhost:3000"})),
+    ],
+)
+def test_viewer_origins_from_public_ui_url(url: str | None, expected: frozenset[str]) -> None:
+    assert viewer_origins(url) == expected
+
+
+def test_viewer_origins_rejects_non_http_urls() -> None:
+    with pytest.raises(ValueError, match="PUBLIC_UI_URL"):
+        viewer_origins("javascript:alert(1)")

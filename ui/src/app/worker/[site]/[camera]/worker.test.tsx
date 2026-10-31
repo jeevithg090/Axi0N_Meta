@@ -3,15 +3,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import WorkerTransparencyPage from "./page";
 
+vi.mock("next/navigation", () => ({
+  useParams: () => ({ site: "dock-site", camera: "cam1" }),
+}));
+
 afterEach(cleanup);
 
 describe("WorkerTransparencyPage", () => {
   it("renders transparency notice, never list, and language switcher", async () => {
-    render(
-      <WorkerTransparencyPage
-        params={{ site: "dock-site", camera: "cam1" }}
-      />
-    );
+    render(<WorkerTransparencyPage />);
 
     // Header & site
     expect(await screen.findByText(/dock-site · cam1/i)).toBeDefined();
@@ -49,11 +49,7 @@ describe("WorkerTransparencyPage", () => {
       } as Response;
     });
 
-    render(
-      <WorkerTransparencyPage
-        params={{ site: "dock-site", camera: "cam1" }}
-      />
-    );
+    render(<WorkerTransparencyPage />);
 
     // Switch to Spanish
     const esBtn = await screen.findByRole("button", { name: "ES" });

@@ -81,6 +81,20 @@ describe("plan and planner state", () => {
     expect(reducer(state, { type: "plan-approved", planId: "nope" })).toBe(state);
   });
 
+  it("never lets a reload of an older version undo a newer plan.updated", () => {
+    // In the demo, v2 arrives on the stream; opening another screen reloads the recorded v1.
+    let state = reducer(initialState, {
+      type: "frame",
+      frame: { topic: "plan.updated", payload: demoPlanV2 },
+    });
+    state = reducer(state, { type: "plan-loaded", plan: demoPlanV1, approved: true });
+    expect(state.plans["main-st-kitchen"]?.latest.version).toBe(2);
+    expect(state.plans["main-st-kitchen"]?.approved?.version).toBe(1);
+    state = reducer(state, { type: "plan-approved", planId: "main-st-kitchen" });
+    state = reducer(state, { type: "plan-loaded", plan: demoPlanV1, approved: true });
+    expect(state.plans["main-st-kitchen"]?.approved?.version).toBe(2);
+  });
+
   it("loads an unapproved plan with no approved version", () => {
     const state = run([{ type: "plan-loaded", plan: demoPlanV2, approved: false }]);
     expect(state.plans["main-st-kitchen"]?.approved).toBeNull();

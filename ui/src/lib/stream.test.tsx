@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { badgeLabel } from "./store";
 import { StreamProvider, useStream } from "./stream";
+import { usePlans } from "./usePlans";
 
 let search = "";
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(search) }));
@@ -148,5 +149,25 @@ describe("StreamProvider", () => {
     act(() => vi.advanceTimersByTime(60_000));
     expect(FakeSocket.all).toHaveLength(0);
     expect(probe()).toBe("REPLAY|open|1");
+  });
+
+  it("keeps the plans a screen loads for the demo (the switch's reset happens first)", () => {
+    function Plans() {
+      const { plans } = usePlans();
+      const text = Object.values(plans)
+        .map((e) => `${e.latest.plan_id}:v${e.latest.version}:approved v${e.approved?.version}`)
+        .join(",");
+      return <p data-testid="plans">{text}</p>;
+    }
+    search = "demo=1";
+    render(
+      <StreamProvider>
+        <Plans />
+      </StreamProvider>,
+    );
+    act(() => vi.advanceTimersByTime(60_000));
+    // The recorded v1 (approved) loaded on mount survives; v2 arrives later on the stream.
+    expect(screen.getByTestId("plans").textContent).toBe("main-st-kitchen:v2:approved v1");
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from rulecam.bus import Bus, Topic
 from rulecam.clients.errors import ModelHTTPError, ModelResponseError
+from rulecam.clients.open_weights import glimmer as glimmer_module
 from rulecam.clients.open_weights.evidence_log import EvidenceLog
 from rulecam.clients.open_weights.glimmer import (
     GlimmerClient,
@@ -200,3 +201,20 @@ def test_bus_topic_is_relay(tmp_path: Path) -> None:
     bus.publish = lambda topic, payload: topics.append(topic)  # type: ignore[method-assign]
     ask(make_client(QueueTransport(chat_reply({"verdict": "x", "p": 0})), tmp_path, bus))
     assert topics == [Topic.RELAY_MODEL_USED]
+
+
+@pytest.mark.parametrize(("key", "expected"), [(None, "local"), ("s3cret", "s3cret")])
+def test_from_settings_sends_the_configured_api_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, key: str | None, expected: str
+) -> None:
+    seen: list[str] = []
+
+    def transport(base_url: str, api_key: str, **_: object) -> QueueTransport:
+        seen.append(api_key)
+        return QueueTransport()
+
+    monkeypatch.setattr(glimmer_module, "HttpxTransport", transport)
+    settings = Settings(_env_file=None, evidence_dir=tmp_path / "ev", glimmer_api_key=key)
+    cache = ReplayCache(tmp_path / "replay", "replay", clock=FakeClock())
+    GlimmerClient.from_settings(settings, cache=cache, clock=FakeClock())
+    assert seen == [expected]

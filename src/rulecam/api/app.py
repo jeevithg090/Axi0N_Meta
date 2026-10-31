@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -46,6 +46,7 @@ class AppServices:
         site: The site this server runs.
         runtime: The orchestrator; `None` serves the API without processing chunks.
         routers: Routers of other packages to mount.
+        tickers: Called once a second off the event loop (e.g. `EscalationManager.tick`).
     """
 
     bus: Bus
@@ -54,6 +55,18 @@ class AppServices:
     site: str
     runtime: RuntimeLoop | None = None
     routers: Sequence[APIRouter] = field(default_factory=tuple)
+    tickers: Sequence[Callable[[], object]] = field(default_factory=tuple)
+
+
+TICK_S = 1.0
+
+
+async def _tick_forever(tickers: Sequence[Callable[[], object]]) -> None:
+    """Call every ticker once a second in a worker thread until cancelled."""
+    while tickers:
+        for tick in tickers:
+            await asyncio.to_thread(tick)
+        await asyncio.sleep(TICK_S)
 
 
 class ModeRequest(BaseModel):
@@ -162,11 +175,13 @@ def create_app(services: AppServices) -> FastAPI:
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         services.bus.bind_loop(asyncio.get_running_loop())
-        task = asyncio.create_task(services.runtime.run()) if services.runtime else None
+        tasks = [asyncio.create_task(_tick_forever(services.tickers))]
+        if services.runtime is not None:
+            tasks.append(asyncio.create_task(services.runtime.run()))
         try:
             yield
         finally:
-            if task is not None:
+            for task in tasks:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await task

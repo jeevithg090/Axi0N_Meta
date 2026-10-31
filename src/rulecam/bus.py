@@ -31,6 +31,7 @@ class Topic(StrEnum):
     ADVICE_NEW = "advice.new"
     RELAY_MODEL_USED = "relay.model_used"
     MODE_CHANGED = "mode.changed"
+    ALERT_NEW = "alert.new"
 
 
 ALL_TOPICS: frozenset[Topic] = frozenset(Topic)

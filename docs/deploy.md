@@ -33,8 +33,19 @@ browser ──► https://rulecam.vercel.app  (Next.js, ui/)
   writes them; they are never in `.env`, argv, chat or git.
 - `start.sh` runs `uvicorn rulecam.api.app:app --host 0.0.0.0 --port 8000
   --timeout-graceful-shutdown 5`. Without the timeout, a restart hangs while public `/ws` viewers
-  stay connected, and the new process cannot take the port. Do not add
-  `--forwarded-allow-ips="*"`: it would let anyone spoof a loopback client past the owner check.
+  stay connected, and the new process cannot take the port. It also passes
+  `--forwarded-allow-ips 100.64.0.0/10` (RunPod's proxy network) so phones on the HTTPS proxy are
+  seen as `https` (Pair-a-Phone refuses plain HTTP). Never use `"*"`. Owner routes stay safe with
+  this setting: they also need a loopback Host, which the public proxy never sends (tested with
+  spoofed `X-Forwarded-For` / `X-Forwarded-Host`: 403).
+
+Pair a phone (owner action, so it runs on the pod):
+
+```bash
+ssh -i ~/.ssh/runpod_ed25519 -p <port> root@<ip> 'curl -s -X POST localhost:8000/pair/token' | python3 -c 'import json,sys; print(json.load(sys.stdin)["url"])'
+```
+
+Open the printed URL on the phone (or scan the QR in `qr_png_base64`) before it expires.
 - Auto-start: the pod's `dockerStartCmd` is
   `bash -c "(/workspace/rulecam/boot.sh &) ; exec /start.sh"`, and `boot.sh` runs `start.sh`
   (log: `/workspace/api.log`). Set it with the RunPod REST API (`PATCH /v1/pods/<id>`); `runpodctl`

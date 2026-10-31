@@ -6,6 +6,7 @@ from typing import Any
 import numpy as np
 import pytest
 
+from rulecam.perception import sam_worker
 from rulecam.perception.masks import decode_rle
 from rulecam.perception.sam_worker import (
     MODEL_VERSION,
@@ -138,3 +139,39 @@ def test_prompt_requests_for_text() -> None:
 def test_fake_predictor_conforms_to_the_sam3_api() -> None:
     predictor: Sam3Predictor = FakePredictor([])
     assert predictor.handle_request({"type": "start_session", "resource_path": __file__})
+
+
+class _MultiplexModel:
+    """Mimics sam3.1's init_state, which lacks offload_state_to_cpu."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def init_state(self, resource_path: str, offload_video_to_cpu: bool = False) -> str:
+        self.calls.append({"resource_path": resource_path, "offload": offload_video_to_cpu})
+        return "state"
+
+
+class _KwargsModel:
+    def init_state(self, **kwargs: object) -> dict[str, object]:
+        return kwargs
+
+
+def test_drop_unsupported_init_kwargs_ignores_undeclared_names() -> None:
+    model = _MultiplexModel()
+    sam_worker.drop_unsupported_init_kwargs(model)
+    # What Sam3BasePredictor.start_session passes at the pinned commit:
+    init_state: Any = model.init_state  # the wrapped callable accepts any keyword
+    state = init_state(
+        resource_path="v.mp4", offload_video_to_cpu=False, offload_state_to_cpu=False
+    )
+    assert state == "state"
+    assert model.calls == [{"resource_path": "v.mp4", "offload": False}]
+
+
+def test_drop_unsupported_init_kwargs_leaves_var_kwargs_alone() -> None:
+    model = _KwargsModel()
+    original = model.init_state
+    sam_worker.drop_unsupported_init_kwargs(model)
+    assert model.init_state == original
+    assert model.init_state(offload_state_to_cpu=True) == {"offload_state_to_cpu": True}

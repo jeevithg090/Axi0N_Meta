@@ -20,6 +20,8 @@ The request and response dicts are the JSON form of `sam_runtime.SamRequest` and
 
 from __future__ import annotations
 
+import functools
+import inspect
 import tempfile
 import time
 from collections.abc import Iterable, Iterator, Mapping
@@ -99,7 +101,9 @@ class Sam31Engine:
             build_sam3_predictor,
         )
 
-        return cls(build_sam3_predictor(version="sam3.1", use_fa3=False))
+        predictor = build_sam3_predictor(version="sam3.1", use_fa3=False)
+        drop_unsupported_init_kwargs(predictor.model)
+        return cls(predictor)
 
     def segment(self, video: bytes, request: dict[str, Any]) -> dict[str, Any]:
         """Segment one chunk.
@@ -152,6 +156,26 @@ class Sam31Engine:
                 yield int(response["frame_index"]), response["outputs"]
         finally:
             self._predictor.handle_request({"type": "close_session", "session_id": session_id})
+
+
+def drop_unsupported_init_kwargs(model: Any) -> None:
+    """Make `model.init_state` ignore keyword arguments it does not declare.
+
+    At the pinned sam3 commit, `Sam3BasePredictor.start_session` always passes
+    `offload_state_to_cpu`, but SAM 3.1's `Sam3MultiplexTrackingWithInteractivity.init_state`
+    does not accept it, so every session failed with a TypeError on a real GPU. The wrapper only
+    drops names the signature lacks, and does nothing once upstream accepts them (or `**kwargs`).
+    """
+    original = model.init_state
+    parameters = inspect.signature(original).parameters
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
+        return
+
+    @functools.wraps(original)
+    def init_state(*args: Any, **kwargs: Any) -> Any:
+        return original(*args, **{k: v for k, v in kwargs.items() if k in parameters})
+
+    model.init_state = init_state
 
 
 def prompt_requests(request: dict[str, Any], frame_index: int) -> list[dict[str, Any]]:

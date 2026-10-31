@@ -60,6 +60,7 @@ def run(
                 "HF_HOME",
                 "PUBLIC_TUNNEL_URL",
                 "SAM_DET_THRESH",
+                "SESSION_SECRET",
             ]
         ),
         **env,
@@ -91,6 +92,7 @@ def secret_file(path: Path, value: str, mode: int = 0o600) -> None:
 
 def test_serve_runs_uvicorn_with_the_documented_flags(home: Path, tmp_path: Path) -> None:
     secret_file(home / ".meta_api_key", SECRET)
+    secret_file(home / ".session_secret", "s" * 64)
     result, record = run(API_ENTRYPOINT, env={"RULECAM_HOME": str(home)}, tmp_path=tmp_path)
     assert result.returncode == 0, result.stderr
     assert record is not None
@@ -110,6 +112,7 @@ def test_serve_runs_uvicorn_with_the_documented_flags(home: Path, tmp_path: Path
     assert isinstance(env, dict)
     assert env["META_API_KEY"] == SECRET  # trailing newline stripped
     assert env["GLIMMER_API_KEY"] is None
+    assert env["SESSION_SECRET"] == "s" * 64  # owner login signing secret
     assert "secret META_API_KEY from" in result.stderr
     assert SECRET not in result.stderr + result.stdout
 

@@ -13,11 +13,11 @@
 # Secrets, like start.sh on the manual pod: each variable comes from the environment when set
 # there (e.g. a RunPod secret `{{ RUNPOD_SECRET_... }}`), else from RULECAM_HOME/.<name>
 # (mode 600): .meta_api_key, .glimmer_api_key, .sam_api_key, .baseten_api_key, .hf_token,
-# .whatsapp_token, .modal_token_id, .modal_token_secret. Values are never logged or put in argv.
+# .session_secret, .ui_proxy_secret (owner login), .whatsapp_token, .modal_token_id,
+# .modal_token_secret. Values are never logged or put in argv.
 #
-# Started as root (as on RunPod), it starts sshd when RunPod passes PUBLIC_KEY (owner actions
-# need a loopback client, e.g. `ssh … curl -X POST localhost:8000/pair/token`), then runs the
-# server as the unprivileged `rulecam` user. Non-secret settings come from the environment or
+# Started as root (as on RunPod), it starts sshd when RunPod passes PUBLIC_KEY (for owner setup,
+# e.g. `rulecam owner set-passphrase`, and loopback owner actions), then runs the server as the unprivileged `rulecam` user. Non-secret settings come from the environment or
 # RULECAM_HOME/.env (pydantic-settings reads it from the working directory).
 set -euo pipefail
 umask 077
@@ -33,7 +33,7 @@ RULECAM_USER="${RULECAM_USER:-rulecam}"
 # RunPod's HTTPS proxy reaches the pod from 100.64.0.0/10; trusting it is what makes phones on
 # the proxy count as https (Pair-a-Phone refuses plain http). Never "*".
 RULECAM_FORWARDED_ALLOW_IPS="${RULECAM_FORWARDED_ALLOW_IPS:-100.64.0.0/10}"
-SECRET_NAMES="meta_api_key glimmer_api_key sam_api_key baseten_api_key hf_token whatsapp_token modal_token_id modal_token_secret"
+SECRET_NAMES="meta_api_key glimmer_api_key sam_api_key baseten_api_key hf_token session_secret ui_proxy_secret whatsapp_token modal_token_id modal_token_secret"
 
 load_secrets() {
   local name

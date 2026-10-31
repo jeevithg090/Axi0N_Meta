@@ -13,6 +13,8 @@ from rulecam.capture.pair_phone.server import (
     MAX_UPLOAD_BYTES,
     SESSION_HEADER,
     build_router,
+    is_loopback,
+    is_loopback_owner,
     require_owner,
     require_secure_transport,
 )
@@ -35,6 +37,8 @@ __all__ = [
     "RateLimiter",
     "build_router",
     "concept_confidence",
+    "is_loopback",
+    "is_loopback_owner",
     "require_owner",
     "require_secure_transport",
 ]

@@ -116,7 +116,9 @@ SAM_KEY = SecretSpec("rulecam-sam.key", "rulecam_sam_api_key", required=True)
 HF_TOKEN = SecretSpec("rulecam-hf.token", "rulecam_hf_token")
 META_KEY = SecretSpec("rulecam-meta.key", "rulecam_meta_api_key")
 BASETEN_KEY = SecretSpec("rulecam-baseten.key", "rulecam_baseten_api_key")
-SECRETS = (GLIMMER_KEY, SAM_KEY, HF_TOKEN, META_KEY, BASETEN_KEY)
+SESSION_SECRET = SecretSpec("rulecam-session.secret", "rulecam_session_secret")  # owner login
+UI_PROXY_SECRET = SecretSpec("rulecam-ui-proxy.secret", "rulecam_ui_proxy_secret")
+SECRETS = (GLIMMER_KEY, SAM_KEY, HF_TOKEN, META_KEY, BASETEN_KEY, SESSION_SECRET, UI_PROXY_SECRET)
 
 
 class DeployError(Exception):
@@ -532,6 +534,8 @@ def api_env(
         "PUBLIC_UI_URL": opts.public_ui_url,
         **secrets.env(META_KEY, "META_API_KEY"),
         **secrets.env(BASETEN_KEY, "BASETEN_API_KEY"),
+        **secrets.env(SESSION_SECRET, "SESSION_SECRET"),
+        **secrets.env(UI_PROXY_SECRET, "UI_PROXY_SECRET"),
     }
     if glimmer_url:
         env["GLIMMER_BASE_URL"] = f"{glimmer_url}/v1"

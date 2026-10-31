@@ -1,7 +1,9 @@
 # Deployment: Vercel UI + RunPod API + RunPod Glimmer
 
-A view-only public deployment for showing the product. There is no owner login yet: everything that
-changes state (mode switch, plan approval, pairing, runtime plan) only works from the API pod itself.
+A public deployment for showing the product. Visitors can watch; everything that changes state
+(mode switch, planning, plan approval, answering the planner, pairing, corrections, runtime plan)
+and the full evidence log are owner-only: from the API pod itself (loopback, over SSH) or from a
+browser logged in with the owner passphrase ("Owner login" below).
 
 ```
 browser ──► https://rulecam.vercel.app  (Next.js, ui/)
@@ -40,7 +42,8 @@ its id as `--registry <id>`.
 2. Key files in `~/.runpod/` (mode 600, never in git or chat): `rulecam-glimmer.key` and
    `rulecam-sam.key` (required; e.g. `umask 077; openssl rand -hex 32 > ~/.runpod/rulecam-sam.key`),
    and optionally `rulecam-meta.key`, `rulecam-hf.token` (the account must have access to
-   `facebook/sam3.1`), `rulecam-baseten.key`. Each becomes a RunPod secret
+   `facebook/sam3.1`), `rulecam-baseten.key`, `rulecam-session.secret` and
+   `rulecam-ui-proxy.secret` (owner login, below). Each becomes a RunPod secret
    (`rulecam_glimmer_api_key`, …) that pods reference as `{{ RUNPOD_SECRET_<name> }}`, so no key
    value is in a pod's config, argv or the script's output. A key without a local file is left to
    the volume's file (`/workspace/rulecam/.meta_api_key` etc.), as on the manual pods.
@@ -90,10 +93,11 @@ the container disk) comes up the same way; CI checks this by running the API ima
 volume (`tests/deploy/test_image_restart.py`).
 
 Image-based API pod: the entrypoint (`deploy/api-entrypoint.sh`) reads the key files in
-`/workspace/rulecam` like `start.sh` (environment first, then file), defaults `PUBLIC_TUNNEL_URL`
-to `https://$RUNPOD_POD_ID-8000.proxy.runpod.net`, starts sshd when RunPod passes `PUBLIC_KEY`
-(owner actions still need a loopback client: `ssh root@… -p … curl -X POST
-localhost:8000/pair/token`), then runs uvicorn as `rulecam`. On a volume that ignores ownership
+`/workspace/rulecam` like `start.sh` (environment first, then file; also `.session_secret` and
+`.ui_proxy_secret`, so no `start.sh` edit is needed for owner login), defaults
+`PUBLIC_TUNNEL_URL` to `https://$RUNPOD_POD_ID-8000.proxy.runpod.net`, starts sshd when RunPod
+passes `PUBLIC_KEY` (for one-time owner setup such as `rulecam owner set-passphrase`, and
+loopback owner actions), then runs uvicorn as `rulecam`. On a volume that ignores ownership
 (MooseFS also ignores chmod) it logs a warning and stays root, like `setup.sh`.
 
 `--api-source archive` keeps the documented `runpod/base` image instead: it sets the start command
@@ -140,8 +144,10 @@ script cannot be used.
 
 - Project `rulecam`, **Root Directory `ui`**, connected to the GitHub repo: every push to `main`
   deploys production, and every PR gets a preview.
-- One environment variable: `NEXT_PUBLIC_RULECAM_API` = the API pod URL. It is shipped to browsers,
-  so never put a secret in any `NEXT_PUBLIC_*` variable. Model keys belong on the API pod only.
+- `NEXT_PUBLIC_RULECAM_API` = the API pod URL. It is shipped to browsers, so never put a secret
+  in any `NEXT_PUBLIC_*` variable. Model keys belong on the API pod only.
+- Optional, server-only: `RULECAM_PROXY_SECRET` (see "Per-client rate limits" below). The UI's
+  middleware reads it on Vercel's servers; it never reaches a browser.
 
 ## API pod (RunPod CPU)
 
@@ -162,6 +168,74 @@ script cannot be used.
   this setting: they also need a loopback Host, which the public proxy never sends (tested with
   spoofed `X-Forwarded-For` / `X-Forwarded-Host`: 403).
 
+### Owner login
+
+The owner logs in at `https://rulecam.vercel.app/login` with a passphrase. There is no account,
+email or third-party service: the API pod holds the passphrase's scrypt hash and a signing secret.
+
+How it works (`src/rulecam/api/auth.py`):
+
+- `POST /auth/login {passphrase}` checks the passphrase against `OWNER_PASSPHRASE_HASH`
+  (stdlib `hashlib.scrypt`, N = 2^17, r = 8, p = 1, constant-time compare), only over HTTPS, and
+  at most 5 attempts a minute per client and 20 a minute in total (429 with `Retry-After`).
+- It sets one cookie: `__Host-rulecam_owner`, `HttpOnly; Secure; SameSite=Strict; Path=/`, no
+  `Domain`, `Max-Age` = `SESSION_TTL_S` (default 12 h). The browser calls the API through the
+  Vercel rewrite (`/rulecam-api/*` on `rulecam.vercel.app`), so the cookie belongs to
+  `rulecam.vercel.app`, is sent on every `/rulecam-api/*` call and is never sent to the RunPod
+  URL directly. The value is a payload signed with HMAC-SHA256 under a key derived from
+  `SESSION_SECRET` and the passphrase hash; changing either signs every session out.
+- Owner routes accept loopback (as before) or a valid session. A write (POST/PUT/PATCH/DELETE)
+  on a session also needs `Origin: https://rulecam.vercel.app` (the `PUBLIC_UI_URL` origin) and
+  the `X-CSRF-Token` header equal to the token inside the signed cookie (the UI gets it from
+  `GET /auth/me` and keeps it in memory). Otherwise 403.
+- `POST /auth/logout` revokes the session (in memory, until the API restarts; the cookie's
+  expiry still applies) and clears the cookie. `GET /auth/me` says who is asking.
+- `/ws` still lets the public UI's origin watch; the browser opens it on the RunPod URL directly,
+  where the cookie is not sent, so it is unchanged by login.
+
+Set it up (once, on the API pod over SSH; the passphrase is typed into `getpass`, never echoed,
+written to a file, put in argv or logged):
+
+```bash
+ssh -i ~/.ssh/runpod_ed25519 -p <port> root@<ip>
+cd /workspace/rulecam
+uv run rulecam owner set-passphrase          # prompts twice; prints one line
+# append the printed OWNER_PASSPHRASE_HASH=scrypt:... line to /workspace/rulecam/.env
+umask 077; openssl rand -hex 32 > /workspace/rulecam/.session_secret
+grep -q '^PUBLIC_UI_URL=https://rulecam.vercel.app$' .env || echo 'PUBLIC_UI_URL missing'
+```
+
+In `start.sh`, export the secret like the other key files, before `uvicorn`:
+
+```bash
+export SESSION_SECRET="$(cat /workspace/rulecam/.session_secret)"
+```
+
+Then update the code and restart the API (see "Update the API"). Optional: `SESSION_TTL_S` in
+`.env` (300 to 604800 s). The API logs `owner_login_disabled reason=...` when the hash is
+malformed or the secret is shorter than 32 characters; login then answers 503 and only loopback
+is the owner. To change the passphrase, run `set-passphrase` again and replace the line; to sign
+everyone out, write a new `.session_secret`; restart after either.
+
+### Per-client rate limits
+
+Behind Vercel and the RunPod proxy, uvicorn sees a proxy's address, so every browser shares one
+login limit and one worker-dispute limit. With a shared secret the UI forwards the browser's
+address and the API trusts it only next to that secret (`ClientAddress` in `api/auth.py`,
+`ui/src/middleware.ts`; a browser's own copies of the two headers are always dropped):
+
+```bash
+# on the API pod
+umask 077; openssl rand -hex 32 > /workspace/rulecam/.ui_proxy_secret
+# in start.sh:  export UI_PROXY_SECRET="$(cat /workspace/rulecam/.ui_proxy_secret)"
+# from your machine: the same value as a server-only Vercel variable, then redeploy
+ssh -i ~/.ssh/runpod_ed25519 -p <port> root@<ip> 'cat /workspace/rulecam/.ui_proxy_secret' \
+  | vercel env add RULECAM_PROXY_SECRET production
+```
+
+Without it everything works; the limits are just shared. Never make it a `NEXT_PUBLIC_*`
+variable.
+
 ### Site config (planner geometry)
 
 The planner reads the owner's site config from the YAML file named by `RULECAM_SITE_CONFIG`
@@ -181,7 +255,7 @@ zones always win. A rule that needs metres on a camera with neither stays amber 
 asks the owner to mark a known distance; no scale is ever guessed. Approving the plan hands the
 calibration (`PlanStore.calibrations`) and the rules' zones to the runtime.
 
-Pair a phone (owner action, so it runs on the pod):
+Pair a phone (owner action: logged in as the owner, or on the pod):
 
 ```bash
 ssh -i ~/.ssh/runpod_ed25519 -p <port> root@<ip> 'curl -s -X POST localhost:8000/pair/token' | python3 -c 'import json,sys; print(json.load(sys.stdin)["url"])'
@@ -432,6 +506,15 @@ returns.
 
 - `curl https://rulecam.vercel.app/rulecam-api/mode` → `{"mode":"live","badge":"LIVE"}`.
 - `PUT /mode` through the public URL → 403 (also with a spoofed `X-Forwarded-For: 127.0.0.1`).
+- `curl https://rulecam.vercel.app/rulecam-api/auth/me` → `"owner":false,…,"login_enabled":true`.
+- Log in at `/login`; in the browser's dev tools the cookie `__Host-rulecam_owner` is on
+  `rulecam.vercel.app` with HttpOnly, Secure and SameSite Strict (this also proves the Vercel
+  rewrite passes `Set-Cookie` and `Origin` through); the planner, approve and questions controls
+  appear; "Owner · Log out" removes them.
+- `curl -o /dev/null -w '%{http_code}' https://rulecam.vercel.app/rulecam-api/evidence/<day>/chain`
+  → 403; `/evidence/<day>/hashes` and `/evidence/<day>/root` → 200. The verify page
+  (`/rulecam-api/verify/?day=<day>`) checks the hashes against the committed root for everyone
+  and recomputes every record for the logged-in owner.
 - Glimmer chat without the key → 401.
 - SAM `POST /segment` without the key → 401; `GET /health` → `{"status": "ok", …}`.
 - `curl https://<api-pod>-8000.proxy.runpod.net/metrics` → Prometheus text with

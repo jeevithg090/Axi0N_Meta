@@ -376,3 +376,6 @@ def test_pod_setup_script_uses_the_pinned_commit_and_torch() -> None:
     assert f'"{sam_worker.TORCH_PACKAGES[0]}"' in script
     assert sam_worker.TORCH_INDEX_URL in script
     assert "SAM_PORT:-8090" in script
+    # sam3 imports these without declaring them; the pod venv failed without them.
+    for undeclared in ("einops", "pycocotools", "psutil"):
+        assert undeclared in script

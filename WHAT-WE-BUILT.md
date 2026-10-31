@@ -29,6 +29,7 @@ adds a row here with its licence.
 | pytest, pytest-cov, pytest-asyncio, Hypothesis, mypy, ruff, pre-commit | Development only | MIT / Apache-2.0 / MPL-2.0 |
 | ffmpeg (system) | Video encoding | LGPL/GPL (system binary, not bundled) |
 | RTMPose (OpenMMLab) as ONNX, plus ONNX Runtime (`ml` extra) | CPU pose estimator (`pose/keypoints.py`, P4-04) | Apache-2.0 (code); weights are downloaded at run time, not bundled, so confirm their licence when fetching. ONNX Runtime is MIT |
+| YuNet face detector (opencv_zoo) via OpenCV `FaceDetectorYN` | Blurring faces in evidence strips, never recognition (`runtime/strip_draw.py`, P4-05) | OpenCV is Apache-2.0; the ONNX weights are fetched by the owner (`RULECAM_FACE_MODEL`), not bundled, so confirm their licence when fetching |
 | Llama Prompt Guard 2 86M (`meta-llama/Llama-Prompt-Guard-2-86M`, gated) | Scene-text firewall (`verify/firewall.py`, P3-05) | Llama 4 Community License ("Built with Llama"); weights downloaded at run time, not bundled |
 
 ## Built during the hackathon
@@ -42,3 +43,4 @@ adds a row here with its licence.
 | `.github/workflows/ci.yml` | GitHub Actions CI (check, guardrails, ml-cpu); replaced the GitLab CI bridge on Oct 31 | #1 |
 | `src/rulecam/capture/` + `rulecam capture` CLI | Webcam / RTSP / file → 3 s H.264 faststart chunks, published on the bus (P1-01) | #2 |
 | `src/rulecam/pose/` | COCO-17 pose features (`is_down`, `hands_above_shoulder`, `ladder_three_point_lost`, `bent_back_lift`), the `PoseStates` adapter for the rule engine, the RTMPose ONNX estimator and keypoint interpolation (P4-04) | #77 |
+| `src/rulecam/runtime/strips.py`, `strip_draw.py` | Runtime evidence strips for Glimmer: keyframes across the episode (one in-memory ffmpeg decode per chunk), rule boxes, zones and a calibrated distance ruler, privacy modes (standard face blur via YuNet; anonymous/strict plate + skeletons, no person pixels) (P4-05) | WS1a |

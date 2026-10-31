@@ -91,4 +91,6 @@ ui:
     - npm run lint
     - npm run typecheck
     - npm test -- --run
+    # P3-07b cross-language check: the browser verify page against the Python fixture.
+    - npm run test:verify-page
     - NEXT_TELEMETRY_DISABLED=1 npm run build

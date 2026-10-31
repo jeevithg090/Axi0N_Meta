@@ -1,0 +1,29 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "json": {
+    "id": "resp_spark_pdf_01",
+    "object": "response",
+    "model": "muse-spark-1.3",
+    "status": "completed",
+    "output": [
+      {
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "{\"concerns\": [{\"text\": \"Cold-holding temperature under 41F\", \"source_ref\": \"food_code_2026.pdf\", \"standard_ref\": \"\\u00a72-103.11(G)\", \"speaker\": null}], \"languages\": [\"en\"], \"setting_guess\": \"commercial_kitchen\"}"
+          }
+        ]
+      }
+    ],
+    "usage": {
+      "input_tokens_details": {
+        "cached_tokens": 36
+      }
+    }
+  }
+}

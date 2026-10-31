@@ -51,9 +51,12 @@ def test_high_rule_acts_before_verification(tmp_path: Path) -> None:
     loop.handle_chunk(make_chunk(index=0))
 
     path = chain.path_for(clock.now().date())
-    assert kinds(path) == ["plan", "candidate", "action", "verdict"]
+    assert kinds(path) == ["plan", "candidate", "action", "verdict", "verdict"]
+    decision = read_chain(path)[-1].payload["decision"]
+    assert isinstance(decision, dict)
+    assert decision["act_first"] is True
     assert bus.topics() == [Topic.CANDIDATE_NEW, Topic.ACTION_DONE, Topic.VERDICT_NEW]
-    assert len(actions.runs) == 1  # the veto is the policy's business; nothing ran twice
+    assert len(actions.runs) == 1  # the fake policy routes auto, so nothing runs twice
     assert verifier.calls[0][0].strip_paths == ("strip/f0.png",)
 
 
@@ -128,22 +131,6 @@ async def test_run_consumes_chunk_ready(tmp_path: Path) -> None:
     assert "verdict" in kinds(path)
 
 
-def test_candidate_records_rederive_in_the_audit(tmp_path: Path) -> None:
-    from rulecam.evidence.audit import audit_chain  # noqa: PLC0415
-
-    clock = at_end_of(FakeClock(), 0)
-    loop, _, chain, _ = make_loop(tmp_path, clock)
-    loop.set_plan(sink_plan())
-    loop.handle_chunk(make_chunk(index=0))
-    record = next(
-        r for r in read_chain(chain.path_for(clock.now().date())) if r.kind == "candidate"
-    )
-    assert set(record.payload) == {"candidate", "context"}
-    store = loop._store  # the same store the loop evaluated on
-    report = audit_chain(chain.path_for(clock.now().date()), store)
-    assert report.summary().endswith("1/1 decisions reproduced")
-
-
 def test_strip_gets_the_plans_privacy_mode(tmp_path: Path) -> None:
     clock = at_end_of(FakeClock(), 0)
     strips = FakeStrips()
@@ -204,3 +191,19 @@ async def test_run_survives_a_failing_chunk(tmp_path: Path) -> None:
         await task
     assert loop.metrics.chunks_failed == 1
     assert loop.metrics.chunks_processed == 2
+
+
+def test_candidate_records_rederive_in_the_audit(tmp_path: Path) -> None:
+    from rulecam.evidence.audit import audit_chain  # noqa: PLC0415
+
+    clock = at_end_of(FakeClock(), 0)
+    loop, _, chain, _ = make_loop(tmp_path, clock)
+    loop.set_plan(sink_plan())
+    loop.handle_chunk(make_chunk(index=0))
+    record = next(
+        r for r in read_chain(chain.path_for(clock.now().date())) if r.kind == "candidate"
+    )
+    assert set(record.payload) == {"candidate", "context"}
+    store = loop._store  # the same store the loop evaluated on
+    report = audit_chain(chain.path_for(clock.now().date()), store)
+    assert report.summary().endswith("1/1 decisions reproduced")

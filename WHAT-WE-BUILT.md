@@ -26,6 +26,7 @@ adds a row here with its licence.
 | Typer | CLI | MIT |
 | pytest, pytest-cov, pytest-asyncio, Hypothesis, mypy, ruff, pre-commit | Development only | MIT / Apache-2.0 / MPL-2.0 |
 | ffmpeg (system) | Video encoding | LGPL/GPL (system binary, not bundled) |
+| Llama Prompt Guard 2 86M (`meta-llama/Llama-Prompt-Guard-2-86M`, gated) | Scene-text firewall (`verify/firewall.py`, P3-05) | Llama 4 Community License ("Built with Llama"); weights downloaded at run time, not bundled |
 
 ## Built during the hackathon
 
@@ -35,5 +36,5 @@ adds a row here with its licence.
 | `src/rulecam/bus.py`, `config.py`, `log.py`, `clock.py`, `cli.py` | Platform basics | #1 |
 | `tests/fakes/`, `tests/guardrails/` | Test doubles and static guardrails | #1 |
 | CI, Makefile, pre-commit, coverage floors | Engineering scaffold | #1 |
-| `.gitlab-ci.yml`, `scripts/ci/github_status.py` | GitLab CI with job results reported to GitHub | #1 |
+| `.github/workflows/ci.yml` | GitHub Actions CI (check, guardrails, ml-cpu); replaced the GitLab CI bridge on Oct 31 | #1 |
 | `src/rulecam/capture/` + `rulecam capture` CLI | Webcam / RTSP / file → 3 s H.264 faststart chunks, published on the bus (P1-01) | #2 |

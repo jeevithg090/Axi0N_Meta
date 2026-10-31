@@ -1,0 +1,29 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "json": {
+    "id": "resp_spark_video_01",
+    "object": "response",
+    "model": "muse-spark-1.2",
+    "status": "completed",
+    "output": [
+      {
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "{\"areas\": [\"sink_station\", \"prep_line\", \"walkway\"], \"hazards_mentioned\": [\"wet floor near sink\", \"ladder blocking walkway\"], \"concerns\": [{\"text\": \"Wet floor slip hazard\", \"source_ref\": \"walkthrough.mp4\", \"standard_ref\": null, \"speaker\": null}, {\"text\": \"Walkway blocked by ladder\", \"source_ref\": \"walkthrough.mp4\", \"standard_ref\": null, \"speaker\": null}]}"
+          }
+        ]
+      }
+    ],
+    "usage": {
+      "input_tokens_details": {
+        "cached_tokens": 128
+      }
+    }
+  }
+}

@@ -29,6 +29,7 @@ from rulecam.planner.runner import (
     frame_indices,
     new_plan_id,
 )
+from rulecam.planner.site_config import SiteConfig
 from rulecam.planner.steps.probe import DEFAULT_PROBE_FRAMES, probe_concept_on_camera
 from rulecam.planner.steps.survey import frame_group
 from rulecam.replay.cache import ReplayCache
@@ -45,10 +46,9 @@ def test_submit_runs_the_pipeline_in_the_background_and_hands_over_the_plan(
     finished: list[SitePlan] = []
     service = PlannerService(
         _pipeline(tmp_path, _spark()),
-        site_name="Main St kitchen",
+        site=SiteConfig(site_name="Main St kitchen", roles={"shift_lead": "web_push"}),
         frames=lambda: frames,
         on_plan=finished.append,
-        roles={"shift_lead": "web_push"},
         new_id=lambda: "plan-abc",
     )
     runner: PlannerRunner = service
@@ -70,7 +70,7 @@ def test_a_failed_run_is_logged_and_does_not_stop_the_worker(tmp_path: Path) -> 
     ids = iter(["../bad", "plan-ok"])
     service = PlannerService(
         _pipeline(tmp_path, _spark()),
-        site_name="s",
+        site=SiteConfig(site_name="s"),
         frames=dict,
         on_plan=finished.append,
         new_id=lambda: next(ids),

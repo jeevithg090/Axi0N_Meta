@@ -1,0 +1,27 @@
+# Rulecam site config (RULECAM_SITE_CONFIG=/workspace/rulecam/site.yaml). Every field is optional;
+# without this file the planner uses site "demo", Standard privacy and no roles, zones or
+# calibrations. What you write here wins over what the planner infers from the cameras.
+site_name: Dock 3 warehouse
+privacy_mode: standard          # standard | anonymous | strict
+retention_days: 30
+languages: [en, es]             # crew languages, listed before any the planner infers
+roles:                          # role -> alert channel
+  dock_lead: web_push
+  shift_lead: whatsapp
+
+cameras:
+  cam1:
+    # Optional manual ground calibration: four or more floor points, no three on a line.
+    # image_px are pixels in this camera's frame (x right, y down); ground_m are the same points
+    # in metres (here the corners of a 3 m x 2 m rectangle taped on the floor). Without it the
+    # planner calibrates from a pallet (48x40 in) or a 1 m floor square it sees, if any.
+    calibration:
+      image_px: [[412, 610], [868, 604], [930, 812], [355, 820]]
+      ground_m: [[0, 0], [3, 0], [3, 2], [0, 2]]
+    # Optional zones you drew, as polygons in this camera's pixels. A name here replaces the
+    # zone the planner would build from a detection of the same name (e.g. `sink`).
+    zones:
+      loading_dock: [[0, 500], [640, 500], [640, 1080], [0, 1080]]
+  kitchen-cam:
+    zones:
+      prep_counter: [[1100, 380], [1700, 380], [1700, 760], [1100, 760]]

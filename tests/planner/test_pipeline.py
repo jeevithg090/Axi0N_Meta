@@ -548,10 +548,9 @@ def test_an_unreachable_auditor_is_reported_in_the_audit_step(tmp_path: Path) ->
 def test_lint_findings_are_saved_with_the_draft_plan(tmp_path: Path) -> None:
     bus = Recorder()
     spark = _spark()
-    raw = _rule().model_dump()
-    raw["zones"]["line_entry"]["camera_id"] = "cam9"
-    spark._answers["RuleDraft"] = rule_to_draft(RuleIR.model_validate(raw))
-    _pipeline(tmp_path, spark, bus).run(_inputs(tmp_path))
+    inputs = _inputs(tmp_path)  # the owner drew the zone on a camera the site does not have
+    moved = inputs.zones[0].model_copy(update={"camera_id": "cam9"})
+    _pipeline(tmp_path, spark, bus).run(inputs.model_copy(update={"zones": (moved,)}))
 
     linted = PlanStore(tmp_path / "plans").load_step("main-st", "lint", LintResult)
     assert linted is not None

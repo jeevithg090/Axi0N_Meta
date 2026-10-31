@@ -27,7 +27,9 @@ handled honestly: the trace keeps the failures; a rule failing `concern_covered`
 `privacy_consistent` or `no_private_spaces` is taken out of the plan and becomes a question for
 the owner plus an amber (`caveat`) verdict; a rule failing only `detect_lb>=0.8`,
 `calibration_err<=tol` or `citation_text_match` (camera, calibration or source fixes, which a
-re-compile cannot make) stays with an amber verdict saying why.
+re-compile cannot make) stays with an amber verdict saying why. A metric rule whose camera has
+no usable calibration also gets one question per such camera, asking the owner to mark a known
+distance on its floor (a scale is never guessed).
 """
 
 from __future__ import annotations
@@ -264,7 +266,9 @@ def check_calibration(
     for camera_id in rule_cameras(rule, views):
         calibration = calibrations.get(camera_id)
         if calibration is None:
-            problems.append(f"camera {camera_id!r} has no ground calibration")
+            problems.append(
+                f"camera {camera_id!r} has no ground calibration, so metres cannot be measured"
+            )
         elif calibration.err_m > CALIBRATION_TOL_M:
             problems.append(
                 f"camera {camera_id!r} calibration error {calibration.err_m:.2f} m > "
@@ -272,6 +276,45 @@ def check_calibration(
             )
     ok = f"calibrated within {CALIBRATION_TOL_M:.2f} m"
     return _check(rule.id, "calibration_err<=tol", problems, ok)
+
+
+def uncalibrated_cameras(
+    rule: RuleIR, calibrations: Mapping[str, Calibration], views: CameraViews
+) -> list[str]:
+    """The cameras a metric rule runs on whose calibration is missing or outside tolerance."""
+    if not is_metric(rule):
+        return []
+    return [
+        camera_id
+        for camera_id in rule_cameras(rule, views)
+        if (cal := calibrations.get(camera_id)) is None or cal.err_m > CALIBRATION_TOL_M
+    ]
+
+
+def calibration_question(number: int, camera_id: str, concerns: Sequence[str]) -> Question:
+    """Ask the owner to mark a known distance on a camera's floor, for its metric rules.
+
+    Args:
+        number: The question's number.
+        camera_id: The camera without a usable calibration.
+        concerns: The concerns that need metres there.
+
+    Returns:
+        A frame-tap question on that camera.
+    """
+    listed = "; ".join(repr(c) for c in concerns)
+    return Question(
+        question_id=f"calibrate-{number}",
+        text=(
+            f"To measure metres on {camera_id} for {listed}, I need a known distance on its "
+            "floor. Tap four floor points whose positions you know (for example the corners of "
+            "a 48x40 in pallet or a 1 m square of tape), or add them under "
+            f"cameras.{camera_id}.calibration in the site config."
+        ),
+        target_field="calibration",
+        requires_frame_tap=True,
+        camera_id=camera_id,
+    )
 
 
 def check_privacy_consistent(rule: RuleIR, mode: PrivacyMode) -> AcceptanceCheck:
@@ -490,12 +533,28 @@ class RepairLoop:
                 )
             if blocking:
                 questions.append(_question(len(questions) + 1, planned, blocking))
+        questions.extend(self._calibration_questions(rules, items))
         return AcceptanceOutcome(
             rules=tuple(rules),
             feasibility=tuple(verdicts.values()),
             acceptance=AcceptanceResult(checks=last.flat(), rounds=rounds),
             questions=tuple(questions),
         )
+
+    def _calibration_questions(
+        self, rules: Sequence[RuleIR], items: Sequence[PlannedRule]
+    ) -> list[Question]:
+        concern_of = {p.rule.id: p.concern.text for p in items if p.rule is not None}
+        needing: dict[str, list[str]] = {}
+        for rule in rules:
+            for camera_id in uncalibrated_cameras(
+                rule, self._facts.calibrations, self._facts.views
+            ):
+                needing.setdefault(camera_id, []).append(concern_of[rule.id])
+        return [
+            calibration_question(number, camera_id, concerns)
+            for number, (camera_id, concerns) in enumerate(sorted(needing.items()), start=1)
+        ]
 
 
 def loosening(old: RuleIR | None, new: RuleIR) -> str | None:

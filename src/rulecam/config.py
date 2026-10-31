@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     rulecam_mode: Literal["live", "record", "replay"] = "replay"
     rulecam_data_dir: Path = Path("./data")
     rulecam_replay_dir: Path | None = None
+    rulecam_site_config: Path | None = None  # owner's site YAML (docs/site.example.yaml)
     rulecam_runtime: bool = False  # start the runtime loop (SAM, tracker, Glimmer) with the API
 
     meta_api_key: SecretStr | None = None

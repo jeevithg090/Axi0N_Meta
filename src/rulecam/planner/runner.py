@@ -2,8 +2,10 @@
 
 `PlannerService.submit` gives the request a fresh plan id and runs the fixed pipeline in one
 background worker thread (one plan at a time), so the API answers at once and the UI follows
-`planner.step`. A finished plan is handed to `on_plan` (the API's plan registry). A failed run is
-logged; the failing step has already been published as `failed`.
+`planner.step`. Every run gets the owner's site config (`planner.site_config`): site name,
+privacy mode, retention, roles, languages, and the cameras' click calibrations and drawn zones
+(saved in the run's `input.json`). A finished plan is handed to `on_plan` (the API's plan
+registry). A failed run is logged; the failing step has already been published as `failed`.
 
 `ChunkFrames` supplies the survey's and probes' camera frames: up to 3 evenly spaced frames (at
 least 1 s apart) of each camera chunk from the last `window_s` seconds (60 s by default,
@@ -28,9 +30,9 @@ from pathlib import Path
 from typing import Final, Protocol
 
 from rulecam.contracts import Chunk, Clock, RequestItem, SitePlan
-from rulecam.contracts.core import PrivacyMode, Zone
 from rulecam.log import get_logger
 from rulecam.planner.pipeline import PipelineInput, PlannerPipeline
+from rulecam.planner.site_config import SiteConfig
 
 _log = get_logger(__name__)
 
@@ -54,33 +56,26 @@ class PlannerService:
         self,
         pipeline: PlannerPipeline,
         *,
-        site_name: str,
         frames: FramesSource,
         on_plan: Callable[[SitePlan], object],
-        zones: Sequence[Zone] = (),
-        roles: Mapping[str, str] | None = None,
-        privacy_mode: PrivacyMode = PrivacyMode.STANDARD,
+        site: SiteConfig | None = None,
         new_id: Callable[[], str] = new_plan_id,
     ) -> None:
         """Create the runner.
 
         Args:
             pipeline: The fixed-step pipeline.
-            site_name: The site every plan is for.
             frames: Camera id -> recent frames, read when a run starts.
             on_plan: Receives each finished plan.
-            zones: Zones declared for the site.
-            roles: Role -> alert channel.
-            privacy_mode: The site's privacy mode.
+            site: The owner's site config (validated); the defaults when `None`.
             new_id: Makes plan ids.
         """
         self._pipeline = pipeline
-        self._site_name = site_name
         self._frames = frames
         self._on_plan = on_plan
-        self._zones = tuple(zones)
-        self._roles = dict(roles or {})
-        self._privacy_mode = privacy_mode
+        self._site = site or SiteConfig()
+        self._zones = self._site.zones()
+        self._calibrations = self._site.calibrations()
         self._new_id = new_id
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="planner")
 
@@ -105,14 +100,18 @@ class PlannerService:
 
     def _run(self, plan_id: str, items: tuple[RequestItem, ...]) -> SitePlan:
         frames = {cam: tuple(paths) for cam, paths in self._frames().items()}
+        site = self._site
         inputs = PipelineInput(
             plan_id=plan_id,
-            site_name=self._site_name,
+            site_name=site.site_name,
             request=items,
             camera_frames=frames,
             zones=self._zones,
-            roles=self._roles,
-            privacy_mode=self._privacy_mode,
+            roles=site.roles,
+            privacy_mode=site.privacy_mode,
+            retention_days=site.retention_days,
+            calibrations=self._calibrations,
+            languages=site.languages,
         )
         plan = self._pipeline.run(inputs)
         self._on_plan(plan)

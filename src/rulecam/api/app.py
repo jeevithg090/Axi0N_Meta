@@ -57,6 +57,7 @@ from rulecam.perception.router import Purpose
 from rulecam.planner.errors import PipelineError
 from rulecam.planner.pipeline import PlannerPipeline, PlanStore
 from rulecam.planner.runner import ChunkFrames, PlannerService
+from rulecam.planner.site_config import SiteConfigError, load_site_config
 from rulecam.planner.standards import StandardsLibrary
 from rulecam.planner.steps.audit import audit_hook
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
@@ -396,15 +397,17 @@ ACTIVE_PLAN_FILE = Path("runtime") / "active_plan.json"
 
 
 def run_calibrations(store: PlanStore) -> Callable[[SitePlan], dict[str, Calibration]]:
-    """Find the ground calibrations a plan's planner run was given (`plans/<id>/input.json`).
+    """Find the ground calibrations a plan's planner run used (`PlanStore.calibrations`).
 
-    A `SitePlan` holds no calibration, so this is the only place one can come from; a plan
-    without a saved run (e.g. one posted to `POST /plans`) has none.
+    That is the owner's site-config calibrations (`plans/<id>/input.json`) over the ones the
+    survey fitted to reference objects in the scene (`plans/<id>/steps/02_survey.json`). A
+    `SitePlan` holds no calibration, so this is the only place one can come from; a plan without
+    a saved run (e.g. one posted to `POST /plans`) has none.
     """
 
     def lookup(plan: SitePlan) -> dict[str, Calibration]:
         try:
-            return dict(store.load_input(plan.plan_id).calibrations)
+            return store.calibrations(plan.plan_id)
         except PipelineError:
             return {}
 
@@ -428,12 +431,22 @@ def build_planner(
     with Spark Open and back-translates it with Glimmer (P2-07); either being unreachable marks
     the plan `audit_skipped` or `not back-translated` instead of failing it. Plans are saved
     under `plans/`, survey and probe frames come from the last `planner_survey_window_s` (60 s)
-    of chunks, a few per chunk, and finished plans go into the `/plans` registry.
+    of chunks, a few per chunk, and finished plans go into the `/plans` registry. The site's
+    name, privacy mode, roles, languages, calibrations and zones come from the owner's site config
+    (`RULECAM_SITE_CONFIG`); without one, the defaults (`site`, Standard privacy, nothing else).
 
     Returns:
         The runner, or `None` (logged) when the clients cannot be built, e.g. in live mode
-        without API keys; `POST /plans/requests` then answers 503.
+        without API keys, or when the site config is invalid; `POST /plans/requests` then
+        answers 503.
     """
+    try:
+        site_config = load_site_config(settings.rulecam_site_config)
+    except SiteConfigError as exc:
+        _log.error("planner_disabled", error=str(exc))
+        return None
+    if settings.rulecam_site_config is None or not settings.rulecam_site_config.is_file():
+        site_config = site_config.model_copy(update={"site_name": site})
     try:
         spark = SparkClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
         voice = VoiceTranscribeClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
@@ -460,7 +473,7 @@ def build_planner(
         out_dir=settings.rulecam_data_dir / "planner_frames",
         window_s=settings.planner_survey_window_s,
     )
-    return PlannerService(pipeline, site_name=site, frames=frames, on_plan=plans.put)
+    return PlannerService(pipeline, site=site_config, frames=frames, on_plan=plans.put)
 
 
 def find_plan(plans: PlanRegistry, store: PlanStore) -> Callable[[str], SitePlan | None]:

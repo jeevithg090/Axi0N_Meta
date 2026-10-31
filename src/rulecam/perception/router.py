@@ -9,8 +9,8 @@
 
 Runtime calls served by hosted SAM are recorded in `PerceptionMetrics`; self-hosted calls are
 recorded by `ModalSam31` itself, together with their GPU-seconds. `CallMeter` counts the runtime
-loop's own calls and billed frames per camera (hosted pricing: `max(50, frames)` per request),
-which the loop's SAM budget and `/runtime/metrics` read.
+loop's own calls and billed frames per camera and per chunk (hosted pricing: `max(50, frames)`
+per request), which the loop's SAM budget and `/runtime/metrics` read.
 """
 
 from __future__ import annotations
@@ -104,23 +104,45 @@ class MeteredSegmenter:
         return detections
 
 
+MAX_OPEN_CHUNKS = 1024
+
+
+def _add(counts: tuple[int, int] | None, requests: int, billed: int) -> tuple[int, int]:
+    calls, frames = counts or (0, 0)
+    return calls + requests, frames + billed
+
+
 class CallMeter:
     """Counts the SAM requests a segmenter makes and the frames they bill, per camera.
 
     Billed frames are priced as hosted SAM 3.1 video (`max(50, frames)` per request), which is
-    the real bill when runtime perception is hosted and the hosted-equivalent otherwise.
+    the real bill when runtime perception is hosted and the hosted-equivalent otherwise. Calls
+    are also counted per chunk until `take_chunk` collects them, so a loop with several chunks
+    of a camera in flight can still tell what each one cost.
     """
 
-    def __init__(self, inner: Segmenter) -> None:
-        """Wrap a segmenter."""
+    def __init__(self, inner: Segmenter, *, max_open_chunks: int = MAX_OPEN_CHUNKS) -> None:
+        """Wrap a segmenter.
+
+        Args:
+            inner: The segmenter whose calls are counted.
+            max_open_chunks: Uncollected per-chunk counts kept; the oldest are dropped beyond it.
+        """
         self._inner = inner
         self._lock = threading.Lock()
         self._totals: dict[str, tuple[int, int]] = {}
+        self._chunks: dict[tuple[str, str], tuple[int, int]] = {}
+        self._max_open = max(1, max_open_chunks)
 
     def totals(self, camera_id: str) -> tuple[int, int]:
         """Return `(requests, billed_frames)` made so far for `camera_id`."""
         with self._lock:
             return self._totals.get(camera_id, (0, 0))
+
+    def take_chunk(self, camera_id: str, chunk_id: str) -> tuple[int, int]:
+        """Return `(requests, billed_frames)` made for one chunk and forget them."""
+        with self._lock:
+            return self._chunks.pop((camera_id, chunk_id), (0, 0))
 
     def segment(
         self,
@@ -142,12 +164,13 @@ class CallMeter:
             include_confidence=include_confidence,
         )
         requests = hosted_requests(box_prompts)
+        billed = requests * hosted_billed_frames(chunk.n_frames)
+        camera, key = chunk.camera_id, (chunk.camera_id, chunk.chunk_id)
         with self._lock:
-            calls, billed = self._totals.get(chunk.camera_id, (0, 0))
-            self._totals[chunk.camera_id] = (
-                calls + requests,
-                billed + requests * hosted_billed_frames(chunk.n_frames),
-            )
+            self._totals[camera] = _add(self._totals.get(camera), requests, billed)
+            self._chunks[key] = _add(self._chunks.pop(key, None), requests, billed)
+            while len(self._chunks) > self._max_open:
+                del self._chunks[next(iter(self._chunks))]
         return detections
 
 

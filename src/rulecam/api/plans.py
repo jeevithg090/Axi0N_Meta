@@ -1,7 +1,13 @@
 """`/plans`: a minimal in-memory plan registry (create, list, get, approve) until P2 lands.
 
-Plans are `SitePlan` contracts. Creating and approving are owner-only (loopback); approving
-publishes `plan.updated`. The registry holds a bounded number of plans.
+Plans are `SitePlan` contracts. Creating and approving are owner-only (loopback). The registry
+holds a bounded number of plans.
+
+Approving activates the plan (`rulecam.runtime.activate`): only rules whose acceptance trace
+passes (or is amber) are enforced; a plan with no such rule is refused with 409 and the reasons,
+and without a running runtime loop the approval is refused with 503. An activated plan is
+persisted, handed to the runtime, recorded in the evidence chain (`plan`, `plan_approved`) and
+published on `plan.updated`.
 
 Planner intake (P3-09b): `POST /plans/uploads` stores a voice clip, photo, PDF or walk-through
 under a content-addressed name, accepting only the file types the planner's Understand step
@@ -31,6 +37,12 @@ from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import require_owner
 from rulecam.contracts import RequestItem, SitePlan
 from rulecam.planner.steps.understand import ALLOWED_SUFFIXES
+from rulecam.runtime.activate import (
+    NothingActivatableError,
+    PlanActivator,
+    RuleGate,
+    RuntimeNotRunningError,
+)
 
 MAX_PLANS = 64
 MAX_UPLOAD_BYTES = 32 * 1024 * 1024
@@ -117,6 +129,14 @@ class PlanRegistry:
         with self._lock:
             items = list(self._plans.values())
         return [_summary(plan, approved=ok) for plan, ok in items]
+
+
+class PlanApproved(PlanSummary):
+    """Reply of `POST /plans/{plan_id}/approve`: what the runtime now enforces."""
+
+    plan_version_hash: str
+    activated: list[str]
+    gates: list[RuleGate]
 
 
 def _summary(plan: SitePlan, *, approved: bool) -> PlanSummary:
@@ -215,12 +235,41 @@ def save_upload(uploads_dir: Path, data: bytes, ext: str) -> Path:
     return path
 
 
+def approve(
+    registry: PlanRegistry, bus: Bus, activator: PlanActivator | None, plan_id: str
+) -> PlanApproved:
+    """Activate a registered plan in the runtime, then mark it approved and publish it.
+
+    Raises:
+        HTTPException: 404 for an unknown plan, 409 when no rule passes the activation gate,
+            503 when there is no activator or no running runtime loop.
+    """
+    plan, _ = registry.get(plan_id)
+    if activator is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "plan activation is off")
+    try:
+        activation = activator.activate(plan)
+    except NothingActivatableError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except RuntimeNotRunningError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    registry.approve(plan_id)
+    bus.publish(Topic.PLAN_UPDATED, plan)
+    return PlanApproved(
+        **_summary(plan, approved=True).model_dump(),
+        plan_version_hash=activation.active_plan.plan_version_hash,
+        activated=activation.rule_ids,
+        gates=list(activation.gates),
+    )
+
+
 def plans_router(
     registry: PlanRegistry,
     bus: Bus,
     *,
     uploads_dir: Path | None = None,
     planner: PlannerRunner | None = None,
+    activator: PlanActivator | None = None,
     max_upload_bytes: int = MAX_UPLOAD_BYTES,
 ) -> APIRouter:
     """Build the `/plans` router.
@@ -230,6 +279,7 @@ def plans_router(
         bus: Receives `plan.updated` on approval.
         uploads_dir: Where `POST /plans/uploads` stores files; `None` disables uploads.
         planner: The Site Planner runner; `POST /plans/requests` answers 503 without one.
+        activator: Puts approved plans into force; approval answers 503 without one.
         max_upload_bytes: Upload size cap (the Voice Transcribe file limit by default).
 
     Returns:
@@ -272,10 +322,12 @@ def plans_router(
     def get_plan(plan_id: PlanId) -> SitePlan:
         return registry.get(plan_id)[0]
 
-    @router.post("/{plan_id}/approve", dependencies=owner)
-    def approve_plan(plan_id: PlanId) -> PlanSummary:
-        plan = registry.approve(plan_id)
-        bus.publish(Topic.PLAN_UPDATED, plan)
-        return _summary(plan, approved=True)
+    @router.post(
+        "/{plan_id}/approve",
+        dependencies=owner,
+        responses={409: {"description": "No rule passes the activation gate"}},
+    )
+    def approve_plan(plan_id: PlanId) -> PlanApproved:
+        return approve(registry, bus, activator, plan_id)
 
     return router

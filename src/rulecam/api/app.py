@@ -7,6 +7,10 @@ tasks still in flight (`/ack`, `/interlock`, `/advice`, `/surprise`) are passed 
 `AppServices.routers` as they land; `services_from_settings` passes the public `/worker` router
 (P2-11) that way.
 
+Approving a plan (`POST /plans/{id}/approve`) activates it in the runtime through
+`AppServices.activator` (`rulecam.runtime.activate`); `services_from_settings` persists the active
+plan under `<data>/runtime/active_plan.json` and restores it at start-up.
+
 Anything that changes state (`PUT /mode`, `PUT /runtime/plan`, plan create/approve) is owner-only:
 both the target host and the client must be loopback, because the same app is reachable through
 the Pair-a-Phone tunnel. The read-only `/ws` mirror is owner-only too, except for a browser whose
@@ -42,7 +46,7 @@ from rulecam.clients.open_weights.glimmer import GlimmerClient
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
 from rulecam.config import Settings, get_settings
-from rulecam.contracts import Chunk, Clock, SitePlan
+from rulecam.contracts import Calibration, Chunk, Clock, SitePlan
 from rulecam.evidence.chain import ChainReport, EventChain, verify_chain
 from rulecam.evidence.merkle import chain_root, read_day_roots
 from rulecam.log import get_logger
@@ -57,6 +61,7 @@ from rulecam.planner.standards import StandardsLibrary
 from rulecam.planner.steps.audit import audit_hook
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
 from rulecam.rule_ci import prove_plan_hook
+from rulecam.runtime.activate import PlanActivator, restore_activation
 from rulecam.runtime.factory import (
     ChainEventSource,
     ChunkIndex,
@@ -92,6 +97,7 @@ class AppServices:
         tickers: Called once a second off the event loop (e.g. `EscalationManager.tick`).
         uploads_dir: Where planner uploads are stored (`POST /plans/uploads`).
         planner: The Site Planner runner (P2-06); `POST /plans/requests` needs it.
+        activator: Activates approved plans in the runtime; approval answers 503 without one.
         viewer_origins: Browser origins (e.g. the public web UI) that may watch the read-only
             `/ws` mirror without being the owner. Nothing that changes state accepts them.
     """
@@ -112,6 +118,7 @@ class AppServices:
     tickers: Sequence[Callable[[], object]] = field(default_factory=tuple)
     uploads_dir: Path | None = None
     planner: PlannerRunner | None = None
+    activator: PlanActivator | None = None
     viewer_origins: frozenset[str] = frozenset()
 
 
@@ -312,6 +319,7 @@ def _routers(services: AppServices) -> list[APIRouter]:
             services.bus,
             uploads_dir=services.uploads_dir,
             planner=services.planner,
+            activator=services.activator,
         ),
     ]
     if services.pair is not None:
@@ -384,6 +392,23 @@ def _log_task_end(task: asyncio.Task[None]) -> None:
 
 
 PLANS_DIR = Path("plans")
+ACTIVE_PLAN_FILE = Path("runtime") / "active_plan.json"
+
+
+def run_calibrations(store: PlanStore) -> Callable[[SitePlan], dict[str, Calibration]]:
+    """Find the ground calibrations a plan's planner run was given (`plans/<id>/input.json`).
+
+    A `SitePlan` holds no calibration, so this is the only place one can come from; a plan
+    without a saved run (e.g. one posted to `POST /plans`) has none.
+    """
+
+    def lookup(plan: SitePlan) -> dict[str, Calibration]:
+        try:
+            return dict(store.load_input(plan.plan_id).calibrations)
+        except PipelineError:
+            return {}
+
+    return lookup
 
 
 def build_planner(
@@ -517,6 +542,15 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         chunks=perception.chunks,
         record_label=chain.append,
     )
+    active_plan_path = settings.rulecam_data_dir / ACTIVE_PLAN_FILE
+    if runtime is not None:
+        restore_activation(runtime, active_plan_path)
+    activator = PlanActivator(
+        runtime=runtime,
+        chain=chain,
+        state_path=active_plan_path,
+        calibrations=run_calibrations(PlanStore(PLANS_DIR)),
+    )
     plans = PlanRegistry()
     planner = build_planner(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, plans=plans, site=site
@@ -535,6 +569,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         uploads_dir=settings.rulecam_data_dir / "uploads",
         plans=plans,
         planner=planner,
+        activator=activator,
         viewer_origins=viewer_origins(settings.public_ui_url),
         routers=(
             build_worker_router(

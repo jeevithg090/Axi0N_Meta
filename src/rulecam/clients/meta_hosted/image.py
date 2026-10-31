@@ -13,7 +13,9 @@ Features:
 from __future__ import annotations
 
 import base64
+import hashlib
 import random
+import re
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -78,24 +80,30 @@ def _encode_reference_images(reference_images: Sequence[Path] | None) -> list[st
     return [base64.b64encode(path.read_bytes()).decode("ascii") for path in reference_images]
 
 
-def _extract_image_bytes(body: dict[str, Any]) -> tuple[str, bytes]:
-    resp_id = str(body.get("id") or body.get("response_id") or f"img_{int(time.time() * 1000)}")
+def _sanitize_response_id(raw_id: str, prompt: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "", raw_id)
+    if not cleaned:
+        cleaned = f"img_{hashlib.sha256(prompt.encode()).hexdigest()[:16]}"
+    return cleaned
+
+
+def _extract_image_bytes(body: dict[str, Any], prompt: str) -> tuple[str, bytes]:
+    raw_id = str(body.get("id") or body.get("response_id") or "")
+    resp_id = _sanitize_response_id(raw_id, prompt)
     image_bytes: bytes | None = None
 
     if "data" in body and isinstance(body["data"], list) and body["data"]:
         item = body["data"][0]
-        if isinstance(item, dict):
-            if "b64_json" in item and isinstance(item["b64_json"], str):
-                image_bytes = base64.b64decode(item["b64_json"])
-            elif "bytes" in item and isinstance(item["bytes"], bytes):
-                image_bytes = item["bytes"]
+        if isinstance(item, dict) and "b64_json" in item and isinstance(item["b64_json"], str):
+            image_bytes = base64.b64decode(item["b64_json"])
     elif "b64_json" in body and isinstance(body["b64_json"], str):
         image_bytes = base64.b64decode(body["b64_json"])
     elif "image_bytes" in body and isinstance(body["image_bytes"], str):
         image_bytes = base64.b64decode(body["image_bytes"])
 
     if image_bytes is None:
-        image_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+        msg = f"Muse image response contained no b64_json image data: {body!r}"
+        raise ModelResponseError(msg)
     return resp_id, image_bytes
 
 
@@ -242,7 +250,7 @@ class MuseImageClient:
             msg = f"Unexpected response from Muse Image API: {body!r}"
             raise ModelResponseError(msg)
 
-        response_id, image_bytes = _extract_image_bytes(body)
+        response_id, image_bytes = _extract_image_bytes(body, prompt)
 
         self._output_dir.mkdir(parents=True, exist_ok=True)
         file_path = self._output_dir / f"{response_id}.png"

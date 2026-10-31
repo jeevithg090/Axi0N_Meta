@@ -92,10 +92,14 @@ def split_wav_audio(
                     w.writeframes(frames)
                 chunks.append(out.getvalue())
             return chunks if chunks else [audio_bytes]
-    except Exception:
-        # Non-WAV or unparseable: fallback to byte chunks if over max_bytes
+    except (wave.Error, EOFError):
+        # Non-WAV or unparseable: cannot safely split arbitrary non-WAV streams
         if len(audio_bytes) > max_bytes:
-            return [audio_bytes[i : i + max_bytes] for i in range(0, len(audio_bytes), max_bytes)]
+            msg = (
+                f"Audio data ({len(audio_bytes)} bytes) exceeds maximum limit of {max_bytes} "
+                "bytes and cannot be split because it is not a valid WAV file."
+            )
+            raise ValueError(msg) from None
         return [audio_bytes]
 
 
@@ -287,7 +291,7 @@ class VoiceTranscribeClient:
             msg = "META_API_BASE_URL and META_API_KEY are required for hosted Voice Transcribe"
             raise ClientConfigError(msg)
 
-        base_url = settings.meta_api_base_url or "https://api.meta.ai/v1"
+        base_url = settings.meta_api_base_url or "http://placeholder.invalid"
         api_key = settings.meta_api_key.get_secret_value() if settings.meta_api_key else "replay"
         raw_transport = HttpxTransport(base_url, api_key)
         transport = (
@@ -375,13 +379,16 @@ class VoiceTranscribeClient:
         total_latency_ms = 0
         total_attempts = 0
 
-        for chunk in chunks:
+        for chunk_idx, chunk in enumerate(chunks):
             chunk_segments, latency_ms, attempts = self._transcribe_single_chunk(
                 chunk,
                 lang_bias=lang_bias,
                 keywords=keywords,
                 diarize=diarize,
             )
+            if len(chunks) > 1 and diarize:
+                for seg in chunk_segments:
+                    seg["speaker"] = f"c{chunk_idx}_{seg['speaker']}"
             all_segments.extend(chunk_segments)
             total_latency_ms += latency_ms
             total_attempts += attempts

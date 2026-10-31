@@ -47,14 +47,26 @@ DEFAULT_SEGMENT = "planner"
 POLL_INTERVAL_S = 0.5
 
 
+def _extract_from_content_parts(content: list[object]) -> str | None:
+    parts: list[str] = []
+    for part in content:
+        if not isinstance(part, dict) or part.get("type") == "reasoning":
+            continue
+        if part.get("type") == "output_text":
+            parts.append(str(part.get("text", "")))
+        elif "text" in part:
+            parts.append(str(part["text"]))
+    return "\n".join(t for t in parts if t) if parts else None
+
+
 def _extract_from_output_item(item: object) -> str | None:
-    if not isinstance(item, dict):
+    if not isinstance(item, dict) or item.get("type") == "reasoning":
         return None
     content = item.get("content")
-    if isinstance(content, list) and content:
-        c0 = content[0]
-        if isinstance(c0, dict) and "text" in c0:
-            return str(c0["text"])
+    if isinstance(content, list):
+        res = _extract_from_content_parts(content)
+        if res is not None:
+            return res
     if "text" in item:
         return str(item["text"])
     message = item.get("message")
@@ -63,8 +75,18 @@ def _extract_from_output_item(item: object) -> str | None:
     return None
 
 
+def _extract_from_item_list(items: list[object]) -> str | None:
+    for item in items:
+        found = _extract_from_output_item(item)
+        if found is not None:
+            return found
+    return None
+
+
 def extract_output_text(body: object) -> str:
     """Extract raw response text from a Responses API response envelope.
+
+    Walks output[] items to find non-reasoning message/output_text content.
 
     Args:
         body: Decoded JSON response body.
@@ -75,23 +97,28 @@ def extract_output_text(body: object) -> str:
     Raises:
         ModelResponseError: If no text output can be parsed from the body.
     """
-    if isinstance(body, dict):
-        if "output_text" in body and isinstance(body["output_text"], str):
-            return body["output_text"]
-        output = body.get("output")
-        if isinstance(output, str):
-            return output
-        if isinstance(output, list) and output:
-            item_text = _extract_from_output_item(output[0])
-            if item_text is not None:
-                return item_text
-        choices = body.get("choices")
-        if isinstance(choices, list) and choices:
-            item_text = _extract_from_output_item(choices[0])
-            if item_text is not None:
-                return item_text
-        if "text" in body and isinstance(body["text"], str):
-            return body["text"]
+    if not isinstance(body, dict):
+        msg = f"Cannot extract output text from model response: {body!r}"
+        raise ModelResponseError(msg)
+
+    output_text = body.get("output_text")
+    if isinstance(output_text, str):
+        return output_text
+    output = body.get("output")
+    if isinstance(output, str):
+        return output
+
+    for key in ("output", "choices"):
+        val = body.get(key)
+        if isinstance(val, list):
+            found = _extract_from_item_list(val)
+            if found is not None:
+                return found
+
+    text = body.get("text")
+    if isinstance(text, str):
+        return text
+
     msg = f"Cannot extract output text from model response: {body!r}"
     raise ModelResponseError(msg)
 
@@ -190,7 +217,7 @@ class SparkClient:
             msg = "META_API_BASE_URL and META_API_KEY are required for hosted Spark client"
             raise ClientConfigError(msg)
 
-        base_url = settings.meta_api_base_url or "https://api.meta.ai/v1"
+        base_url = settings.meta_api_base_url or "http://placeholder.invalid"
         api_key = settings.meta_api_key.get_secret_value() if settings.meta_api_key else "replay"
         raw_transport = HttpxTransport(base_url, api_key)
         transport = (
@@ -245,9 +272,15 @@ class SparkClient:
             body["max_tool_calls"] = max_tool_calls
         return body
 
-    def _poll_background(self, resp_id: str) -> tuple[dict[str, Any], int]:
+    def _poll_background(
+        self, resp_id: str, timeout_s: float = 600.0
+    ) -> tuple[dict[str, Any], int]:
         attempts = 0
+        deadline = self._monotonic() + timeout_s
         while True:
+            if self._monotonic() > deadline:
+                msg = f"Background response {resp_id} timed out after {timeout_s}s"
+                raise ModelResponseError(msg)
             self._sleep(self._poll_interval_s)
             poll_req: dict[str, object] = {
                 "method": "GET",
@@ -262,8 +295,12 @@ class SparkClient:
             status = poll_body.get("status")
             if status == "completed":
                 return poll_body, attempts
-            if status == "failed":
-                msg = f"Background response {resp_id} failed: {poll_body.get('error')}"
+            if status not in ("in_progress", "queued", "pending"):
+                error_detail = poll_body.get("error") or status
+                msg = (
+                    f"Background response {resp_id} failed with terminal "
+                    f"status '{status}': {error_detail}"
+                )
                 raise ModelResponseError(msg)
 
     def _send_and_poll(

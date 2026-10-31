@@ -58,6 +58,7 @@ from rulecam.planner.standards import (
     ground_concern_standard,
 )
 from rulecam.planner.steps.ask import Question, propose_clarifying_questions
+from rulecam.planner.steps.audit import audit_summary
 from rulecam.planner.steps.compile import compile_rule
 from rulecam.planner.steps.probe import concepts_for_concerns, probe_concepts
 from rulecam.planner.steps.survey import ImageSegmenter, survey_cameras
@@ -413,7 +414,7 @@ class PlannerPipeline:
             grounding: Spark with web search, which proposes a rule's citation.
             standards: Cited pages, for `citation_text_match`; without it (or `grounding`) a
                 rule citing a standard fails that check.
-            audit: Step 9 hook (P2-07).
+            audit: Step 9 hook (P2-07, `planner.steps.audit.audit_hook`).
             prove: Step 10 hook (P2-08/09).
         """
         self._spark = spark
@@ -535,10 +536,10 @@ class PlannerPipeline:
         _log.info("plan_saved", plan_id=plan_id, version=plan.version, rules=len(plan.rules))
         return plan
 
-    def _hook_summary(self, name: StepName, _plan: SitePlan) -> str:
+    def _hook_summary(self, name: StepName, plan: SitePlan) -> str:
         if self._hooks[name] is None:
             return f"not wired yet ({HOOK_TASKS[name]}); plan passed through"
-        return ""
+        return audit_summary(plan) if name == "audit" else ""
 
     def _run_hook(self, name: StepName, plan: SitePlan) -> SitePlan:
         hook = self._hooks[name]

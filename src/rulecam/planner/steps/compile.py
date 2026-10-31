@@ -269,16 +269,24 @@ def rule_to_draft(rule: RuleIR) -> RuleDraft:
     )
 
 
-def _predicates(pred: Predicate) -> Iterator[Predicate]:
+def walk_predicates(pred: Predicate) -> Iterator[Predicate]:
+    """Yield `pred` and every predicate nested in it, depth first.
+
+    Args:
+        pred: A predicate tree.
+
+    Yields:
+        Each node of the tree, the root first.
+    """
     yield pred
     if isinstance(pred, All | Any_):
         for child in pred.of:
-            yield from _predicates(child)
+            yield from walk_predicates(child)
     elif isinstance(pred, Not_ | Persist | Rate):
-        yield from _predicates(pred.of)
+        yield from walk_predicates(pred.of)
     elif isinstance(pred, Sequence):
-        yield from _predicates(pred.trigger)
-        yield from _predicates(pred.requirement)
+        yield from walk_predicates(pred.trigger)
+        yield from walk_predicates(pred.requirement)
 
 
 def reference_errors(rule: RuleIR) -> list[str]:
@@ -294,7 +302,7 @@ def reference_errors(rule: RuleIR) -> list[str]:
         Human-readable problems, empty when every reference resolves.
     """
     problems: list[str] = []
-    for pred in _predicates(rule.predicate):
+    for pred in walk_predicates(rule.predicate):
         for field in _OBJECT_FIELDS:
             ref = getattr(pred, field, None)
             if isinstance(ref, str) and ref.split(".", 1)[0] not in rule.concepts:
@@ -357,6 +365,7 @@ def _build_compile_messages(
     calibration: str | None,
     zones: Mapping[str, ZoneSpec] | None,
     inventory: Seq[InventoryItem] | None,
+    feedback: Seq[str] = (),
 ) -> list[dict[str, object]]:
     """Format the system prompt and the user context for the compile call."""
     user_lines = [f"Concern text: {concern_text}", f"Source reference: {concern_source}"]
@@ -376,6 +385,12 @@ def _build_compile_messages(
     if inventory:
         seen = ", ".join(f"{item.concept} (cam={item.camera_id})" for item in inventory)
         user_lines.append(f"Surveyed inventory: {seen}")
+    if feedback:
+        user_lines.append(
+            "Your previous rule for this concern failed Rulecam's plan checks. Fix exactly these "
+            "problems; keep the rule's severity and actions and never make it less strict:"
+        )
+        user_lines.extend(f"- {problem}" for problem in feedback)
     return [
         {"role": "system", "content": _COMPILE_SYSTEM_PROMPT},
         {"role": "user", "content": "\n".join(user_lines)},
@@ -420,6 +435,7 @@ def compile_rule(
     site_name: str | None = None,
     plan_id: str | None = None,
     static_concepts: set[str] | frozenset[str] | None = None,
+    feedback: Seq[str] = (),
 ) -> RuleIR:
     """Compile a concern into a validated `RuleIR`, after the guardrails allow it.
 
@@ -432,6 +448,8 @@ def compile_rule(
         site_name: Optional human-readable site name.
         plan_id: Optional plan identifier for source tracking.
         static_concepts: Extra concept names or prompts to mark static.
+        feedback: Problems the plan checks found in the previous rule for this concern (the
+            acceptance repair loop, P2-06c); given to the model as data.
 
     Returns:
         The validated rule, with static concepts tagged.
@@ -461,6 +479,7 @@ def compile_rule(
         calibration=calibration,
         zones=zones,
         inventory=inventory,
+        feedback=feedback,
     )
     rule = _compile_with_repair(spark, messages)
     return apply_static_hints(rule, static_concepts=static_concepts)

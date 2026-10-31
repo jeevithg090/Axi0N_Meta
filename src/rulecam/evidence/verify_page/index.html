@@ -36,26 +36,28 @@
 
     async function show(text, committedRoot) {
       const report = await verifyChainText(text);
-      if (report.ok) {
-        const watched = report.watched === null ? "" : ` · watched ${Math.round(report.watched * 100)}%`;
-        verdict.textContent = `✓ Chain intact · ${report.n} records${watched}`;
-        verdict.className = "ok";
-        detail.textContent = "";
-        const root = await merkleRoot(report.hashes);
-        if (committedRoot) {
-          const same = root === committedRoot;
-          rootLine.textContent = same
-            ? "✓ Matches the committed daily root."
-            : "✗ Does not match the committed daily root.";
-        } else {
-          rootLine.innerHTML = `Daily root: <code>${root}</code>`;
-        }
-      } else {
+      rootLine.textContent = "";
+      if (!report.ok) {
         verdict.textContent = `✗ Chain broken at event ${report.firstBadSeq}`;
         verdict.className = "bad";
         detail.textContent = report.reason;
-        rootLine.textContent = "";
+        return;
       }
+      const root = await merkleRoot(report.hashes);
+      if (committedRoot && root !== committedRoot) {
+        // Every link holds, but records were dropped, added or the whole chain was rewritten.
+        verdict.textContent = "✗ Chain does not match the committed daily root";
+        verdict.className = "bad";
+        detail.textContent = `${report.n} records recomputed; their root differs from the one in git.`;
+      } else {
+        const watched = report.watched === null ? "" : ` · watched ${Math.round(report.watched * 100)}%`;
+        verdict.textContent = `✓ Chain intact · ${report.n} records${watched}`;
+        verdict.className = "ok";
+        detail.textContent = committedRoot ? "✓ Matches the committed daily root." : "";
+      }
+      const code = document.createElement("code");
+      code.textContent = root;
+      rootLine.append("Daily root: ", code);
     }
 
     async function loadFromServer() {
@@ -75,11 +77,18 @@
       await show(await chain.text(), committed);
     }
 
-    document.getElementById("file").addEventListener("change", async (event) => {
+    function fail(error) {
+      verdict.textContent = "Could not check the chain.";
+      verdict.className = "bad";
+      detail.textContent = String(error);
+      rootLine.textContent = "";
+    }
+
+    document.getElementById("file").addEventListener("change", (event) => {
       const file = event.target.files[0];
-      if (file) await show(await file.text(), null);
+      if (file) file.text().then((text) => show(text, null)).catch(fail);
     });
-    loadFromServer();
+    loadFromServer().catch(fail);
   </script>
 </body>
 </html>

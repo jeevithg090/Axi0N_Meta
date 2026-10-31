@@ -112,6 +112,31 @@ matter:
    `RULECAM_SAM_BUDGET_FRAMES_PER_MIN` (default 1,000; 0 turns it off), it degrades to one chunk
    in `RULECAM_SAM_BUDGET_STRIDE` (3), logged `budget_exceeded`, instead of falling behind. It
    recovers by itself when the minute drains (`budget_recovered`).
+6. **Pipelined chunks.** Hosted SAM takes 6 to 17 s per request and a camera delivers a chunk
+   every 3 s, so a loop that segments one chunk at a time cannot keep up. Measured on `main`
+   096a438 (one HIGH forklift rule, one camera, idle stride 2): lag 123 to 142 s, the loop stuck
+   in keyframe mode, 3 chunks segmented in 3 minutes, the 8 vCPU API pod mostly idle. The loop
+   now keeps up to `RULECAM_RUNTIME_PIPELINE_DEPTH` (default 4) chunks per camera in flight.
+   Everything that decides *whether* to segment (lag, idle stride, motion gate, budget) runs when
+   a chunk is submitted, in arrival order; only the SAM concept pass runs concurrently; a
+   per-camera reorder buffer then hands results, strictly in chunk order, to tracking, the track
+   store, rule evaluation, candidates, verification, actions and the evidence chain. The budget
+   counts each in-flight chunk's expected bill (one request per dynamic concept) until its real
+   bill replaces it, so depth never overspends it. A failed chunk is counted in `chunks_failed`
+   and is a coverage gap; the chunks behind it carry on. When a camera's pipeline is full the
+   next chunk waits for the oldest one, its lag grows and keyframe mode thins the chunks, as
+   before; requests never queue past the depth. `1` is the old one-chunk-at-a-time loop.
+
+   **Throughput.** A camera keeps up while `depth / latency >= 1 / interval`, where the interval
+   is 3 s on a hot camera and 6 s at idle stride 2. Depth 4 sustains 4 / 6 s = 0.67 chunks/s at
+   6 s latency (needs 0.33) and 4 / 12 s = 0.33 chunks/s at 12 s, so it keeps up with every chunk
+   up to 12 s per request and with idle stride 2 up to 24 s. At 17 s it manages 0.24 chunks/s on
+   a hot camera; lag then grows by about 1.3 s per chunk until keyframe mode (one in 3, 0.11
+   chunks/s needed) takes over. The cost is concurrency, not frames: at depth 4 with two concepts
+   a camera has up to 8 hosted requests open at once. With depth above 1 the tracker hands
+   identities off by box IoU instead of box re-prompts: a re-prompt needs the previous chunk's
+   tracks, which would put one more SAM round trip per chunk back on the ordered path. That also
+   removes the re-prompt requests from the bill.
 
 **Safety trade-off.** A chunk that is not segmented is a coverage gap, never evidence of
 absence: a rule's window is cut to start after the gap, and the rule is judged on the cut window
@@ -128,15 +153,17 @@ a 160 px frame). The budget never thins a camera with a HIGH rule while it is ac
 **Expected spend** for the measured case (one HIGH forklift rule, warehouse + kitchen camera,
 30-frame 3 s chunks, 50 frames billed per request): before, 2 cameras x 20 chunks x 2 concepts x
 50 = **4,000 billed frames/min**. After: kitchen **0**; warehouse **1,000/min** while still or
-idle (every 2nd chunk) and **2,000/min** while something moves (every chunk; tracker box
-re-prompts for objects already in view add up to one request per concept per chunk). The same
+idle (every 2nd chunk) and **2,000/min** while something moves (every chunk; with
+`RULECAM_RUNTIME_PIPELINE_DEPTH=1`, tracker box re-prompts for objects already in view add up to
+one request per concept per chunk). The same
 rule at medium severity: about 200/min on a still camera (gate keyframes only), 670/min while
 idle with motion, and at most the 1,000/min budget while active.
 
 `GET /runtime/metrics` (owner) shows it: `sam_calls`, `billed_frames`, `billed_frames_per_min`
 per camera, `chunks_skipped_no_rule`, `chunks_skipped_idle`, `chunks_skipped_still`,
-`chunks_skipped_budget`, `budget_exceeded`, `budget_degraded`, next to the existing lag and
-keyframe fields.
+`chunks_skipped_budget`, `budget_exceeded`, `budget_degraded`, and for the pipeline `in_flight`,
+`pipeline_depth`, `segment_latency_p50_s` and `segment_latency_p95_s` (last 200 segmentations),
+next to the existing lag and keyframe fields (`lag_s` is the most-behind camera's).
 
 ## Glimmer pod (RunPod GPU)
 

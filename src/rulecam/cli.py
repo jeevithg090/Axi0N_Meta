@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
@@ -17,6 +17,10 @@ from rulecam.config import get_settings
 from rulecam.contracts import CONTRACTS_VERSION
 from rulecam.replay.cache import ReplayCache
 from rulecam.replay.golden import GoldenRunner
+
+if TYPE_CHECKING:
+    from rulecam.eval.schema import EvalSet
+    from rulecam.eval.score import EvalReport
 
 app = typer.Typer(help="Rulecam: a camera agent that plans its own job and proves its work.")
 
@@ -164,6 +168,222 @@ def audit(
         typer.echo("not reproduced: " + ", ".join(f"event {seq}" for seq in report.failed_seqs))
     if not report.ok:
         raise typer.Exit(code=AUDIT_FAILED)
+
+
+eval_app = typer.Typer(help="Eval harness (WS0): play labelled clips, score them, report.")
+app.add_typer(eval_app, name="eval")
+
+EVAL_SET = Path("eval/clips")
+EVAL_REPORTS = Path("reports/eval")
+EVAL_CACHE = Path("data/eval_cache")
+EVAL_CHECKS = Path("eval/checks.yaml")
+
+SetOption = Annotated[Path, typer.Option("--set", help="Eval-set folder")]
+GpuOption = Annotated[
+    float, typer.Option(help="GPU pods' price per hour, all together (SAM + Glimmer)")
+]
+CamerasOption = Annotated[float, typer.Option(help="Cameras sharing those GPU pods")]
+
+
+def _load_set(set_dir: Path) -> EvalSet:
+    from rulecam.eval.errors import EvalSetError  # noqa: PLC0415
+    from rulecam.eval.schema import load_eval_set  # noqa: PLC0415
+
+    try:
+        return load_eval_set(set_dir)
+    except EvalSetError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+
+
+@eval_app.command("validate")
+def eval_validate(*, set_dir: SetOption = EVAL_SET) -> None:
+    """Validate every clip.yaml of the eval set and summarise it."""
+    evalset = _load_set(set_dir)
+    for clip in evalset.clips:
+        rules = ", ".join(f"{r.id}={r.status}" for r in clip.rules)
+        typer.echo(f"{clip.name}{' (placeholder)' if clip.placeholder else ''}: {rules}")
+    typer.echo(f"{len(evalset.clips)} clips, {len(evalset.runnable())} runnable")
+
+
+@eval_app.command("fetch")
+def eval_fetch(
+    *,
+    set_dir: SetOption = EVAL_SET,
+    cache_dir: Annotated[Path, typer.Option(help="Git-ignored clip cache")] = EVAL_CACHE,
+) -> None:
+    """Download (once) and sha256-check every runnable clip."""
+    from rulecam.eval.errors import ClipFetchError  # noqa: PLC0415
+    from rulecam.eval.fetch import resolve_clip  # noqa: PLC0415
+
+    evalset = _load_set(set_dir)
+    for clip in evalset.runnable():
+        try:
+            path = resolve_clip(clip, evalset.clip_dir(clip.name), cache_dir=cache_dir)
+        except ClipFetchError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=AUDIT_FAILED) from exc
+        typer.echo(f"{clip.name}: {path}")
+
+
+def _write_outputs(report: EvalReport, out: Path, checks: Path | None, source: str) -> None:
+    from rulecam.eval.score import save_report  # noqa: PLC0415
+    from rulecam.eval.scorecard import (  # noqa: PLC0415
+        build_scorecard,
+        load_checks,
+        render_markdown,
+    )
+
+    day = report.generated_at.date().isoformat()
+    json_path = save_report(report, out / f"{day}.json")
+    card = build_scorecard(
+        title=f"Rulecam 9.5 scorecard, {day}",
+        report=report,
+        checks=load_checks(checks) if checks and checks.is_file() else None,
+        sources=(source, f"report: {json_path}"),
+    )
+    md_path = out / f"{day}.md"
+    md_path.write_text(render_markdown(card), encoding="utf-8")
+    typer.echo(render_markdown(card))
+    typer.echo(f"wrote {json_path} and {md_path}")
+
+
+@eval_app.command("run")
+def eval_run(
+    *,
+    set_dir: SetOption = EVAL_SET,
+    clip: Annotated[list[str] | None, typer.Option(help="Only these clips")] = None,
+    api: Annotated[str, typer.Option(help="API base URL (loopback)")] = "http://localhost:8000",
+    speed: Annotated[float, typer.Option(help="Pace, 1 = real time (max ~2.8)")] = 1.0,
+    survey_s: Annotated[float, typer.Option(help="Seconds fed before the request")] = 80.0,
+    plan_timeout_s: Annotated[float, typer.Option(help="How long the planner may take")] = 900.0,
+    include_unlabelled: Annotated[bool, typer.Option(help="Also run unlabelled rules")] = False,
+    bus: Annotated[bool, typer.Option(help="Listen on /ws for alert times")] = True,
+    track_store: Annotated[Path | None, typer.Option(help="The API's track store")] = None,
+    cache_dir: Annotated[Path, typer.Option(help="Git-ignored clip cache")] = EVAL_CACHE,
+    out: Annotated[Path, typer.Option(help="Reports folder")] = EVAL_REPORTS,
+    checks: Annotated[Path | None, typer.Option(help="Checks file")] = EVAL_CHECKS,
+    gpu_usd_per_hour: GpuOption = 0.0,
+    cameras_per_gpu: CamerasOption = 1.0,
+) -> None:
+    """Play the eval set into a running API, then score it and write the scorecard."""
+    from datetime import UTC, datetime  # noqa: PLC0415
+
+    from rulecam.eval.client import HttpApiClient, NoBus, WsBusListener, ws_url  # noqa: PLC0415
+    from rulecam.eval.fetch import resolve_clip  # noqa: PLC0415
+    from rulecam.eval.record import load_runs  # noqa: PLC0415
+    from rulecam.eval.runner import EvalRunner, RunConfig, run_eval_set  # noqa: PLC0415
+    from rulecam.eval.score import ScoreConfig, score_runs  # noqa: PLC0415
+
+    evalset = _load_set(set_dir)
+    entries = [c for c in evalset.runnable() if not clip or c.name in clip]
+    videos = [(c, resolve_clip(c, evalset.clip_dir(c.name), cache_dir=cache_dir)) for c in entries]
+    store = None
+    if track_store is not None:
+        from rulecam.rules.store import ParquetTrackStore  # noqa: PLC0415
+
+        store = ParquetTrackStore(track_store)
+    client = HttpApiClient(api)
+    runner = EvalRunner(
+        client,
+        config=RunConfig(speed=speed, survey_s=survey_s, plan_timeout_s=plan_timeout_s),
+        bus=(lambda: WsBusListener(ws_url(api))) if bus else NoBus,
+        tracks=store,
+    )
+    now = datetime.now(UTC)
+    runs_dir = out / "runs" / now.strftime("%Y-%m-%dT%H%M%SZ")
+    try:
+        run_eval_set(
+            runner,
+            videos,
+            work_dir=cache_dir / "chunks",
+            runs_dir=runs_dir,
+            include_unlabelled=include_unlabelled,
+        )
+    finally:
+        client.close()
+    config = ScoreConfig(gpu_usd_per_hour=gpu_usd_per_hour, cameras_per_gpu=cameras_per_gpu)
+    report = score_runs(load_runs(runs_dir), evalset, config=config, generated_at=datetime.now(UTC))
+    _write_outputs(report, out, checks, f"live runs: {runs_dir} against {api}")
+
+
+@eval_app.command("score")
+def eval_score(
+    runs: Annotated[Path, typer.Argument(help="Folder of *.run.json records")],
+    *,
+    set_dir: SetOption = EVAL_SET,
+    out: Annotated[Path, typer.Option(help="Reports folder")] = EVAL_REPORTS,
+    checks: Annotated[Path | None, typer.Option(help="Checks file")] = EVAL_CHECKS,
+    iou: Annotated[float, typer.Option(help="Temporal IoU to match an alert")] = 0.3,
+    gpu_usd_per_hour: GpuOption = 0.0,
+    cameras_per_gpu: CamerasOption = 1.0,
+) -> None:
+    """Re-score recorded runs offline (replay mode: no API, no network)."""
+    from datetime import UTC, datetime  # noqa: PLC0415
+
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+    from rulecam.eval.record import load_runs  # noqa: PLC0415
+    from rulecam.eval.score import ScoreConfig, score_runs  # noqa: PLC0415
+
+    evalset = _load_set(set_dir)
+    config = ScoreConfig(
+        iou=iou, gpu_usd_per_hour=gpu_usd_per_hour, cameras_per_gpu=cameras_per_gpu
+    )
+    try:
+        report = score_runs(load_runs(runs), evalset, config=config, generated_at=datetime.now(UTC))
+    except EvalError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    _write_outputs(report, out, checks, f"replayed runs: {runs}")
+
+
+@app.command()
+def scorecard(
+    *,
+    report: Annotated[Path | None, typer.Option(help="Eval report JSON")] = None,
+    checks: Annotated[Path | None, typer.Option(help="Checks file")] = EVAL_CHECKS,
+    live_api: Annotated[str | None, typer.Option(help="Sample /runtime/metrics here")] = None,
+    samples: Annotated[int, typer.Option(help="Live samples")] = 60,
+    interval_s: Annotated[float, typer.Option(help="Seconds between live samples")] = 30.0,
+    out: Annotated[Path | None, typer.Option(help="Write the markdown here")] = None,
+) -> None:
+    """Print the PLAN-9.5 §2 scorecard from an eval report, live metrics and the checks file."""
+    from datetime import UTC, datetime  # noqa: PLC0415
+
+    from rulecam.eval.client import HttpApiClient  # noqa: PLC0415
+    from rulecam.eval.live import sample_live  # noqa: PLC0415
+    from rulecam.eval.score import load_report  # noqa: PLC0415
+    from rulecam.eval.scorecard import build_scorecard, load_checks, render_markdown  # noqa: PLC0415
+
+    sources, live = [], None
+    loaded = load_report(report) if report else None
+    if report:
+        sources.append(f"report: {report}")
+    if live_api:
+        client = HttpApiClient(live_api)
+        try:
+            live = sample_live(
+                client, samples=samples, interval_s=interval_s, source=f"live {live_api}"
+            )
+        finally:
+            client.close()
+        sources.append(f"live: {live_api}, {samples} samples every {interval_s:g} s")
+    if checks and checks.is_file():
+        sources.append(f"checks: {checks}")
+    day = datetime.now(UTC).date().isoformat()
+    card = build_scorecard(
+        title=f"Rulecam 9.5 scorecard, {day}",
+        report=loaded,
+        checks=load_checks(checks) if checks and checks.is_file() else None,
+        live=live,
+        sources=sources,
+    )
+    text = render_markdown(card)
+    typer.echo(text)
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        typer.echo(f"wrote {out}")
 
 
 owner_app = typer.Typer(help="Owner login for the web UI (docs/deploy.md, Owner login).")

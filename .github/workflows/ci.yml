@@ -29,6 +29,18 @@ jobs:
       - run: uv run pytest --cov --cov-report=json
       - run: uv run python scripts/coverage_floors.py coverage.json
 
+  eval-replay:
+    # WS0: validate the eval set and re-score the recorded runs offline (replay mode).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: make eval-replay EVAL_OUT=${{ runner.temp }}/eval
+
   guardrails:
     runs-on: ubuntu-latest
     steps:

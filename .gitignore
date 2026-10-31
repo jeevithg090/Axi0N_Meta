@@ -20,6 +20,10 @@ build/
 
 # Media and runtime data (commit manifests only)
 data/
+eval/clips/**/*.mp4
+eval/clips/**/*.mov
+eval/clips/**/*.webm
+reports/eval/runs/
 
 # Node / UI
 node_modules/

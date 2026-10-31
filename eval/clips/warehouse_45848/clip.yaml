@@ -1,0 +1,15 @@
+# Mixkit stock clip 45848: a forklift driven through a warehouse aisle. The only person in it is
+# the driver, so it is a driver-only NEGATIVE for the proximity rule: any alert is a false alert
+# (PLAN-9.5 §1, root cause 3). The video is not committed; `rulecam eval fetch` caches it.
+name: warehouse_45848
+description: Forklift moving through a warehouse aisle; the driver is the only person.
+camera_id: warehouse
+source:
+  url: https://assets.mixkit.co/videos/45848/45848-720.mp4
+  sha256: e5e3c8928824a074ae43b3b2d10d8d0b67595ec03bb4cfb11f97b4497c64f454
+duration_s: 21.76
+license: Mixkit Stock Video Free License (https://mixkit.co/license/#videoFree)
+rules:
+  - id: forklift_2m
+    request: Keep people at least 2 metres away from a moving forklift.
+    status: negative

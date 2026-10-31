@@ -1,0 +1,28 @@
+# PLAN-9.5 §2 criteria the eval harness cannot measure itself. `rulecam scorecard` (and
+# `rulecam eval run|score`) read this file. Each entry: `passed: true|false` (or `value:` for a
+# number compared with its target) and `evidence:` (a PR, a log, a command). Leave an entry
+# empty until it has been checked: the scorecard then shows NOT MEASURED, never PASS.
+
+# Cost
+budget_alarm: {}              # the hourly dollar budget alarms on the UI and degrades (WS3)
+
+# Perception
+sam_agreement: {}             # value: detection agreement with hosted SAM (scripts/sam_pod/compare.py)
+
+# Planner (overrides the harness's own repeat count when present)
+planner_determinism: {}       # passed: same request -> same canonical rule hash 20/20 (WS1e)
+
+# Safety and privacy (WS4)
+owner_login: {}
+evidence_routes_private: {}   # /evidence/* read routes need owner login; verify page gets roots only
+guardrail_tests: {}           # `uv run pytest tests/guardrails` green on main
+scene_text_firewall: {}       # SceneTextFirewall wired in the runtime (WS1b)
+
+# Deployment and ops (WS5)
+one_command_deploy: {}
+survives_restart: {}
+metrics_dashboard: {}
+
+# Demo (WS6)
+golden_replay_live: {}
+live_demo_rehearsed: {}       # 3 dry runs on the deployed stack, each within the §2 latency targets

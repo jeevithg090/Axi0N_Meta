@@ -32,6 +32,8 @@ ml = ["torch>=2.3", "transformers>=4.53", "modal>=0.64", "onnxruntime>=1.18"]
 ui = ["playwright>=1.45"]
 # YOLOv8 (ultralytics) is AGPL-3.0: evaluation baseline only, never imported by runtime code.
 eval = ["matplotlib>=3.8", "ultralytics>=8.2"]
+# Tracking metrics for the WS0 eval harness (IDF1, ID switches): py-motmetrics is MIT.
+tracking = ["motmetrics>=1.4"]
 
 [project.scripts]
 rulecam = "rulecam.cli:app"
@@ -46,6 +48,7 @@ dev = [
   "ruff>=0.5",
   "pre-commit>=3.7",
   "types-PyYAML",
+  "motmetrics>=1.4",
 ]
 
 [tool.uv.sources]
@@ -100,7 +103,7 @@ explicit_package_bases = true
 [[tool.mypy.overrides]]
 module = [
   "rulecam.contracts.*", "rulecam.rules.*", "rulecam.evidence.*",
-  "rulecam.advisor.*", "rulecam.verify.*",
+  "rulecam.advisor.*", "rulecam.verify.*", "rulecam.eval.*",
 ]
 strict = true
 
@@ -111,7 +114,7 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = [
   "cv2.*", "kasa.*", "modal.*", "transformers.*", "duckdb.*", "shapely.*",
-  "qrcode.*", "ultralytics.*", "onnxruntime.*", "playwright.*",
+  "qrcode.*", "ultralytics.*", "onnxruntime.*", "playwright.*", "motmetrics.*",
 ]
 ignore_missing_imports = true
 

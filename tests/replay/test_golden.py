@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 
 from rulecam.cli import app
 from rulecam.config import Settings
-from rulecam.replay.cache import ReplayCache
+from rulecam.replay.cache import ReplayCache, cached_call, configure
 from rulecam.replay.errors import ScenarioError
 from rulecam.replay.golden import STEP_REGISTRY, GoldenRunner, StepFn, load_scenario, register_step
 from tests.fakes import FakeClock
@@ -175,3 +175,57 @@ def test_cli_record_and_verify(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) 
 
 def count_step_fixed(params: Mapping[str, object], cache: ReplayCache) -> object:
     return 1
+
+
+GLOBAL_SCENARIO = """
+name: global
+steps:
+  - {id: first, kind: global.model, params: {prompt: one}}
+  - {id: second, kind: global.model, params: {prompt: two}}
+"""
+
+
+def test_cached_call_steps_follow_the_runner_mode(tmp_path: Path) -> None:
+    """`cached_call` inside a step uses the runner's cache, never the env-configured one."""
+    (tmp_path / "global.yaml").write_text(GLOBAL_SCENARIO)
+    calls: list[str] = []
+
+    def step(params: Mapping[str, object], cache: ReplayCache) -> object:
+        prompt = str(params["prompt"])
+
+        def call() -> Mapping[str, object]:
+            calls.append(prompt)
+            return {"echo": prompt}
+
+        return cached_call("fake", "m1", {"prompt": prompt}, call)["echo"]
+
+    env_cache = ReplayCache(tmp_path / "env", "live", clock=FakeClock())  # e.g. RULECAM_MODE=live
+    configure(env_cache)
+    try:
+        cache = ReplayCache(tmp_path / "replay", "replay", clock=FakeClock())
+        runner = GoldenRunner(cache, tmp_path, {"global.model": step})
+        runner.record("global")
+        assert calls == ["one", "two"]
+        assert runner.verify("global").ok
+        assert calls == ["one", "two"]  # verify never called the model
+        for entry in (tmp_path / "replay" / "fake").iterdir():
+            if "one" in entry.read_text():
+                entry.unlink()
+        report = runner.verify("global")
+        assert calls == ["one", "two"]
+        assert [d.step_id for d in report.diffs] == ["first"]  # the miss names its step...
+        assert report.diffs[0].error is not None
+        assert "no recorded reply" in report.diffs[0].error
+        from rulecam.replay.cache import get_cache  # noqa: PLC0415
+
+        assert get_cache() is env_cache  # ...later steps still ran, and the global is restored
+    finally:
+        configure(None)
+
+
+def test_record_leaves_no_temporary_files(
+    setup: tuple[GoldenRunner, FakeModel, ReplayCache],
+) -> None:
+    runner, _, _ = setup
+    path = runner.record("smoke")
+    assert sorted(p.name for p in path.parent.iterdir()) == ["smoke.expected.json", "smoke.yaml"]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -148,7 +149,7 @@ def test_glimmer_paths(tmp_path: Path) -> None:
     assert not preflight.check_glimmer(down).ok
 
 
-@pytest.mark.parametrize(("code", "ok"), [(0, True), (1, False), (127, False)])
+@pytest.mark.parametrize(("code", "ok"), [(0, True), (1, False), (127, False), (124, False)])
 def test_modal(tmp_path: Path, code: int, ok: bool) -> None:
     assert preflight.check_modal(make_deps(tmp_path, run=lambda argv: code)).ok is ok
 
@@ -222,3 +223,33 @@ def test_default_helpers(tmp_path: Path) -> None:
     assert preflight._newest_mtime(tmp_path) is not None
     assert preflight._free_bytes(tmp_path / "missing") > 0
     assert preflight._run_subprocess(["definitely-not-a-command-xyz"]) == 127
+
+
+def test_modal_timeout_is_reported(tmp_path: Path) -> None:
+    result = preflight.check_modal(make_deps(tmp_path, run=lambda argv: 124))
+    assert "timed out" in result.detail
+
+
+def test_subprocess_timeout_returns_124(monkeypatch: pytest.MonkeyPatch) -> None:
+    def hang(*args: object, **kwargs: object) -> object:
+        raise subprocess.TimeoutExpired(cmd="modal", timeout=60)
+
+    monkeypatch.setattr(subprocess, "run", hang)
+    assert preflight._run_subprocess(["python3"]) == 124
+
+
+def test_kasa_library_errors_become_a_failed_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import kasa  # noqa: PLC0415
+
+    async def refuse(host: str, **kwargs: object) -> object:
+        raise kasa.KasaException("device refused")
+
+    monkeypatch.setattr(kasa.Discover, "discover_single", refuse)
+    with pytest.raises(OSError, match="KasaException"):
+        preflight._probe_kasa("10.0.0.9")
+    deps = make_deps(tmp_path, probe_kasa=preflight._probe_kasa)
+    result = preflight.check_plug(deps)
+    assert not result.ok
+    assert result.detail == "10.0.0.5: OSError"

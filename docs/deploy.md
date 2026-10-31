@@ -14,6 +14,128 @@ browser ──► https://rulecam.vercel.app  (Next.js, ui/)
               └─► https://<sam-pod>-8090.proxy.runpod.net     (sam_server + SAM 3.1, runtime only)
 ```
 
+## One-command deploy
+
+`scripts/deploy/runpod_up.sh` brings the whole stack up from prebuilt images, and is safe to run
+again at any time (it only changes what differs). Everything below "Manual path" is the same
+stack by hand, kept as the fallback.
+
+**Images** (built by `.github/workflows/images.yml`; pull requests build them without pushing,
+pushes to `main` push `sha-<commit>` and `latest`):
+
+| Image | What is in it |
+|---|---|
+| `ghcr.io/jeevithg090/rulecam-api` | Python 3.12 slim (Debian trixie), the locked deps (`uv sync --frozen --no-dev`), ffmpeg 7 (no more 4.4 / `-fps_mode`), tini, sshd for owner actions. Runs uvicorn with `--timeout-graceful-shutdown 5 --forwarded-allow-ips 100.64.0.0/10` as the unprivileged `rulecam` user. |
+| `ghcr.io/jeevithg090/rulecam-sam` | CUDA 12.8 base (Ubuntu 24.04), torch 2.10 cu128, `sam3` at `SAM3_COMMIT`, einops, pycocotools, psutil, pydantic, opencv, numpy < 2. Nothing is installed at boot, so no venv or uv-Python on the wiped container disk. |
+
+The packages start private on GHCR: make both public once (GitHub → Packages → the package →
+Package settings → Change visibility), or create a RunPod registry credential for GHCR and pass
+its id as `--registry <id>`.
+
+**Before the first run** (once, on your machine):
+
+1. `runpodctl config --apiKey …` (the script reads `~/.runpod/config.toml`; `RUNPOD_API_KEY`
+   wins if set). The key is never printed; requests carry a `rulecam-deploy/1.0` User-Agent
+   because Cloudflare blocks Python's default one.
+2. Key files in `~/.runpod/` (mode 600, never in git or chat): `rulecam-glimmer.key` and
+   `rulecam-sam.key` (required; e.g. `umask 077; openssl rand -hex 32 > ~/.runpod/rulecam-sam.key`),
+   and optionally `rulecam-meta.key`, `rulecam-hf.token` (the account must have access to
+   `facebook/sam3.1`), `rulecam-baseten.key`. Each becomes a RunPod secret
+   (`rulecam_glimmer_api_key`, …) that pods reference as `{{ RUNPOD_SECRET_<name> }}`, so no key
+   value is in a pod's config, argv or the script's output. A key without a local file is left to
+   the volume's file (`/workspace/rulecam/.meta_api_key` etc.), as on the manual pods.
+   `--sync-secrets` re-uploads rotated files; `--inline-secrets` puts the values in pod env instead
+   (redacted in the output) if your API key cannot manage secrets.
+
+**Run:**
+
+```bash
+scripts/deploy/runpod_up.sh --dry-run      # reads the account, prints every write it would make
+scripts/deploy/runpod_up.sh                # does it, waits for every /health, prints the URLs
+scripts/deploy/runpod_up.sh --vercel       # also sets NEXT_PUBLIC_RULECAM_API and redeploys the UI
+scripts/deploy/runpod_status.sh            # state, $/h and health of each pod (exit 1 if not all ok)
+scripts/deploy/runpod_down.sh              # stop all pods (volumes kept; --only sam to stop one)
+```
+
+What `up` does, in order (pods are found by name: `rulecam-api`, `rulecam-glimmer`,
+`rulecam-sam`; `--prefix` changes it):
+
+1. RunPod secrets for the local key files (created when missing).
+2. The API's network volume: the one the existing API pod mounts, else `rulecam-api`, else a new
+   20 GB volume in a data center that has the 8 vCPU flavor in stock **and** offers network
+   volumes (CPU pods can only persist to a network volume; `--data-center` sets the preference).
+3. Glimmer (llama.cpp `server-cuda-b11669` with the documented args, `LLAMA_API_KEY` from the
+   secret, `LLAMA_CACHE` on a 40 GB pod volume) and SAM (the SAM image, `SAM_API_KEY` and
+   `HF_TOKEN` from secrets, port `8090/http` only). GPU stock-outs: the script reads the live
+   stock catalog (`/v2/catalog/gpus`, CUDA ≥ 12.8) and tries each preferred GPU type in each data
+   center that has it, most stock first, until one places (`--glimmer-gpus`, `--sam-gpus`; 48 GB
+   cards first, then L4 / A5000 / 4090 for SAM). GPU pods use pod volumes, so they are not tied to
+   the API volume's data center.
+4. The API CPU pod (8 vCPU, `8000/http, 22/tcp`, SSH keys from the account) in the volume's data
+   center, with `RULECAM_MODE=live`, `RULECAM_RUNTIME=true`, `GLIMMER_BASE_URL` / `SAM_BASE_URL`
+   pointing at the two GPU pods' proxy URLs and the key references. Anything else still comes
+   from `/workspace/rulecam/.env` on the volume.
+5. Existing pods are reused: a stopped pod is started; a pod whose image, env, ports or start
+   command differ is patched (a manual pod's `bash -c "(boot.sh &) ; exec /start.sh"` is cleared so
+   the image's entrypoint runs). A stopped GPU pod whose GPU was taken cannot start: the error
+   says so (retry later, or `runpod_down.sh --only sam --terminate --yes` and `up` again, which
+   drops that pod's model cache).
+6. Unless `--no-wait`, it waits for each pod to run and each `/health` to answer 200 (the first
+   SAM start downloads the checkpoint; Glimmer downloads 17 GB).
+
+New code reaches the pods through the images: after the `images` workflow pushed a commit, run
+`runpod_up.sh --image-tag sha-<commit>` (or keep `latest` and restart the pods). Restarts are
+safe: both entrypoints keep their state on the volume, so a fresh container (a pod restart wipes
+the container disk) comes up the same way; CI checks this by running the API image twice on one
+volume (`tests/deploy/test_image_restart.py`).
+
+Image-based API pod: the entrypoint (`deploy/api-entrypoint.sh`) reads the key files in
+`/workspace/rulecam` like `start.sh` (environment first, then file), defaults `PUBLIC_TUNNEL_URL`
+to `https://$RUNPOD_POD_ID-8000.proxy.runpod.net`, starts sshd when RunPod passes `PUBLIC_KEY`
+(owner actions still need a loopback client: `ssh root@… -p … curl -X POST
+localhost:8000/pair/token`), then runs uvicorn as `rulecam`. On a volume that ignores ownership
+(MooseFS also ignores chmod) it logs a warning and stays root, like `setup.sh`.
+
+`--api-source archive` keeps the documented `runpod/base` image instead: it sets the start command
+to `bash -c "(/workspace/rulecam/deploy/api-boot.sh &) ; exec /start.sh"`, uploads `git archive
+HEAD` over SSH (`--ssh-key`, default `~/.ssh/runpod_ed25519`) and starts `deploy/api-boot.sh`,
+which keeps uv's Python, cache and the venv on the volume and runs the same entrypoint.
+
+## Monitoring
+
+`GET /metrics` on the API serves Prometheus text: read-only aggregates, safe to leave public (no
+traces, event ids, verdict reasons, URLs or keys; counters are per camera at most, never per
+person or track). Families: `rulecam_runtime_lag_seconds`, `_keyframe_mode`, `_in_flight_chunks`,
+`_segment_latency_seconds{quantile}`, `_chunks_total{outcome}`, `_billed_frames_total`,
+`_billed_frames_per_minute{camera}`, `_hosted_sam_usd_per_hour`, `_budget_*`;
+`rulecam_perception_sam_calls_total{backend}`, `_sam_fallbacks_total`, `_gpu_seconds_total`,
+`_usd_per_camera_hour{basis}`; `rulecam_verdicts_total{tier,verdict}`;
+`rulecam_dependency_up{service="glimmer"|"sam"}` (their open `/health`, cached 10 s) and the SAM
+pod's `rulecam_sam_gpu_memory_bytes{kind}` / `rulecam_sam_memory_guard_trips_total`.
+
+`deploy/monitoring/` is a minimal Prometheus + Grafana (`docker compose -f
+deploy/monitoring/docker-compose.yml up -d` on your own machine, after copying
+`targets/rulecam.example.json` to `targets/rulecam.json` with the API pod's proxy host). Grafana
+is AGPL-3.0: run it for yourself, don't host it for others. Alert rules (`alerts.yml`):
+
+| Alert | Rule | Severity |
+|---|---|---|
+| RulecamApiDown | `/metrics` unreachable for 1 min | page |
+| RulecamLagHigh | `rulecam_runtime_lag_seconds > 10` for 1 min | page |
+| RulecamDependencyDown | `rulecam_dependency_up == 0` for 2 min (Glimmer or SAM pod unhealthy) | page |
+| RulecamKeyframeMode | keyframe mode for 1 min | warning |
+| RulecamSamFallback | any self-hosted SAM outage in 10 min | warning |
+| RulecamHostedSpendHigh | hosted SAM above $1.20/h for 5 min | warning |
+| RulecamSamMemoryGuard | more than 2 guard trips in 15 min | warning |
+
+Without Prometheus, `runpod_status.sh` (exit 1 unless every pod runs and is healthy) works from
+cron.
+
+## Manual path (fallback)
+
+The sections below are the stack by hand, as first deployed. Use them when the images or the
+script cannot be used.
+
 ## Vercel (UI)
 
 - Project `rulecam`, **Root Directory `ui`**, connected to the GitHub repo: every push to `main`
@@ -292,6 +414,9 @@ returns.
 - `PUT /mode` through the public URL → 403 (also with a spoofed `X-Forwarded-For: 127.0.0.1`).
 - Glimmer chat without the key → 401.
 - SAM `POST /segment` without the key → 401; `GET /health` → `{"status": "ok", …}`.
+- `curl https://<api-pod>-8000.proxy.runpod.net/metrics` → Prometheus text with
+  `rulecam_dependency_up{service="glimmer"} 1` (and `sam` when self-hosted).
+- `scripts/deploy/runpod_status.sh` → every pod `RUNNING` and `ok`.
 - On the API pod: `uv run python -m rulecam.replay.preflight` (with the key files exported).
 
 ## Costs and shutdown

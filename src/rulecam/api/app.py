@@ -2,7 +2,8 @@
 
 `create_app(services)` builds the app from injected services, so tests and the demo wire exactly
 what they need. It mounts `/pair` (P1-09) and `/correction` (P1-10) when those services are set,
-plus `/plans`, `/cameras`, `/metrics/perception` and the static `/verify` page. Routers owned by
+plus `/plans`, `/cameras`, `/metrics/perception`, the Prometheus `/metrics` (WS5) and the static
+`/verify` page. Routers owned by
 tasks still in flight (`/ack`, `/interlock`, `/advice`, `/surprise`) are passed in through
 `AppServices.routers` as they land; `services_from_settings` passes the public `/worker` router
 (P2-11) that way.
@@ -37,6 +38,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from rulecam.api.plans import PlannerRunner, PlanRegistry, plans_router
+from rulecam.api.prometheus import (
+    HealthProbe,
+    MetricsSources,
+    VerdictCounter,
+    dependency_probes,
+    metrics_router,
+)
 from rulecam.api.ws import mirror_bus
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
@@ -101,6 +109,8 @@ class AppServices:
         activator: Activates approved plans in the runtime; approval answers 503 without one.
         viewer_origins: Browser origins (e.g. the public web UI) that may watch the read-only
             `/ws` mirror without being the owner. Nothing that changes state accepts them.
+        verdicts: Verdict counts for `GET /metrics`, fed from `verdict.new`.
+        health_probes: Dependencies (Glimmer, the SAM pod) whose health `GET /metrics` shows.
     """
 
     bus: Bus
@@ -121,6 +131,8 @@ class AppServices:
     planner: PlannerRunner | None = None
     activator: PlanActivator | None = None
     viewer_origins: frozenset[str] = frozenset()
+    verdicts: VerdictCounter = field(default_factory=VerdictCounter)
+    health_probes: Sequence[HealthProbe] = ()
 
 
 TICK_S = 1.0
@@ -310,9 +322,19 @@ def _runtime_router(services: AppServices) -> APIRouter:
     return router
 
 
+def _metrics_sources(services: AppServices) -> MetricsSources:
+    return MetricsSources(
+        runtime=lambda: services.runtime.metrics if services.runtime is not None else None,
+        perception=services.perception_metrics.report,
+        verdicts=services.verdicts,
+        probes=services.health_probes,
+    )
+
+
 def _routers(services: AppServices) -> list[APIRouter]:
     routers = [
         _core_router(services),
+        metrics_router(_metrics_sources(services)),
         _evidence_router(services),
         _runtime_router(services),
         plans_router(
@@ -336,7 +358,9 @@ def _lifespan(
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         services.bus.bind_loop(asyncio.get_running_loop())
-        tasks: list[asyncio.Task[None]] = []
+        tasks: list[asyncio.Task[None]] = [
+            asyncio.create_task(services.verdicts.consume(services.bus))
+        ]
         if services.chunks is not None:
             tasks.append(asyncio.create_task(_index_chunks(services.bus, services.chunks)))
         if services.runtime is not None:
@@ -587,6 +611,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         planner=planner,
         activator=activator,
         viewer_origins=viewer_origins(settings.public_ui_url),
+        health_probes=dependency_probes(settings.glimmer_base_url, settings.sam_base_url),
         routers=(
             build_worker_router(
                 settings, cache=cache, clock=clock, bus=bus, chain=chain, plans=plans

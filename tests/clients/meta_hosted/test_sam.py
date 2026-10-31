@@ -459,3 +459,43 @@ def test_same_chunk_concurrent_concepts_share_one_upload(tmp_path: Path) -> None
     for thread in threads:
         thread.join(5)
     assert started == ["c0.mp4"]
+
+
+def test_runtime_view_returns_boxes_without_decoding_and_shares_caches(chunk: Chunk) -> None:
+    decoded: list[object] = []
+
+    def counting_decoder(mask: object) -> np.ndarray:
+        decoded.append(mask)
+        return ones_decoder(mask)  # type: ignore[arg-type]
+
+    transport = ScriptedTransport(load_reply("video_masks"), load_reply("video_masks"))
+    client = HostedSam31(transport, clock=FakeClock(), mask_decoder=counting_decoder)
+    runtime = client.runtime_view()
+    stages: list[tuple[str, str, str]] = []
+    runtime.set_stage_sink(
+        lambda stage, camera, chunk_id, s: stages.append((stage, camera, chunk_id))
+    )
+
+    boxes = runtime.segment(chunk, "person")
+    full = client.segment(chunk, "person")
+
+    assert {d.mask.rle for d in boxes} == {NO_MASK}
+    assert [d.mask.box_xyxy for d in boxes] == [d.mask.box_xyxy for d in full]
+    assert len(decoded) == len(full)  # only the full client decoded
+    assert len(transport.uploads) == 1  # one upload shared by both
+    assert client.costs is runtime.costs
+    # Only the runtime view reports stages: its upload and its one request.
+    assert stages == [("upload", "cam1", "cam1_000000"), ("sam_request", "cam1", "cam1_000000")]
+
+
+def test_runtime_view_can_keep_masks_and_the_sink_can_be_removed(chunk: Chunk) -> None:
+    transport = ScriptedTransport(load_reply("video_masks"))
+    runtime = HostedSam31(transport, clock=FakeClock(), mask_decoder=ones_decoder).runtime_view(
+        masks=True
+    )
+    stages: list[str] = []
+    runtime.set_stage_sink(lambda stage, *_: stages.append(stage))
+    runtime.set_stage_sink(None)
+    detections = runtime.segment(chunk, "person")
+    assert NO_MASK not in {d.mask.rle for d in detections}
+    assert stages == []

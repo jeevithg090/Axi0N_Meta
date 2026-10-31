@@ -218,6 +218,26 @@ matter:
    identities off by box IoU instead of box re-prompts: a re-prompt needs the previous chunk's
    tracks, which would put one more SAM round trip per chunk back on the ordered path. That also
    removes the re-prompt requests from the bill.
+7. **Stage timings and the stall fix (P3-08).** Every segmented chunk is timed stage by stage
+   (`runtime/timings.py`): `queued`, `admit`, `sam_queue`, `upload`, `sam_request`, `sam` (per
+   concept), `segment`, `reorder_wait`, `stitch`, `rules`, `candidates`, `strip`, `chain`,
+   `verify_queue`, `verify`, `decide` and `end_to_end` (chunk ready to in-order stage done). Each
+   chunk's timeline is logged (`runtime_chunk_timing`, plus `runtime_verify_timing` per
+   candidate) and `/runtime/metrics` serves p50/p95 per stage in `stages`. Measured on `main`
+   after #92 (depth 4, hosted SAM): requests took 5 to 24 s but their replies were logged up to
+   two minutes later, five SAM threads shared one core, and segment p50 was 127 to 150 s. The
+   cause: `meta-sam-parser` decodes mask payloads in pure Python, about 1.5 us of CPU per mask
+   pixel under the GIL (2 to 6 s per 30-frame reply of a person or forklift on the pod; 8
+   threads decode no faster than 1). Every runtime thread, the HTTP reads of other requests and
+   the event loop queued behind it. The runtime only needs a foot point, so its hosted SAM view
+   returns boxes only and the foot point is the box's bottom centre
+   (`RULECAM_RUNTIME_SAM_MASKS=true` brings masks back; probes and calibration always keep
+   them). Also: Tier 1 verification now runs on its own pool after the candidate is chained, so
+   a 10 s verdict never holds up later chunks or other cameras (act-first actions still run in
+   order, before verification); admission, the SAM pass, the in-order stage and verification
+   each have their own bounded thread pool instead of asyncio's shared default executor; and at
+   most `RULECAM_SAM_MAX_CONCURRENCY` (default 8) runtime SAM calls are open at once across
+   cameras, the rest wait in `sam_queue`.
 
 **Safety trade-off.** A chunk that is not segmented is a coverage gap, never evidence of
 absence: a rule's window is cut to start after the gap, and the rule is judged on the cut window

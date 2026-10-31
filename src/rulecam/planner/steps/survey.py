@@ -1,9 +1,12 @@
 """The 'Survey' step: what can each camera see? (task P2-04, MP §3.2).
 
-For each camera, 8 frames are sampled (seeded) from the frames the caller passes in, which are
-the camera's last 60 s. Muse Spark 1.3 looks at a few of them and proposes up to 30 noun phrases.
-SAM 3.1 `segment_image` then runs every concept on every sampled frame, concepts in parallel,
-and the concepts it finds become `InventoryItem`s.
+For each camera, 8 frames are sampled (seeded, spread across the camera's chunks, see
+`sample_frames`) from the frames the caller passes in, which are the camera's last 60 s (a few
+frames per chunk). The survey's cost does not grow with the number of frames passed in: SAM
+runs on the 8 sampled frames per camera and Spark sees at most 4 frames in all. Muse Spark 1.3
+looks at a few of them and proposes up to 30 noun phrases. SAM 3.1 `segment_image` then runs
+every concept on every sampled frame, concepts in parallel, and the concepts it finds become
+`InventoryItem`s.
 
 SAM is reached only through an `ImageSegmenter` (in production `HostedSam31`, which sits on the
 replay cache). Text Spark reads in the frames is data: the system prompt says so, and the
@@ -12,7 +15,8 @@ proposals are only ever used as SAM concept prompts, capped in number and length
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import re
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Final, Protocol
@@ -35,6 +39,7 @@ MAX_SURVEY_CONCEPTS: Final = 30
 MAX_CONCEPT_CHARS: Final = 60
 MAX_SPARK_FRAMES: Final = 4
 MAX_PARALLEL_CONCEPTS: Final = 8
+_CHUNK_FRAME_STEM: Final = re.compile(r"^(?P<chunk>.+)-f\d+$")
 
 SURVEY_SYSTEM_PROMPT = (
     "You are Rulecam's camera survey analyst. Look at the attached camera frames and list up to "
@@ -66,13 +71,35 @@ class ProposedConcepts(BaseModel):
     concepts: list[str] = Field(default_factory=list, max_length=MAX_SURVEY_CONCEPTS)
 
 
-def sample_frames(frames: Sequence[Path], n_samples: int, *, seed: int) -> list[Path]:
-    """Pick `n_samples` frames at random, reproducibly for a given seed.
+def frame_group(frame: Path) -> str:
+    """The chunk a frame came from: `<digest>` for `ChunkFrames`' `<digest>-f<k>.jpg`.
+
+    Any other frame (an upload, a test frame) is its own group.
+    """
+    match = _CHUNK_FRAME_STEM.match(frame.stem)
+    return match["chunk"] if match else frame.stem
+
+
+def sample_frames(
+    frames: Sequence[Path],
+    n_samples: int,
+    *,
+    seed: int,
+    group: Callable[[Path], str] = frame_group,
+) -> list[Path]:
+    """Pick `n_samples` frames, spread across chunks, reproducibly for a given seed.
+
+    Frames are grouped by chunk (`group`). Each group's frames are shuffled and the groups are
+    visited round-robin in a shuffled order, one frame per group per round, so no chunk gives
+    more than `ceil(n_samples / n_groups)` frames while another still has frames left. Frames
+    of one chunk are under 3 s apart and strongly correlated; spreading the picks keeps the
+    sample as close to independent as the window allows.
 
     Args:
         frames: The camera's frames, oldest first.
         n_samples: How many to keep.
         seed: Seed for `numpy.random.default_rng`.
+        group: Maps a frame to its chunk.
 
     Returns:
         The chosen frames in their original order; all of them when there are not more than
@@ -81,8 +108,17 @@ def sample_frames(frames: Sequence[Path], n_samples: int, *, seed: int) -> list[
     if len(frames) <= n_samples:
         return list(frames)
     rng = np.random.default_rng(seed)
-    chosen = sorted(int(i) for i in rng.choice(len(frames), size=n_samples, replace=False))
-    return [frames[i] for i in chosen]
+    groups: dict[str, list[int]] = {}
+    for index, frame in enumerate(frames):
+        groups.setdefault(group(frame), []).append(index)
+    members = [[g[int(i)] for i in rng.permutation(len(g))] for g in groups.values()]
+    order = [members[int(i)] for i in rng.permutation(len(members))]
+    chosen: list[int] = []
+    for depth in range(max(len(g) for g in order)):
+        chosen.extend(g[depth] for g in order if depth < len(g))
+        if len(chosen) >= n_samples:
+            break
+    return [frames[i] for i in sorted(chosen[:n_samples])]
 
 
 def clean_concepts(raw: Sequence[str]) -> list[str]:

@@ -5,17 +5,58 @@
 
 const GENESIS = "0".repeat(64);
 const FIRST_SEQ = 1;
+// The fields of contracts.EventRecord, sorted; Python rejects any other shape.
+const RECORD_KEYS = "hash,kind,payload,prev_hash,seq,site,ts";
+const EVENT_KINDS = new Set([
+  "candidate", "verdict", "action", "ack", "dispute", "label", "plan", "rule_change",
+  "coverage", "advice", "measurement_plan", "sealed_cause", "surprise", "tamper_attempt",
+]);
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 
-/** Canonical JSON: sorted keys, no whitespace; numbers and strings as JSON.stringify writes them. */
+/**
+ * Canonical JSON: sorted keys, no whitespace; numbers and strings as JSON.stringify writes them.
+ * Throws, like Python's canonical_json, on lone surrogates (TextEncoder would silently replace
+ * them). Non-finite numbers and unsafe integers need no check: they never re-serialise to the
+ * text they were parsed from, so the canonical-form comparison already rejects them.
+ */
 export function canonical(value) {
   if (Array.isArray(value)) {
     return "[" + value.map(canonical).join(",") + "]";
   }
   if (value !== null && typeof value === "object") {
     const keys = Object.keys(value).sort();
-    return "{" + keys.map((k) => JSON.stringify(k) + ":" + canonical(value[k])).join(",") + "}";
+    return "{" + keys.map((k) => canonical(k) + ":" + canonical(value[k])).join(",") + "}";
+  }
+  if (typeof value === "string" && LONE_SURROGATE.test(value)) {
+    throw new RangeError("lone surrogate in a chain record");
   }
   return JSON.stringify(value);
+}
+
+function isRecord(data) {
+  return (
+    data !== null &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    Object.keys(data).sort().join(",") === RECORD_KEYS &&
+    Number.isSafeInteger(data.seq) &&
+    EVENT_KINDS.has(data.kind) &&
+    typeof data.ts === "string" &&
+    typeof data.site === "string" &&
+    data.payload !== null &&
+    typeof data.payload === "object" &&
+    !Array.isArray(data.payload) &&
+    typeof data.prev_hash === "string" &&
+    typeof data.hash === "string"
+  );
+}
+
+function isCanonical(data, raw) {
+  try {
+    return canonical(data) === raw;
+  } catch {
+    return false;
+  }
 }
 
 async function sha256Hex(text) {
@@ -46,10 +87,8 @@ async function checkLine(raw, expectedSeq, prevHash) {
   } catch {
     return { problem: "not a valid record", hash: "" };
   }
-  if (data === null || typeof data !== "object" || typeof data.hash !== "string") {
-    return { problem: "not a valid record", hash: "" };
-  }
-  if (canonical(data) !== raw) return { problem: "not in canonical form", hash: data.hash };
+  if (!isRecord(data)) return { problem: "not a valid record", hash: "" };
+  if (!isCanonical(data, raw)) return { problem: "not in canonical form", hash: data.hash };
   if (data.seq !== expectedSeq) return { problem: `seq ${data.seq} out of order`, hash: data.hash };
   if (data.prev_hash !== prevHash) {
     return { problem: "prev_hash does not link to the previous record", hash: data.hash };

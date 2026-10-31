@@ -53,7 +53,7 @@ Each status says exactly how far the model is wired today. **Live** means the de
 | Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute | Site laptop or GPU pod (llama-server) | Live as Tier 1 (P3-03), but the runtime passes it no frames yet, so it judges the predicate trace alone |
 | Muse Spark Open (open weights) | Tier 2 verifier, dispute review, plan audit, devil's advocate | Baseten | Live for plan audit and dispute review (P2-07, P2-11); Tier 2 in the runtime is library (P3-04) |
 | Muse Image | Rule CI scenes, lookalikes, boundary pairs | Hosted API | Library: Rule CI part 2 (P2-09, #71) is built but switched off in the app, which runs part 1 only |
-| Sapiens (FAIR) | Pose and skeletons | GPU | Planned |
+| Sapiens (FAIR) | Pose and skeletons | GPU | Planned; RTMPose (ONNX, CPU) pose features and estimator are library code (P4-04), unverified on real weights and not yet called by the runtime |
 | MMS-TTS (FAIR) | Spoken warnings | CPU | Library: pre-render with round-trip check (P1-11); the runtime's actions are not wired yet |
 | V-JEPA 2 (FAIR) | Surprise Lens world model | GPU | Planned (gated) |
 | Llama Prompt Guard 2 (86M) | Scene-text firewall | CPU (transformers, `ml` extra) | Library: firewall (P3-05); the runtime's verification policy is not wired yet |

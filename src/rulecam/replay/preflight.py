@@ -183,10 +183,19 @@ def check_spark_open(deps: PreflightDeps) -> CheckResult:
 
 
 def check_glimmer(deps: PreflightDeps) -> CheckResult:
-    """The local llama-server answers `GET /v1/models` with at least one model."""
-    url = f"{deps.settings.glimmer_base_url.rstrip('/')}/models"
+    """The llama-server answers `GET /v1/models` with at least one model.
+
+    A remote server started with `--api-key` also guards `/v1/models`, so send `GLIMMER_API_KEY`.
+    """
+    s = deps.settings
+    url = f"{s.glimmer_base_url.rstrip('/')}/models"
+    headers = (
+        {"Authorization": f"Bearer {s.glimmer_api_key.get_secret_value()}"}
+        if s.glimmer_api_key
+        else {}
+    )
     try:
-        data = deps.http.get(url).json()["data"]
+        data = deps.http.get(url, headers=headers).json()["data"]
         names = [str(item["id"]) for item in data]
     except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
         return CheckResult(name="Glimmer", ok=False, detail=f"not serving: {type(exc).__name__}")

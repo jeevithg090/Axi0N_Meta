@@ -149,6 +149,20 @@ def test_glimmer_paths(tmp_path: Path) -> None:
     assert not preflight.check_glimmer(down).ok
 
 
+def test_glimmer_sends_the_api_key_when_set(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.headers.get("authorization") != "Bearer g-key":
+            return httpx.Response(401, json={"error": {"message": "Invalid API Key"}})
+        return httpx.Response(200, json={"data": [{"id": "muse-glimmer-30b"}]})
+
+    keyed = make_settings(tmp_path, glimmer_api_key="g-key")
+    assert preflight.check_glimmer(make_deps(tmp_path, handler, settings=keyed)).ok
+    assert not preflight.check_glimmer(make_deps(tmp_path, handler)).ok
+
+
 @pytest.mark.parametrize(("code", "ok"), [(0, True), (1, False), (127, False), (124, False)])
 def test_modal(tmp_path: Path, code: int, ok: bool) -> None:
     assert preflight.check_modal(make_deps(tmp_path, run=lambda argv: code)).ok is ok

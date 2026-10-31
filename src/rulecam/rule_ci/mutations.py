@@ -2,8 +2,10 @@
 
 The operators are the task book's list: scale every threshold by x0.1 and by x10, flip `lt`/`gt`,
 drop a `not`, swap `all`/`any`, remove `persist`, switch a sequence's `semantics` between past and
-future, and widen each zone by 50% (a polygon about its centroid, a buffer's radius). An operator
-that has nothing to change in a rule makes no mutant. A mutant is killed when at least one
+future, and widen each zone by 50% (a polygon about its centroid, a buffer's radius). A rule that
+relates a person and a vehicle also gets `drop_operator_exclusion`: the same rule evaluated with
+the engine's operator exclusion off (WS1c), which the riding-operator trace must catch. An
+operator that has nothing to change in a rule makes no mutant. A mutant is killed when at least one
 boundary trace's outcome changes (`rule_ci.runner`).
 """
 
@@ -15,6 +17,7 @@ from typing import Any, Final
 
 from rulecam.contracts.rule_ir import RuleIR, ZoneSpec
 from rulecam.rule_ci.models import MutationCase
+from rulecam.rules.operators import has_operator_pair
 
 THRESHOLD_KEYS: Final = (
     "lt",
@@ -36,6 +39,7 @@ OPERATORS: Final = (
     "remove_persist",
     "switch_semantics",
     "widen_zone",
+    "drop_operator_exclusion",
 )
 
 Node = dict[str, Any]
@@ -180,6 +184,16 @@ def generate_mutations(rule: RuleIR) -> list[MutationCase]:
                 operator="widen_zone",
                 rule=RuleIR.model_validate(mutated.model_dump()),
                 description=f"zone {name!r} widened by 50%",
+            )
+        )
+    if has_operator_pair(rule):
+        mutants.append(
+            MutationCase(
+                name="drop_operator_exclusion",
+                operator="drop_operator_exclusion",
+                rule=rule,
+                description="operator exclusion off: the vehicle's rider counts as a pedestrian",
+                operator_exclusion=False,
             )
         )
     return mutants

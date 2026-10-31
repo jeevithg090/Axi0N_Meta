@@ -11,7 +11,6 @@ from pydantic import SecretStr
 from rulecam.bus import Bus
 from rulecam.clients.errors import ClientConfigError
 from rulecam.config import Settings
-from rulecam.contracts import PrivacyMode
 from rulecam.evidence.chain import EventChain
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.perception.router import Purpose
@@ -25,13 +24,13 @@ from rulecam.runtime.factory import (
     ChunkIndex,
     LockedTrackStore,
     NoActions,
-    NoStrips,
     VerifyOnlyPolicy,
     build_perception,
     build_runtime,
     hosted_sam,
     self_hosted_worker,
 )
+from rulecam.runtime.strips import EpisodeStrips
 from tests.fakes import EPOCH, FakeClock, make_chunk, make_track, make_verdict
 from tests.rules.helpers import CAL, make_rule
 from tests.verify.helpers import make_candidate
@@ -86,7 +85,7 @@ def test_locked_track_store_delegates(tmp_path: Path) -> None:
     assert [t.track_id for t in got] == [track.track_id]
 
 
-def test_placeholders_never_act_and_attach_no_pixels() -> None:
+def test_placeholders_never_act() -> None:
     rule = make_rule({"op": "inside", "object": "person", "zone": "z"})
     candidate = make_candidate().model_copy(update={"strip_paths": ("raw/frame.png",)})
     policy = VerifyOnlyPolicy()
@@ -95,8 +94,6 @@ def test_placeholders_never_act_and_attach_no_pixels() -> None:
     assert (decision.alert, decision.route) == (True, "human_queue")
     assert not policy.decide(candidate, rule, make_verdict(verdict="no_violation")).alert
     assert NoActions().run(candidate, rule, decision) == []
-    stripped = NoStrips().render(candidate, make_chunk(), PrivacyMode.STANDARD)
-    assert stripped.strip_paths == ()
 
 
 def test_hosted_sam_is_offline_without_keys(tmp_path: Path) -> None:
@@ -141,6 +138,7 @@ def test_build_perception_and_runtime(
     loop = build_runtime(cfg, perception, cache=cache, clock=clock, bus=bus, chain=chain)
     assert loop.plan is None
     assert loop.handle_chunk(make_chunk()) == []
+    assert isinstance(loop._strips, EpisodeStrips)  # the real renderer, not a placeholder
 
 
 MODAL = {"modal_token_id": SecretStr("a"), "modal_token_secret": SecretStr("b")}

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # Rule ids whose owner turned operator exclusion off (comma-separated; rules/operators.py):
     # for these, a person riding a forklift counts as a pedestrian next to it.
     rulecam_operator_exclusion_off: str = ""
+    # YuNet face-detector ONNX (opencv_zoo) for blurring faces in evidence strips; without it
+    # only the head regions of tracked people are blurred (runtime.strips).
+    rulecam_face_model: Path | None = None
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None

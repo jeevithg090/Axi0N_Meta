@@ -13,6 +13,7 @@ from rulecam.rules import OperatorExclusion
 from rulecam.rules.backtest import read_candidate_payload
 from rulecam.runtime.loop import ActionDone, ActivePlan, VerdictNew, chunk_end, plan_concepts
 from tests.fakes import FakeClock, FakeVerifier, InMemoryTrackStore, make_chunk, make_verdict
+from tests.rules.helpers import CAL
 from tests.runtime.fakes import (
     FailingTracker,
     FakeStrips,
@@ -148,6 +149,10 @@ def test_strip_gets_the_plans_privacy_mode(tmp_path: Path) -> None:
     loop.set_plan(sink_plan(privacy_mode=PrivacyMode.STRICT))
     loop.handle_chunk(make_chunk(index=0))
     assert strips.modes == [PrivacyMode.STRICT]
+    # The renderer gets what it draws: the rule's subjects, its zones and the calibration.
+    (context,) = strips.contexts
+    assert (context.rule.id, context.calibration) == ("in-sink", CAL)
+    assert "sink_zone" in context.zones
 
 
 def test_active_plan_defaults_to_strict_privacy() -> None:

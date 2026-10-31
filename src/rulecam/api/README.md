@@ -41,9 +41,10 @@ Tier 1 → chain `verdict` + `verdict.new` → policy (P3-05) → actions (P3-06
 
 `runtime/factory.py` builds the real loop (`RULECAM_RUNTIME=true`): hosted SAM through the replay
 cache, self-hosted SAM when Modal tokens are set, `Tracker`, a lock-guarded `ParquetTrackStore`
-shared with the correction loop, and the Glimmer Tier 1 verifier. Until P3-05, P3-06 and P4-05
-land it uses conservative placeholders: nothing acts first, no action runs, and no frames are
-attached to candidates.
+shared with the correction loop, the evidence-strip renderer (`runtime/strips.py`: keyframes over
+the episode with the rule's boxes, zones and distance ruler, in the plan's privacy mode; see
+`docs/deploy.md` "Evidence strips") and the Glimmer Tier 1 verifier. Until P3-05 and P3-06 land
+it uses conservative placeholders: nothing acts first and no action runs.
 
 **Backpressure:** a chunk arriving more than 6 s after it ended switches to keyframe mode (one
 chunk in 3) until the loop catches up. Skipped chunks are coverage gaps: a rule window that

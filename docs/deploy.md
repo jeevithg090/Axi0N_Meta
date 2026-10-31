@@ -10,7 +10,8 @@ browser ──► https://rulecam.vercel.app  (Next.js, ui/)
             https://<api-pod>-8000.proxy.runpod.net   (FastAPI, live mode)
               │  /ws  (read-only bus mirror; allowed for the PUBLIC_UI_URL origin only)
               ├─► Meta Model API (Spark, Voice, Image, SAM) via the replay cache
-              └─► https://<gpu-pod>-8080.proxy.runpod.net/v1  (llama-server + Muse Glimmer 30B)
+              ├─► https://<gpu-pod>-8080.proxy.runpod.net/v1  (llama-server + Muse Glimmer 30B)
+              └─► https://<sam-pod>-8090.proxy.runpod.net     (sam_server + SAM 3.1, runtime only)
 ```
 
 ## Vercel (UI)
@@ -150,11 +151,88 @@ keyframe fields.
   and `LLAMA_CACHE=/workspace/llama-cache`. Without the key the GPU is open to anyone with the URL.
   The API sends the same key as `GLIMMER_API_KEY`.
 
+## Self-hosted SAM 3.1
+
+Why: with hosted SAM on the continuous runtime, each call took **6 to 17 s** live and billed
+**at least 50 frames**, so the loop could not keep up with 3 s chunks (**lag 142 s**, keyframe
+mode). The router already intends self-hosted SAM 3.1 for the continuous runtime
+(`perception/router.py`); this runs it on our own GPU pod instead of Modal.
+
+What runs where:
+
+- GPU pod: `rulecam.perception.sam_server`, a stdlib HTTP server around `Sam31Engine`
+  (`facebook/sam3.1`, `sam3` at the commit pinned in `sam_worker.SAM3_COMMIT`). `GET /health` is
+  open; `POST /segment` needs `Authorization: Bearer <SAM_API_KEY>`. The body is
+  `{"request": <SamRequest JSON>, "video_b64": ...}` (32 MB limit, `SAM_MAX_BODY_BYTES`), the
+  answer the `SamResponse` JSON. One call runs on the GPU at a time; up to `SAM_MAX_WAITING` (2)
+  wait, the rest get 503 at once. The model loads once, before the port opens.
+- API pod: `HttpSamWorker` (`perception/sam_runtime.py`) posts each runtime chunk there (60 s
+  timeout, one retry on 503 or a dropped connection). Runtime perception is self-hosted when
+  `SAM_BASE_URL` and `SAM_API_KEY` are set; they win over the Modal tokens, and without either
+  runtime perception stays hosted. Planner probes, surveys and Rule CI always stay on hosted SAM.
+- Fallback: any self-hosted failure (pod down, wrong key, queue full, engine error, malformed
+  answer) sends runtime calls to hosted SAM for 60 s, then self-hosted is tried again. Each outage
+  logs `sam_fallback_to_hosted` (and `sam_self_hosted_recovered` when it is back) and counts in
+  `sam_fallbacks` at `GET /metrics/perception`; the calls it served show as `sam_calls_hosted`.
+  `perception_built` in the API log says `self_hosted_worker=http` when the pod is in use.
+
+**Gated checkpoint.** `facebook/sam3.1` is gated on Hugging Face: the account behind `HF_TOKEN`
+must have requested and been granted access on the model page first, or the download fails with
+401/403. The token is only needed once, to fill the cache on the volume; the server then runs
+with `HF_HUB_OFFLINE=1` and never sees it.
+
+GPU pod setup:
+
+1. Create the pod: a RunPod PyTorch CUDA image with SSH (e.g.
+   `runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04`; the venv brings its own
+   Python 3.12 and `torch==2.10.0` cu128 wheels, so the host driver must support CUDA 12.8),
+   RTX A6000 48 GB (an L4/A10G-class 24 GB GPU is enough), 40 GB volume at `/workspace` (venv
+   about 10 GB, checkpoint cache), ports **`8090/http, 22/tcp`**. Do not expose 8090 as a TCP
+   port: the server speaks plain HTTP and the RunPod HTTPS proxy is what keeps the key encrypted.
+2. Copy the code: `git archive origin/main | ssh … 'mkdir -p /workspace/rulecam && tar -x -C
+   /workspace/rulecam'`.
+3. Write the two secret files on the pod yourself (mode 600, never in argv, chat or git):
+   `/workspace/.hf_token` (the Hugging Face token) and `/workspace/.sam_api_key` (a fresh random
+   key, e.g. `umask 077; openssl rand -hex 32 > /workspace/.sam_api_key`).
+4. Run `/workspace/rulecam/scripts/sam_pod/setup.sh` once over SSH. It is idempotent: it creates
+   `/workspace/sam-venv` (uv, Python 3.12, torch cu128, `sam3` at the pinned commit, opencv,
+   numpy < 2, pydantic), checks that `sam3` imports and CUDA is visible, downloads
+   `config.json` and `sam3.1_multiplex.pt` into `/workspace/hf-cache`, then starts the server with
+   `setsid nohup` on port 8090 (log `/workspace/sam.log`) and waits for `/health`. Re-running it
+   skips every finished step; `setup.sh --restart` restarts the server after a code update.
+5. Auto-start: set the pod's `dockerStartCmd` (RunPod REST API, `PATCH /v1/pods/<id>`) to
+   `bash -c "(/workspace/rulecam/scripts/sam_pod/boot.sh &) ; exec /start.sh"`. `boot.sh` runs
+   `setup.sh` in the background (log `/workspace/sam-setup.log`) while `/start.sh` brings up SSH.
+6. Check: `curl https://<sam-pod>-8090.proxy.runpod.net/health` gives `{"status": "ok", …}`, and
+   `POST /segment` without the key gives 401.
+
+API pod: add `SAM_BASE_URL=https://<sam-pod>-8090.proxy.runpod.net` to `.env`, write the same key
+to `/workspace/rulecam/.sam_api_key` (mode 600) and have `start.sh` export it as `SAM_API_KEY` like
+the other key files, then restart the API. The key never goes in `.env`, `NEXT_PUBLIC_*`, argv or
+logs.
+
+**Security.** The server refuses to start without `SAM_API_KEY`, compares the Bearer key in
+constant time, and answers 401 before reading a body. Only `/health` is open, and it reveals the
+model version and whether the GPU is busy, nothing else. Keep it behind the RunPod HTTPS proxy;
+no shortcut that trusts every forwarder (the `--forwarded-allow-ips="*"` kind) and no open port
+without the key. Rotate the key by rewriting both 600 files and restarting both sides.
+
+**Cost.** An RTX A6000 pod is about $0.59/h (like the Glimmer pod) whether it serves one camera or
+several, plus about $2.80/month for a 40 GB volume. Hosted SAM bills `max(50, frames)` per request
+at $0.20 per 1,000 frames: the 1,000 to 2,000 billed frames/min of one HIGH rule on one active
+camera ("Runtime SAM cost" above) is $12 to $24 per camera-hour. `GET /metrics/perception` shows
+the self-hosted calls' GPU-seconds (priced at `DEFAULT_GPU_USD_PER_HOUR`) next to the
+hosted-equivalent cost. Stop the pod when nobody is viewing (`runpodctl pod stop <id>`); the venv
+and checkpoint stay on the volume, so the next boot only loads the model. The runtime falls back
+to hosted SAM while it is stopped, so stop it only together with the runtime, or the hosted bill
+returns.
+
 ## Checks
 
 - `curl https://rulecam.vercel.app/rulecam-api/mode` → `{"mode":"live","badge":"LIVE"}`.
 - `PUT /mode` through the public URL → 403 (also with a spoofed `X-Forwarded-For: 127.0.0.1`).
 - Glimmer chat without the key → 401.
+- SAM `POST /segment` without the key → 401; `GET /health` → `{"status": "ok", …}`.
 - On the API pod: `uv run python -m rulecam.replay.preflight` (with the key files exported).
 
 ## Costs and shutdown

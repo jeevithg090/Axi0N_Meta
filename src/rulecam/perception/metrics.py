@@ -6,7 +6,9 @@ Counters are kept per camera, never per person or per track (R13). P3's API serv
 Who records what:
 - `MotionGate.decide` records the camera time of every chunk and how many concepts it gated;
 - `ModalSam31` records each self-hosted call with its GPU-seconds;
-- the segmenter router records each runtime call served by hosted SAM 3.1.
+- the segmenter router records each runtime call served by hosted SAM 3.1;
+- the runtime factory records each self-hosted outage that sent runtime calls to hosted
+  (`sam_fallbacks`; the calls themselves then show up in `sam_calls_hosted`).
 
 Hosted-equivalent cost prices every call as hosted SAM 3.1 video: `max(50, frames)` billed frames
 at $0.20 per 1,000 frames. Actual cost prices self-hosted calls by GPU-seconds at
@@ -77,6 +79,7 @@ class CameraPerceptionMetrics(Frozen):
     hosted_equivalent_usd_per_camera_hour: float | None
     actual_usd_per_camera_hour: float | None
     gpu_seconds: float
+    sam_fallbacks: int = 0
 
 
 class PerceptionMetricsReport(Frozen):
@@ -98,6 +101,7 @@ class CameraCounters:
     actual_usd: float = 0.0
     concepts_considered: int = 0
     concepts_gated: int = 0
+    fallbacks: int = 0
 
     def add(self, other: CameraCounters) -> None:
         """Add another camera's counters into this one."""
@@ -109,6 +113,7 @@ class CameraCounters:
         self.actual_usd += other.actual_usd
         self.concepts_considered += other.concepts_considered
         self.concepts_gated += other.concepts_gated
+        self.fallbacks += other.fallbacks
 
 
 def summarize(camera_id: str, counters: CameraCounters) -> CameraPerceptionMetrics:
@@ -143,6 +148,7 @@ def summarize(camera_id: str, counters: CameraCounters) -> CameraPerceptionMetri
         hosted_equivalent_usd_per_camera_hour=per_hour(counters.hosted_equivalent_usd),
         actual_usd_per_camera_hour=per_hour(counters.actual_usd),
         gpu_seconds=counters.gpu_seconds,
+        sam_fallbacks=counters.fallbacks,
     )
 
 
@@ -204,6 +210,15 @@ class PerceptionMetrics:
                 counters.calls_self_hosted += 1
                 counters.gpu_seconds += gpu_seconds
                 counters.actual_usd += gpu_seconds * self._gpu_usd_per_second
+
+    def record_fallback(self, camera_id: str) -> None:
+        """Record that self-hosted SAM failed and runtime calls went to hosted SAM.
+
+        Args:
+            camera_id: The camera whose call hit the outage first.
+        """
+        with self._lock:
+            self._counters(camera_id).fallbacks += 1
 
     def report(self) -> PerceptionMetricsReport:
         """Return per-camera and total figures (the body of `GET /metrics/perception`).

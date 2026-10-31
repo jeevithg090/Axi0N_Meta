@@ -13,6 +13,7 @@ semantics (P1-02), so the router can swap one for the other:
 The GPU side lives in `sam_worker` (the Modal app `rulecam-sam`, with one warm container). Calls
 cross the Modal boundary as JSON dicts, the `model_dump(mode="json")` of `SamRequest` and
 `SamResponse`. A worker can therefore be the deployed Modal class (`ModalWorker`, the default),
+our own GPU pod behind `sam_server` (`HttpSamWorker`, selected by `SAM_BASE_URL`),
 `sam_worker.Sam31Engine` running in-process on a site GPU, or a fake in tests. Each request
 carries the chunk's SHA-256 so the replay cache (P3-02) can key it.
 
@@ -22,6 +23,7 @@ frames and GPU-seconds in `PerceptionMetrics`.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import time
 from collections.abc import Callable, Mapping
@@ -32,6 +34,9 @@ from typing import Any, Literal, Protocol, Self
 from pydantic import Field, ValidationError, model_validator
 
 from rulecam.bus import Bus, Topic
+from rulecam.clients.errors import ModelClientError
+from rulecam.clients.ratelimit import TokenBucket
+from rulecam.clients.transport import HttpxTransport, RetryPolicy, Sender, Transport
 from rulecam.config import Settings, get_settings
 from rulecam.contracts.core import BoxXYXY, Chunk, Detection, Frozen, Mask
 from rulecam.log import get_logger
@@ -42,6 +47,10 @@ from rulecam.perception.sam_worker import MODAL_APP_NAME, MODAL_CLASS_NAME
 MODEL_NAME = "sam3.1-self-hosted"
 RELAY_SEGMENT = "perception"
 MAX_PROMPTED_OBJECTS = 16
+HTTP_SEGMENT_PATH = "/segment"  # sam_server.SEGMENT_PATH (that module stays free of pydantic)
+HTTP_TIMEOUT_S = 60.0
+HTTP_RETRY = RetryPolicy(max_attempts=2, base_delay_s=0.25, max_delay_s=1.0)
+HTTP_RATE_PER_MINUTE = 1200.0  # far above what one GPU serves; the server's queue pushes back
 
 _log = get_logger(__name__)
 
@@ -309,6 +318,89 @@ class ModalWorker:
         return modal.Client.from_credentials(
             token_id.get_secret_value(), token_secret.get_secret_value()
         )
+
+
+class HttpSamWorker:
+    """`SamWorker` that calls `sam_server` on our own GPU pod (`SAM_BASE_URL`, `SAM_API_KEY`).
+
+    Sends `{"request": ..., "video_b64": ...}` to `POST /segment` with a Bearer key. A busy GPU
+    (503) or a dropped connection is retried once after a short backoff; every other failure
+    becomes a `SamRuntimeError`, so the router falls back to hosted SAM at once rather than add
+    lag: `SamRuntimeUnavailableError` when the server is unreachable or refuses the call (auth,
+    queue full, engine failure), `SamResponseError` when the answer is not a JSON object.
+    """
+
+    def __init__(
+        self,
+        transport: Transport,
+        *,
+        retry: RetryPolicy = HTTP_RETRY,
+        limiter: TokenBucket | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        """Wrap a transport whose base URL is the SAM server.
+
+        Args:
+            transport: Usually `HttpxTransport(SAM_BASE_URL, SAM_API_KEY)`; a fake in tests.
+            retry: Backoff for 429, 5xx and transport errors.
+            limiter: Client-side rate limit (defaults to `HTTP_RATE_PER_MINUTE`).
+            sleep: Blocking sleep between retries (injected in tests).
+        """
+        self._sender = Sender(
+            transport=transport,
+            limiter=limiter or TokenBucket(HTTP_RATE_PER_MINUTE),
+            policy=retry,
+            sleep=sleep,
+        )
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> Self:
+        """Build the worker from `sam_base_url` and `sam_api_key`.
+
+        Args:
+            settings: Application settings.
+
+        Returns:
+            The worker.
+
+        Raises:
+            SamRuntimeUnavailableError: If either setting is missing.
+        """
+        if not settings.sam_base_url or settings.sam_api_key is None:
+            msg = "SAM_BASE_URL and SAM_API_KEY must both be set for the self-hosted SAM server"
+            raise SamRuntimeUnavailableError(msg)
+        transport = HttpxTransport(
+            settings.sam_base_url, settings.sam_api_key.get_secret_value(), timeout_s=HTTP_TIMEOUT_S
+        )
+        return cls(transport)
+
+    def segment(self, video: bytes, request: dict[str, Any]) -> dict[str, Any]:
+        """Run one request on the GPU pod.
+
+        Args:
+            video: The chunk's MP4 bytes.
+            request: A `SamRequest` dict.
+
+        Returns:
+            The server's response dict (validated by `ModalSam31`).
+
+        Raises:
+            SamRuntimeUnavailableError: If the server is unreachable or answers with an error.
+            SamResponseError: If the answer is not a JSON object.
+        """
+        payload = {"request": request, "video_b64": base64.b64encode(video).decode("ascii")}
+        try:
+            result = self._sender.send(
+                {"method": "POST", "path": HTTP_SEGMENT_PATH, "json": payload}
+            )
+        except ModelClientError as exc:
+            msg = f"self-hosted SAM server call failed: {exc}"
+            raise SamRuntimeUnavailableError(msg) from exc
+        body = result.reply.body
+        if not isinstance(body, dict):
+            msg = "self-hosted SAM server answered without a JSON object"
+            raise SamResponseError(msg)
+        return body
 
 
 class ModalSam31:

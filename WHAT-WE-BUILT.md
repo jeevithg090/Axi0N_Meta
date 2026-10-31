@@ -40,4 +40,4 @@ adds a row here with its licence.
 | CI, Makefile, pre-commit, coverage floors | Engineering scaffold | #1 |
 | `.github/workflows/ci.yml` | GitHub Actions CI (check, guardrails, ml-cpu); replaced the GitLab CI bridge on Oct 31 | #1 |
 | `src/rulecam/capture/` + `rulecam capture` CLI | Webcam / RTSP / file → 3 s H.264 faststart chunks, published on the bus (P1-01) | #2 |
-| `src/rulecam/advisor/{metrics,dock_stats,measurement}.py`, `advisor/stats/`, `advisor/whatif/` | Site Advisor metric catalogue, bottleneck detection, queueing what-ifs (Little, Erlang C, Allen-Cunneen), switchback plan and sign-flip read-out (P4-08b) | TBD |
+| `src/rulecam/advisor/{metrics,dock_stats,measurement}.py`, `advisor/stats/`, `advisor/whatif/` | Site Advisor metric catalogue, bottleneck detection, queueing what-ifs (Little, Erlang C, Allen-Cunneen), switchback plan and sign-flip read-out (P4-08b) | #80 |

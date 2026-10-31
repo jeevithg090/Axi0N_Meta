@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections import deque
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -88,6 +89,14 @@ def test_malformed_json_retries_once_then_raises(tmp_path: Path) -> None:
     good = QueueTransport(chat_reply("not json"), chat_reply({"verdict": "ok", "p": 1.0}))
     assert ask(make_client(good, tmp_path)).p == 1.0
     assert len(good.requests) == 2
+    first, second = (r["json"] for r in good.requests)
+    assert isinstance(first, dict)
+    assert isinstance(second, dict)
+    assert first != second, "the retry must be a different request (and replay-cache key)"
+    hint = second["messages"][-1]
+    assert hint["role"] == "user"
+    assert "did not match the required JSON schema" in hint["content"]
+    assert second["messages"][:-1] == first["messages"]
     bad = QueueTransport(chat_reply("nope"), chat_reply({"verdict": 3}))
     with pytest.raises(ModelResponseError, match="twice"):
         ask(make_client(bad, tmp_path))
@@ -106,12 +115,29 @@ def test_reply_without_content_raises(tmp_path: Path) -> None:
 def test_http_error_is_raised_and_logged(tmp_path: Path) -> None:
     transport = QueueTransport({"status": 400, "json": {"error": "bad"}})
     client = make_client(transport, tmp_path)
+    bus = Bus()
+    seen: list[object] = []
+    bus.publish = lambda topic, payload: seen.append(payload)  # type: ignore[method-assign]
+    client._bus = bus
     with pytest.raises(ModelHTTPError):
         ask(client)
     line = json.loads(
         (tmp_path / "evidence/glimmer/inference-log.jsonl").read_text().splitlines()[0]
     )
     assert line["ok"] is False
+    assert seen == [ModelUsed(model="muse-glimmer-30b", segment="verify", latency_ms=250)]
+
+
+def test_relay_reports_http_attempts(tmp_path: Path) -> None:
+    bus = Bus()
+    seen: list[object] = []
+    bus.publish = lambda topic, payload: seen.append(payload)  # type: ignore[method-assign]
+    transport = QueueTransport({"status": 503, "json": None}, chat_reply({"verdict": "ok", "p": 0}))
+    client = make_client(transport, tmp_path, bus=bus)
+    client._sender = replace(client._sender, sleep=lambda _s: None)
+    ask(client)
+    assert [e.attempts for e in seen if isinstance(e, ModelUsed)] == [2]
+    assert len(seen) == 1
 
 
 def test_latency_relay_and_evidence_line(tmp_path: Path) -> None:
@@ -149,6 +175,23 @@ def test_from_settings_routes_through_replay_cache(tmp_path: Path) -> None:
     client = GlimmerClient.from_settings(settings, cache=cache, clock=FakeClock())
     with pytest.raises(ReplayMiss):
         ask(client)
+    assert not (tmp_path / "ev" / "glimmer" / "inference-log.jsonl").exists()
+
+
+def test_replayed_calls_are_not_evidence(tmp_path: Path) -> None:
+    settings = Settings(_env_file=None, evidence_dir=tmp_path / "ev")
+    cache = ReplayCache(tmp_path / "replay", "record", clock=FakeClock())
+    real = QueueTransport(chat_reply({"verdict": "ok", "p": 0.5}))
+    client = GlimmerClient.from_settings(settings, cache=cache, clock=FakeClock())
+    client._sender = replace(
+        client._sender, transport=cache.wrap_transport("glimmer", client.model, real)
+    )
+    log = tmp_path / "ev" / "glimmer" / "inference-log.jsonl"
+    ask(client)
+    assert len(log.read_text().splitlines()) == 1
+    cache.set_mode("replay")
+    assert ask(client).p == 0.5
+    assert len(log.read_text().splitlines()) == 1, "a replayed call is not an inference"
 
 
 def test_bus_topic_is_relay(tmp_path: Path) -> None:

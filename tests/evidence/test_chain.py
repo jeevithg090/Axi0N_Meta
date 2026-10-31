@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
 import tempfile
 import threading
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
+from typing import get_args
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from rulecam.contracts import Ack, EventRecord
 from rulecam.evidence import (
     GENESIS_HASH,
     ChainError,
@@ -22,6 +25,7 @@ from rulecam.evidence import (
     record_hash,
     verify_chain,
 )
+from rulecam.evidence.chain import EventKind
 from tests.fakes import FakeClock, make_verdict
 
 
@@ -219,3 +223,81 @@ def test_js_number_matches_javascript(value: float, text: str) -> None:
 @given(st.floats(allow_nan=False, allow_infinity=False))
 def test_js_number_round_trips(value: float) -> None:
     assert float(js_number(value)) == value
+
+
+def _process_writer(root: str, name: str) -> None:
+    chain = EventChain(Path(root), "site", clock=FakeClock())
+    for i in range(25):
+        chain.append("action", {"writer": name, "i": i})
+
+
+def test_two_writer_processes_keep_the_chain_valid(tmp_path: Path) -> None:
+    context = multiprocessing.get_context("spawn")
+    procs = [context.Process(target=_process_writer, args=(str(tmp_path), n)) for n in "ab"]
+    for proc in procs:
+        proc.start()
+    for proc in procs:
+        proc.join(timeout=60)
+    assert [proc.exitcode for proc in procs] == [0, 0]
+    report = verify_chain(EventChain(tmp_path, "site", clock=FakeClock()).path_for(EPOCH_DAY))
+    assert report.ok
+    assert report.n == 50
+
+
+EPOCH_DAY = FakeClock().now().date()
+PLUS_FIVE = timezone(timedelta(hours=5))
+
+
+def test_payload_datetimes_are_utc_iso(tmp_path: Path) -> None:
+    chain = EventChain(tmp_path, "s", clock=FakeClock())
+    ack = chain.append("ack", Ack(role="manager", ts=datetime(2026, 1, 1, 5, tzinfo=PLUS_FIVE)))
+    assert ack.payload["ts"] == "2026-01-01T00:00:00Z"
+    when = datetime(2026, 1, 1, 12, 0, 0, 250000, tzinfo=UTC)
+    label = chain.append("label", {"when": when, "nested": [{"at": when}]})
+    assert label.payload == {
+        "when": "2026-01-01T12:00:00.250000Z",
+        "nested": [{"at": "2026-01-01T12:00:00.250000Z"}],
+    }
+    assert verify_chain(chain.path_for(EPOCH_DAY)).ok
+
+
+def test_naive_datetimes_and_sets_are_rejected(tmp_path: Path) -> None:
+    chain = EventChain(tmp_path, "s", clock=FakeClock())
+    with pytest.raises(ValueError, match="timezone-aware"):
+        chain.append("label", {"when": datetime(2026, 1, 1)})
+    with pytest.raises(TypeError, match="sets"):
+        chain.append("label", {"tags": {"a", "b"}})
+    naive = EventChain(tmp_path, "n", clock=FakeClock(datetime(2026, 1, 1)))
+    with pytest.raises(ValueError, match="timezone-aware"):
+        naive.append("ack", {})
+
+
+def test_clock_in_another_zone_is_written_as_utc(tmp_path: Path) -> None:
+    clock = FakeClock(datetime(2026, 10, 31, 1, 30, tzinfo=PLUS_FIVE))
+    record = EventChain(tmp_path, "s", clock=clock).append("ack", {})
+    assert record.ts == datetime(2026, 10, 30, 20, 30, tzinfo=UTC)
+    line = (tmp_path / "s" / "2026-10-30.jsonl").read_text(encoding="utf-8")
+    assert '"ts":"2026-10-30T20:30:00Z"' in line
+
+
+def test_keys_sort_by_utf16_code_units_like_javascript() -> None:
+    # JS: Object.keys({"\uff61": 2, "\u{1F600}": 1}).sort() puts the emoji (\ud83d...) first.
+    assert (
+        canonical_json({"\uff61": 2, "\U0001f600": 1, "a": 0})
+        == '{"a":0,"\U0001f600":1,"\uff61":2}'
+    )
+
+
+def test_unsafe_integers_and_lone_surrogates_are_rejected(tmp_path: Path) -> None:
+    assert canonical_json(2**53 - 1) == "9007199254740991"
+    assert canonical_json(-(2**53 - 1)) == "-9007199254740991"
+    with pytest.raises(ValueError, match="safe range"):
+        canonical_json(2**53)
+    chain = EventChain(tmp_path, "s", clock=FakeClock())
+    with pytest.raises(ValueError, match="lone surrogates"):
+        chain.append("label", {"x": "\ud800"})
+    assert not chain.path_for(EPOCH_DAY).exists()
+
+
+def test_event_kinds_match_the_contract() -> None:
+    assert get_args(EventKind) == get_args(EventRecord.model_fields["kind"].annotation)

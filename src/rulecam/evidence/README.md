@@ -7,7 +7,7 @@ append-only JSONL chain, one file per site and UTC day (`<root>/<site>/<YYYY-MM-
 Editing, deleting or reordering any record breaks the chain at that record (MP §0, §7.4).
 
 Each line is an `EventRecord` (contracts §4.4) in canonical JSON: sorted keys, no whitespace,
-UTF-8, UTC timestamps (`…Z`), and numbers written exactly as JavaScript `JSON.stringify` writes them,
+UTF-8, keys sorted by UTF-16 code units, UTC timestamps (`…Z`), and numbers written exactly as JavaScript `JSON.stringify` writes them,
 so the browser verify page (P3-07b) recomputes the same hashes.
 
 ```
@@ -25,7 +25,10 @@ report = verify_chain(chain.path_for(day))  # ChainReport(ok, first_bad_seq, n, 
 ```
 
 Writers hold an exclusive `flock` on `<file>.lock` (POSIX), so concurrent appenders stay linked.
-Payloads must be JSON (no NaN or infinity); integers above 2**53 lose precision in the browser.
+Payloads must be JSON: no NaN or infinity, no sets, no lone surrogates, integers within
+JavaScript's safe range (|n| <= 2**53 - 1), and aware datetimes (written as UTC `…Z`, in
+payloads too). Keys sort by UTF-16 code units, as JavaScript's default `sort()` does, so the
+browser verify page must sort the same way.
 
 ## Tests
 

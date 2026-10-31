@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from pathlib import Path
 
 from rulecam.bus import Topic
+from rulecam.contracts import PrivacyMode
 from rulecam.evidence.chain import read_chain, verify_chain
-from rulecam.runtime.loop import ActionDone, VerdictNew, chunk_end, plan_concepts
+from rulecam.runtime.loop import ActionDone, ActivePlan, VerdictNew, chunk_end, plan_concepts
 from tests.fakes import FakeClock, FakeVerifier, make_chunk, make_verdict
-from tests.runtime.fakes import make_loop, sink_plan
+from tests.runtime.fakes import FailingTracker, FakeStrips, make_loop, sink_plan
 
 
 def at_end_of(clock: FakeClock, index: int) -> FakeClock:
@@ -137,3 +139,65 @@ def test_candidate_records_rederive_in_the_audit(tmp_path: Path) -> None:
     store = loop._store  # the same store the loop evaluated on
     report = audit_chain(chain.path_for(clock.now().date()), store)
     assert report.summary().endswith("1/1 decisions reproduced")
+
+
+def test_strip_gets_the_plans_privacy_mode(tmp_path: Path) -> None:
+    clock = at_end_of(FakeClock(), 0)
+    strips = FakeStrips()
+    loop, _, _, _ = make_loop(tmp_path, clock, strips=strips)
+    loop.set_plan(sink_plan(privacy_mode=PrivacyMode.STRICT))
+    loop.handle_chunk(make_chunk(index=0))
+    assert strips.modes == [PrivacyMode.STRICT]
+
+
+def test_active_plan_defaults_to_strict_privacy() -> None:
+    assert ActivePlan(rules=()).privacy_mode is PrivacyMode.STRICT
+
+
+def test_windows_over_a_skipped_chunk_are_blind_not_evaluated(tmp_path: Path) -> None:
+    clock = FakeClock()
+    loop, bus, _, _ = make_loop(tmp_path, clock, max_lag_s=6.0, keyframe_stride=3)
+    loop.set_plan(sink_plan())
+    clock.advance(60)
+    for i in range(3):  # processed, skipped, skipped
+        loop.handle_chunk(make_chunk(index=i))
+    assert loop.metrics.chunks_skipped == 2
+    before = bus.topics().count(Topic.CANDIDATE_NEW)  # chunk 0 ran before the gap
+    at_end_of(clock, 3)  # caught up, but chunks 1-2 are inside the 30 s window
+    assert loop.handle_chunk(make_chunk(index=3)) == []
+    assert loop.metrics.windows_blind >= 1
+    assert bus.topics().count(Topic.CANDIDATE_NEW) == before
+    at_end_of(clock, 13)  # the window no longer reaches the gap
+    assert len(loop.handle_chunk(make_chunk(index=13))) == 1
+
+
+def test_dedup_entries_older_than_the_window_are_forgotten(tmp_path: Path) -> None:
+    clock = at_end_of(FakeClock(), 0)
+    loop, _, _, _ = make_loop(tmp_path, clock)
+    loop.set_plan(sink_plan())
+    loop.handle_chunk(make_chunk(index=0))
+    assert len(loop._state.last_end) == 1
+    at_end_of(clock, 40)
+    loop.handle_chunk(make_chunk(index=40))  # a new episode far later: old key pruned first
+    assert all(end > chunk_end(make_chunk(index=30)) for end in loop._state.last_end.values())
+
+
+async def test_run_survives_a_failing_chunk(tmp_path: Path) -> None:
+    clock = at_end_of(FakeClock(), 1)
+    loop, bus, _, _ = make_loop(tmp_path, clock, tracker=FailingTracker())
+    bus.bind_loop(asyncio.get_running_loop())
+    loop.set_plan(sink_plan())
+    task = asyncio.create_task(loop.run())
+    await asyncio.sleep(0)
+    bus.publish(Topic.CHUNK_READY, make_chunk(index=0))
+    bus.publish(Topic.CHUNK_READY, "not a chunk")
+    bus.publish(Topic.CHUNK_READY, make_chunk(index=1))
+    for _ in range(200):
+        if loop.metrics.chunks_processed == 2:
+            break
+        await asyncio.sleep(0.01)
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+    assert loop.metrics.chunks_failed == 1
+    assert loop.metrics.chunks_processed == 2

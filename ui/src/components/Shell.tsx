@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { useAuth } from "@/lib/auth";
 import { useDemo, useStream } from "@/lib/stream";
 
 import { ModeBadge } from "./ModeBadge";
@@ -13,6 +14,27 @@ const LINKS = [
   { href: "/plans", label: "Plans" },
   { href: "/monitor", label: "Live monitor" },
 ];
+
+/** Owner state in the header: a login link for visitors, log out for a session. */
+export function OwnerControl() {
+  const auth = useAuth();
+  if (auth.phase === "owner" && auth.via === "session") {
+    return (
+      <button type="button" className="owner" onClick={() => void auth.logout()}>
+        Owner · Log out
+      </button>
+    );
+  }
+  if (auth.phase === "owner") return <span className="pill">Owner (this machine)</span>;
+  if (auth.phase === "visitor" || auth.phase === "offline") {
+    return (
+      <Link href="/login" className="owner">
+        Owner login
+      </Link>
+    );
+  }
+  return null;
+}
 
 /** Every screen sits in this shell: title, LIVE/REPLAY badge and the relay HUD strip (§5.7). */
 export function Shell({ children }: { children: ReactNode }) {
@@ -31,6 +53,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
+        <OwnerControl />
         <ModeBadge state={state} />
       </header>
       <RelayHud relay={state.relay} />

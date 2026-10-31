@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 from typing import Annotated
@@ -163,6 +164,40 @@ def audit(
         typer.echo("not reproduced: " + ", ".join(f"event {seq}" for seq in report.failed_seqs))
     if not report.ok:
         raise typer.Exit(code=AUDIT_FAILED)
+
+
+owner_app = typer.Typer(help="Owner login for the web UI (docs/deploy.md, Owner login).")
+app.add_typer(owner_app, name="owner")
+
+
+def _read_passphrase(prompt: Callable[[str], str]) -> str:
+    """Ask twice (never echoed) until the two match and the passphrase is acceptable."""
+    from rulecam.api.passphrase import passphrase_problem  # noqa: PLC0415
+
+    first = prompt("New owner passphrase: ")
+    problem = passphrase_problem(first)
+    if problem is not None:
+        typer.echo(f"not set: {problem}", err=True)
+        raise typer.Exit(code=USAGE_ERROR)
+    if prompt("Repeat it: ") != first:
+        typer.echo("not set: the two passphrases differ", err=True)
+        raise typer.Exit(code=USAGE_ERROR)
+    return first
+
+
+@owner_app.command("set-passphrase")
+def owner_set_passphrase() -> None:
+    """Prompt for a passphrase and print the OWNER_PASSPHRASE_HASH line for the API's .env.
+
+    The passphrase is read without echo and never printed, stored or logged; only its scrypt
+    hash is printed. Restart the API after adding the line.
+    """
+    import getpass  # noqa: PLC0415
+
+    from rulecam.api.passphrase import hash_passphrase  # noqa: PLC0415
+
+    line = hash_passphrase(_read_passphrase(getpass.getpass))
+    typer.echo(f"OWNER_PASSPHRASE_HASH={line}")
 
 
 @app.command()

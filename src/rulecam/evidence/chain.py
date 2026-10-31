@@ -333,7 +333,7 @@ class EventChain:
                 "prev_hash": prev_hash,
             }
             record = EventRecord.model_validate({**body, "hash": record_hash(prev_hash, body)})
-            with path.open("a", encoding="utf-8") as handle:
+            with path.open("a", encoding="utf-8", newline="\n") as handle:
                 handle.write(_record_line(record) + "\n")
                 handle.flush()
                 os.fsync(handle.fileno())
@@ -388,6 +388,8 @@ def _parse_line(raw: bytes) -> tuple[str, dict[str, object]] | None:
 
 def _check_line(raw: bytes, expected_seq: int, prev_hash: str) -> tuple[str | None, str]:
     """Return (problem or None, this record's hash) for one raw line."""
+    if raw.endswith(b"\r"):
+        raw = raw[:-1]
     parsed = _parse_line(raw)
     if parsed is None:
         return "not a valid record", ""

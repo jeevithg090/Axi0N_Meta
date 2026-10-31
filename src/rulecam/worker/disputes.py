@@ -38,6 +38,21 @@ DISPUTE_WINDOW_DAYS: Final = 14
 _CONTROL: Final = re.compile(r"[\x00-\x1f\x7f]+")
 
 
+class Transcriber(Protocol):
+    """Voice transcriber protocol (e.g. Meta Voice Transcribe)."""
+
+    def transcribe(
+        self,
+        audio: bytes,
+        *,
+        lang_bias: list[str] | None = None,
+        keywords: list[str] | None = None,
+        diarize: bool = False,
+    ) -> list[dict[str, str]]:
+        """Transcribe audio bytes to text segments."""
+        ...
+
+
 class DisputeReviewer(Protocol):
     """Tier 2 dispute re-review (`SparkOpenVerifier` or `VerificationPolicy`)."""
 
@@ -91,6 +106,31 @@ class DailyLimiter:
                 return False
             self._counts[key] = used + 1
             return True
+
+
+def transcribe_and_discard_audio(
+    audio: bytes | bytearray,
+    transcriber: Transcriber,
+    *,
+    lang_hint: str | None = None,
+) -> str:
+    """Transcribe voice audio and immediately discard the audio buffer.
+
+    Worker voice recordings are never stored to disk or kept in memory after transcription.
+    """
+    try:
+        segments = transcriber.transcribe(
+            bytes(audio),
+            lang_bias=[lang_hint] if lang_hint else None,
+        )
+    finally:
+        # Zero out if mutable, and drop reference immediately
+        if isinstance(audio, bytearray):
+            audio[:] = b"\x00" * len(audio)
+        del audio
+
+    words = " ".join(seg.get("text", "") for seg in segments).strip()
+    return " ".join(_CONTROL.sub(" ", words).split())
 
 
 def reason_text(request: DisputeRequest) -> str:
@@ -163,6 +203,58 @@ class DisputeService:
         )
         after = read_site_log(self._chain, self._clock.now().date(), DISPUTE_WINDOW_DAYS)
         return _result(request.event_code, event, reviewed, after)
+
+    def submit_voice(
+        self,
+        event_code: str,
+        audio: bytes,
+        client: str,
+        *,
+        transcriber: Transcriber,
+        lang_hint: str | None = None,
+    ) -> DisputeResult:
+        """Record, re-review and chain one voice dispute, discarding audio immediately.
+
+        Args:
+            event_code: The 8-character event code from the alert poster.
+            audio: Raw audio bytes (transcribed and immediately destroyed).
+            client: The client address for in-memory salted rate limiting.
+            transcriber: Voice transcriber service.
+            lang_hint: Optional language code bias (e.g. 'es').
+
+        Returns:
+            The outcome and updated counts.
+        """
+        if not self._limiter.allow(client):
+            msg = "too many disputes today; try again tomorrow"
+            raise DisputeLimitError(msg)
+        log = read_site_log(self._chain, self._clock.now().date(), DISPUTE_WINDOW_DAYS)
+        event = log.by_code(event_code)
+        if event is None:
+            msg = f"no recent event with code {event_code}"
+            raise UnknownEventError(msg)
+        if len(log.disputes_of(event.candidate.event_id)) >= PER_EVENT:
+            msg = "this event has already been disputed the maximum number of times"
+            raise DisputeLimitError(msg)
+
+        transcript = transcribe_and_discard_audio(audio, transcriber, lang_hint=lang_hint)
+        dispute_text = transcript if transcript else "voice dispute (unintelligible)"
+
+        dispute_id = f"dp-{secrets.token_hex(8)}"
+        dispute = Dispute(channel="voice", reason_text=dispute_text)
+        self._chain.append("dispute", dispute_payload(dispute_id, event, dispute))
+        reviewed = self._review(event, dispute)
+        self._chain.append("dispute", dispute_payload(dispute_id, event, reviewed))
+        if reviewed.outcome == "upheld":
+            self._chain.append("label", _label(event, dispute_id))
+        _log.info(
+            "worker_voice_dispute",
+            event_id=event.candidate.event_id,
+            camera_id=event.candidate.camera_id,
+            outcome=reviewed.outcome,
+        )
+        after = read_site_log(self._chain, self._clock.now().date(), DISPUTE_WINDOW_DAYS)
+        return _result(event_code, event, reviewed, after)
 
     def _review(self, event: LoggedEvent, dispute: Dispute) -> Dispute:
         """Tier 2 re-review; anything that stops it leaves the dispute pending for a person."""

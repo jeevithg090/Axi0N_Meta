@@ -30,7 +30,9 @@ sam.costs.snapshot()  # per-camera cost panel
 - Box prompts go on frame 0 (`forward`) or the last frame (`backward`).
 - Zero matches returns `[]`; detections are sorted by `(frame_idx, object_id)`.
 - Cost: `max(50, usage.video_frames_processed)` frames at $0.20/1,000; images $2.50/1,000.
-- `HostedSam31.from_settings` refuses `RULECAM_MODE=replay` (replay must come from the cache).
+- `HostedSam31.from_settings` wraps the transport in the replay cache (P3-02) in every mode:
+  `replay` needs no API key and a miss raises `ReplayMiss`; `record` stores only 2xx replies;
+  replay hits report the recorded `latency_ms` on `relay.model_used`.
 - Verified against the live API on Oct 30 2026 (issue #5). The real replies are in
   `tests/fixtures/replay/sam/live/`.
 - Masks: payloads are decoded by `meta_hosted/sam_masks.py`, the default `MaskDecoder`. It wraps

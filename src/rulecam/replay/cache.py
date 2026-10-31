@@ -8,6 +8,11 @@ and stable. Three modes, chosen by `RULECAM_MODE`:
 - `record`: call the model and store the reply;
 - `replay`: serve from the cache only; a miss raises `ReplayMiss` and never touches the network.
 
+`wrap_transport` stores only 2xx replies: a 429 or 5xx is passed back to the client (which
+retries it) and never recorded, so a replay can never serve a failure or drain the rate limiter.
+On a replay hit it adds the recorded latency as the `x-rulecam-recorded-latency-ms` reply header,
+so `relay.model_used` keeps showing real latencies in REPLAY mode.
+
 Entries are one JSON file per key under `<replay_dir>/<provider>/`, written atomically (a
 temporary file in the same directory, then `os.replace`), so concurrent writers never leave a
 half-written entry. Every mode change publishes `mode.changed`, which drives the LIVE/REPLAY
@@ -21,7 +26,8 @@ import json
 import os
 import tempfile
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
@@ -29,7 +35,7 @@ from typing import Literal
 from pydantic import Field, ValidationError
 
 from rulecam.bus import Bus, Topic
-from rulecam.clients.transport import Transport
+from rulecam.clients.transport import RECORDED_LATENCY_HEADER, Transport, parse_reply
 from rulecam.config import Settings
 from rulecam.contracts import Clock, Frozen
 from rulecam.log import get_logger
@@ -40,8 +46,10 @@ _log = get_logger(__name__)
 Mode = Literal["live", "record", "replay"]
 Badge = Literal["LIVE", "REPLAY"]
 ModelCall = Callable[[], Mapping[str, object]]
+StorePredicate = Callable[[Mapping[str, object]], bool]
 
 _KEY_SEPARATOR = "|"
+_BAD_PROVIDER_NAMES = frozenset({"", ".", ".."})
 
 
 class ModeChanged(Frozen):
@@ -102,10 +110,24 @@ def canonical_json(value: object) -> str:
 
     Raises:
         TypeError: If `value` contains something JSON cannot represent.
+        ValueError: If `value` contains NaN or infinity.
     """
     return json.dumps(
-        _canonical_value(value), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        _canonical_value(value),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
     )
+
+
+def _check_names(provider: str, model: str) -> None:
+    if provider in _BAD_PROVIDER_NAMES or any(c in provider for c in "|/\\"):
+        msg = f"invalid provider {provider!r}: it is a directory name and part of the key"
+        raise ValueError(msg)
+    if not model or _KEY_SEPARATOR in model:
+        msg = f"invalid model {model!r}: it must be non-empty and contain no '|'"
+        raise ValueError(msg)
 
 
 def cache_key(provider: str, model: str, request: Mapping[str, object]) -> str:
@@ -118,12 +140,23 @@ def cache_key(provider: str, model: str, request: Mapping[str, object]) -> str:
 
     Returns:
         The 64-character hex key.
+
+    Raises:
+        ValueError: If `provider` is empty, `.`/`..`, or contains `|` or a path separator; if
+            `model` is empty or contains `|`; or if the request holds NaN or infinity.
     """
+    _check_names(provider, model)
     material = _KEY_SEPARATOR.join((provider, model, canonical_json(request)))
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
-def _atomic_write(path: Path, text: str) -> None:
+def atomic_write_text(path: Path, text: str) -> None:
+    """Write `text` to `path` atomically (a temporary file in the same directory, then replace).
+
+    Args:
+        path: The destination; its directory is created if missing.
+        text: The UTF-8 text to write.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
     try:
@@ -251,11 +284,17 @@ class ReplayCache:
             latency_ms=latency_ms,
             response=dict(response),
         )
-        _atomic_write(self.entry_path(provider, key), entry.model_dump_json(indent=2))
+        atomic_write_text(self.entry_path(provider, key), entry.model_dump_json(indent=2))
         return entry
 
     def call(
-        self, provider: str, model: str, request: Mapping[str, object], call: ModelCall
+        self,
+        provider: str,
+        model: str,
+        request: Mapping[str, object],
+        call: ModelCall,
+        *,
+        storable: StorePredicate | None = None,
     ) -> CacheEntry:
         """Serve one model call according to the mode.
 
@@ -264,6 +303,7 @@ class ReplayCache:
             model: The model ID.
             request: The request mapping (it is the cache key; it is not sent by this method).
             call: Performs the real call; never invoked in replay mode.
+            storable: In record mode, only replies it accepts are stored (default: all).
 
         Returns:
             The entry: recorded (replay), freshly stored (record) or unstored (live).
@@ -276,7 +316,7 @@ class ReplayCache:
         started = time.perf_counter()
         response = call()
         latency_ms = round((time.perf_counter() - started) * 1000)
-        if self._mode == "record":
+        if self._mode == "record" and (storable is None or storable(response)):
             return self.store(provider, model, request, response, latency_ms)
         return CacheEntry(
             key=cache_key(provider, model, request),
@@ -296,13 +336,37 @@ class ReplayCache:
             transport: The real transport, called only in live and record modes.
 
         Returns:
-            A transport with the same request and reply shapes.
+            A transport with the same request and reply shapes. Only 2xx replies are recorded;
+            replay hits carry the recorded latency in the `x-rulecam-recorded-latency-ms` header.
+
+        Raises:
+            ValueError: If `provider` or `model` is not a valid name (see `cache_key`).
         """
+        _check_names(provider, model)
 
         def cached_transport(request: Mapping[str, object]) -> Mapping[str, object]:
-            return self.call(provider, model, request, lambda: transport(request)).response
+            if self._mode == "replay":
+                return _with_recorded_latency(self.lookup(provider, model, request))
+            entry = self.call(
+                provider, model, request, lambda: transport(request), storable=_is_success_reply
+            )
+            return entry.response
 
         return cached_transport
+
+
+def _is_success_reply(reply: Mapping[str, object]) -> bool:
+    """Whether a transport reply is a 2xx (the only kind worth recording)."""
+    return parse_reply(reply).ok
+
+
+def _with_recorded_latency(entry: CacheEntry) -> dict[str, object]:
+    reply = dict(entry.response)
+    headers = reply.get("headers")
+    merged = dict(headers) if isinstance(headers, Mapping) else {}
+    merged[RECORDED_LATENCY_HEADER] = str(entry.latency_ms)
+    reply["headers"] = merged
+    return reply
 
 
 _default_cache: ReplayCache | None = None
@@ -316,6 +380,24 @@ def configure(cache: ReplayCache | None) -> None:
     """
     global _default_cache  # noqa: PLW0603 - one process-wide cache, set at start-up
     _default_cache = cache
+
+
+@contextmanager
+def using(cache: ReplayCache) -> Iterator[ReplayCache]:
+    """Make `cache` the process-wide cache for a block, restoring the previous one after.
+
+    Args:
+        cache: The cache `cached_call` should use inside the block.
+
+    Yields:
+        The same cache.
+    """
+    global _default_cache  # noqa: PLW0603 - see `configure`
+    previous, _default_cache = _default_cache, cache
+    try:
+        yield cache
+    finally:
+        _default_cache = previous
 
 
 def get_cache() -> ReplayCache:

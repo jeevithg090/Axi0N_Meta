@@ -11,7 +11,7 @@ Everyone who appears in raw footage (teammates and friends only) signs this befo
 > I agree to be filmed for the Rulecam hackathon project (Meta Global AI Developer Hackathon, Oct 26 – Nov 4 2026).
 >
 > 1. **What is recorded:** video of me performing staged actions on a prop set (kitchen, yard, corridor or warehouse tabletop). No audio is used for identification, and ambient speech is never transcribed.
-> 2. **What it is used for:** testing and evaluating the system, and excerpts in the project video and README. Raw footage may be processed on rented GPUs (standard privacy mode).
+> 2. **What it is used for:** testing and evaluating the system, and excerpts in the project video and README. In standard privacy mode, raw footage may be processed on rented GPUs and by Meta's hosted model API (SAM 3.1, Muse Spark).
 > 3. **What it is not used for:** identifying me, measuring my personal performance, or any purpose outside this project.
 > 4. **Anonymous renders:** footage may be shown as a skeleton on a blank background instead of my face and body.
 > 5. **Withdrawal:** I can ask for my clips to be removed from the repo, the eval set and the video until the submission deadline (Nov 4 2026, 12:00 ET). After that, clips already published cannot be recalled.

@@ -47,3 +47,31 @@ answer = glimmer.structured(model=glimmer.model, messages=msgs, schema=MySchema)
 ```bash
 uv run pytest tests/verify tests/clients/open_weights
 ```
+
+## Tier 2: Muse Spark Open on Baseten (P3-04)
+
+```python
+from rulecam.clients.open_weights.spark_open import SparkOpenClient
+from rulecam.verify.tier2 import SparkOpenVerifier
+
+spark = SparkOpenVerifier(
+    SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+)
+spark.verify(candidate, rule, tier1)  # reasoning verbatim in VerifierVerdict.reasoning
+spark.review_dispute(candidate, rule, dispute)  # upheld | rejected (pending on failure)
+spark.audit_plan(plan)  # list[AuditFinding] with reasoning_ref
+spark.devil_advocate({"metric": ..., "leading": ...})  # list[str], tested by the caller
+```
+
+- `.env`: `BASETEN_API_KEY`, `BASETEN_BASE_URL` (default `https://inference.baseten.co/v1`),
+  `BASETEN_SPARK_OPEN_MODEL` (confirm the `-1026` ID), and `SPARK_OPEN_IMAGES_SUPPORTED`. Leave
+  that one `false` until a day-one call confirms images work; the text-only path then sends
+  Glimmer's description of the strip, labelled as Glimmer's. With no Glimmer verdict to pass,
+  a text-only `verify` returns `unsure` without calling Spark Open.
+- `reasoning_content` is stored in `data/reasoning/<so_id>.txt`. The id is content-addressed
+  (`so_` + the first 16 hex of its SHA-256), so replayed runs give identical ids. Each call appends a line with the
+  Baseten response id to `evidence/spark_open/inference-log.jsonl`.
+- A timeout or error gives `unsure` (verify, with the elapsed latency) or `pending` (dispute),
+  never a silent pass. Audit and
+  devil's-advocate failures raise, so callers can show them as "not audited".
+- Live check: `make live-test` runs `tests/verify/test_tier2_live.py`.

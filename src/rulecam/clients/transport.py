@@ -209,7 +209,7 @@ class Sender:
 
 
 class HttpxTransport:
-    """The real transport: bearer-authenticated HTTPS calls with `httpx`."""
+    """The real transport: authenticated HTTPS calls with `httpx` (`Bearer` by default)."""
 
     def __init__(
         self,
@@ -218,6 +218,7 @@ class HttpxTransport:
         *,
         timeout_s: float = 120.0,
         client: httpx.Client | None = None,
+        auth_scheme: str = "Bearer",
     ) -> None:
         """Create the transport.
 
@@ -226,9 +227,10 @@ class HttpxTransport:
             api_key: Bearer token. Never logged.
             timeout_s: Per-request timeout in seconds.
             client: Optional preconfigured client (tests pass one with `httpx.MockTransport`).
+            auth_scheme: The `Authorization` scheme, e.g. `Api-Key` for Baseten.
         """
         self._base_url = base_url.rstrip("/")
-        self._headers = {"Authorization": f"Bearer {api_key}"}
+        self._headers = {"Authorization": f"{auth_scheme} {api_key}"}
         self._client = client or httpx.Client(timeout=timeout_s)
 
     def __call__(self, request: Mapping[str, object]) -> Mapping[str, object]:

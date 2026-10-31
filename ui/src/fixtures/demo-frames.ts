@@ -78,5 +78,14 @@ export const demoFrames: Frame[] = [
       },
     },
   },
-  { topic: "coverage.changed", payload: { camera_id: "cam1", state: "BLIND" } },
+  {
+    topic: "coverage.changed",
+    payload: {
+      camera_id: "cam1",
+      state: "blind",
+      reason: "blocked",
+      moved: false,
+      ts: "2026-11-01T18:00:30Z",
+    },
+  },
 ];

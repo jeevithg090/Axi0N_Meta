@@ -9,7 +9,7 @@ describe("WorkerTransparencyPage", () => {
   it("renders transparency notice, never list, and language switcher", async () => {
     render(
       <WorkerTransparencyPage
-        params={Promise.resolve({ site: "dock-site", camera: "cam1" })}
+        params={{ site: "dock-site", camera: "cam1" }}
       />
     );
 
@@ -51,7 +51,7 @@ describe("WorkerTransparencyPage", () => {
 
     render(
       <WorkerTransparencyPage
-        params={Promise.resolve({ site: "dock-site", camera: "cam1" })}
+        params={{ site: "dock-site", camera: "cam1" }}
       />
     );
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface WorkerRule {
   rule_id: string;
@@ -34,11 +34,34 @@ interface WorkerPageData {
 
 export default function WorkerTransparencyPage({
   params,
+  initialSite,
+  initialCamera,
 }: {
-  params: Promise<{ site: string; camera: string }>;
+  params?: Promise<{ site: string; camera: string }> | { site: string; camera: string };
+  initialSite?: string;
+  initialCamera?: string;
 }) {
-  const resolvedParams = use(params);
-  const { site, camera } = resolvedParams;
+  const [routeParams, setRouteParams] = useState<{ site: string; camera: string }>(() => {
+    if (initialSite && initialCamera) {
+      return { site: initialSite, camera: initialCamera };
+    }
+    if (params && !("then" in params)) {
+      return params;
+    }
+    return { site: "dock-site", camera: "cam1" };
+  });
+
+  useEffect(() => {
+    if (params && "then" in params && typeof params.then === "function") {
+      params.then((p) => {
+        if (p?.site && p?.camera) {
+          setRouteParams(p);
+        }
+      });
+    }
+  }, [params]);
+
+  const { site, camera } = routeParams;
 
   const [lang, setLang] = useState<"en" | "es">("en");
   const [data, setData] = useState<WorkerPageData | null>(null);

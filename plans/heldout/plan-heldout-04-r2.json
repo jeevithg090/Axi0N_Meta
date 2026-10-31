@@ -1,0 +1,139 @@
+{
+  "plan_id": "plan-heldout-04-r2",
+  "version": 1,
+  "site_name": "Site Commercial Kitchen",
+  "setting_inferred": "commercial_kitchen",
+  "languages": [
+    "en"
+  ],
+  "request": [
+    {
+      "kind": "text",
+      "file": null,
+      "lang": null,
+      "text": "Ensure staff wear protective cut-resistant gloves when operating the commercial meat slicer.",
+      "extracted": []
+    }
+  ],
+  "inventory": [],
+  "feasibility": [
+    {
+      "concern": "Ensure staff wear protective cut-resistant gloves when operating the commercial meat slicer.",
+      "verdict": "observable",
+      "says": "Observable on primary station camera.",
+      "evidence": [],
+      "alternative": null,
+      "reason": null
+    }
+  ],
+  "rules": [
+    {
+      "id": "rule-heldout-04",
+      "version": 1,
+      "source": {
+        "kind": "plan",
+        "text": null,
+        "lang": null,
+        "plan_id": "plan-heldout-04-r2",
+        "standard": [
+          "FDA Food Code §2-301.12"
+        ]
+      },
+      "concepts": {
+        "worker": {
+          "prompt": "person",
+          "static": false
+        },
+        "safety_equipment": {
+          "prompt": "safety equipment",
+          "static": false
+        }
+      },
+      "zones": {
+        "active_zone": {
+          "kind": "polygon",
+          "camera_id": "cam1",
+          "polygon_px": [
+            [
+              0.0,
+              0.0
+            ],
+            [
+              400.0,
+              0.0
+            ],
+            [
+              400.0,
+              300.0
+            ],
+            [
+              0.0,
+              300.0
+            ]
+          ],
+          "buffer_of": null,
+          "buffer_m": null
+        }
+      },
+      "calibration": null,
+      "predicate": {
+        "op": "inside",
+        "object": "worker",
+        "zone": "active_zone"
+      },
+      "severity": "high",
+      "actions": [
+        {
+          "kind": "log",
+          "role": null,
+          "lang": null,
+          "after_s": null
+        },
+        {
+          "kind": "notify",
+          "role": "shift_lead",
+          "lang": null,
+          "after_s": null
+        }
+      ],
+      "verify": {
+        "tier1": "glimmer",
+        "tier2": "spark-open-on-dispute",
+        "min_confidence": 0.7,
+        "calibrated_alpha": null
+      },
+      "accept": [
+        "zone_in_view",
+        "detect_lb>=0.8",
+        "ci_green"
+      ],
+      "backtestable": "yes",
+      "schedule": null
+    }
+  ],
+  "privacy_mode": "standard",
+  "retention_days": 30,
+  "protected_two_key": [],
+  "roles": {},
+  "acceptance": {
+    "checks": [
+      {
+        "item": "rule-heldout-04",
+        "check": "linter_clean",
+        "passed": true,
+        "detail": "no linter errors"
+      },
+      {
+        "item": "rule-heldout-04",
+        "check": "camera_resolved",
+        "passed": true,
+        "detail": "cam1 assigned"
+      }
+    ],
+    "rounds": 0
+  },
+  "audit": [],
+  "back_translation": "",
+  "standards": [],
+  "cost_usd_per_cam_hour": null
+}

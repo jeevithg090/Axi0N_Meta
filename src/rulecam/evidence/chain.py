@@ -3,8 +3,10 @@
 One JSONL file per site and UTC day: `<root>/<site>/<YYYY-MM-DD>.jsonl`. Each line is one
 `EventRecord`, serialised canonically:
 
-- keys sorted, no whitespace, UTF-8 (not ASCII-escaped);
-- timestamps as UTC ISO strings;
+- keys sorted by UTF-16 code units (JavaScript's default sort order), no whitespace, UTF-8 (not
+  ASCII-escaped);
+- timestamps, in the envelope and in payloads, as UTC ISO strings ending in `Z`;
+- integers within JavaScript's safe range (|n| <= 2**53 - 1), so the browser reads them exactly;
 - numbers formatted exactly as JavaScript's `JSON.stringify` does, so the browser verify page
   (P3-07b) can recompute every hash with Web Crypto.
 
@@ -24,11 +26,12 @@ import math
 import os
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from datetime import UTC, date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Literal, get_args
 
 from pydantic import BaseModel, ValidationError
+from pydantic_core import to_jsonable_python
 
 from rulecam.contracts import Clock, EventRecord, Frozen
 from rulecam.evidence.errors import ChainError
@@ -57,6 +60,7 @@ EventKind = Literal[
 EVENT_KINDS: frozenset[str] = frozenset(get_args(EventKind))
 _JS_FIXED_MAX_EXP = 21
 _JS_FIXED_MIN_EXP = -6
+JS_MAX_SAFE_INTEGER = 2**53 - 1
 
 
 class ChainReport(Frozen):
@@ -123,18 +127,35 @@ def _canonical(value: object) -> str:
     if value is None or isinstance(value, bool):
         return json.dumps(value)
     if isinstance(value, int):
+        if abs(value) > JS_MAX_SAFE_INTEGER:
+            msg = f"integer {value} is outside JavaScript's safe range (|n| <= 2**53 - 1)"
+            raise ValueError(msg)
         return str(value)
     if isinstance(value, float):
         return js_number(value)
     if isinstance(value, str):
-        return json.dumps(value, ensure_ascii=False)
+        return _js_string(value)
     if isinstance(value, Mapping):
-        items = sorted((str(k), v) for k, v in value.items())
+        items = sorted(((str(k), v) for k, v in value.items()), key=_js_key_order)
         return "{" + ",".join(f"{_canonical(k)}:{_canonical(v)}" for k, v in items) + "}"
     if isinstance(value, list | tuple):
         return "[" + ",".join(_canonical(v) for v in value) + "]"
     msg = f"cannot put {type(value).__name__} in a chain record"
     raise TypeError(msg)
+
+
+def _js_string(value: str) -> str:
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        msg = "strings in chain records must be valid Unicode (no lone surrogates)"
+        raise ValueError(msg) from exc
+    return json.dumps(value, ensure_ascii=False)
+
+
+def _js_key_order(item: tuple[str, object]) -> bytes:
+    """Sort key matching JavaScript's default string sort (UTF-16 code units)."""
+    return item[0].encode("utf-16-be", "surrogatepass")
 
 
 def canonical_json(value: object) -> str:
@@ -148,7 +169,8 @@ def canonical_json(value: object) -> str:
 
     Raises:
         TypeError: For values JSON cannot represent.
-        ValueError: For NaN or infinity.
+        ValueError: For NaN or infinity, integers outside JavaScript's safe range, or strings
+            with lone surrogates.
     """
     return _canonical(value)
 
@@ -167,10 +189,47 @@ def record_hash(prev_hash: str, body: Mapping[str, object]) -> str:
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
+def utc_iso(moment: datetime) -> str:
+    """Return an aware datetime as a UTC ISO string ending in `Z`.
+
+    Args:
+        moment: A timezone-aware datetime.
+
+    Returns:
+        For example `2026-10-30T12:00:00.123456Z`.
+
+    Raises:
+        ValueError: If `moment` is naive (its zone would be guessed from the host).
+    """
+    if moment.tzinfo is None or moment.utcoffset() is None:
+        msg = "chain timestamps must be timezone-aware"
+        raise ValueError(msg)
+    return moment.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _jsonable(value: object) -> object:
+    if isinstance(value, BaseModel):
+        return _jsonable(value.model_dump(mode="python"))
+    if isinstance(value, datetime):
+        return utc_iso(value)
+    if isinstance(value, Mapping):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, list | tuple):
+        return [_jsonable(v) for v in value]
+    if isinstance(value, set | frozenset):
+        msg = "sets have no stable order; pass a sorted list or tuple"
+        raise TypeError(msg)
+    if value is None or isinstance(value, bool | int | float | str):
+        return value
+    return to_jsonable_python(value)
+
+
 def _plain(payload: Mapping[str, object] | BaseModel) -> dict[str, object]:
-    if isinstance(payload, BaseModel):
-        return payload.model_dump(mode="json")
-    return json.loads(json.dumps(payload, default=str))  # type: ignore[no-any-return]
+    plain = _jsonable(payload)
+    if not isinstance(plain, dict):  # pragma: no cover - a model or mapping always dumps to a dict
+        msg = "payload must serialise to a JSON object"
+        raise TypeError(msg)
+    return plain
 
 
 def _record_line(record: EventRecord) -> str:
@@ -240,13 +299,17 @@ class EventChain:
             The record as written, with its `seq`, `prev_hash` and `hash`.
 
         Raises:
-            ValueError: If `kind` is unknown or the payload holds NaN or infinity.
+            TypeError: If the payload holds a set or another value JSON cannot represent.
+            ValueError: If `kind` is unknown, the clock returns a naive datetime, or the payload
+                holds NaN, infinity, an unsafe integer, a naive datetime or a lone surrogate.
             ChainError: If the existing last line cannot be read as a record.
         """
         if kind not in EVENT_KINDS:
             msg = f"unknown event kind {kind!r}"
             raise ValueError(msg)
-        ts = self._clock.now().astimezone(UTC)
+        now = self._clock.now()
+        stamp = utc_iso(now)
+        ts = now.astimezone(UTC)
         path = self.path_for(ts.date())
         path.parent.mkdir(parents=True, exist_ok=True)
         with _locked(path):
@@ -254,7 +317,7 @@ class EventChain:
             body: dict[str, object] = {
                 "seq": seq,
                 "kind": kind,
-                "ts": ts.isoformat().replace("+00:00", "Z"),
+                "ts": stamp,
                 "site": self._site,
                 "payload": _plain(payload),
                 "prev_hash": prev_hash,

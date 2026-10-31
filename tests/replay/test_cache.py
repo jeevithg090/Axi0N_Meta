@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 import pytest
@@ -13,18 +13,21 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from rulecam.bus import Bus, Topic
+from rulecam.clients.transport import RECORDED_LATENCY_HEADER
 from rulecam.config import Settings
 from rulecam.replay import cache as cache_module
 from rulecam.replay.cache import (
     CacheEntry,
     ModeChanged,
     ReplayCache,
+    atomic_write_text,
     badge_for,
     cache_key,
     cached_call,
     canonical_json,
     configure,
     get_cache,
+    using,
 )
 from rulecam.replay.errors import ReplayCorruptError, ReplayMiss
 from tests.fakes import FakeClock
@@ -175,7 +178,9 @@ def test_wrap_transport_goes_through_cache(tmp_path: Path) -> None:
     wrapped = cache.wrap_transport("meta", "sam-3.1", transport)
     assert wrapped(REQUEST) == REPLY
     cache.set_mode("replay")
-    assert wrapped(REQUEST) == REPLY
+    replayed = wrapped(REQUEST)
+    assert replayed["json"] == REPLY["json"]
+    assert replayed["headers"] == {RECORDED_LATENCY_HEADER: "0"}
     assert len(seen) == 1
 
 
@@ -213,3 +218,101 @@ def test_get_cache_builds_from_settings(monkeypatch: pytest.MonkeyPatch, tmp_pat
 def test_entry_round_trips(tmp_path: Path) -> None:
     entry = make_cache(tmp_path, "record").store("meta", "m", REQUEST, REPLY, latency_ms=12)
     assert CacheEntry.model_validate_json(entry.model_dump_json()) == entry
+
+
+def scripted(
+    *replies: Mapping[str, object],
+) -> Callable[[Mapping[str, object]], Mapping[str, object]]:
+    queue = list(replies)
+
+    def transport(request: Mapping[str, object]) -> Mapping[str, object]:
+        return queue.pop(0)
+
+    return transport
+
+
+RATE_LIMITED: dict[str, object] = {
+    "status": 429,
+    "headers": {"x-ratelimit-remaining-requests": "0"},
+    "json": {"error": "slow down"},
+}
+
+
+def test_wrap_transport_never_records_failures(tmp_path: Path) -> None:
+    cache = make_cache(tmp_path, "record")
+    wrapped = cache.wrap_transport("meta", "sam-3.1", scripted(RATE_LIMITED, {"status": 503}))
+    assert wrapped(REQUEST)["status"] == 429
+    assert wrapped(REQUEST)["status"] == 503
+    assert not list(tmp_path.rglob("*.json"))
+    cache.set_mode("replay")
+    with pytest.raises(ReplayMiss):
+        wrapped(REQUEST)
+
+
+def test_wrap_transport_keeps_the_success_after_a_retry(tmp_path: Path) -> None:
+    cache = make_cache(tmp_path, "record")
+    wrapped = cache.wrap_transport("meta", "sam-3.1", scripted(RATE_LIMITED, REPLY))
+    wrapped(REQUEST)
+    wrapped(REQUEST)
+    (entry,) = tmp_path.rglob("*.json")
+    assert json.loads(entry.read_text())["response"]["status"] == 200
+    cache.set_mode("replay")
+    replayed = wrapped(REQUEST)
+    assert replayed["status"] == 200
+    assert "x-ratelimit-remaining-requests" not in replayed["headers"]  # type: ignore[operator]
+
+
+def test_wrap_transport_live_stores_nothing(tmp_path: Path) -> None:
+    wrapped = make_cache(tmp_path, "live").wrap_transport("meta", "sam-3.1", scripted(REPLY))
+    assert wrapped(REQUEST) == REPLY
+    assert not list(tmp_path.rglob("*.json"))
+
+
+@pytest.mark.parametrize(
+    ("provider", "model"),
+    [
+        ("", "m"),
+        (".", "m"),
+        ("..", "m"),
+        ("a|b", "m"),
+        ("a/b", "m"),
+        ("a\\b", "m"),
+        ("p", ""),
+        ("p", "a|b"),
+    ],
+)
+def test_ambiguous_or_unsafe_names_are_rejected(tmp_path: Path, provider: str, model: str) -> None:
+    with pytest.raises(ValueError, match="invalid"):
+        cache_key(provider, model, {})
+    with pytest.raises(ValueError, match="invalid"):
+        make_cache(tmp_path, "record").wrap_transport(provider, model, scripted())
+
+
+def test_model_ids_may_contain_slashes() -> None:
+    assert len(cache_key("baseten", "meta-models/muse-spark-open-1026", {})) == 64
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_nan_and_infinity_are_rejected(value: float) -> None:
+    with pytest.raises(ValueError, match="JSON compliant"):
+        canonical_json({"x": value})
+
+
+def test_using_restores_the_previous_cache(tmp_path: Path) -> None:
+    outer = make_cache(tmp_path / "outer", "replay")
+    inner = make_cache(tmp_path / "inner", "live")
+    configure(outer)
+    try:
+        with using(inner):
+            assert get_cache() is inner
+        assert get_cache() is outer
+    finally:
+        configure(None)
+
+
+def test_atomic_write_text_replaces_whole_file(tmp_path: Path) -> None:
+    path = tmp_path / "sub" / "f.json"
+    atomic_write_text(path, "one")
+    atomic_write_text(path, "two")
+    assert path.read_text() == "two"
+    assert [p.name for p in path.parent.iterdir()] == ["f.json"]

@@ -36,6 +36,7 @@ HTTP_SERVER_ERROR_MIN = 500
 HTTP_SERVER_ERROR_MAX = 599
 REMAINING_REQUESTS_HEADER = "x-ratelimit-remaining-requests"
 RETRY_AFTER_HEADER = "retry-after"
+RECORDED_LATENCY_HEADER = "x-rulecam-recorded-latency-ms"  # set by the replay cache on a hit
 
 
 class ModelTransportError(ModelClientError):

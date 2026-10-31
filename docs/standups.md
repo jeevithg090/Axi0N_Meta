@@ -86,6 +86,7 @@
 
 - [x] All P2 Must-tier tasks (P2-01 through P2-12) merged into `main`.
 - [x] All P2 Should-tier tasks (P2-S1, P2-S2, P2-S3) merged into `main`.
+- [x] Boundary-pair Muse Image edits with `previous_response_id` (P2 Stretch, PR #71) merged into `main`.
 - [x] E3 held-out evaluation runner and published plans in `plans/heldout/`.
 - [x] Physical set and prop specifications in `docs/sets.md` (S-01).
 - [x] Social launch and outreach pack in `docs/social.md` (S-08).

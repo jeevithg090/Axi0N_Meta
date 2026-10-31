@@ -136,3 +136,21 @@ async def test_bus_publish_from_worker_thread_is_delivered() -> None:
     message = await asyncio.wait_for(pending, timeout=2)
     await stream.aclose()
     assert message.payload == "x"
+
+
+def test_verify_page_and_day_root(services: AppServices, tmp_path: Path) -> None:
+    from rulecam.evidence.merkle import write_day_roots  # noqa: PLC0415
+
+    EventChain(services.chain_root, "site", clock=FakeClock()).append("plan", {})
+    services.roots_dir = tmp_path / "roots"
+    with TestClient(create_app(services)) as client:
+        page = client.get("/verify/")
+        assert page.status_code == 200
+        assert "Rulecam evidence check" in page.text
+        assert client.get("/verify/chain.js").status_code == 200
+        before = client.get("/evidence/2026-10-30/root").json()
+        assert before["n"] == 1
+        assert before["committed_root"] is None
+        write_day_roots(services.chain_root, services.roots_dir, FakeClock().now().date())
+        after = client.get("/evidence/2026-10-30/root").json()
+        assert after["committed_root"] == after["root"]

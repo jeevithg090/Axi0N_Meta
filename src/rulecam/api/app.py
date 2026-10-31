@@ -21,6 +21,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, HTTPException, WebSocket
 from fastapi.responses import PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from rulecam.api.ws import mirror_bus
@@ -28,6 +29,7 @@ from rulecam.bus import Bus
 from rulecam.clock import SystemClock
 from rulecam.config import Settings, get_settings
 from rulecam.evidence.chain import ChainReport, verify_chain
+from rulecam.evidence.merkle import chain_root, read_day_roots
 from rulecam.log import get_logger
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop
@@ -53,7 +55,19 @@ class AppServices:
     chain_root: Path
     site: str
     runtime: RuntimeLoop | None = None
+    roots_dir: Path = Path("evidence/roots")
     routers: Sequence[APIRouter] = field(default_factory=tuple)
+
+
+VERIFY_PAGE_DIR = Path(__file__).resolve().parent.parent / "evidence" / "verify_page"
+
+
+class DayRoot(BaseModel):
+    """Body of `GET /evidence/{day}/root`: the current and the committed Merkle root."""
+
+    root: str
+    n: int
+    committed_root: str | None
 
 
 class ModeRequest(BaseModel):
@@ -125,6 +139,15 @@ def _evidence_router(services: AppServices) -> APIRouter:
     def verify(day: date) -> ChainReport:
         return verify_chain(_chain_file(services, day))
 
+    @router.get("/{day}/root")
+    def root(day: date) -> DayRoot:
+        current, n = chain_root(_chain_file(services, day))
+        committed = None
+        roots_file = services.roots_dir / f"{day.isoformat()}.txt"
+        if roots_file.is_file():
+            committed = read_day_roots(roots_file).get(services.site, (None, 0))[0]
+        return DayRoot(root=current, n=n, committed_root=committed)
+
     return router
 
 
@@ -180,6 +203,7 @@ def create_app(services: AppServices) -> FastAPI:
         *services.routers,
     ):
         app.include_router(router)
+    app.mount("/verify", StaticFiles(directory=VERIFY_PAGE_DIR, html=True), name="verify")
     return app
 
 

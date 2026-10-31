@@ -44,7 +44,8 @@ from rulecam.contracts import (
 )
 from rulecam.evidence.chain import EventChain
 from rulecam.log import get_logger
-from rulecam.rules.engine import evaluate, relevant_concepts
+from rulecam.rules.backtest import DecisionContext, candidate_payload
+from rulecam.rules.engine import relevant_concepts
 from rulecam.verify.decision import Decision
 
 _log = get_logger(__name__)
@@ -255,29 +256,25 @@ class RuntimeLoop:
             return []
         self._state.processed += 1
         self._tracker.process_chunk(chunk, plan_concepts(plan))
-        new = [c for rule in plan.rules for c in self._evaluate(rule, plan, chunk)]
-        for candidate in new:
-            self._handle_candidate(candidate, self._rule(plan, candidate.rule_id), chunk)
-        return new
+        found = [pair for rule in plan.rules for pair in self._evaluate(rule, plan, chunk)]
+        for candidate, context in found:
+            self._handle_candidate(candidate, context, chunk)
+        return [candidate for candidate, _ in found]
 
-    @staticmethod
-    def _rule(plan: ActivePlan, rule_id: str) -> RuleIR:
-        return next(r for r in plan.rules if r.id == rule_id)
-
-    def _evaluate(self, rule: RuleIR, plan: ActivePlan, chunk: Chunk) -> list[CandidateEvent]:
+    def _evaluate(
+        self, rule: RuleIR, plan: ActivePlan, chunk: Chunk
+    ) -> list[tuple[CandidateEvent, DecisionContext]]:
         t1 = chunk_end(chunk)
-        t0 = t1 - self._window
-        tracks = self._store.window(chunk.camera_id, t0, t1)
-        candidates = evaluate(
-            rule,
-            tracks,
+        context = DecisionContext(
+            rule=rule,
             calibration=plan.calibration,
             zones=plan.zones,
-            t0=t0,
+            t0=t1 - self._window,
             t1=t1,
             plan_version_hash=plan.plan_version_hash,
         )
-        return [c for c in candidates if self._is_new(c)]
+        tracks = self._store.window(chunk.camera_id, context.t0, t1)
+        return [(c, context) for c in context.evaluate(tracks) if self._is_new(c)]
 
     def _is_new(self, candidate: CandidateEvent) -> bool:
         """Drop episodes already reported by an earlier, overlapping window."""
@@ -289,9 +286,13 @@ class RuntimeLoop:
         self._state.last_end[key] = candidate.ts_end
         return True
 
-    def _handle_candidate(self, candidate: CandidateEvent, rule: RuleIR, chunk: Chunk) -> None:
+    def _handle_candidate(
+        self, candidate: CandidateEvent, context: DecisionContext, chunk: Chunk
+    ) -> None:
+        rule = context.rule
         self._state.candidates += 1
-        self._chain.append("candidate", candidate)
+        # The context lets `rulecam audit` re-derive this decision from the track store (E9).
+        self._chain.append("candidate", candidate_payload(candidate, context))
         self._bus.publish(Topic.CANDIDATE_NEW, candidate)
         candidate = self._strips.render(candidate, chunk)
         act_first = self._policy.act_first(candidate, rule)

@@ -1,0 +1,105 @@
+// Browser (and Node 20+) re-implementation of rulecam.evidence.chain and .merkle.
+// It recomputes every hash with Web Crypto, so anyone can check a chain without trusting our
+// server. It must match Python byte for byte; tests/evidence/test_verify_page.py and
+// chain.test.js check that against the same fixture.
+
+const GENESIS = "0".repeat(64);
+const FIRST_SEQ = 1;
+
+/** Canonical JSON: sorted keys, no whitespace; numbers and strings as JSON.stringify writes them. */
+export function canonical(value) {
+  if (Array.isArray(value)) {
+    return "[" + value.map(canonical).join(",") + "]";
+  }
+  if (value !== null && typeof value === "object") {
+    const keys = Object.keys(value).sort();
+    return "{" + keys.map((k) => JSON.stringify(k) + ":" + canonical(value[k])).join(",") + "}";
+  }
+  return JSON.stringify(value);
+}
+
+async function sha256Hex(text) {
+  const bytes = new TextEncoder().encode(text);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** hash = sha256(prev_hash + canonical(record without "hash")). */
+export async function recordHash(prevHash, body) {
+  return sha256Hex(prevHash + canonical(body));
+}
+
+function watchedFraction(records) {
+  for (let i = records.length - 1; i >= 0; i -= 1) {
+    const value = records[i].payload && records[i].payload.watched_fraction;
+    if (records[i].kind === "coverage" && typeof value === "number") {
+      return value;
+    }
+  }
+  return null;
+}
+
+async function checkLine(raw, expectedSeq, prevHash) {
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return { problem: "not a valid record", hash: "" };
+  }
+  if (data === null || typeof data !== "object" || typeof data.hash !== "string") {
+    return { problem: "not a valid record", hash: "" };
+  }
+  if (canonical(data) !== raw) return { problem: "not in canonical form", hash: data.hash };
+  if (data.seq !== expectedSeq) return { problem: `seq ${data.seq} out of order`, hash: data.hash };
+  if (data.prev_hash !== prevHash) {
+    return { problem: "prev_hash does not link to the previous record", hash: data.hash };
+  }
+  const { hash, ...body } = data;
+  if ((await recordHash(prevHash, body)) !== hash) {
+    return { problem: "hash does not match contents", hash };
+  }
+  return { problem: null, hash, record: data };
+}
+
+/** Verify a chain file's text. Mirrors verify_chain() in Python. */
+export async function verifyChainText(text) {
+  const lines = text.split("\n");
+  const endsWithNewline = lines[lines.length - 1] === "";
+  if (endsWithNewline) lines.pop();
+  const records = [];
+  let prev = GENESIS;
+  for (let i = 0; i < lines.length; i += 1) {
+    const seq = FIRST_SEQ + i;
+    const result = await checkLine(lines[i], seq, prev);
+    let problem = result.problem;
+    if (problem === null && i === lines.length - 1 && !endsWithNewline) {
+      problem = "file does not end with a newline";
+    }
+    if (problem !== null) {
+      return { ok: false, firstBadSeq: seq, n: i + 1, reason: problem, watched: null, hashes: [] };
+    }
+    records.push(result.record);
+    prev = result.hash;
+  }
+  return {
+    ok: true,
+    firstBadSeq: null,
+    n: lines.length,
+    reason: "",
+    watched: watchedFraction(records),
+    hashes: records.map((r) => r.hash),
+  };
+}
+
+/** Merkle root over hex leaves; mirrors rulecam.evidence.merkle.merkle_root. */
+export async function merkleRoot(leaves) {
+  let level = [...leaves];
+  if (level.length === 0) return sha256Hex("");
+  while (level.length > 1) {
+    if (level.length % 2) level.push(level[level.length - 1]);
+    const next = [];
+    for (let i = 0; i < level.length; i += 2) next.push(await sha256Hex(level[i] + level[i + 1]));
+    level = next;
+  }
+  return level[0];
+}

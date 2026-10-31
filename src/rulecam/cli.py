@@ -89,6 +89,55 @@ def golden_verify(
         raise typer.Exit(code=1)
 
 
+evidence_app = typer.Typer(help="Evidence chain: daily Merkle roots.")
+app.add_typer(evidence_app, name="evidence")
+
+
+def _chain_dir() -> Path:
+    return get_settings().rulecam_data_dir / "evidence" / "chain"
+
+
+@evidence_app.command("root")
+def evidence_root(
+    day: Annotated[str, typer.Argument(help="UTC day, YYYY-MM-DD")],
+    *,
+    roots_dir: Annotated[Path, typer.Option(help="Committed roots folder")] = Path(
+        "evidence/roots"
+    ),
+    chain_dir: Annotated[Path | None, typer.Option(help="Chain folder (default data/…)")] = None,
+) -> None:
+    """Write evidence/roots/<day>.txt (one `<site> <root> <n>` line per site); commit it."""
+    from datetime import date  # noqa: PLC0415
+
+    from rulecam.evidence.merkle import write_day_roots  # noqa: PLC0415
+
+    path = write_day_roots(chain_dir or _chain_dir(), roots_dir, date.fromisoformat(day))
+    typer.echo(path.read_text(encoding="utf-8").rstrip())
+    typer.echo(f"wrote {path}; commit it in today's evidence PR")
+
+
+@app.command()
+def audit(
+    day: Annotated[str, typer.Argument(help="UTC day, YYYY-MM-DD")],
+    site: Annotated[str, typer.Argument(help="Site name")],
+    *,
+    store_dir: Annotated[
+        Path | None, typer.Option(help="Track store (default data/tracks)")
+    ] = None,
+    chain_dir: Annotated[Path | None, typer.Option(help="Chain folder (default data/…)")] = None,
+) -> None:
+    """Verify a day's chain and re-derive every decision from the track store (E9)."""
+    from rulecam.evidence.audit import audit_chain  # noqa: PLC0415
+    from rulecam.rules.store import ParquetTrackStore  # noqa: PLC0415
+
+    path = (chain_dir or _chain_dir()) / site / f"{day}.jsonl"
+    store = ParquetTrackStore(store_dir or get_settings().rulecam_data_dir / "tracks")
+    report = audit_chain(path, store)
+    typer.echo(report.summary())
+    if not report.ok:
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def openapi(
     out: Annotated[Path, typer.Argument(help="Where to write the OpenAPI JSON")],

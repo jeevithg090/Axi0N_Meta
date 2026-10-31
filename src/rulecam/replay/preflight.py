@@ -39,6 +39,10 @@ TONE_RATE = 16_000
 REQUIRED_ENV = ("META_API_KEY", "META_API_BASE_URL", "BASETEN_API_KEY", "HF_TOKEN")
 CREDITS_REMINDER = "check credits and usage alerts on dev.meta.ai"
 
+SUBPROCESS_TIMEOUT_S = 60
+EXIT_NOT_FOUND = 127
+EXIT_TIMED_OUT = 124  # what coreutils `timeout` returns
+
 Runner = Callable[[Sequence[str]], int]
 
 
@@ -64,15 +68,23 @@ def _run_subprocess(argv: Sequence[str]) -> int:
     """Run a fixed argument list (never a shell) and return its exit code."""
     executable = shutil.which(argv[0])
     if executable is None:
-        return 127
-    completed = subprocess.run(  # noqa: S603 - fixed argv from this module, no shell
-        [executable, *argv[1:]], check=False, capture_output=True, timeout=60
-    )
+        return EXIT_NOT_FOUND
+    try:
+        completed = subprocess.run(  # noqa: S603 - fixed argv from this module, no shell
+            [executable, *argv[1:]], check=False, capture_output=True, timeout=SUBPROCESS_TIMEOUT_S
+        )
+    except subprocess.TimeoutExpired:
+        return EXIT_TIMED_OUT
     return completed.returncode
 
 
 def _probe_kasa(host: str) -> bool:
-    from kasa import Discover  # noqa: PLC0415 - optional hardware dependency
+    """Return whether a Kasa device answers at `host`.
+
+    Raises:
+        OSError: On a network failure (python-kasa's own errors are re-raised as this).
+    """
+    from kasa import Discover, KasaException  # noqa: PLC0415 - optional hardware dependency
 
     async def probe() -> bool:
         device = await Discover.discover_single(host, discovery_timeout=5)
@@ -82,7 +94,11 @@ def _probe_kasa(host: str) -> bool:
         await device.disconnect()
         return True
 
-    return asyncio.run(probe())
+    try:
+        return asyncio.run(probe())
+    except KasaException as exc:
+        msg = f"Kasa device at {host}: {type(exc).__name__}"
+        raise OSError(msg) from exc
 
 
 def _newest_mtime(directory: Path) -> float | None:
@@ -182,8 +198,10 @@ def check_glimmer(deps: PreflightDeps) -> CheckResult:
 def check_modal(deps: PreflightDeps) -> CheckResult:
     """The Modal CLI is logged in and lists the deployed apps."""
     code = deps.run(["modal", "app", "list"])
-    if code == 127:  # noqa: PLR2004 - "command not found"
+    if code == EXIT_NOT_FOUND:
         return CheckResult(name="Modal", ok=False, detail="modal CLI not installed")
+    if code == EXIT_TIMED_OUT:
+        return CheckResult(name="Modal", ok=False, detail="modal app list timed out")
     detail = "apps listed; warm the SAM worker before the take" if code == 0 else f"exit {code}"
     return CheckResult(name="Modal", ok=code == 0, detail=detail)
 

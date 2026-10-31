@@ -75,6 +75,68 @@ Update the API: `git archive origin/main | ssh … 'tar -x -C /workspace/rulecam
 `uv sync --no-dev` and restart (`pkill -f "[u]vicorn rulecam.api.app"` then `./start.sh` via
 `setsid nohup`, or restart the pod).
 
+## Runtime SAM cost
+
+Hosted SAM 3.1 takes **one concept per request** (a text prompt is a single noun phrase; see
+`clients/meta_hosted/sam_wire.py` and issue #5) and bills **at least 50 frames per request**
+(`usage.video_frames_processed`, verified live). Measured on the pod before this control: one
+forklift-proximity rule (person, forklift) on two cameras made one request per concept per 3 s
+chunk per camera, about 4,000 billed frames a minute; each request took 2 to 10 s, the loop fell
+30 s behind and dropped to keyframe mode. The runtime now spends SAM only where and when it can
+matter:
+
+1. **Camera scope.** Approving a plan gives each rule the cameras where the planner found it
+   `observable` or `caveat` (the feasibility evidence), plus its zone and calibration cameras
+   (`ActivePlan.rule_cameras`). A camera with no active rule is never segmented
+   (`chunks_skipped_no_rule`). A rule with no camera evidence runs everywhere, as before, and
+   the log says `active_rule_unscoped`. Plans approved before this change are unscoped until
+   approved again.
+2. **One perception step per chunk per camera.** All the concepts the camera's rules need are
+   tracked together, each SAM prompt once (never the concept key and its prompt twice), in
+   parallel (`RULECAM_RUNTIME_CONCEPT_WORKERS`), so a chunk costs the slowest request's latency,
+   not the sum. The API cannot take two concepts in one request; batching one concept over
+   several chunks would amortise the 50-frame minimum but add a chunk of latency to HIGH rules,
+   so it is not done.
+3. **Motion gate and static cache before any request.** On a still chunk the dynamic concepts of
+   non-HIGH rules are not segmented (one keyframe every 30 s still runs;
+   `chunks_skipped_still`). Static concepts (sink, door, rack) are segmented once per plan and
+   camera and served from the cache; a `moved` camera refills it.
+4. **Idle sampling.** While nothing happens on a camera, one chunk in N is segmented
+   (`chunks_skipped_idle`): `RULECAM_IDLE_STRIDE_LOW`/`_MEDIUM` (default 3, about 9 s) and
+   `RULECAM_IDLE_STRIDE_HIGH` (default 2, at most 2), the strictest severity on the camera wins.
+   "Something happens" means a candidate opened, a dynamic concept was tracked, or, on a camera
+   with a HIGH rule, the motion gate saw motion. Then every chunk is segmented until
+   `RULECAM_IDLE_HOLDOFF_S` (30 s) after the last activity.
+5. **Budget.** When a camera's billed frames over the last minute reach
+   `RULECAM_SAM_BUDGET_FRAMES_PER_MIN` (default 1,000; 0 turns it off), it degrades to one chunk
+   in `RULECAM_SAM_BUDGET_STRIDE` (3), logged `budget_exceeded`, instead of falling behind. It
+   recovers by itself when the minute drains (`budget_recovered`).
+
+**Safety trade-off.** A chunk that is not segmented is a coverage gap, never evidence of
+absence: a rule's window is cut to start after the gap, and the rule is judged on the cut window
+only if that still covers the history it needs (none for proximity/zone predicates; the seconds
+of a `persist`, `absence` or `dwell`; a minute for `rate`; the whole window for `sequence`).
+Otherwise it counts in `windows_blind`. For HIGH rules: on a still camera an event can only start
+with motion, and motion switches that camera to every chunk at once, whatever the idle stride or
+budget, so idle sampling adds no detection latency to a HIGH event that starts with movement. What
+it can delay, by at most one chunk (3 s), is an event that starts without motion the gate can
+see (for example a person standing still who is reached by a forklift too small to change 0.1% of
+a 160 px frame). The budget never thins a camera with a HIGH rule while it is active. Set
+`RULECAM_IDLE_STRIDE_HIGH=1` to segment every chunk on such cameras regardless of cost.
+
+**Expected spend** for the measured case (one HIGH forklift rule, warehouse + kitchen camera,
+30-frame 3 s chunks, 50 frames billed per request): before, 2 cameras x 20 chunks x 2 concepts x
+50 = **4,000 billed frames/min**. After: kitchen **0**; warehouse **1,000/min** while still or
+idle (every 2nd chunk) and **2,000/min** while something moves (every chunk; tracker box
+re-prompts for objects already in view add up to one request per concept per chunk). The same
+rule at medium severity: about 200/min on a still camera (gate keyframes only), 670/min while
+idle with motion, and at most the 1,000/min budget while active.
+
+`GET /runtime/metrics` (owner) shows it: `sam_calls`, `billed_frames`, `billed_frames_per_min`
+per camera, `chunks_skipped_no_rule`, `chunks_skipped_idle`, `chunks_skipped_still`,
+`chunks_skipped_budget`, `budget_exceeded`, `budget_degraded`, next to the existing lag and
+keyframe fields.
+
 ## Glimmer pod (RunPod GPU)
 
 - Image `ghcr.io/ggml-org/llama.cpp:server-cuda-b11669` (Muse Glimmer needs build ≥ b10353), RTX

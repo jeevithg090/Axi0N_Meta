@@ -249,6 +249,34 @@ class MotionGate:
         self._last_frame: dict[str, GrayFrame] = {}
         self._last_full_run: dict[str, datetime] = {}
 
+    @property
+    def config(self) -> GateConfig:
+        """The gate's thresholds."""
+        return self._config
+
+    def measure(
+        self, chunk: Chunk, frames: Sequence[GrayFrame] | None = None
+    ) -> MotionStats | None:
+        """Measure a chunk's motion and remember its last frame (for the next chunk's pair).
+
+        The runtime measures every chunk of a camera, also those it then does not segment, so
+        motion across a skipped chunk still counts.
+
+        Args:
+            chunk: The chunk. Chunks of one camera must arrive in order.
+            frames: The chunk's downscaled grayscale frames, if already decoded.
+
+        Returns:
+            The motion, or `None` when it cannot be measured (never treated as still).
+        """
+        camera = chunk.camera_id
+        current = list(frames) if frames is not None else self._read_frames(chunk.path)
+        previous = self._last_frame.get(camera)
+        window = [previous, *current] if previous is not None else current
+        if current:
+            self._last_frame[camera] = current[-1]
+        return motion_stats(window) if _same_shape(window) else None
+
     def decide(
         self,
         chunk: Chunk,
@@ -265,11 +293,22 @@ class MotionGate:
         Returns:
             The decision.
         """
+        return self.gate(chunk, rules, self.measure(chunk, frames))
+
+    def gate(
+        self, chunk: Chunk, rules: Sequence[RuleIR], stats: MotionStats | None
+    ) -> GateDecision:
+        """Decide which dynamic concepts to segment for `chunk`, from motion already measured.
+
+        Args:
+            chunk: The chunk to gate.
+            rules: Active rules on the chunk's camera.
+            stats: The chunk's motion from `measure` (`None`: unknown, nothing is gated).
+
+        Returns:
+            The decision; the camera's keyframe clock restarts when nothing was skipped.
+        """
         camera = chunk.camera_id
-        current = list(frames) if frames is not None else self._read_frames(chunk.path)
-        previous = self._last_frame.get(camera)
-        window = [previous, *current] if previous is not None else current
-        stats = motion_stats(window) if _same_shape(window) else None
         decision = decide(
             rules,
             stats,
@@ -277,8 +316,6 @@ class MotionGate:
             last_full_run=self._last_full_run.get(camera),
             config=self._config,
         )
-        if current:
-            self._last_frame[camera] = current[-1]
         if not decision.skipped:
             self._last_full_run[camera] = chunk.start_ts
         if self._metrics is not None:

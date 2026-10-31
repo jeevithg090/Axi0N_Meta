@@ -12,8 +12,8 @@ it can.
 | `sam_runtime.py` | P1-03 | `ModalSam31` (a `Segmenter`), `ModalWorker`, `SamRequest` / `SamResponse` (wire format), `SamWorker` |
 | `sam_worker.py` | P1-03 | `Sam31Engine` (runs SAM 3.1 on a GPU), `build_app()` and `deploy()` for the Modal app `rulecam-sam` |
 | `motion_gate.py` | P1-03 | `MotionGate`, pure `motion_stats` / `decide`, `GateConfig`, `GateDecision` |
-| `static_cache.py` | P1-03 | `StaticCache` (listens on `coverage.changed`), `moved_camera` |
-| `router.py` | P1-03 | `SegmenterRouter`, `Purpose`, `RoutingPolicy`, `FallbackSegmenter`, `MeteredSegmenter` |
+| `static_cache.py` | P1-03 | `StaticCache` (listens on `coverage.changed`), `moved_camera`, `StaticServedSegmenter` (runtime) |
+| `router.py` | P1-03 | `SegmenterRouter`, `Purpose`, `RoutingPolicy`, `FallbackSegmenter`, `MeteredSegmenter`, `CallMeter` |
 | `metrics.py` | P1-03 | `PerceptionMetrics` (`report()` is the body of `GET /metrics/perception`) |
 | `masks.py` | P1-02 | `encode_rle` / `decode_rle`: `Mask.rle` as JSON `{"size": [h, w], "counts": "<COCO RLE>"}` |
 | `errors.py` | shared | `PerceptionError`; P1-03 adds `SamRuntimeError`, `SamRuntimeUnavailableError`, `SamResponseError` |

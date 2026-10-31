@@ -51,6 +51,33 @@ class FakeTracker:
         return [track]
 
 
+class SteadyTracker:
+    """Appends a person standing in the sink zone for the whole chunk (no dropouts)."""
+
+    def __init__(self, store: InMemoryTrackStore | None = None) -> None:
+        self.store = store
+        self.calls: list[tuple[str, list[str]]] = []
+
+    def process_chunk(self, chunk: Chunk, concepts: Iterable[str]) -> list[Track]:
+        self.calls.append((chunk.chunk_id, list(concepts)))
+        start_s = (chunk.start_ts - FakeClock().now()).total_seconds()
+        track = walk_track("cam1:person:1", [INSIDE_M] * chunk.n_frames, start_s=start_s)
+        if self.store is not None:
+            self.store.append([track])
+        return [track]
+
+
+class EmptyTracker:
+    """Finds nothing; records which concepts each chunk asked for."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, list[str]]] = []
+
+    def process_chunk(self, chunk: Chunk, concepts: Iterable[str]) -> list[Track]:
+        self.calls.append((chunk.chunk_id, list(concepts)))
+        return []
+
+
 class FailingTracker:
     """Raises a `RulecamError` for the first chunk, then tracks like `FakeTracker`."""
 
@@ -117,6 +144,35 @@ def sink_plan(
     )
 
 
+def persist_plan(seconds: float) -> ActivePlan:
+    """A person in the sink zone for at least `seconds`."""
+    rule = make_rule(
+        {
+            "op": "persist",
+            "of": {"op": "inside", "object": "person", "zone": "sink_zone"},
+            "seconds": seconds,
+        },
+        rule_id="in-sink-long",
+    )
+    return ActivePlan(rules=(rule,), zones={"sink_zone": SINK_ZONE}, calibration=CAL)
+
+
+def sequence_plan() -> ActivePlan:
+    """Being in the sink zone must have been preceded by being in it (a `sequence` rule)."""
+    inside = {"op": "inside", "object": "person", "zone": "sink_zone"}
+    rule = make_rule(
+        {
+            "op": "sequence",
+            "semantics": "past",
+            "trigger": inside,
+            "require_within_s": 5.0,
+            "requirement": inside,
+        },
+        rule_id="seq",
+    )
+    return ActivePlan(rules=(rule,), zones={"sink_zone": SINK_ZONE}, calibration=CAL)
+
+
 def make_loop(
     tmp_path: Path,
     clock: FakeClock,
@@ -124,10 +180,11 @@ def make_loop(
     *,
     strips: FakeStrips | None = None,
     tracker: ChunkTracker | None = None,
-    **kwargs: float,
+    store: InMemoryTrackStore | None = None,
+    **kwargs: object,
 ) -> tuple[RuntimeLoop, RecordingBus, EventChain, FakeActions]:
     bus = RecordingBus()
-    store = InMemoryTrackStore()
+    store = store if store is not None else InMemoryTrackStore()
     chain = EventChain(tmp_path / "chain", "site", clock=clock)
     actions = FakeActions(clock)
     loop = RuntimeLoop(

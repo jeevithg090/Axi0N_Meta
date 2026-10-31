@@ -5,6 +5,11 @@ self-hosted Modal worker, `SegmenterRouter`, `PerceptionMetrics`, and a thread-s
 `ParquetTrackStore` shared by the runtime loop and the correction loop. `build_runtime` adds the
 `Tracker`, the Tier 1 Glimmer verifier and the evidence chain around them.
 
+On the runtime path the tracker's segmenter is, from the outside in: `StaticServedSegmenter`
+(static concepts from the static cache, no SAM call) -> `CallMeter` (requests and billed frames
+per camera, for the loop's budget and `/runtime/metrics`) -> the router's runtime segmenter. The
+loop also gets the motion gate and the idle-sampling/budget policy from settings.
+
 The policy (P3-05), actions (P3-06) and strip renderer (P4-05) have not landed yet, so the
 defaults here are deliberately conservative: nothing acts first, nothing is executed, and no
 pixels are attached to a candidate (so nothing raw can leave the loop in any privacy mode).
@@ -40,12 +45,15 @@ from rulecam.contracts import (
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.log import get_logger
 from rulecam.perception.metrics import Backend, PerceptionMetrics
-from rulecam.perception.router import Purpose, RoutingPolicy, SegmenterRouter
+from rulecam.perception.motion_gate import MotionGate
+from rulecam.perception.router import CallMeter, Purpose, RoutingPolicy, SegmenterRouter
 from rulecam.perception.sam_runtime import ModalSam31, ModalWorker
+from rulecam.perception.static_cache import StaticServedSegmenter
 from rulecam.perception.tracking import Tracker
 from rulecam.replay.cache import ReplayCache
 from rulecam.rules.store import ParquetTrackStore
 from rulecam.runtime.loop import RuntimeLoop, chunk_end
+from rulecam.runtime.sampling import SamplingPolicy
 from rulecam.verify.decision import Decision
 from rulecam.verify.tier1 import GlimmerVerifier
 
@@ -252,8 +260,13 @@ def build_runtime(
     Returns:
         The loop, with placeholder policy, actions and strips until P3-05, P3-06 and P4-05.
     """
+    meter = CallMeter(perception.router.for_purpose(Purpose.RUNTIME))
+    served = StaticServedSegmenter(meter)
     tracker = Tracker(
-        perception.router.for_purpose(Purpose.RUNTIME), store=perception.store, bus=bus
+        served,
+        store=perception.store,
+        bus=bus,
+        max_workers=settings.rulecam_runtime_concept_workers,
     )
     verifier = GlimmerVerifier(
         GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
@@ -268,4 +281,9 @@ def build_runtime(
         actions=NoActions(),
         strips=NoStrips(),
         chain=chain,
+        sampling=SamplingPolicy.from_settings(settings),
+        motion_gate=MotionGate(),  # camera time is recorded by `ChunkIndex`, not twice here
+        usage=meter,
+        static_sink=lambda concepts, version: served.set_static(concepts, generation=version),
+        companions=(lambda: served.cache.run(bus),),
     )

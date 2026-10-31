@@ -20,6 +20,7 @@ bottom-centre; `foot_m` is filled only when a pixel-to-metre mapping is given (P
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -154,6 +155,7 @@ class Tracker:
         max_gap_s: float = 1.0,
         handoff_window_s: float = 0.5,
         new_suffix: Callable[[], str] = _new_suffix,
+        max_workers: int = 1,
     ) -> None:
         """Create a tracker.
 
@@ -169,6 +171,9 @@ class Tracker:
             handoff_window_s: A track is handed off only if seen in the chunk's last
                 `handoff_window_s` seconds.
             new_suffix: Generates the random part of new track IDs (injected in tests).
+            max_workers: Concepts of one chunk tracked at once. Each concept is its own SAM
+                request (the API takes one concept per request), so running them in parallel
+                makes a chunk cost the slowest call's latency instead of their sum.
         """
         self._segmenter = segmenter
         self._store = store
@@ -179,6 +184,7 @@ class Tracker:
         self._max_gap = timedelta(seconds=max_gap_s)
         self._handoff_window_s = handoff_window_s
         self._new_suffix = new_suffix
+        self._max_workers = max(1, max_workers)
         self._state: dict[tuple[str, str], _ConceptState] = {}
 
     def process_chunk(self, chunk: Chunk, concepts: Iterable[str]) -> list[Track]:
@@ -186,12 +192,21 @@ class Tracker:
 
         Args:
             chunk: The next chunk from one camera.
-            concepts: Concepts the active rules need; each is one segmenter call (plus re-prompts).
+            concepts: Concepts the active rules need; each is one segmenter call (plus re-prompts),
+                up to `max_workers` of them at once.
 
         Returns:
-            This chunk's tracks (points from this chunk only), across all concepts.
+            This chunk's tracks (points from this chunk only), across all concepts, in concept
+            order.
         """
-        tracks = [t for concept in dict.fromkeys(concepts) for t in self.update(chunk, concept)]
+        unique = list(dict.fromkeys(concepts))
+        workers = min(self._max_workers, len(unique))
+        if workers > 1:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                per_concept = list(pool.map(lambda c: self.update(chunk, c), unique))
+        else:
+            per_concept = [self.update(chunk, concept) for concept in unique]
+        tracks = [t for found in per_concept for t in found]
         if self._store is not None and tracks:
             self._store.append(tracks)
         if self._bus is not None:

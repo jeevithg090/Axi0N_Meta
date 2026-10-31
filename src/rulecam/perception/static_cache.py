@@ -17,14 +17,20 @@ The coverage watchdog (PR #6) actually publishes `BLIND(reason)` changes:
 
 A camera's entries are invalidated when `moved` is true, `reason` is `"moved"` or `state` is
 `"moved"`. Any other change (OK, dark, frozen, blocked) keeps the cache.
+
+On the runtime path, `StaticServedSegmenter` puts the cache in front of the runtime segmenter:
+the static concepts of the active plan are served from it (spread over every frame of the chunk,
+so a zone anchored on a sink exists for the whole chunk), and every other concept goes through.
 """
 
 from __future__ import annotations
 
 import threading
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from contextlib import aclosing
 from dataclasses import dataclass
+from datetime import timedelta
+from typing import Literal
 
 from rulecam.bus import Bus, Topic
 from rulecam.contracts.core import Chunk, Detection
@@ -70,6 +76,26 @@ def restamp(detections: tuple[Detection, ...], chunk: Chunk) -> list[Detection]:
         Copies with `frame_idx=0` and `ts=chunk.start_ts`.
     """
     return [d.model_copy(update={"frame_idx": 0, "ts": chunk.start_ts}) for d in detections]
+
+
+def spread(detections: Iterable[Detection], chunk: Chunk) -> list[Detection]:
+    """Copy cached detections onto every frame of `chunk` (a static object is always there).
+
+    Args:
+        detections: Cached representatives.
+        chunk: The chunk being served.
+
+    Returns:
+        One copy per detection and frame, sorted by frame then object id.
+    """
+    reps = sorted(detections, key=lambda d: d.object_id)
+    return [
+        d.model_copy(
+            update={"frame_idx": i, "ts": chunk.start_ts + timedelta(seconds=i / chunk.fps)}
+        )
+        for i in range(chunk.n_frames)
+        for d in reps
+    ]
 
 
 def moved_camera(payload: object) -> str | None:
@@ -183,6 +209,60 @@ class StaticCache:
         async with aclosing(bus.subscribe(Topic.COVERAGE_CHANGED)) as messages:
             async for message in messages:
                 self.handle_coverage_changed(message.payload)
+
+
+class StaticServedSegmenter:
+    """A runtime `Segmenter` that serves the plan's static concepts from a `StaticCache`."""
+
+    def __init__(self, inner: Segmenter, cache: StaticCache | None = None) -> None:
+        """Wrap the runtime segmenter.
+
+        Args:
+            inner: Segments every concept that is not static (and fills the cache on a miss).
+            cache: The cache (default: a new one over `inner`).
+        """
+        self._inner = inner
+        self.cache = cache or StaticCache(inner)
+        self._static: frozenset[str] = frozenset()
+        self._generation: str | None = None
+
+    def set_static(self, concepts: Iterable[str], *, generation: str | None = None) -> None:
+        """Set the static concepts of the plan now in force.
+
+        Args:
+            concepts: Concepts (SAM prompts) to serve from the cache.
+            generation: Identifies the plan (and so its calibration); a new one refills the cache.
+        """
+        self._static = frozenset(concepts)
+        self._generation = generation
+
+    def segment(
+        self,
+        chunk: Chunk,
+        concept: str,
+        *,
+        box_prompts: dict[int, tuple[float, float, float, float]] | None = None,
+        negative_points: list[tuple[int, float, float]] | None = None,
+        direction: Literal["forward", "backward"] = "forward",
+        include_confidence: bool = True,
+    ) -> list[Detection]:
+        """Serve a static concept from the cache; delegate anything else.
+
+        A box re-prompt of a static concept returns nothing: the tracker then continues the
+        unmoved object by IoU, and no SAM call is made.
+        """
+        if concept not in self._static:
+            return self._inner.segment(
+                chunk,
+                concept,
+                box_prompts=box_prompts,
+                negative_points=negative_points,
+                direction=direction,
+                include_confidence=include_confidence,
+            )
+        if box_prompts:
+            return []
+        return spread(self.cache.get(chunk, concept, calibration=self._generation), chunk)
 
 
 def _confidence(detection: Detection) -> float:

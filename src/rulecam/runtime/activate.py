@@ -15,6 +15,14 @@ differently is left out, so each rule falls back to its own spec), the plan's pr
 carried over, and the ground calibration is taken from what the caller supplies (a `SitePlan`
 holds none). The `plan_version_hash` is the SHA-256 of the canonical JSON of what is enforced.
 
+**Camera scope.** Each activated rule runs only on the cameras the planner found it can be
+checked on (`rule_cameras`): the cameras of its `observable`/`caveat` feasibility evidence, plus
+the cameras of its zones and of the calibration it names. The verdict of a rule is found by its
+source text (the concern it was compiled from), else by its concepts: the verdict whose probed
+concepts are exactly the rule's (dynamic concepts included, nothing foreign). A rule with no such
+evidence is left out of `ActivePlan.rule_cameras` and runs on every camera, as before (logged
+`active_rule_unscoped`). `ActivePlan` is the runtime's own model, not a contract.
+
 `PlanActivator` does the approval side effects: persist the activation (atomic write), hand the
 plan to the runtime, and append the approval to the evidence chain. `restore_activation` reloads
 the persisted plan at start-up so a restart keeps enforcing.
@@ -29,7 +37,7 @@ from typing import Final, Literal
 
 from pydantic import ValidationError
 
-from rulecam.contracts import Calibration, Frozen, RuleIR, SitePlan, Zone
+from rulecam.contracts import Calibration, FeasibilityVerdict, Frozen, RuleIR, SitePlan, Zone
 from rulecam.contracts.rule_ir import ZoneSpec
 from rulecam.errors import RulecamError
 from rulecam.evidence.chain import EventChain, canonical_json
@@ -43,6 +51,9 @@ RULE_CI_CHECKS: Final = ("ci_green", "nonvacuous")
 AMBER_CHECKS: Final = frozenset({"detect_lb>=0.8", "calibration_err<=tol", "citation_text_match"})
 """Failing checks a rule may still be activated with (the planner keeps it with an amber verdict).
 Every other failing check blocks activation."""
+
+SCOPING_VERDICTS: Final = frozenset({"observable", "caveat"})
+"""Feasibility verdicts whose evidence cameras a rule is activated on."""
 
 GateStatus = Literal["pass", "amber", "fail"]
 CalibrationLookup = Callable[[SitePlan], Mapping[str, Calibration]]
@@ -214,6 +225,57 @@ def pick_calibration(
     return calibrations[camera_id]
 
 
+def _norm(text: str) -> str:
+    return " ".join(text.split()).lower()
+
+
+def rule_verdicts(plan: SitePlan, rule: RuleIR) -> list[FeasibilityVerdict]:
+    """The `observable`/`caveat` feasibility verdicts with evidence that belong to `rule`.
+
+    Matched by the rule's source text against each verdict's concern; when none matches, by
+    concepts: every probed concept is one of the rule's (key or prompt), and every dynamic
+    concept prompt of the rule was probed.
+    """
+    usable = [v for v in plan.feasibility if v.verdict in SCOPING_VERDICTS and v.evidence]
+    text = _norm(rule.source.text or "")
+    by_text = [v for v in usable if text and _norm(v.concern) == text]
+    if by_text:
+        return by_text
+    names = {_norm(n) for key, spec in rule.concepts.items() for n in (key, spec.prompt)}
+    dynamic = {_norm(spec.prompt) for spec in rule.concepts.values() if not spec.static}
+    matched = []
+    for verdict in usable:
+        probed = {_norm(p.concept) for p in verdict.evidence}
+        if probed <= names and dynamic <= probed:
+            matched.append(verdict)
+    return matched
+
+
+def rule_cameras(plan: SitePlan, rule: RuleIR) -> tuple[str, ...]:
+    """The cameras `rule` runs on: its feasibility evidence, zones and calibration cameras.
+
+    Returns:
+        Sorted camera ids; empty when the plan holds no camera evidence for the rule.
+    """
+    cameras = rule_calibration_cameras(rule)
+    for verdict in rule_verdicts(plan, rule):
+        cameras |= {probe.camera_id for probe in verdict.evidence}
+    return tuple(sorted(cameras))
+
+
+def plan_rule_cameras(plan: SitePlan, rules: Sequence[RuleIR]) -> dict[str, tuple[str, ...]]:
+    """Rule id -> its cameras, for every rule with camera evidence (the others are logged)."""
+    scoped: dict[str, tuple[str, ...]] = {}
+    for rule in rules:
+        cameras = rule_cameras(plan, rule)
+        if cameras:
+            scoped[rule.id] = cameras
+        else:
+            _log.warning("active_rule_unscoped", rule_id=rule.id, runs_on="every camera")
+    _log.info("active_plan_scoped", plan_id=plan.plan_id, rule_cameras=scoped)
+    return scoped
+
+
 def plan_version_hash(plan_id: str, version: int, active: ActivePlan) -> str:
     """SHA-256 (hex) of the canonical JSON of the plan id, version and what is enforced."""
     body = active.model_dump(mode="json", exclude={"plan_version_hash"})
@@ -247,6 +309,7 @@ def active_plan_from(
         privacy_mode=plan.privacy_mode,
         zones=zones,
         calibration=pick_calibration(rules, calibrations or {}),
+        rule_cameras=plan_rule_cameras(plan, rules),
     )
     active = draft.model_copy(
         update={"plan_version_hash": plan_version_hash(plan.plan_id, plan.version, draft)}

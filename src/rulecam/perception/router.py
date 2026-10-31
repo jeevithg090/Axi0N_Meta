@@ -8,12 +8,15 @@
   is tried again. Invalid prompts (`ValueError`) are re-raised and never fall back.
 
 Runtime calls served by hosted SAM are recorded in `PerceptionMetrics`; self-hosted calls are
-recorded by `ModalSam31` itself, together with their GPU-seconds.
+recorded by `ModalSam31` itself, together with their GPU-seconds. `CallMeter` counts the runtime
+loop's own calls and billed frames per camera (hosted pricing: `max(50, frames)` per request),
+which the loop's SAM budget and `/runtime/metrics` read.
 """
 
 from __future__ import annotations
 
 import math
+import threading
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -25,7 +28,7 @@ from rulecam.contracts.core import Chunk, Detection, Frozen
 from rulecam.contracts.protocols import Clock, Segmenter
 from rulecam.log import get_logger
 from rulecam.perception.errors import SamRuntimeError
-from rulecam.perception.metrics import Backend, PerceptionMetrics
+from rulecam.perception.metrics import Backend, PerceptionMetrics, hosted_billed_frames
 from rulecam.perception.sam_runtime import MAX_PROMPTED_OBJECTS
 
 FallbackAlert = Callable[[str, SamRuntimeError], None]
@@ -98,6 +101,53 @@ class MeteredSegmenter:
                 self._metrics.record_sam_call(
                     chunk.camera_id, backend=Backend.HOSTED, frames=chunk.n_frames
                 )
+        return detections
+
+
+class CallMeter:
+    """Counts the SAM requests a segmenter makes and the frames they bill, per camera.
+
+    Billed frames are priced as hosted SAM 3.1 video (`max(50, frames)` per request), which is
+    the real bill when runtime perception is hosted and the hosted-equivalent otherwise.
+    """
+
+    def __init__(self, inner: Segmenter) -> None:
+        """Wrap a segmenter."""
+        self._inner = inner
+        self._lock = threading.Lock()
+        self._totals: dict[str, tuple[int, int]] = {}
+
+    def totals(self, camera_id: str) -> tuple[int, int]:
+        """Return `(requests, billed_frames)` made so far for `camera_id`."""
+        with self._lock:
+            return self._totals.get(camera_id, (0, 0))
+
+    def segment(
+        self,
+        chunk: Chunk,
+        concept: str,
+        *,
+        box_prompts: dict[int, tuple[float, float, float, float]] | None = None,
+        negative_points: list[tuple[int, float, float]] | None = None,
+        direction: Literal["forward", "backward"] = "forward",
+        include_confidence: bool = True,
+    ) -> list[Detection]:
+        """Delegate, then count the requests the call made."""
+        detections = self._inner.segment(
+            chunk,
+            concept,
+            box_prompts=box_prompts,
+            negative_points=negative_points,
+            direction=direction,
+            include_confidence=include_confidence,
+        )
+        requests = hosted_requests(box_prompts)
+        with self._lock:
+            calls, billed = self._totals.get(chunk.camera_id, (0, 0))
+            self._totals[chunk.camera_id] = (
+                calls + requests,
+                billed + requests * hosted_billed_frames(chunk.n_frames),
+            )
         return detections
 
 

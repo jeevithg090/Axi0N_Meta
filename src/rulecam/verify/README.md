@@ -70,3 +70,27 @@ spark.devil_advocate({"metric": ..., "leading": ...})  # list[str], tested by th
 - A timeout or error gives `unsure` (verify) or `pending` (dispute), never a silent pass. Audit and
   devil's-advocate failures raise, so callers can show them as "not audited".
 - Live check: `make live-test` runs `tests/verify/test_tier2_live.py`.
+
+## Policy and scene-text firewall (P3-05)
+
+`VerificationPolicy` is the runtime `Policy`:
+
+- **HIGH severity:** `act_first` is true, so the runtime runs the actions (stop, power cut) before any
+  model is asked. A veto, `unsure` or disagreement sends the alert to `human_queue`; a HIGH alert is
+  never dropped.
+- **LOW and MEDIUM:** verify first. Tier 1 confirming at the threshold alerts. Otherwise Tier 2 is
+  asked (`spark-open-on-disagree`), and Tier 2 confirming alerts. The alert is suppressed only when
+  every tier that ran rejects it with confidence; anything else goes to `human_queue`.
+- **Threshold:** the rule's calibrated one (`thresholds` from rule health), else
+  `verify.min_confidence`.
+- **Disputes:** always go to Tier 2 (`review_dispute`).
+
+`SceneTextFirewall` scans each tier's `scene_text` with **Llama Prompt Guard 2** (gated on Hugging
+Face: set `HF_TOKEN` and install `--extra ml`). On a flag it:
+
+1. blurs the `sign` and `text` regions found by SAM (`BoxStripBlurrer`);
+2. re-runs the tiers on the blurred strip;
+3. sends the alert to `human_queue` if any tier now rejects it;
+4. appends a `tamper_attempt` record to the chain.
+
+A property test shows that a flagged sign never suppresses an alert (E4 under D3).

@@ -55,7 +55,7 @@ Only models that actually run in the product are listed; this table is updated a
 | Sapiens (FAIR) | Pose and skeletons | GPU | planned |
 | MMS-TTS (FAIR) | Spoken warnings | CPU | planned |
 | V-JEPA 2 (FAIR) | Surprise Lens world model | GPU | planned (gated) |
-| Llama Prompt Guard 2 | Scene-text firewall | CPU | planned |
+| Llama Prompt Guard 2 (86M) | Scene-text firewall | CPU (transformers, `ml` extra) | firewall (P3-05) |
 
 ## Results
 

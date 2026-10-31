@@ -22,7 +22,6 @@ env:
   CI_COMMIT_SHA: ${{ github.sha }}
   CI_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}
   CI_STATUS_PREFIX: gitea
-  UV_LINK_MODE: copy
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:

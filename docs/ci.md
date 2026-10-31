@@ -64,6 +64,8 @@ After a squash-merge, `make sync-main` pushes `main` to Gitea.
 
 - **Cost.** The pod bills while it runs. Stop it when nobody is pushing and start it again
   before work; queued jobs wait and then run.
+- **Disk.** Give the pod at least 15–20 GB: the ML extra (torch) is large. Jobs share one uv cache
+  in `/workspace/.uv-cache` and hardlink from it, so parallel jobs cost little extra.
 - **Capacity.** The runner takes 3 jobs at once (`RUNNER_CAPACITY` in `bootstrap.sh`). Pushing a
   newer commit to a branch cancels the older run (`concurrency` in `ci.yml`).
 - **Trust.** Jobs run directly in the pod with the secrets above. Only collaborators can push to the

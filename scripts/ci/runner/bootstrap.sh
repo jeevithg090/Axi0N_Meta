@@ -56,6 +56,9 @@ if [ ! -f config.yaml ]; then
   "$runner" config init
   "$runner" config set runner.capacity "$RUNNER_CAPACITY"
   "$runner" config set runner.labels "$RUNNER_LABELS"
+  # One uv cache for every job, on the same disk as the job dirs: venvs hardlink into it
+  # instead of copying (the ML extra alone is ~1.5 GB per job otherwise).
+  "$runner" config set runner.envs.UV_CACHE_DIR /workspace/.uv-cache
 fi
 if [ ! -f .runner ]; then
   token_file="${GITEA_RUNNER_TOKEN_FILE:-/workspace/.gitea_runner_token}"
@@ -66,6 +69,4 @@ if [ ! -f .runner ]; then
   "$runner" -c config.yaml register --no-interactive \
     --instance "$GITEA_URL" --token "$GITEA_RUNNER_TOKEN" --name "$RUNNER_NAME"
 fi
-# Shared caches survive between jobs (and restarts, on /workspace).
-export UV_CACHE_DIR="${UV_CACHE_DIR:-/workspace/.uv-cache}"
 exec "$runner" -c config.yaml daemon

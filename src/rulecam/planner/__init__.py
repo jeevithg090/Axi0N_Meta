@@ -2,6 +2,7 @@
 
 from rulecam.planner.errors import (
     GuardrailDeclinedError,
+    IntakeError,
     PlannerError,
     RuleCompilationError,
 )
@@ -21,18 +22,18 @@ from rulecam.planner.models import (
     Walkthrough,
 )
 from rulecam.planner.steps.compile import (
-    DEFAULT_STATIC_CONCEPTS,
-    IntermediatePredicate,
+    PredicateNode,
+    RuleDraft,
     apply_static_hints,
     compile_rule,
-    convert_intermediate_predicate,
+    draft_to_rule,
+    rule_to_draft,
 )
 from rulecam.planner.steps.understand import ALL_SYSTEM_PROMPTS, understand
 
 __all__ = [
     "ALL_SYSTEM_PROMPTS",
     "DATA_NOT_INSTRUCTIONS_CLAUSE",
-    "DEFAULT_STATIC_CONCEPTS",
     "Allowed",
     "Concern",
     "Declined",
@@ -40,15 +41,18 @@ __all__ = [
     "GuardrailCategory",
     "GuardrailDeclinedError",
     "GuardrailVerdict",
-    "IntermediatePredicate",
+    "IntakeError",
     "PlannerError",
+    "PredicateNode",
     "RuleCompilationError",
+    "RuleDraft",
     "UnderstandResult",
     "VoiceAnalysis",
     "Walkthrough",
     "apply_static_hints",
     "check_request",
     "compile_rule",
-    "convert_intermediate_predicate",
+    "draft_to_rule",
+    "rule_to_draft",
     "understand",
 ]

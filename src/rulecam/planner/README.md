@@ -53,24 +53,26 @@ if isinstance(result, Declined):
 
 ```python
 from rulecam.planner.steps.compile import compile_rule
-from rulecam.planner.models import Concern
-
-concern = Concern(
-    text="Everyone entering the line must wash hands for at least 20 seconds",
-    source_ref="plan",
-    standard_ref="Food Code 2026 §2-301.12",
-)
 
 rule = compile_rule(
-    concern,
-    spark=spark_client,
+    concern,  # Concern or plain text
+    spark=spark_client,  # Spark 1.3; also runs the model guardrail pass
     plan_id="main-st-kitchen",
     zones=declared_zones,
     inventory=surveyed_inventory,
 )
-# Returns typed RuleIR with static tags applied to known static objects (sink, door, racks)
-# If initial schema validation fails, automatically runs one repair round with error detail.
 ```
+
+- `check_request` runs first (deterministic patterns, then Spark); a decline raises
+  `GuardrailDeclinedError` carrying the `Declined`. A model failure fails closed (it raises).
+- The hosted structured-output API rejects recursive schemas, so the model fills in
+  `RuleDraft`: the RuleIR fields with the predicate flattened into `predicate_nodes` that refer
+  to children by id. `draft_to_rule` rebuilds the tree, validates it as `RuleIR` and checks that
+  every concept and zone it names is declared. `rule_to_draft` is the inverse.
+- An invalid draft gets one repair round with the errors attached; a second failure raises
+  `RuleCompilationError`. Transport errors are not retried as "invalid output".
+- `apply_static_hints` marks fixed objects (sink, door, racks, shelving, exits) static by whole
+  word, plus any names in `static_concepts`.
 
 ## Tests
 

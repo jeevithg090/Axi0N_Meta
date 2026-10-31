@@ -1,7 +1,8 @@
-"""Tests for rule compiler and repair round (task P2-03, MP §7.3, V2 §6)."""
+"""Tests for the rule compiler and its repair round (task P2-03, MP §7.3, V2 §6). No network."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Literal, TypeVar
 
@@ -9,29 +10,48 @@ import pytest
 import yaml
 from pydantic import BaseModel
 
+from rulecam.clients.errors import ModelHTTPError, StructuredOutputError
+from rulecam.clients.meta_hosted.spark import SparkClient
 from rulecam.contracts.plan import InventoryItem
 from rulecam.contracts.rule_ir import ConceptSpec, RuleIR, ZoneSpec
 from rulecam.planner.errors import GuardrailDeclinedError, RuleCompilationError
+from rulecam.planner.guardrails import GuardrailCategory, _ModelClassification
 from rulecam.planner.models import DATA_NOT_INSTRUCTIONS_CLAUSE, Concern
 from rulecam.planner.steps.compile import (
     _COMPILE_SYSTEM_PROMPT,
-    IntermediatePredicate,
-    _ensure_rule_ir,
+    PredicateNode,
+    RuleDraft,
     apply_static_hints,
     compile_rule,
-    convert_intermediate_predicate,
+    draft_to_rule,
+    reference_errors,
+    rule_to_draft,
 )
+from tests.clients.meta_hosted.transport_fakes import ScriptedTransport
+from tests.fakes import FakeClock
 
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "rules"
 M = TypeVar("M", bound=BaseModel)
 
 
 class MockSparkLLM:
-    """Mock StructuredLLM for compiler tests supporting sequenced responses and exceptions."""
+    """A `StructuredLLM` fake: guardrail calls get `classification`, compile calls get the queue.
 
-    def __init__(self, responses: list[Any]) -> None:
+    Queued drafts are sent through JSON and back, as the real client would parse them.
+    """
+
+    def __init__(
+        self,
+        responses: list[Any],
+        classification: _ModelClassification | None = None,
+    ) -> None:
         self._responses = list(responses)
+        self._classification = classification or _ModelClassification(verdict="allowed")
         self.calls: list[dict[str, object]] = []
+
+    @property
+    def compile_calls(self) -> list[dict[str, object]]:
+        return [c for c in self.calls if c["schema"] is RuleDraft]
 
     def structured(
         self,
@@ -42,26 +62,24 @@ class MockSparkLLM:
         reasoning_effort: Literal["low", "medium", "high"] = "low",
         background: bool = False,
     ) -> M:
-        self.calls.append(
-            {
-                "model": model,
-                "messages": messages,
-                "schema": schema,
-                "reasoning_effort": reasoning_effort,
-                "background": background,
-            }
-        )
+        self.calls.append({"model": model, "messages": messages, "schema": schema})
+        if schema is _ModelClassification:
+            return schema.model_validate(self._classification.model_dump())
+        assert schema is RuleDraft
         if not self._responses:
             msg = "MockSparkLLM ran out of configured responses"
-            raise RuntimeError(msg)
+            raise AssertionError(msg)
         resp = self._responses.pop(0)
         if isinstance(resp, Exception):
             raise resp
-        if isinstance(resp, RuleIR):
-            return resp  # type: ignore[return-value]
-        if isinstance(resp, dict):
-            return schema.model_validate(resp)
-        return resp  # type: ignore[return-value]
+        assert isinstance(resp, RuleDraft)
+        return schema.model_validate_json(resp.model_dump_json())
+
+
+def _message(spark: MockSparkLLM, call: int, index: int) -> str:
+    messages = spark.compile_calls[call]["messages"]
+    assert isinstance(messages, list)
+    return str(messages[index])
 
 
 def _load_fixture(name: str) -> RuleIR:
@@ -69,42 +87,68 @@ def _load_fixture(name: str) -> RuleIR:
     return RuleIR.model_validate(raw)
 
 
-def test_compile_handwash_fixture() -> None:
-    """Compiling the handwash concern returns IR equal to wash-before-line fixture."""
-    expected = _load_fixture("wash-before-line")
-    spark = MockSparkLLM([expected])
+def _draft(name: str) -> RuleDraft:
+    return rule_to_draft(_load_fixture(name))
 
+
+@pytest.mark.parametrize(
+    "name", ["wash-before-line", "excavator-swing-radius", "fire-exit-blocked", "person-down"]
+)
+def test_draft_round_trips_every_fixture(name: str) -> None:
+    rule = _load_fixture(name)
+    draft = RuleDraft.model_validate_json(rule_to_draft(rule).model_dump_json())
+    assert draft_to_rule(draft) == rule
+
+
+def test_model_schema_has_no_recursive_refs() -> None:
+    """The hosted API rejects $ref cycles (HTTP 400), so the draft schema must be acyclic."""
+    schema = RuleDraft.model_json_schema()
+    defs = schema.get("$defs", {})
+
+    def refs(node: object) -> set[str]:
+        if isinstance(node, dict):
+            found = {node["$ref"].rsplit("/", 1)[-1]} if "$ref" in node else set()
+            for value in node.values():
+                found |= refs(value)
+            return found
+        if isinstance(node, list):
+            return set().union(*(refs(v) for v in node)) if node else set()
+        return set()
+
+    def reaches(start: str, target: str, seen: frozenset[str] = frozenset()) -> bool:
+        nxt = refs(defs[start])
+        return target in nxt or any(reaches(n, target, seen | {start}) for n in nxt - seen)
+
+    assert all(not reaches(name, name) for name in defs)
+
+
+def test_compile_handwash_fixture() -> None:
+    expected = _load_fixture("wash-before-line")
+    spark = MockSparkLLM([_draft("wash-before-line")])
     concern = Concern(
         text="Everyone entering the line must wash hands for at least 20 seconds",
         source_ref="plan",
         standard_ref="Food Code 2026 §2-301.12",
     )
-    compiled = compile_rule(
-        concern,
-        spark=spark,
-        plan_id="main-st-kitchen",
-        zones=expected.zones,
-    )
+
+    compiled = compile_rule(concern, spark=spark, plan_id="main-st-kitchen", zones=expected.zones)
 
     assert compiled == expected
     assert compiled.predicate.op == "sequence"
     assert compiled.concepts["sink"].static is True
+    assert [c["schema"] for c in spark.calls] == [_ModelClassification, RuleDraft]
+    assert "Food Code 2026 §2-301.12" in str(spark.compile_calls[0]["messages"])
 
 
 def test_compile_excavator_swing_radius_fixture() -> None:
-    """Compiling excavator request returns IR equal to excavator-swing-radius fixture."""
     expected = _load_fixture("excavator-swing-radius")
-    spark = MockSparkLLM([expected])
-
+    spark = MockSparkLLM([_draft("excavator-swing-radius")])
     concern = Concern(
         text="avísame si alguien está a menos de dos metros del balde de la excavadora",
         source_ref="voice",
     )
-    compiled = compile_rule(
-        concern,
-        spark=spark,
-        calibration="ground-plane@cam1",
-    )
+
+    compiled = compile_rule(concern, spark=spark, calibration="ground-plane@cam1")
 
     assert compiled == expected
     assert compiled.predicate.op == "persist"
@@ -112,16 +156,11 @@ def test_compile_excavator_swing_radius_fixture() -> None:
 
 
 def test_compile_fire_exit_blocked_fixture() -> None:
-    """Compiling fire exit sign returns IR equal to fire-exit-blocked fixture."""
     expected = _load_fixture("fire-exit-blocked")
-    spark = MockSparkLLM([expected])
+    spark = MockSparkLLM([_draft("fire-exit-blocked")])
 
-    concern = Concern(
-        text="KEEP CLEAR — FIRE EXIT",
-        source_ref="sign_photo",
-    )
     compiled = compile_rule(
-        concern,
+        Concern(text="KEEP CLEAR — FIRE EXIT", source_ref="sign_photo"),
         spark=spark,
         calibration="ground-plane@cam1",
         zones=expected.zones,
@@ -129,197 +168,207 @@ def test_compile_fire_exit_blocked_fixture() -> None:
 
     assert compiled == expected
     assert compiled.concepts["door"].static is True
-    assert compiled.predicate.op == "persist"
+
+
+def test_compile_through_the_real_spark_client() -> None:
+    """End to end: the request carries the RuleDraft schema and the reply becomes RuleIR."""
+    expected = _load_fixture("fire-exit-blocked")
+
+    def reply(text: str) -> dict[str, object]:
+        content = [{"type": "output_text", "text": text}]
+        return {
+            "status": 200,
+            "headers": {},
+            "json": {"status": "completed", "output": [{"type": "message", "content": content}]},
+        }
+
+    transport = ScriptedTransport(
+        reply(json.dumps({"verdict": "allowed"})), reply(rule_to_draft(expected).model_dump_json())
+    )
+    compiled = compile_rule(
+        "Keep the fire exit clear", spark=SparkClient(transport, clock=FakeClock())
+    )
+
+    assert compiled == expected
+    fmt = transport.bodies()[1]["text"]["format"]
+    assert fmt["name"] == "RuleDraft"
+    assert "predicate_nodes" in fmt["schema"]["properties"]
 
 
 def test_compile_with_full_context_lines() -> None:
-    """Compiling with site_name, zones, inventory formats user prompt completely."""
-    expected = _load_fixture("fire-exit-blocked")
-    spark = MockSparkLLM([expected])
-
+    spark = MockSparkLLM([_draft("fire-exit-blocked")])
     zones = {"egress": ZoneSpec(kind="buffer", camera_id="cam1", buffer_of="door", buffer_m=1.5)}
     inventory = [InventoryItem(concept="door", camera_id="cam1", count=1, mean_confidence=0.9)]
 
-    compiled = compile_rule(
+    compile_rule(
         "Clear fire exit",
         spark=spark,
         site_name="Warehouse A",
         zones=zones,
         inventory=inventory,
         calibration="cam1-cal",
+        plan_id="plan-1",
     )
-    assert compiled == expected
-    user_prompt = str(spark.calls[0]["messages"])
-    assert "Warehouse A" in user_prompt
-    assert "egress" in user_prompt
-    assert "cam1-cal" in user_prompt
+
+    user_prompt = _message(spark, 0, 1)
+    for expected in (
+        "Warehouse A",
+        "egress (buffer on cam1)",
+        "cam1-cal",
+        "door (cam=cam1)",
+        "plan-1",
+    ):
+        assert expected in user_prompt
 
 
-def test_repair_round_on_invalid_first_output() -> None:
-    """Invalid model output on attempt 1 triggers one repair round with error attached."""
-    expected = _load_fixture("wash-before-line")
-    validation_error = ValueError("Missing required predicate op")
+def test_invalid_model_output_is_repaired_after_one_round() -> None:
+    good = _draft("wash-before-line")
+    broken = good.model_copy(update={"predicate_root": "p99"})
+    spark = MockSparkLLM([broken, good])
 
-    spark = MockSparkLLM([validation_error, expected])
+    compiled = compile_rule("Wash hands before the line", spark=spark)
 
-    concern = "Everyone entering the line must wash hands for at least 20 seconds"
-    compiled = compile_rule(concern, spark=spark, plan_id="main-st-kitchen")
+    assert compiled == _load_fixture("wash-before-line")
+    assert len(spark.compile_calls) == 2
+    repair_msg = _message(spark, 1, -1)
+    assert "'p99' is referenced but not defined" in repair_msg
+    assert "Fix every error" in repair_msg
 
-    assert compiled == expected
-    assert len(spark.calls) == 2
 
-    second_call_messages = spark.calls[1]["messages"]
-    assert isinstance(second_call_messages, list)
-    repair_msg = str(second_call_messages[-1])
-    assert "Missing required predicate op" in repair_msg
-    assert "Please fix all schema errors" in repair_msg
+def test_undeclared_concept_triggers_repair() -> None:
+    good = _draft("excavator-swing-radius")
+    concepts = {k: v for k, v in good.concepts.items() if k != "person"}
+    spark = MockSparkLLM([good.model_copy(update={"concepts": concepts}), good])
+
+    compile_rule("keep two metres from the excavator bucket", spark=spark)
+
+    assert "undeclared concept 'person" in _message(spark, 1, -1)
+
+
+def test_structured_output_error_triggers_repair() -> None:
+    spark = MockSparkLLM([StructuredOutputError("bad json twice"), _draft("person-down")])
+    assert compile_rule("alert if someone falls", spark=spark) == _load_fixture("person-down")
 
 
 def test_repair_failure_raises_rule_compilation_error() -> None:
-    """Persistent failure across repair round raises RuleCompilationError."""
-    err1 = ValueError("First parse error")
-    err2 = ValueError("Second parse error after repair")
+    broken = _draft("person-down").model_copy(update={"predicate_root": "nope"})
+    spark = MockSparkLLM([broken, broken])
 
-    spark = MockSparkLLM([err1, err2])
+    with pytest.raises(RuleCompilationError, match="failed after repair round"):
+        compile_rule("alert if someone falls", spark=spark)
+    assert len(spark.compile_calls) == 2
 
-    with pytest.raises(RuleCompilationError, match="Rule compilation failed after repair round"):
-        compile_rule("Check something", spark=spark)
 
-    assert len(spark.calls) == 2
+def test_transport_errors_are_not_mistaken_for_invalid_output() -> None:
+    spark = MockSparkLLM([ModelHTTPError("HTTP 400", status=400, attempts=1)])
+    with pytest.raises(ModelHTTPError):
+        compile_rule("alert if someone falls", spark=spark)
+    assert len(spark.compile_calls) == 1
 
 
 def test_guardrail_decline_prevents_compilation() -> None:
-    """A banned request raises GuardrailDeclinedError immediately without calling LLM."""
     spark = MockSparkLLM([])
 
-    with pytest.raises(
-        GuardrailDeclinedError, match="Request declined under per_person_productivity"
-    ):
+    with pytest.raises(GuardrailDeclinedError, match="per_person_productivity") as info:
         compile_rule("who is slowest", spark=spark)
 
-    assert len(spark.calls) == 0
+    assert info.value.declined.category == GuardrailCategory.PER_PERSON_PRODUCTIVITY
+    assert spark.calls == []  # deterministic decline: no model call at all
 
 
-def test_apply_static_hints_from_inventory() -> None:
-    """Concepts matching static objects in inventory are tagged static=True."""
+def test_model_guardrail_decline_prevents_compilation() -> None:
+    decline = _ModelClassification(
+        verdict="declined", category=GuardrailCategory.IDENTITY, reason="names a person"
+    )
+    spark = MockSparkLLM([], classification=decline)
+
+    with pytest.raises(GuardrailDeclinedError, match="identity"):
+        compile_rule("tell me when Maria arrives", spark=spark)
+    assert spark.compile_calls == []
+
+
+def _node(**fields: Any) -> PredicateNode:
+    return PredicateNode.model_validate(fields)
+
+
+def _with_nodes(root: str, *nodes: PredicateNode) -> RuleDraft:
+    return _draft("person-down").model_copy(
+        update={"predicate_root": root, "predicate_nodes": list(nodes)}
+    )
+
+
+@pytest.mark.parametrize(
+    ("draft", "error"),
+    [
+        (
+            _with_nodes(
+                "a",
+                _node(id="a", op="not", children=["b"]),
+                _node(id="b", op="not", children=["a"]),
+            ),
+            "cycle",
+        ),
+        (
+            _with_nodes(
+                "a",
+                _node(id="a", op="pose", object="person", state="down"),
+                _node(id="a", op="pose", object="person", state="down"),
+            ),
+            "used twice",
+        ),
+        (
+            _with_nodes(
+                "a",
+                _node(id="a", op="pose", object="person", state="down"),
+                _node(id="b", op="pose", object="person", state="down"),
+            ),
+            "not reachable",
+        ),
+        (
+            _with_nodes(
+                "a",
+                _node(id="a", op="all", children=["b"]),
+                _node(id="b", op="pose", object="person", state="down"),
+            ),
+            "at least two children",
+        ),
+        (_with_nodes("a", _node(id="a", op="persist", seconds=2.0)), "exactly one child"),
+        (_with_nodes("a", _node(id="a", op="sequence", semantics="past")), "trigger"),
+        (_with_nodes("a", _node(id="a", op="inside", object="person", zone="dock")), "zone 'dock'"),
+    ],
+)
+def test_draft_to_rule_rejects_malformed_graphs(draft: RuleDraft, error: str) -> None:
+    with pytest.raises(ValueError, match=error):
+        draft_to_rule(draft)
+
+
+def test_reference_errors_cover_buffer_zones() -> None:
+    rule = _load_fixture("fire-exit-blocked")
+    concepts = {k: v for k, v in rule.concepts.items() if k != "door"}
+    bad = RuleIR.model_validate({**rule.model_dump(), "concepts": concepts})
+    assert any("buffers undeclared concept 'door'" in p for p in reference_errors(bad))
+
+
+def test_apply_static_hints_tags_fixed_objects_by_whole_word() -> None:
     rule = _load_fixture("wash-before-line")
-    rule_non_static = rule.model_copy(
-        update={"concepts": {**rule.concepts, "sink": ConceptSpec(prompt="sink", static=False)}}
-    )
-    assert rule_non_static.concepts["sink"].static is False
+    concepts = {
+        **rule.concepts,
+        "sink": ConceptSpec(prompt="hand sink", static=False),
+        "heater": ConceptSpec(prompt="outdoor heater"),
+        "tracker": ConceptSpec(prompt="trackers"),
+        "bin": ConceptSpec(prompt="waste bin"),
+    }
+    loose = RuleIR.model_validate({**rule.model_dump(), "concepts": concepts})
 
-    inventory = [
-        InventoryItem(concept="sink", camera_id="cam1", count=1, mean_confidence=0.95),
-        InventoryItem(concept="person", camera_id="cam1", count=2, mean_confidence=0.88),
-    ]
+    tagged = apply_static_hints(loose, static_concepts={"bin"})
 
-    tagged_rule = apply_static_hints(rule_non_static, inventory=inventory)
-    assert tagged_rule.concepts["sink"].static is True
-    assert tagged_rule.concepts["person"].static is False
-
-
-def test_intermediate_predicate_conversions() -> None:
-    """IntermediatePredicate converts all supported spatial, state, and logical predicates."""
-    # Spatial: distance, inside, overlap, without
-    p1 = convert_intermediate_predicate({"op": "distance_m", "a": "person", "b": "cart", "lt": 1.5})
-    assert p1.op == "distance_m"
-
-    p2 = convert_intermediate_predicate({"op": "inside", "object": "person", "zone": "hazard"})
-    assert p2.op == "inside"
-
-    p3 = convert_intermediate_predicate({"op": "overlap", "a": "box", "b": "shelf", "min_iou": 0.2})
-    assert p3.op == "overlap"
-
-    p4 = convert_intermediate_predicate(
-        {"op": "without", "subject": "worker", "item": "helmet", "region": "top_25pct"}
-    )
-    assert p4.op == "without"
-
-    # State / motion: moving, count, pose, state
-    p5 = convert_intermediate_predicate({"op": "moving", "object": "forklift", "speed_mps_gt": 1.0})
-    assert p5.op == "moving"
-
-    p6 = convert_intermediate_predicate(
-        {"op": "count", "object": "person", "zone": "dock", "gt": 3}
-    )
-    assert p6.op == "count"
-
-    p7 = convert_intermediate_predicate({"op": "pose", "object": "person", "state": "down"})
-    assert p7.op == "pose"
-
-    p8 = convert_intermediate_predicate({"op": "state", "object": "door", "state": "open"})
-    assert p8.op == "state"
-
-    # Logical: all, any, not
-    p9 = convert_intermediate_predicate(
-        {"op": "all", "of": [{"op": "inside", "object": "a", "zone": "z"}]}
-    )
-    assert p9.op == "all"
-
-    p10 = convert_intermediate_predicate(
-        {"op": "any", "of": [{"op": "inside", "object": "a", "zone": "z"}]}
-    )
-    assert p10.op == "any"
-
-    p11 = convert_intermediate_predicate(
-        {"op": "not", "of": {"op": "inside", "object": "a", "zone": "z"}}
-    )
-    assert p11.op == "not"
-
-    # Temporal: persist, dwell, absence, rate, sequence
-    p12 = convert_intermediate_predicate(
-        {"op": "dwell", "object": "hands", "zone": "sink", "total_s_gte": 20.0}
-    )
-    assert p12.op == "dwell"
-
-    p13 = convert_intermediate_predicate(
-        {"op": "absence", "object": "guard", "zone": "gate", "seconds": 60.0}
-    )
-    assert p13.op == "absence"
-
-    p14 = convert_intermediate_predicate(
-        {"op": "rate", "of": {"op": "inside", "object": "a", "zone": "z"}, "per_minute_gt": 5.0}
-    )
-    assert p14.op == "rate"
-
-    seq = convert_intermediate_predicate(
-        IntermediatePredicate(
-            op="sequence",
-            semantics="future",
-            require_within_s=45.0,
-            trigger=IntermediatePredicate(op="inside", object="p", zone="z"),
-            requirement=IntermediatePredicate(op="dwell", object="p", zone="z", total_s_gte=10.0),
-        )
-    )
-    assert seq.op == "sequence"
-
-
-def test_intermediate_predicate_errors() -> None:
-    """Validation errors on malformed intermediate predicates."""
-    with pytest.raises(ValueError, match="Not_ predicate missing 'of'"):
-        convert_intermediate_predicate({"op": "not"})
-
-    with pytest.raises(ValueError, match="Persist predicate missing 'of'"):
-        convert_intermediate_predicate({"op": "persist"})
-
-    with pytest.raises(ValueError, match="Rate predicate missing 'of'"):
-        convert_intermediate_predicate({"op": "rate"})
-
-    with pytest.raises(ValueError, match="Sequence predicate missing 'trigger'"):
-        convert_intermediate_predicate({"op": "sequence"})
-
-    with pytest.raises(ValueError, match="Unknown predicate op: invalid_op"):
-        convert_intermediate_predicate({"op": "invalid_op"})
-
-
-def test_ensure_rule_ir_from_dict() -> None:
-    """_ensure_rule_ir converts a valid dict conforming to RuleIR."""
-    rule = _load_fixture("wash-before-line")
-    dumped = rule.model_dump(mode="json")
-    reconstructed = _ensure_rule_ir(dumped)
-    assert reconstructed == rule
+    assert tagged.concepts["sink"].static is True
+    assert tagged.concepts["bin"].static is True
+    assert tagged.concepts["heater"].static is False
+    assert tagged.concepts["tracker"].static is False
+    assert tagged.concepts["person"].static is False
+    assert apply_static_hints(tagged) is tagged
 
 
 def test_prompt_hygiene_clause_in_compile_system_prompt() -> None:
-    """Mandatory data-not-instructions clause is present in the compile system prompt."""
     assert DATA_NOT_INSTRUCTIONS_CLAUSE in _COMPILE_SYSTEM_PROMPT

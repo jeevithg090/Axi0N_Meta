@@ -22,11 +22,13 @@ One FastAPI app serves the UI, the phones and the verify page, and mirrors the e
 | `/pair/...` | P1-09 Pair-a-Phone (`build_router`) |
 | `POST /correction` | P1-10 correction loop (`correction_router`) |
 | `/verify/` | static verify page, served from `<data dir>/verify` |
+| `GET /worker/{plan_id}/{camera}`, `GET .../poster`, `POST /worker/dispute` | P2-11 public worker rules page, A4 poster and anonymous tap dispute (`rulecam.worker`) |
 
 **Owner-only** means both the request host and the client are loopback, and a browser request
 carries no `Origin` from another host (`require_owner` from Pair-a-Phone), because the same app is
-reachable through the public tunnel and any web page can make the owner's browser call localhost. `/worker`, `/ack`,
-`/interlock`, `/advice` and `/surprise` are mounted through `AppServices.routers` as they land.
+reachable through the public tunnel and any web page can make the owner's browser call localhost. `/ack`,
+`/interlock`, `/advice` and `/surprise` are mounted through `AppServices.routers` as they land;
+`services_from_settings` mounts `/worker` that way.
 
 ## Runtime loop
 

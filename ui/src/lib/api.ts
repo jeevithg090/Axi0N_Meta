@@ -3,6 +3,7 @@
 
 import { API_PROXY } from "./config";
 import type { PlanSummary, SitePlan } from "./plan";
+import type { DisputeRequest, DisputeResult, WorkerPage } from "./worker";
 
 export interface RequestItemInput {
   kind: "text" | "voice" | "pdf" | "photo" | "video";
@@ -67,4 +68,10 @@ export const api = {
     return call<UploadResult>("/plans/uploads", { method: "POST", body: form });
   },
   cameras: () => call<CameraInfo[]>("/cameras"),
+  workerPage: (planId: string, camera: string, lang?: string | null) =>
+    call<WorkerPage>(
+      `/worker/${encodeURIComponent(planId)}/${encodeURIComponent(camera)}` +
+        (lang ? `?lang=${encodeURIComponent(lang)}` : ""),
+    ),
+  dispute: (body: DisputeRequest) => call<DisputeResult>("/worker/dispute", json(body)),
 };

@@ -512,3 +512,156 @@ button:disabled {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* --- P2-11: worker rules page (mobile first, large tap targets) ----------------------------- */
+.worker {
+  max-width: 640px;
+  margin: 0 auto;
+}
+.worker h1 {
+  font-size: 22px;
+  margin: 0;
+}
+.worker h2 {
+  font-size: 17px;
+  margin: 20px 0 8px;
+}
+.worker-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.lang-switch {
+  display: flex;
+  gap: 8px;
+}
+.tap {
+  min-height: 48px;
+  min-width: 48px;
+  padding: 10px 16px;
+  font-size: 16px;
+}
+.tap[aria-pressed="true"],
+.tap.primary {
+  background: var(--chip);
+  color: var(--surface);
+  border-color: var(--chip);
+}
+.worker-rules,
+.worker-events,
+.never-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.worker-rule,
+.worker-event {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+}
+.worker-rule p,
+.worker-event p {
+  margin: 4px 0;
+}
+.worker-counts {
+  display: flex;
+  gap: 16px;
+  margin: 8px 0 0;
+}
+.worker-counts dt {
+  font-size: 13px;
+  color: var(--muted);
+}
+.worker-counts dd {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+.never-list li {
+  border-left: 4px solid var(--high);
+  padding: 4px 10px;
+}
+.worker-event {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.worker-event .code {
+  font-family: ui-monospace, monospace;
+}
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 55%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 10;
+}
+.sheet {
+  background: var(--surface);
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 16px 16px 0 0;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+.sheet h2 {
+  margin: 0;
+}
+.sheet form {
+  display: grid;
+  gap: 12px;
+}
+.sheet fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  font-size: 16px;
+}
+.choice input {
+  width: 22px;
+  height: 22px;
+}
+.details {
+  display: grid;
+  gap: 4px;
+}
+.details textarea {
+  min-height: 80px;
+  font: inherit;
+}
+.outcome {
+  font-weight: 700;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.outcome-upheld {
+  color: var(--live);
+}
+.outcome-rejected,
+.outcome-pending {
+  color: var(--medium);
+}
+.outcome-error {
+  color: var(--high);
+}

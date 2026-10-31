@@ -3,10 +3,14 @@
 
 import type { Frame } from "@/lib/events";
 
+import { demoPlannerSteps, demoPlanV2 } from "./demo-plan";
+
 const T0 = "2026-11-01T18:00:00Z";
 
 export const demoFrames: Frame[] = [
   { topic: "mode.changed", payload: { mode: "replay", badge: "REPLAY" } },
+  ...demoPlannerSteps.map((payload): Frame => ({ topic: "planner.step", payload })),
+  { topic: "plan.updated", payload: demoPlanV2 },
   {
     topic: "relay.model_used",
     payload: { model: "sam-3.1", segment: "perception", latency_ms: 410 },

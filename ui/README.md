@@ -20,3 +20,16 @@ npm run lint && npm run typecheck && npm test -- --run
   event: the predicate trace, Tier 1 and Tier 2 verdicts, expandable Spark Open reasoning, scene
   text shown as data, and the actions taken.
 - `make openapi` writes `src/api/openapi.json`; `npm run openapi` generates `src/api/schema.d.ts`.
+- **Planner** (`/planner`):
+  - a request composer (typed text, voice recorded in the browser, a photo, PDF or walk-through
+    upload through `POST /plans/uploads`), sent with `POST /plans/requests`;
+  - the ten fixed steps from `planner.step`;
+  - camera tiles from `GET /cameras` plus the survey inventory.
+- **Plans** (`/plans`, `/plans/[id]`):
+  - a plain-language and YAML toggle;
+  - feasibility cards (Observable / Caveat / Not observable / Declined, always in words), with
+    the camera's first-person line, probe evidence and the fix or alternative;
+  - the acceptance trace (passed/total, repair rounds, failing checks) and the Spark Open audit;
+  - Approve, and a **diff** against the last approved version (rules added, removed or changed,
+    plus settings) with *Approve vN* / *Keep vN-1*.
+- `?demo=1` works on every screen: recorded UC1 frames plus a v1 (approved) and v2 (proposed) plan.

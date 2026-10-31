@@ -29,7 +29,7 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from rulecam.api.plans import PlanRegistry, plans_router
+from rulecam.api.plans import PlannerRunner, PlanRegistry, plans_router
 from rulecam.api.ws import mirror_bus
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
@@ -67,6 +67,8 @@ class AppServices:
         chunks: Index of recent chunks, fed from `chunk.ready` (feeds `/cameras`).
         plans: The `/plans` registry.
         verify_dir: The browser verify page served at `/verify` (P3-07b); `None` skips it.
+        uploads_dir: Where planner uploads are stored (`POST /plans/uploads`).
+        planner: The Site Planner runner (P2-06); `POST /plans/requests` needs it.
     """
 
     bus: Bus
@@ -82,6 +84,8 @@ class AppServices:
     chunks: ChunkIndex | None = None
     plans: PlanRegistry = field(default_factory=PlanRegistry)
     verify_dir: Path | None = None
+    uploads_dir: Path | None = None
+    planner: PlannerRunner | None = None
 
 
 VERIFY_PAGE_DIR = Path(__file__).resolve().parent.parent / "evidence" / "verify_page"
@@ -253,7 +257,12 @@ def _routers(services: AppServices) -> list[APIRouter]:
         _core_router(services),
         _evidence_router(services),
         _runtime_router(services),
-        plans_router(services.plans, services.bus),
+        plans_router(
+            services.plans,
+            services.bus,
+            uploads_dir=services.uploads_dir,
+            planner=services.planner,
+        ),
     ]
     if services.pair is not None:
         routers.append(build_router(services.pair))
@@ -372,6 +381,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         correction=correction,
         chunks=perception.chunks,
         verify_dir=VERIFY_PAGE_DIR,
+        uploads_dir=settings.rulecam_data_dir / "uploads",
     )
 
 

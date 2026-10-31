@@ -19,6 +19,7 @@ import { parseFrame, type ModeChanged } from "./events";
 import { initialState, reducer, type Action, type UiState } from "./store";
 
 const StreamContext = createContext<UiState>(initialState);
+const DispatchContext = createContext<Dispatch<Action>>(() => undefined);
 const MAX_BACKOFF_MS = 10_000;
 const DEMO_STEP_MS = 600;
 
@@ -74,9 +75,24 @@ export function StreamProvider({ children }: { children: ReactNode }) {
     const demo = new URLSearchParams(window.location.search).get("demo") === "1";
     return demo ? playDemo(dispatch) : connect(dispatch);
   }, []);
-  return <StreamContext.Provider value={state}>{children}</StreamContext.Provider>;
+  return (
+    <DispatchContext.Provider value={dispatch}>
+      <StreamContext.Provider value={state}>{children}</StreamContext.Provider>
+    </DispatchContext.Provider>
+  );
 }
 
 export function useStream(): UiState {
   return useContext(StreamContext);
+}
+
+export function useDispatch(): Dispatch<Action> {
+  return useContext(DispatchContext);
+}
+
+/** True when the page runs on recorded demo frames (`?demo=1`): no API calls are made. */
+export function isDemo(): boolean {
+  return (
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1"
+  );
 }

@@ -267,3 +267,248 @@ pre {
 .home-links li {
   margin: 6px 0;
 }
+
+/* --- P3-09b: planner, plans, feasibility, acceptance -------------------------------------- */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+button,
+.file-button {
+  font: inherit;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+button.primary {
+  background: var(--chip);
+  border-color: var(--chip);
+  color: var(--bg);
+  font-weight: 600;
+}
+button[aria-pressed="true"] {
+  border-color: var(--chip);
+  color: var(--chip);
+  font-weight: 600;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.file-button input {
+  display: none;
+}
+
+.planner {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 900px) {
+  .planner {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  }
+  .planner > section:last-child {
+    grid-column: 1 / -1;
+  }
+}
+.composer {
+  display: grid;
+  gap: 8px;
+}
+.composer textarea {
+  font: inherit;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  width: 100%;
+}
+.composer-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.attached {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.step {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.step-done {
+  border-left: 4px solid var(--live);
+}
+.step-running {
+  border-left: 4px solid var(--replay);
+}
+.step-failed {
+  border-left: 4px solid var(--high);
+}
+
+.tiles {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+}
+.tile h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.tile ul {
+  padding-left: 18px;
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.plan-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.plan-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.plan-header h2 {
+  margin: 0;
+}
+.plan-page {
+  display: grid;
+  gap: 20px;
+}
+.toggle {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.yaml {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 420px;
+  overflow: auto;
+}
+.rules li {
+  margin: 4px 0;
+}
+
+.feas-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+.feas {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+}
+.feas header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.feas h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.feas .says {
+  font-style: italic;
+}
+.feas-green {
+  border-left-color: var(--live);
+}
+.feas-amber {
+  border-left-color: var(--replay);
+}
+.feas-red {
+  border-left-color: var(--high);
+}
+.feas-grey {
+  border-left-color: var(--blind);
+}
+.probes {
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.acc-ok strong {
+  color: var(--live);
+}
+.acc-bad strong {
+  color: var(--high);
+}
+.checks {
+  border-collapse: collapse;
+  font-size: 13px;
+  width: 100%;
+}
+.checks th,
+.checks td {
+  text-align: left;
+  padding: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.audit {
+  padding-left: 18px;
+}
+
+.diff {
+  background: var(--surface);
+  border: 2px solid var(--replay);
+  border-radius: 10px;
+  padding: 12px;
+}
+.diff h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.diff ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+.diff-add {
+  color: var(--live);
+}
+.diff-remove {
+  color: var(--high);
+}
+.buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}

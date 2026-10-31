@@ -76,6 +76,54 @@ def test_httpx_transport_custom_auth_scheme() -> None:
     assert seen[0].headers["authorization"] == "Api-Key secret"
 
 
+def test_httpx_transport_sends_named_multipart_parts() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"transcript": "", "turns": []})
+
+    transport = HttpxTransport(
+        "https://api.example.test/v1",
+        "k",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    reply = transport(
+        {
+            "method": "POST",
+            "path": "/asr/transcribe",
+            "parts": {
+                "request": {"content_type": "application/json", "content": b'{"model":"m"}'},
+                "audio": {"filename": "a.wav", "content_type": "audio/wav", "content": b"RIFF"},
+            },
+        }
+    )
+
+    assert reply["status"] == 200
+    body = seen[0].read()
+    assert b'name="request"' in body
+    assert b'{"model":"m"}' in body
+    assert b'name="audio"; filename="a.wav"' in body
+    assert b"Content-Type: audio/wav" in body
+    assert seen[0].headers["content-type"].startswith("multipart/form-data")
+
+
+def test_httpx_transport_rejects_non_bytes_part() -> None:
+    transport = HttpxTransport(
+        "https://api.example.test/v1",
+        "k",
+        client=httpx.Client(transport=httpx.MockTransport(lambda _r: httpx.Response(200))),
+    )
+    with pytest.raises(TypeError, match="must be bytes"):
+        transport(
+            {
+                "method": "POST",
+                "path": "/x",
+                "parts": {"request": {"content_type": "application/json", "content": "str"}},
+            }
+        )
+
+
 def test_httpx_transport_uploads_multipart_files() -> None:
     seen: list[bytes] = []
 

@@ -1,0 +1,375 @@
+"""Muse Spark hosted client (`SparkClient`), the hosted `StructuredLLM` (task P2-01).
+
+One `POST /responses` per call, the same Responses + Files shape as hosted SAM 3.1 (see
+`responses.py`). Request fields follow the Responses schemas reference (read Oct 31 2026):
+
+- structured output in `text.format` (`type: json_schema`, `name`, `schema`). `strict` is off:
+  pydantic schemas use defaults, open dicts and root unions, which the strict subset rejects, so
+  the reply is validated here instead, with one retry that carries the validation errors;
+- `reasoning.effort`; `background: true` creates the response, then `GET /responses/{id}` is
+  polled until it leaves `queued`/`in_progress` (background cannot be combined with `stream`, so
+  every call sends `stream: false` unless it is a background call);
+- `tools` (function tools, a `{"type": "web_search"}` grounding tool), capped by
+  `max_tool_calls`. `tool_choice` is never sent: the API accepts `"auto"` only, its default;
+- media goes in as content parts that reference `POST /files` uploads (`upload`, `file_part`);
+- `usage.input_tokens_details.cached_tokens` is recorded so the stable system prefix can be
+  checked for prompt-cache hits.
+
+Models: `muse-spark-1.3` by default, `muse-spark-1.2` for video with narration (1.3 audio is
+degraded). Every call goes through the injected transport, which `from_settings` always wraps in
+the replay cache, and publishes `relay.model_used`.
+"""
+
+from __future__ import annotations
+
+import random
+import time
+from collections.abc import Callable, Mapping
+from functools import partial
+from pathlib import Path
+from typing import Literal, TypeVar
+
+from pydantic import BaseModel, ValidationError
+
+from rulecam.bus import Bus
+from rulecam.clients.errors import ModelResponseError, StructuredOutputError
+from rulecam.clients.meta_hosted.responses import (
+    PENDING_STATUSES,
+    REPLAY_PROVIDER,
+    RESPONSES_PATH,
+    FileUploader,
+    TimedReply,
+    cached_tokens,
+    file_part,
+    latency_ms,
+    live_transport,
+    output_text,
+    response_body,
+)
+from rulecam.clients.ratelimit import TokenBucket
+from rulecam.clients.relay import ModelUsed, publish_model_used
+from rulecam.clients.transport import RetryPolicy, Sender, Transport
+from rulecam.config import Settings
+from rulecam.contracts import Clock
+from rulecam.log import get_logger
+from rulecam.replay.cache import ReplayCache
+
+_log = get_logger(__name__)
+
+M = TypeVar("M", bound=BaseModel)
+
+DEFAULT_MODEL = "muse-spark-1.3"
+VIDEO_AUDIO_MODEL = "muse-spark-1.2"
+DEFAULT_RPM = 2500.0
+DEFAULT_SEGMENT = "planner"
+POLL_INTERVAL_S = 1.0
+POLL_TIMEOUT_S = 600.0
+WEB_SEARCH_TOOL: dict[str, object] = {"type": "web_search"}
+
+Effort = Literal["low", "medium", "high"]
+
+
+def build_request(
+    *,
+    model: str,
+    messages: list[dict[str, object]],
+    schema: type[BaseModel],
+    reasoning_effort: Effort,
+    background: bool,
+    tools: list[dict[str, object]] | None = None,
+    web_search: bool = False,
+    max_tool_calls: int | None = None,
+) -> dict[str, object]:
+    """Build the `POST /responses` body for one structured call.
+
+    Args:
+        model: The model id.
+        messages: Input items (`{"role", "content"}`; content is text or a list of parts).
+        schema: The pydantic model the output must validate against.
+        reasoning_effort: `reasoning.effort`.
+        background: Whether to run as a background response.
+        tools: Function or other tool definitions, passed through unchanged.
+        web_search: Whether to add the `web_search` grounding tool.
+        max_tool_calls: Cap on tool calls; must be at least 1 when given.
+
+    Returns:
+        The request body.
+
+    Raises:
+        ValueError: If `max_tool_calls` is below 1 or a tool sets `tool_choice`.
+    """
+    all_tools = list(tools or [])
+    if any("tool_choice" in tool for tool in all_tools):
+        msg = "tool_choice is 'auto' only on the hosted API; do not set it"
+        raise ValueError(msg)
+    if web_search and WEB_SEARCH_TOOL not in all_tools:
+        all_tools.append(dict(WEB_SEARCH_TOOL))
+    body: dict[str, object] = {
+        "model": model,
+        "input": messages,
+        "text": {
+            "format": {
+                "type": "json_schema",
+                "name": schema.__name__,
+                "schema": schema.model_json_schema(),
+                "strict": False,
+            }
+        },
+        "reasoning": {"effort": reasoning_effort},
+    }
+    if background:
+        body["background"] = True
+    else:
+        body["stream"] = False
+    if all_tools:
+        body["tools"] = all_tools
+    if max_tool_calls is not None:
+        if max_tool_calls < 1:
+            msg = f"max_tool_calls must be at least 1, got {max_tool_calls}"
+            raise ValueError(msg)
+        body["max_tool_calls"] = max_tool_calls
+    return body
+
+
+def _retry_messages(
+    messages: list[dict[str, object]], text: str, error: str
+) -> list[dict[str, object]]:
+    return [
+        *messages,
+        {"role": "assistant", "content": text},
+        {
+            "role": "user",
+            "content": (
+                f"The previous response failed schema validation: {error}. "
+                "Return only JSON that matches the required schema."
+            ),
+        },
+    ]
+
+
+class SparkClient:
+    """Muse Spark on Meta's hosted Responses API; satisfies `StructuredLLM`."""
+
+    def __init__(
+        self,
+        transport: Transport,
+        *,
+        clock: Clock,
+        bus: Bus | None = None,
+        rpm: float = DEFAULT_RPM,
+        segment: str = DEFAULT_SEGMENT,
+        retry: RetryPolicy | None = None,
+        sleep: Callable[[float], None] = time.sleep,
+        monotonic: Callable[[], float] = time.monotonic,
+        seed: int | None = None,
+        poll_interval_s: float = POLL_INTERVAL_S,
+        poll_timeout_s: float = POLL_TIMEOUT_S,
+    ) -> None:
+        """Create the client.
+
+        Args:
+            transport: Sends one request mapping and returns the reply mapping.
+            clock: Time source.
+            bus: Bus for `relay.model_used`; `None` publishes nothing.
+            rpm: Request budget per minute for this client.
+            segment: Pipeline segment shown on the relay HUD.
+            retry: Backoff policy for 429/5xx (default: 4 tries).
+            sleep: Blocking sleep (injected in tests).
+            monotonic: Monotonic time source (injected in tests).
+            seed: Seed for the retry jitter.
+            poll_interval_s: Seconds between polls of a background response.
+            poll_timeout_s: Seconds after which a background response is abandoned.
+        """
+        self._clock = clock
+        self._bus = bus
+        self._segment = segment
+        self._sleep = sleep
+        self._monotonic = monotonic
+        self._poll_interval_s = poll_interval_s
+        self._poll_timeout_s = poll_timeout_s
+        self._last_cached_tokens = 0
+        self._total_cached_tokens = 0
+        limiter = TokenBucket(rpm, monotonic=monotonic, sleep=sleep)
+        jitter = random.Random(seed)  # noqa: S311 - retry jitter, not cryptography
+        self._sender = Sender(transport, limiter, retry or RetryPolicy(), sleep, jitter)
+        self._files = FileUploader(self._sender)
+
+    @classmethod
+    def from_settings(
+        cls,
+        settings: Settings,
+        *,
+        clock: Clock,
+        bus: Bus | None = None,
+        cache: ReplayCache | None = None,
+    ) -> SparkClient:
+        """Build a client whose transport always goes through the replay cache.
+
+        Args:
+            settings: Application settings.
+            clock: Time source.
+            bus: Bus for `relay.model_used` (and `mode.changed` of a cache built here).
+            cache: The replay cache; by default one is built from `settings`.
+
+        Returns:
+            The client.
+
+        Raises:
+            ClientConfigError: In `live` or `record` mode without `META_API_BASE_URL` and
+                `META_API_KEY`.
+        """
+        if cache is None:
+            cache = ReplayCache.from_settings(settings, clock=clock, bus=bus)
+        inner = live_transport(settings, required=cache.mode != "replay", what="Muse Spark")
+        transport = cache.wrap_transport(REPLAY_PROVIDER, DEFAULT_MODEL, inner)
+        return cls(transport, clock=clock, bus=bus)
+
+    @property
+    def cached_tokens(self) -> int:
+        """Cached input tokens reported by the most recent response."""
+        return self._last_cached_tokens
+
+    @property
+    def total_cached_tokens(self) -> int:
+        """Cached input tokens summed over every response."""
+        return self._total_cached_tokens
+
+    def upload(self, path: Path) -> str:
+        """Upload a PDF, image, audio or video file once and return its file id.
+
+        Args:
+            path: The local file.
+
+        Returns:
+            The file id to reference with `file_part`.
+
+        Raises:
+            ValueError: If the Files API does not accept the file type.
+            ModelHTTPError: When the upload keeps failing or is rejected.
+            ModelResponseError: When the reply has no file id.
+        """
+        return self._files.upload(path)
+
+    def attach(self, path: Path) -> dict[str, object]:
+        """Upload `path` and return the content part that references it.
+
+        Args:
+            path: The local file.
+
+        Returns:
+            An `input_image`, `input_video`, `input_audio` or `input_file` part.
+        """
+        return file_part(path, self.upload(path))
+
+    def structured(
+        self,
+        *,
+        model: str = DEFAULT_MODEL,
+        messages: list[dict[str, object]],
+        schema: type[M],
+        reasoning_effort: Effort = "low",
+        background: bool = False,
+        tools: list[dict[str, object]] | None = None,
+        enable_web_search: bool = False,
+        max_tool_calls: int | None = None,
+        camera_id: str | None = None,
+    ) -> M:
+        """Call Muse Spark and return its output validated against `schema`.
+
+        Args:
+            model: `muse-spark-1.3` (default) or `muse-spark-1.2` for video with audio.
+            messages: Input items; keep the system message first and stable for prompt caching.
+            schema: The pydantic model to validate against.
+            reasoning_effort: `reasoning.effort`.
+            background: Run as a background response and poll until it finishes.
+            tools: Function or other tool definitions.
+            enable_web_search: Add the `web_search` grounding tool.
+            max_tool_calls: Cap on tool calls.
+            camera_id: Camera the call is for, for the relay HUD.
+
+        Returns:
+            The validated model.
+
+        Raises:
+            StructuredOutputError: If the output fails validation twice.
+            ModelHTTPError: When the API keeps failing or rejects the request.
+            ModelResponseError: When a reply cannot be understood or the response failed.
+        """
+        request = partial(
+            build_request,
+            model=model,
+            schema=schema,
+            reasoning_effort=reasoning_effort,
+            background=background,
+            tools=tools,
+            web_search=enable_web_search,
+            max_tool_calls=max_tool_calls,
+        )
+        text = self._call(request(messages=messages), model, camera_id)
+        try:
+            return schema.model_validate_json(text)
+        except ValidationError as first:
+            _log.warning("spark_validation_retry", model=model, errors=first.error_count())
+            retry = _retry_messages(messages, text, str(first))
+        text = self._call(request(messages=retry), model, camera_id)
+        try:
+            return schema.model_validate_json(text)
+        except ValidationError as second:
+            msg = f"Spark output failed validation twice against {schema.__name__}: {second}"
+            raise StructuredOutputError(msg) from second
+
+    # --- internals ------------------------------------------------------------------------------
+
+    def _send(self, request: dict[str, object]) -> TimedReply:
+        start = self._monotonic()
+        result = self._sender.send(request)
+        return TimedReply(
+            body=result.reply.body,
+            attempts=result.attempts,
+            latency_ms=latency_ms(result, self._monotonic() - start),
+        )
+
+    def _call(self, body: dict[str, object], model: str, camera_id: str | None) -> str:
+        start = self._monotonic()
+        reply = self._send({"method": "POST", "path": RESPONSES_PATH, "json": body})
+        attempts, recorded_ms = reply.attempts, reply.latency_ms
+        final = response_body(reply.body)
+        if final.get("status") in PENDING_STATUSES:
+            final, poll_attempts, poll_ms = self._poll(final)
+            attempts += poll_attempts
+            recorded_ms += poll_ms
+        elapsed_ms = max(0, round((self._monotonic() - start) * 1000))
+        tokens = cached_tokens(final)
+        self._last_cached_tokens = tokens
+        self._total_cached_tokens += tokens
+        publish_model_used(
+            self._bus,
+            ModelUsed(
+                model=model,
+                segment=self._segment,
+                latency_ms=max(elapsed_ms, recorded_ms),
+                camera_id=camera_id,
+                attempts=attempts,
+            ),
+        )
+        _log.info("spark_call", model=model, attempts=attempts, cached_tokens=tokens)
+        return output_text(final)
+
+    def _poll(self, created: Mapping[str, object]) -> tuple[Mapping[str, object], int, int]:
+        response_id = created.get("id")
+        if not isinstance(response_id, str) or not response_id:
+            msg = "background response has no id to poll"
+            raise ModelResponseError(msg)
+        deadline = self._monotonic() + self._poll_timeout_s
+        attempts = recorded_ms = 0
+        body: Mapping[str, object] = created
+        while body.get("status") in PENDING_STATUSES:
+            if self._monotonic() > deadline:
+                msg = f"background response {response_id} still pending after poll timeout"
+                raise ModelResponseError(msg)
+            self._sleep(self._poll_interval_s)
+            reply = self._send({"method": "GET", "path": f"{RESPONSES_PATH}/{response_id}"})
+            attempts += reply.attempts
+            recorded_ms += reply.latency_ms
+            body = response_body(reply.body)
+        return body, attempts, recorded_ms

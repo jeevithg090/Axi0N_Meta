@@ -206,6 +206,37 @@ GPU pod setup:
 6. Check: `curl https://<sam-pod>-8090.proxy.runpod.net/health` gives `{"status": "ok", …}`, and
    `POST /segment` without the key gives 401.
 
+GPU memory, speed and accuracy knobs (GPU pod environment, read once at load):
+
+- After every session (also a failed one) the engine runs `gc.collect()`,
+  `torch.clear_autocast_cache()` and `torch.cuda.empty_cache()`, asks propagation not to keep
+  per-frame masks (`evict_cached_frame_outputs`), and logs `sam_session_memory allocated_mb=…
+  reserved_mb=… peak_mb=…`. Upstream `close_session` only empties the CUDA cache above 80 % device
+  use and, by default, keeps every propagated frame's video-resolution masks on the GPU until the
+  session closes; on an L4 the pod grew from 4 GB to 20–22 GB in a few calls and then failed every
+  call with `OutOfMemoryError`. `scripts/sam_pod/soak.py` (stdlib only, run with the sam venv on
+  the GPU pod) posts one chunk N times and prints `/health` memory after each call.
+- `SAM_MEMORY_GUARD_GB` (default: half the device): when allocated memory is still above it after a
+  session, the engine logs `sam_memory_guard`, closes any session the predictor still holds and
+  frees the cache again. `GET /health` shows `memory` (allocated, reserved, peak, free and total
+  bytes; `sessions`, `guard_trips`, `last_session`, `model_config`). Allocated memory should come
+  back to the same level after every call; if `guard_trips` keeps rising, restart with
+  `setup.sh --restart` and report the log.
+- No frame downscaling: SAM 3.1 resizes every frame to 1008 × 1008 before the backbone, so smaller
+  input frames save no GPU time. `SAM_COMPILE=1` builds the model with `torch.compile` and warms it
+  up (upstream quotes about 2×; slower start, untested on our pod).
+- Detection settings (defaults are upstream's): `SAM_DET_THRESH` (0.4), `SAM_NEW_DET_THRESH`
+  (0.65, the score a detection needs to start a new object), `SAM_HOTSTART_DELAY` (15 frames),
+  `SAM_HOTSTART_UNMATCH` (8) and `SAM_HOTSTART_DUP` (8). Set them in the
+  environment of `setup.sh --restart` or as `KEY=value` lines in `/workspace/sam.env` (read on
+  every start, so they survive a reboot). Hotstart drops an object that goes
+  unmatched for 8 of its first 15 frames, which is most of a 3 s chunk at 3–8 fps.
+- Hosted parity check, on the API pod: `RULECAM_MODE=live uv run python
+  scripts/sam_pod/compare.py --concept forklift --concept person <chunk.mp4 …>` prints per chunk
+  and concept the detections, frames with detections, latency and frame agreement for hosted and
+  self-hosted SAM, plus the self-hosted `/health` memory before and after (hosted calls are
+  billed).
+
 API pod: add `SAM_BASE_URL=https://<sam-pod>-8090.proxy.runpod.net` to `.env`, write the same key
 to `/workspace/rulecam/.sam_api_key` (mode 600) and have `start.sh` export it as `SAM_API_KEY` like
 the other key files, then restart the API. The key never goes in `.env`, `NEXT_PUBLIC_*`, argv or
@@ -213,7 +244,8 @@ logs.
 
 **Security.** The server refuses to start without `SAM_API_KEY`, compares the Bearer key in
 constant time, and answers 401 before reading a body. Only `/health` is open, and it reveals the
-model version and whether the GPU is busy, nothing else. Keep it behind the RunPod HTTPS proxy;
+model version, whether the GPU is busy, GPU memory counters and the detection settings, nothing
+else. Keep it behind the RunPod HTTPS proxy;
 no shortcut that trusts every forwarder (the `--forwarded-allow-ips="*"` kind) and no open port
 without the key. Rotate the key by rewriting both 600 files and restarting both sides.
 

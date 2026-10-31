@@ -64,6 +64,13 @@ class FakeEngine:
         self.calls.append((video, request))
         return self.respond(request)
 
+    def memory_stats(self) -> dict[str, Any]:
+        return {
+            "allocated_bytes": 4 * 2**30,
+            "reserved_bytes": 5 * 2**30,
+            "sessions": len(self.calls),
+        }
+
 
 class Running:
     """A `SamHTTPServer` on a loopback port, served from a background thread."""
@@ -110,7 +117,15 @@ def test_health_is_open(running: Running) -> None:
         "model_version": MODEL_VERSION,
         "busy": False,
         "waiting": 0,
+        "memory": {"allocated_bytes": 4 * 2**30, "reserved_bytes": 5 * 2**30, "sessions": 0},
     }
+
+
+def test_health_reports_the_engines_memory_after_each_call(running: Running) -> None:
+    httpx.post(f"{running.url}/segment", json=_body(), headers=_auth())
+    memory = httpx.get(f"{running.url}/health").json()["memory"]
+    assert memory["sessions"] == 1
+    assert memory["allocated_bytes"] == 4 * 2**30
 
 
 @pytest.mark.parametrize("headers", [{}, _auth("wrong"), {"Authorization": KEY}])

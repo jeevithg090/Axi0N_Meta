@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     rulecam_runtime_verify_workers: int = Field(default=4, ge=1)  # Tier 1 verifications at once
     # Decode hosted SAM masks on the runtime path (pure-Python, GIL-bound; boxes suffice for feet).
     rulecam_runtime_sam_masks: bool = False
+    # Rule ids whose owner turned operator exclusion off (comma-separated; rules/operators.py):
+    # for these, a person riding a forklift counts as a pedestrian next to it.
+    rulecam_operator_exclusion_off: str = ""
     # YuNet face-detector ONNX (opencv_zoo) for blurring faces in evidence strips; without it
     # only the head regions of tracked people are blurred (runtime.strips).
     rulecam_face_model: Path | None = None

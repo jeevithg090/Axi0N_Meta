@@ -11,7 +11,17 @@ from rulecam.rule_ci.red_team import RedTeamReport
 
 REQUIRED_KILL_RATIO: Final = 0.90
 
-TraceKind = Literal["boundary", "gap", "window", "interruption", "id_swap", "order", "zone_edge"]
+TraceKind = Literal[
+    "boundary",
+    "gap",
+    "window",
+    "interruption",
+    "id_swap",
+    "order",
+    "zone_edge",
+    "kinematic",
+    "operator",
+]
 
 
 class TraceCase(Frozen):
@@ -50,12 +60,15 @@ class MutationCase(Frozen):
         operator: The operator that made it (see `rule_ci.mutations.OPERATORS`).
         rule: The mutated rule.
         description: What changed.
+        operator_exclusion: Whether the engine runs the mutant with operator exclusion
+            (`rules.operators`); `drop_operator_exclusion` turns it off.
     """
 
     name: str
     operator: str
     rule: RuleIR
     description: str
+    operator_exclusion: bool = True
 
 
 class RuleCIReport(Frozen):

@@ -107,6 +107,7 @@ from rulecam.perception.tracking import SegmentedChunk
 from rulecam.rules.backtest import DecisionContext, candidate_payload
 from rulecam.rules.engine import relevant_concepts
 from rulecam.rules.ir import walk
+from rulecam.rules.operators import OperatorExclusion
 from rulecam.runtime.sampling import CameraSampler, SamplingPolicy, has_high
 from rulecam.runtime.sampling import chunk_end as chunk_end  # noqa: PLC0414 - re-export
 from rulecam.runtime.timings import StageStats, StageTimings
@@ -439,6 +440,7 @@ class RuntimeLoop:
         pipeline_depth: int = DEFAULT_PIPELINE_DEPTH,
         timings: StageTimings | None = None,
         verify_workers: int = DEFAULT_VERIFY_WORKERS,
+        operators: OperatorExclusion | None = None,
     ) -> None:
         """Create the loop; it does nothing until a plan is set.
 
@@ -468,6 +470,7 @@ class RuntimeLoop:
             timings: Per-stage timings, shared with the SAM path that reports into it (default:
                 new timings on `clock`).
             verify_workers: Tier 1 verifications `run()` runs at once, off the in-order path.
+            operators: Per-rule operator exclusion (`rules.operators`); default on for all.
         """
         self._bus = bus
         self._clock = clock
@@ -487,6 +490,7 @@ class RuntimeLoop:
         self._static_sink = static_sink
         self._companions = tuple(companions)
         self._depth = max(1, pipeline_depth)
+        self._operators = operators or OperatorExclusion()
         self._plan: ActivePlan | None = None
         self._prompts: dict[str, dict[str, bool]] = {}
         self._state = _State()
@@ -911,6 +915,7 @@ class RuntimeLoop:
             t0=t0,
             t1=t1,
             plan_version_hash=plan.plan_version_hash,
+            operator_exclusion=self._operators.enabled_for(rule.id),
         )
         tracks = self._store.window(chunk.camera_id, t0, t1)
         return [(c, context) for c in context.evaluate(tracks) if self._is_new(c)]

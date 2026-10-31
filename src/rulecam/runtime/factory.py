@@ -65,6 +65,7 @@ from rulecam.perception.sam_runtime import HttpSamWorker, ModalSam31, ModalWorke
 from rulecam.perception.static_cache import StaticServedSegmenter
 from rulecam.perception.tracking import Tracker
 from rulecam.replay.cache import ReplayCache
+from rulecam.rules.operators import OperatorExclusion
 from rulecam.rules.store import ParquetTrackStore
 from rulecam.runtime.loop import RuntimeLoop, chunk_end
 from rulecam.runtime.sampling import SamplingPolicy
@@ -346,4 +347,5 @@ def build_runtime(
         pipeline_depth=depth,
         timings=timings,
         verify_workers=settings.rulecam_runtime_verify_workers,
+        operators=OperatorExclusion.from_csv(settings.rulecam_operator_exclusion_off),
     )

@@ -2,7 +2,8 @@
 
 An escalation notifies role A, waits `after_s` for an `Ack`, then notifies role B, and so on.
 An ack (or a "false alarm" tap) cancels the rest. Every step is chained and published as an
-`action` record.
+`action` record. After the last role is notified the chain stays open (no more timers) until
+someone acknowledges it, so the final role's ack is still recorded.
 
 The manager is driven by `tick()` against the injected clock (the API calls it every second),
 so a test advances a `FakeClock` and calls `tick()` to replay a 60 s timeline instantly.
@@ -35,6 +36,7 @@ class _Chain:
     title: str
     body: str
     clip_path: str | None
+    rule_id: str | None = None
     step: int = 0
     next_at: datetime | None = None
     acked_by: str | None = None
@@ -69,6 +71,7 @@ class EscalationManager:
         title: str,
         body: str,
         clip_path: str | None = None,
+        rule_id: str | None = None,
     ) -> ActionRecord:
         """Notify the first role now and arm the timer for the next.
 
@@ -79,6 +82,7 @@ class EscalationManager:
             title: Notification title.
             body: Notification body (anonymous: role, rule, place, never a person).
             clip_path: Clip shown with the notification (skeleton when anonymous).
+            rule_id: The rule that fired (carried on alerts for rule-health labels).
 
         Returns:
             The record of the first notification.
@@ -89,7 +93,7 @@ class EscalationManager:
         if not roles:
             msg = "an escalation needs at least one role"
             raise ValueError(msg)
-        state = _Chain(event_id, tuple(roles), after_s, title, body, clip_path)
+        state = _Chain(event_id, tuple(roles), after_s, title, body, clip_path, rule_id)
         with self._lock:
             self._open[event_id] = state
             return self._notify_next(state)
@@ -97,7 +101,7 @@ class EscalationManager:
     def _notify_next(self, state: _Chain) -> ActionRecord:
         role = state.roles[state.step]
         now = self._clock.now()
-        with for_event(state.event_id):
+        with for_event(state.event_id, state.rule_id):
             self._notifier.send(
                 role, state.title, state.body, clip_path=state.clip_path, buttons=ALERT_BUTTONS
             )
@@ -112,8 +116,6 @@ class EscalationManager:
         state.step += 1
         last = state.step >= len(state.roles)
         state.next_at = None if last else now + timedelta(seconds=state.after_s)
-        if last:
-            self._open.pop(state.event_id, None)
         self._emit(state.event_id, record)
         return record
 
@@ -136,7 +138,9 @@ class EscalationManager:
         """Skip the wait and notify the next role (the "Escalate" button)."""
         with self._lock:
             state = self._open.get(event_id)
-            return self._notify_next(state) if state is not None else None
+            if state is None or state.step >= len(state.roles):
+                return None
+            return self._notify_next(state)
 
     def ack(self, event_id: str, role: str) -> Ack | None:
         """Acknowledge an alert, cancelling the rest of its chain.
@@ -152,12 +156,24 @@ class EscalationManager:
             state = self._open.pop(event_id, None)
         if state is None:
             return None
+        _log.info("escalation_acked", event_id=event_id, role=role, step=state.step)
+        return self.record_ack(event_id, role)
+
+    def record_ack(self, event_id: str, role: str) -> Ack:
+        """Chain an acknowledgement (also for alerts that had no escalation chain).
+
+        Args:
+            event_id: The alert.
+            role: The acknowledging role.
+
+        Returns:
+            The chained ack.
+        """
         ack = Ack(role=role, ts=self._clock.now())
         self._chain.append("ack", {"event_id": event_id, **ack.model_dump(mode="json")})
-        _log.info("escalation_acked", event_id=event_id, role=role, step=state.step)
         return ack
 
     def is_open(self, event_id: str) -> bool:
-        """Whether a chain is still waiting for an ack."""
+        """Whether a chain is still waiting for an ack (also after its last step)."""
         with self._lock:
             return event_id in self._open

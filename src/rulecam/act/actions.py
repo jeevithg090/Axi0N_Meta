@@ -5,10 +5,12 @@ record it returns.
 
 - **Suppressed** (`alert=False`, route `auto`): nothing runs.
 - **Human queue:** only `notify` and `escalate` run, worded as "needs review", so a person decides.
-  Nothing speaks, flashes or cuts power on an unconfirmed LOW/MEDIUM alert.
-- **Alert:** every action runs. `interlock_cut` goes **first**, before the speaker or any
-  notification, so the plug is off within milliseconds of the candidate for HIGH rules (the runtime
-  calls this before verification). Power comes back only through `Interlock.resume` with a person's
+  Nothing speaks, flashes or cuts power on an unconfirmed LOW/MEDIUM alert. For HIGH the runtime
+  calls this again after a verifier demoted an alert it already acted on.
+- **Alert:** every action runs. `interlock_cut` goes **first**, then `notify`/`escalate`, then the
+  slow, blocking outputs (strobe, speaker, station). The plug is off within milliseconds of the
+  candidate for HIGH rules (the runtime calls this before verification), and people are told before
+  a multi-second warning plays. Power comes back only through `Interlock.resume` with a person's
   role.
 
 A failing device never stops the other actions: its record says `ok=False`.
@@ -21,15 +23,16 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from rulecam.act.devices import Light, Speaker
-from rulecam.act.errors import ActionError, ResumeRefusedError
-from rulecam.act.escalation import EscalationManager
+from rulecam.act.devices import Connectable, Light, Speaker
+from rulecam.act.errors import ActionError, DeviceError, ResumeRefusedError
+from rulecam.act.escalation import ALERT_BUTTONS, EscalationManager
 from rulecam.act.notify import for_event
 from rulecam.bus import Bus, Topic
 from rulecam.contracts import (
     ActionRecord,
     CandidateEvent,
     Clock,
+    Frozen,
     Notifier,
     Plug,
     RuleIR,
@@ -39,13 +42,30 @@ from rulecam.evidence.chain import EventChain
 from rulecam.log import get_logger
 from rulecam.runtime.loop import ActionDone
 from rulecam.verify.decision import Decision
-from rulecam.voice_out.prerender import PrerenderedPhrase
+from rulecam.voice_out.prerender import PrerenderedPhrase, normalize_phrase
 
 _log = get_logger(__name__)
 
 DEFAULT_ESCALATE_AFTER_S = 60.0
 HUMAN_QUEUE_KINDS = frozenset({"notify", "escalate"})
-_ORDER = {"interlock_cut": 0, "visual_signal": 1, "speak": 2, "coach_station": 2}
+_ORDER = {
+    "interlock_cut": 0,
+    "notify": 1,
+    "escalate": 1,
+    "visual_signal": 2,
+    "speak": 3,
+    "coach_station": 3,
+}
+
+
+class StationCoach(Frozen):
+    """Payload of `station.coach`: what the coaching station display shows."""
+
+    event_id: str
+    rule_id: str
+    camera_id: str
+    text: str
+    lang: str | None = None
 
 
 class Interlock:
@@ -72,10 +92,43 @@ class Interlock:
         """Configured device names."""
         return tuple(self._plugs)
 
+    def connect(self) -> list[str]:
+        """Connect every plug that supports it, so the first cut is one round trip.
+
+        Call once at start-up. A plug that cannot be reached is logged and retried on first use.
+
+        Returns:
+            Names of the devices that failed to connect.
+        """
+        failed: list[str] = []
+        for name, plug in self._plugs.items():
+            if not isinstance(plug, Connectable):
+                continue
+            try:
+                plug.connect()
+            except DeviceError as exc:
+                failed.append(name)
+                _log.warning("interlock_connect_failed", device=name, error=str(exc))
+        return failed
+
     def cut(self, device: str | None = None) -> None:
-        """Cut power to one device, or to every device when `device` is `None`."""
+        """Cut power to one device, or to every device when `device` is `None`.
+
+        Every plug is tried even if an earlier one fails.
+
+        Raises:
+            DeviceError: Naming every plug that did not switch off.
+        """
+        failed: list[str] = []
         for name in [device] if device else list(self._plugs):
-            self._plugs[name].off()
+            try:
+                self._plugs[name].off()
+            except (DeviceError, OSError) as exc:
+                failed.append(f"{name} ({exc})")
+                _log.error("interlock_cut_failed", device=name, error=str(exc))
+        if failed:
+            msg = "power cut failed for " + ", ".join(failed)
+            raise DeviceError(msg)
 
     def resume(self, device: str, role: str) -> ActionRecord:
         """Restore power after a person checked the area.
@@ -139,12 +192,12 @@ class PhraseBook:
         Returns:
             The phrase book.
         """
-        by_phrase = {(p.source, p.lang): Path(p.path) for p in rendered}
+        by_phrase = {(normalize_phrase(p.source), p.lang): Path(p.path) for p in rendered}
         wavs = {
             (rule_id, lang): path
             for rule_id, phrase in rule_phrases.items()
             for (source, lang), path in by_phrase.items()
-            if source == phrase.strip()
+            if source == normalize_phrase(phrase)
         }
         return cls(wavs=wavs, crew_languages=tuple(crew_languages))
 
@@ -167,6 +220,7 @@ class ActionExecutor:
         speaker: Speaker | None = None,
         light: Light | None = None,
         phrases: PhraseBook | None = None,
+        bus: Bus | None = None,
         monotonic: Callable[[], float] = time.perf_counter,
     ) -> None:
         """Create the executor; missing devices make their actions record `ok=False`.
@@ -179,6 +233,7 @@ class ActionExecutor:
             speaker: Site speaker.
             light: Stack light.
             phrases: Pre-rendered warnings.
+            bus: Bus for the coaching station display (`station.coach`, mirrored on `/ws`).
             monotonic: Timer for the interlock latency detail.
         """
         self._clock = clock
@@ -188,6 +243,7 @@ class ActionExecutor:
         self._speaker = speaker
         self._light = light
         self._phrases = phrases
+        self._bus = bus
         self._monotonic = monotonic
 
     def run(
@@ -205,10 +261,10 @@ class ActionExecutor:
         """
         if not decision.alert and decision.route == "auto":
             return []
-        human = decision.route == "human_queue" and not decision.act_first
+        human = decision.route == "human_queue"
         specs = [s for s in rule.actions if not human or s.kind in HUMAN_QUEUE_KINDS]
         specs.sort(key=lambda s: _ORDER.get(s.kind, 3))
-        with for_event(candidate.event_id):
+        with for_event(candidate.event_id, rule.id):
             return [self._one(spec, candidate, rule, human=human) for spec in specs]
 
     def _one(
@@ -236,7 +292,7 @@ class ActionExecutor:
             "interlock_cut": self._cut,
             "visual_signal": self._strobe,
             "speak": lambda: self._speak(rule.id, spec.lang),
-            "coach_station": lambda: self._speak(rule.id, spec.lang) + "; station display",
+            "coach_station": lambda: self._coach(candidate, rule, spec.lang),
             "notify": lambda: self._notify(spec, candidate, rule, human=human),
             "escalate": lambda: self._escalate(spec, candidate, rule, human=human),
             "log": lambda: "logged",
@@ -270,6 +326,22 @@ class ActionExecutor:
             self._speaker.play(wav)
         return "played " + ", ".join(w.name for w in wavs)
 
+    def _coach(self, candidate: CandidateEvent, rule: RuleIR, lang: str | None) -> str:
+        if self._bus is None:
+            msg = "no station display (bus) configured"
+            raise ActionError(msg)
+        self._bus.publish(
+            Topic.STATION_COACH,
+            StationCoach(
+                event_id=candidate.event_id,
+                rule_id=rule.id,
+                camera_id=candidate.camera_id,
+                text=rule.source.text or rule.id,
+                lang=lang,
+            ),
+        )
+        return "station display; " + self._speak(rule.id, lang)
+
     @staticmethod
     def _message(candidate: CandidateEvent, rule: RuleIR, *, human: bool) -> tuple[str, str]:
         title = f"{'Needs review' if human else 'Alert'}: {rule.source.text or rule.id}"
@@ -284,7 +356,7 @@ class ActionExecutor:
         role = spec.role or "site_lead"
         title, body = self._message(candidate, rule, human=human)
         clip = candidate.strip_paths[0] if candidate.strip_paths else None
-        alert_id = self._notifier.send(role, title, body, clip_path=clip)
+        alert_id = self._notifier.send(role, title, body, clip_path=clip, buttons=ALERT_BUTTONS)
         return f"notified {role} ({alert_id})"
 
     def _escalate(
@@ -299,5 +371,6 @@ class ActionExecutor:
             title=title,
             body=body,
             clip_path=candidate.strip_paths[0] if candidate.strip_paths else None,
+            rule_id=rule.id,
         )
         return f"escalation {' → '.join(roles)}"

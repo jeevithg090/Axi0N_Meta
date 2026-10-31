@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import threading
 from pathlib import Path
 
@@ -136,3 +137,28 @@ async def test_bus_publish_from_worker_thread_is_delivered() -> None:
     message = await asyncio.wait_for(pending, timeout=2)
     await stream.aclose()
     assert message.payload == "x"
+
+
+def test_tickers_survive_a_failing_ticker(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rulecam.api import app as app_module  # noqa: PLC0415
+
+    monkeypatch.setattr(app_module, "TICK_S", 0.0)
+    calls: list[str] = []
+
+    def boom() -> None:
+        calls.append("boom")
+        raise RuntimeError("tick failed")
+
+    def ok() -> None:
+        calls.append("ok")
+
+    async def run() -> None:
+        task = asyncio.create_task(app_module._tick_forever([boom, ok]))
+        while calls.count("ok") < 3:
+            await asyncio.sleep(0.01)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    asyncio.run(asyncio.wait_for(run(), timeout=5))
+    assert calls.count("boom") >= 3

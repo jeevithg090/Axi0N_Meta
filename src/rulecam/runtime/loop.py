@@ -304,6 +304,12 @@ class RuntimeLoop:
         decision = self._policy.decide(candidate, rule, tier1)
         if not act_first:
             self._record_actions(candidate, self._actions.run(candidate, rule, decision))
+            return
+        # Actions already ran. Chain the after-the-fact decision, and if a verifier demoted the
+        # alert, ask a person to review it (notify/escalate only: nothing is re-cut or re-spoken).
+        self._chain.append("verdict", {"event_id": candidate.event_id, "decision": _dump(decision)})
+        if decision.route == "human_queue":
+            self._record_actions(candidate, self._actions.run(candidate, rule, decision))
 
     def _record_actions(self, candidate: CandidateEvent, records: Sequence[ActionRecord]) -> None:
         for record in records:

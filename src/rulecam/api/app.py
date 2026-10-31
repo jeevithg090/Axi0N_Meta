@@ -65,7 +65,10 @@ async def _tick_forever(tickers: Sequence[Callable[[], object]]) -> None:
     """Call every ticker once a second in a worker thread until cancelled."""
     while tickers:
         for tick in tickers:
-            await asyncio.to_thread(tick)
+            try:
+                await asyncio.to_thread(tick)
+            except Exception:  # one failing ticker must not stop the escalation timers
+                _log.exception("ticker_failed", ticker=getattr(tick, "__qualname__", repr(tick)))
         await asyncio.sleep(TICK_S)
 
 

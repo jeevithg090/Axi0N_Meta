@@ -67,6 +67,7 @@ class Rig:
             speaker=self.speaker,
             light=StrobeLight(self.light_plug, flashes=1, sleep=lambda s: None),
             phrases=self.phrases,
+            bus=self.bus,
         )
 
     def records(self) -> list[str]:
@@ -93,12 +94,14 @@ def test_alert_runs_every_action_interlock_first(tmp_path: Path) -> None:
         ]
     )
     records = rig.executor.run(make_candidate(), r, ALERT)
-    assert [x.kind for x in records] == ["interlock_cut", "visual_signal", "speak", "notify", "log"]
+    assert [x.kind for x in records] == ["interlock_cut", "notify", "visual_signal", "speak", "log"]
     assert all(x.ok for x in records)
     assert rig.plug.events == ["off"]
     assert rig.light_plug.events == ["on", "off", "on"]
     assert rig.speaker.played == [Path("tts/es.wav")]
-    assert rig.notifier.list("dock_lead")[0].event_id == "ev-1"
+    alert = rig.notifier.list("dock_lead")[0]
+    assert (alert.event_id, alert.rule_id) == ("ev-1", "r")
+    assert alert.buttons == ("On my way", "False alarm", "Escalate")
 
 
 def test_speak_picks_the_language(tmp_path: Path) -> None:
@@ -108,6 +111,8 @@ def test_speak_picks_the_language(tmp_path: Path) -> None:
     rig.speaker.played.clear()
     rig.executor.run(make_candidate(), rule([{"kind": "coach_station", "lang": "crew"}]), ALERT)
     assert rig.speaker.played == [Path("tts/es.wav"), Path("tts/en.wav")]
+    station = [p for t, p in rig.bus.published if t == Topic.STATION_COACH]
+    assert [(p.rule_id, p.lang) for p in station] == [("r", "crew")]  # type: ignore[attr-defined]
     missing = rig.executor.run(make_candidate(), rule([{"kind": "speak", "lang": "fr"}]), ALERT)
     assert not missing[0].ok
     assert "no pre-rendered warning" in missing[0].detail
@@ -153,7 +158,15 @@ def test_missing_devices_record_failure_without_stopping(tmp_path: Path) -> None
         ]
     )
     records = bare.run(make_candidate(), r, ALERT)
-    assert [x.ok for x in records] == [False, False, False, True]
+    assert [(x.kind, x.ok) for x in records] == [
+        ("interlock_cut", False),
+        ("notify", True),
+        ("visual_signal", False),
+        ("speak", False),
+    ]
+    (coach,) = bare.run(make_candidate(), rule([{"kind": "coach_station"}]), ALERT)
+    assert not coach.ok
+    assert "station display" in coach.detail
 
 
 class TimedPlug:
@@ -213,7 +226,14 @@ def test_high_candidate_cuts_power_within_200ms(tmp_path: Path) -> None:
     assert plug.off_at is not None
     assert plug.off_at - started < 0.2
     assert rig.records()[:4] == ["plan", "candidate", "action", "action"]
-    assert "verdict" in rig.records()
+    # The slow verifier vetoed: the decision is chained and a person is asked to review it.
+    records = read_chain(rig.chain.path_for(rig.clock.now().date()))
+    decision = next(r.payload["decision"] for r in records if "decision" in r.payload)
+    assert decision["route"] == "human_queue"  # type: ignore[index]
+    assert decision["alert"] is True  # type: ignore[index]
+    titles = [a.title for a in rig.notifier.list("dock_lead")]
+    assert any(t.startswith("Needs review") for t in titles)
+    assert any(t.startswith("Alert") for t in titles)
 
 
 def test_resume_needs_a_role_and_is_logged(tmp_path: Path) -> None:
@@ -248,8 +268,14 @@ def test_escalation_timeline_with_fake_clock(tmp_path: Path) -> None:
     assert (step.kind, step.role) == ("escalate", "charge_nurse")
     rig.clock.advance(60)
     assert [r.role for r in rig.escalation.tick()] == ["on_call"]
+    rig.clock.advance(600)
+    assert rig.escalation.tick() == []  # no more roles: no more timers
+    assert rig.escalation.escalate_now("ev-9") is None
+    assert rig.escalation.is_open("ev-9")  # still waiting for the last role's ack
+    ack = rig.escalation.ack("ev-9", "on_call")
+    assert ack is not None
     assert not rig.escalation.is_open("ev-9")
-    assert rig.records() == ["action", "action", "action"]
+    assert rig.records() == ["action", "action", "action", "ack"]
     assert Topic.ALERT_NEW in rig.bus.topics()
 
 
@@ -301,7 +327,12 @@ def test_false_alarm_button_creates_a_label(tmp_path: Path) -> None:
         assert c.get("/alerts", params={"role": "aide"}).json()[0]["status"] == "false_alarm"
     records = read_chain(rig.chain.path_for(rig.clock.now().date()))
     assert [r.kind for r in records] == ["action", "ack", "label"]
-    assert records[-1].payload == {"event_id": "ev-1", "label": "false_alarm", "role": "aide"}
+    assert records[-1].payload == {
+        "event_id": "ev-1",
+        "rule_id": None,
+        "label": "false_alarm",
+        "role": "aide",
+    }
 
 
 def test_on_my_way_escalate_and_ack_routes(tmp_path: Path) -> None:
@@ -351,3 +382,168 @@ def test_command_speaker(tmp_path: Path) -> None:
         failing.play(tmp_path / "a.wav")
     with pytest.raises(DeviceError, match="not found"):
         CommandSpeaker("no-such-player-xyz")
+
+
+class FailingPlug:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def off(self) -> None:
+        self.calls += 1
+        raise DeviceError("plug offline")
+
+    def on(self) -> None:
+        raise DeviceError("plug offline")
+
+
+def test_cut_tries_every_plug_when_one_fails(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    broken, good = FailingPlug(), FakePlug()
+    interlock = Interlock({"a": broken, "b": good}, clock=rig.clock, chain=rig.chain, bus=rig.bus)
+    with pytest.raises(DeviceError, match="power cut failed for a"):
+        interlock.cut()
+    assert good.events == ["off"]
+    executor = ActionExecutor(
+        clock=rig.clock, notifier=rig.notifier, escalation=rig.escalation, interlock=interlock
+    )
+    (cut,) = executor.run(make_candidate(), rule([{"kind": "interlock_cut"}]), ALERT)
+    assert not cut.ok
+    assert good.events == ["off", "off"]
+
+
+class ConnectablePlug(FakePlug):
+    def __init__(self, fail: bool = False) -> None:
+        super().__init__()
+        self.fail = fail
+
+    def connect(self) -> None:
+        if self.fail:
+            raise DeviceError("unreachable")
+        self.events.append("connect")
+
+
+def test_interlock_connect_warms_plugs(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    ok, bad, plain = ConnectablePlug(), ConnectablePlug(fail=True), FakePlug()
+    interlock = Interlock(
+        {"ok": ok, "bad": bad, "plain": plain}, clock=rig.clock, chain=rig.chain, bus=rig.bus
+    )
+    assert interlock.connect() == ["bad"]
+    assert ok.events == ["connect"]
+    assert plain.events == []
+
+
+class FakeKasaError(Exception):
+    """Stands in for kasa.KasaException (not an OSError)."""
+
+
+class FakeKasaDevice:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.fail = False
+
+    async def update(self) -> None:
+        self.calls.append("update")
+
+    async def turn_off(self) -> None:
+        if self.fail:
+            raise FakeKasaError("auth")
+        self.calls.append("off")
+
+    async def turn_on(self) -> None:
+        self.calls.append("on")
+
+
+def test_kasa_plug_connects_once_and_wraps_kasa_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys  # noqa: PLC0415
+    import types  # noqa: PLC0415
+
+    from rulecam.act.devices import KasaPlug  # noqa: PLC0415
+
+    device = FakeKasaDevice()
+    discovered: list[str] = []
+
+    async def discover_single(host: str, **_: object) -> FakeKasaDevice:
+        discovered.append(host)
+        return device
+
+    fake = types.SimpleNamespace(Discover=types.SimpleNamespace(discover_single=discover_single))
+    monkeypatch.setitem(sys.modules, "kasa", fake)
+    plug = KasaPlug("10.0.0.9")
+    plug.connect()
+    plug.off()
+    plug.off()
+    assert discovered == ["10.0.0.9"]
+    assert device.calls == ["update", "off", "off"]  # one round trip per command once connected
+    device.fail = True
+    with pytest.raises(DeviceError, match="FakeKasaError"):
+        plug.off()
+
+
+def test_on_my_way_without_a_chain_still_records_the_ack(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    rig.executor.run(make_candidate(), rule([{"kind": "notify", "role": "lead"}]), ALERT)
+    alert_id = rig.notifier.list()[0].alert_id
+    with client(rig) as c:
+        tap = c.post(f"/alerts/{alert_id}/respond", json={"button": "False alarm", "role": "lead"})
+        assert tap.json()["action"] == "false_alarm"
+    records = read_chain(rig.chain.path_for(rig.clock.now().date()))
+    assert [r.kind for r in records] == ["ack", "label"]
+    assert records[-1].payload["rule_id"] == "r"
+
+
+def test_http_inputs_are_validated(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    rig.escalation.start("ev-1", ["aide"], after_s=60, title="t", body="b")
+    alert_id = rig.notifier.list()[0].alert_id
+    app = FastAPI()
+    app.include_router(
+        alerts_router(
+            notifier=rig.notifier,
+            escalation=rig.escalation,
+            chain=rig.chain,
+            interlock=rig.interlock,
+            roles={"aide", "dock_lead"},
+        )
+    )
+    with TestClient(app) as c:
+        bad = {"button": "On my way", "role": "x" * 65}
+        assert c.post(f"/alerts/{alert_id}/respond", json=bad).status_code == 422
+        odd = {"button": "On my way", "role": "aide; rm -rf"}
+        assert c.post(f"/alerts/{alert_id}/respond", json=odd).status_code == 422
+        stranger = {"button": "On my way", "role": "visitor"}
+        assert c.post(f"/alerts/{alert_id}/respond", json=stranger).status_code == 403
+        assert c.post("/ack", json={"event_id": "ev 1", "role": "aide"}).status_code == 422
+        assert c.get("/alerts", params={"role": "a/b"}).status_code == 422
+        assert c.post("/interlock/forklift/resume", json={"role": "visitor"}).status_code == 403
+        assert c.post("/interlock/forklift/resume", json={}).status_code == 403
+        assert c.post("/interlock/forklift/resume", json={"role": "dock_lead"}).status_code == 200
+
+
+def test_resume_device_failure_is_502(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    interlock = Interlock(
+        {"forklift": FailingPlug()}, clock=rig.clock, chain=rig.chain, bus=rig.bus
+    )
+    app = FastAPI()
+    app.include_router(
+        alerts_router(
+            notifier=rig.notifier, escalation=rig.escalation, chain=rig.chain, interlock=interlock
+        )
+    )
+    with TestClient(app) as c:
+        assert c.post("/interlock/forklift/resume", json={"role": "lead"}).status_code == 502
+    assert rig.records() == []
+
+
+def test_phrase_book_matches_unicode_normal_forms() -> None:
+    import unicodedata  # noqa: PLC0415
+
+    nfc = "¡Cuidado! Póngase el casco"
+    rendered = [
+        PrerenderedPhrase(
+            source=nfc, lang="es", text=nfc, cache_key="k", path="tts/es.wav", reused=True
+        )
+    ]
+    book = PhraseBook.from_prerendered({"hat": unicodedata.normalize("NFD", nfc)}, rendered, ["es"])
+    assert book.wavs_for("hat", "es") == [Path("tts/es.wav")]

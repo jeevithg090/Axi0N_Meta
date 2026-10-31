@@ -49,9 +49,12 @@ def test_high_rule_acts_before_verification(tmp_path: Path) -> None:
     loop.handle_chunk(make_chunk(index=0))
 
     path = chain.path_for(clock.now().date())
-    assert kinds(path) == ["plan", "candidate", "action", "verdict"]
+    assert kinds(path) == ["plan", "candidate", "action", "verdict", "verdict"]
+    decision = read_chain(path)[-1].payload["decision"]
+    assert isinstance(decision, dict)
+    assert decision["act_first"] is True
     assert bus.topics() == [Topic.CANDIDATE_NEW, Topic.ACTION_DONE, Topic.VERDICT_NEW]
-    assert len(actions.runs) == 1  # the veto is the policy's business; nothing ran twice
+    assert len(actions.runs) == 1  # the fake policy routes auto, so nothing runs twice
     assert verifier.calls[0][0].strip_paths == ("strip/f0.png",)
 
 

@@ -22,15 +22,18 @@ from rulecam.contracts import Clock, Frozen
 AlertStatus = Literal["open", "acknowledged", "false_alarm"]
 
 alert_event: ContextVar[str | None] = ContextVar("alert_event", default=None)
+alert_rule: ContextVar[str | None] = ContextVar("alert_rule", default=None)
 
 
 @contextlib.contextmanager
-def for_event(event_id: str) -> Iterator[None]:
-    """Attach `event_id` to every alert sent inside the block."""
+def for_event(event_id: str, rule_id: str | None = None) -> Iterator[None]:
+    """Attach `event_id` (and its `rule_id`, for rule-health labels) to alerts sent in the block."""
     token = alert_event.set(event_id)
+    rule_token = alert_rule.set(rule_id)
     try:
         yield
     finally:
+        alert_rule.reset(rule_token)
         alert_event.reset(token)
 
 
@@ -39,6 +42,7 @@ class Alert(Frozen):
 
     alert_id: str
     event_id: str | None
+    rule_id: str | None = None
     role: str
     title: str
     body: str
@@ -82,6 +86,7 @@ class LanNotifier:
             alert = Alert(
                 alert_id=f"al-{next(self._ids)}",
                 event_id=alert_event.get(),
+                rule_id=alert_rule.get(),
                 role=role,
                 title=title,
                 body=body,

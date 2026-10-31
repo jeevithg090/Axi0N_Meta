@@ -14,7 +14,7 @@ import threading
 import time
 from collections.abc import Callable, Coroutine
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from rulecam.act.errors import DeviceError
 from rulecam.contracts import Plug
@@ -23,6 +23,7 @@ from rulecam.log import get_logger
 _log = get_logger(__name__)
 
 KASA_TIMEOUT_S = 3.0
+KASA_CONNECT_TIMEOUT_S = 8.0
 
 
 class KasaPlug:
@@ -50,21 +51,37 @@ class KasaPlug:
             if device is None:
                 msg = f"no Kasa device at {self._host}"
                 raise DeviceError(msg)
+            await device.update()
             self._device = device
-        await self._device.update()
         return self._device
 
     async def _switch(self, on: bool) -> None:
-        device = await self._connect()
+        device = await self._connect()  # one round trip once connected: no update() per command
         await (device.turn_on() if on else device.turn_off())
 
-    def _run(self, coro: Coroutine[Any, Any, None]) -> None:
+    def _run(self, coro: Coroutine[Any, Any, None], timeout_s: float | None = None) -> None:
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         try:
-            future.result(timeout=self._timeout_s)
-        except (TimeoutError, OSError) as exc:
+            future.result(timeout=timeout_s or self._timeout_s)
+        except DeviceError:
+            raise
+        except Exception as exc:  # python-kasa raises its own KasaException tree
+            future.cancel()
             msg = f"Kasa {self._host}: {type(exc).__name__}"
             raise DeviceError(msg) from exc
+
+    def connect(self) -> None:
+        """Discover and connect now, so the first `off()` is a single round trip.
+
+        Call at start-up (`Interlock.connect`); a lazy first cut would spend seconds on discovery.
+
+        Raises:
+            DeviceError: If the plug cannot be reached.
+        """
+        self._run(self._connect_only(), KASA_CONNECT_TIMEOUT_S)
+
+    async def _connect_only(self) -> None:
+        await self._connect()
 
     def off(self) -> None:
         """Cut power."""
@@ -73,6 +90,15 @@ class KasaPlug:
     def on(self) -> None:
         """Restore power (call only through `Interlock.resume`)."""
         self._run(self._switch(on=True))
+
+
+@runtime_checkable
+class Connectable(Protocol):
+    """A device that can connect ahead of its first command (e.g. `KasaPlug`)."""
+
+    def connect(self) -> None:
+        """Connect now."""
+        ...
 
 
 class Light(Protocol):

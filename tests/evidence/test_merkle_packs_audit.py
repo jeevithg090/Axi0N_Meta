@@ -88,6 +88,11 @@ def test_cli_evidence_root(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.output
     assert (tmp_path / "roots" / "2026-10-30.txt").read_text().startswith("s ")
+    for day in ("2026-01-01", "yesterday"):
+        missing = CliRunner().invoke(
+            app, ["evidence", "root", day, "--chain-dir", str(tmp_path / "chain")]
+        )
+        assert missing.exit_code == 2, missing.output
 
 
 # --- packs ------------------------------------------------------------------------------------
@@ -254,3 +259,12 @@ def test_cli_audit(tmp_path: Path) -> None:
         [*args[:3], "--store-dir", str(tmp_path / "none"), "--chain-dir", str(tmp_path / "chain")],
     )
     assert empty.exit_code == 1
+    assert "not reproduced: event 2" in empty.output
+    chain_args = ["--chain-dir", str(tmp_path / "chain")]
+    for day, site in (("2026-01-01", "site"), ("30/10/2026", "site"), (path.stem, "..")):
+        missing = CliRunner().invoke(app, ["audit", day, site, *chain_args])
+        assert missing.exit_code == 2, missing.output
+    path.write_text(path.read_text().replace('"plan"', '"ack"', 1))
+    broken = CliRunner().invoke(app, args)
+    assert broken.exit_code == 1
+    assert "chain broken at event 1" in broken.output

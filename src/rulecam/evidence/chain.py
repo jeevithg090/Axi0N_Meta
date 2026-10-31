@@ -343,6 +343,18 @@ class EventChain:
             raise ChainError(msg) from exc
 
 
+def _is_canonical(data: object, text: str) -> bool:
+    """Whether `text` is exactly the canonical form of `data`.
+
+    NaN, infinity, unsafe integers and lone surrogates parse but have no canonical form: an edit
+    no writer could produce, reported as a broken record rather than raised.
+    """
+    try:
+        return canonical_json(data) == text
+    except (TypeError, ValueError):
+        return False
+
+
 def _check_line(raw: bytes, expected_seq: int, prev_hash: str) -> tuple[str | None, str]:
     """Return (problem or None, this record's hash) for one raw line."""
     try:
@@ -352,7 +364,7 @@ def _check_line(raw: bytes, expected_seq: int, prev_hash: str) -> tuple[str | No
     except (UnicodeDecodeError, ValueError, ValidationError):
         return "not a valid record", ""
     claimed = str(data["hash"])
-    if canonical_json(data) != text:
+    if not _is_canonical(data, text):
         return "not in canonical form", claimed
     if data["seq"] != expected_seq:
         return f"seq {data['seq']} out of order", claimed

@@ -59,8 +59,8 @@ predicates need none; `persist`, `absence` and `dwell` their seconds; `rate` a m
 proximity rule is not blind for a whole window after an idle chunk. The lag, mode and cost
 counters are exposed in `metrics` (and served at `/runtime/metrics`).
 
-**Privacy:** the strip renderer receives the plan's `PrivacyMode` (P4-05 `render_strip(event,
-mode)`), so only skeleton renders leave the loop in `anonymous` and `strict` mode.
+**Privacy:** the strip renderer receives the plan's `PrivacyMode` and the evaluation context
+(P4-05, `runtime.strips`), so no person pixel leaves the loop in `anonymous` and `strict` mode.
 
 A failing chunk (any `RulecamError`, e.g. a `ReplayMiss` or a model error) is logged, counted
 and treated as a coverage gap; it never stops the loop.
@@ -145,8 +145,18 @@ class ChunkTracker(Protocol):
 class StripRenderer(Protocol):
     """Fills `strip_paths` with a 6-frame strip in the site's privacy mode (P4-05)."""
 
-    def render(self, candidate: CandidateEvent, chunk: Chunk, mode: PrivacyMode) -> CandidateEvent:
-        """Return the candidate with its strip; in `anonymous`/`strict` mode, skeletons only."""
+    def render(
+        self,
+        candidate: CandidateEvent,
+        chunk: Chunk,
+        mode: PrivacyMode,
+        context: DecisionContext,
+    ) -> CandidateEvent:
+        """Return the candidate with its strip; in `anonymous`/`strict` mode, skeletons only.
+
+        `context` carries the rule (whose subjects are drawn), its zones and the camera's
+        calibration (the distance ruler). A renderer never raises: on failure the strip is empty.
+        """
         ...
 
 
@@ -305,7 +315,7 @@ class _Verification:
     """
 
     candidate: CandidateEvent
-    rule: RuleIR
+    context: DecisionContext
     chunk: Chunk
     mode: PrivacyMode
     act_first: bool
@@ -946,14 +956,14 @@ class RuntimeLoop:
         act_first = self._policy.act_first(candidate, rule)
         rendered = None
         if act_first:
-            rendered = self._render(candidate, chunk, mode, None)
+            rendered = self._render(candidate, context, chunk, mode, None)
             immediate = Decision(alert=True, route="auto", act_first=True, reason="act first")
             self._record_actions(
                 rendered, self._actions.run(rendered, rule, immediate), chunk, None
             )
         return _Verification(
             candidate=candidate,
-            rule=rule,
+            context=context,
             chunk=chunk,
             mode=mode,
             act_first=act_first,
@@ -962,11 +972,16 @@ class RuntimeLoop:
         )
 
     def _render(
-        self, candidate: CandidateEvent, chunk: Chunk, mode: PrivacyMode, key: str | None
+        self,
+        candidate: CandidateEvent,
+        context: DecisionContext,
+        chunk: Chunk,
+        mode: PrivacyMode,
+        key: str | None,
     ) -> CandidateEvent:
         """Render the candidate's strip in the plan's privacy mode, timed (`strip`)."""
         started = self._timings.now()
-        rendered = self._strips.render(candidate, chunk, mode)
+        rendered = self._strips.render(candidate, chunk, mode, context)
         seconds = self._timings.now() - started
         self._timings.record("strip", chunk.camera_id, chunk.chunk_id, seconds, key=key)
         return rendered
@@ -981,9 +996,11 @@ class RuntimeLoop:
         started = self._timings.now()
         self._timings.record("verify_queue", camera, chunk_id, started - job.recorded, key=key)
         try:
-            candidate = job.rendered or self._render(job.candidate, job.chunk, job.mode, key)
+            candidate = job.rendered or self._render(
+                job.candidate, job.context, job.chunk, job.mode, key
+            )
             verifying = self._timings.now()
-            tier1 = self._verifier.verify(candidate, job.rule)
+            tier1 = self._verifier.verify(candidate, job.context.rule)
             verified = self._timings.now()
             self._timings.record("verify", camera, chunk_id, verified - verifying, key=key)
             decision = self._conclude(candidate, tier1, job)
@@ -998,7 +1015,7 @@ class RuntimeLoop:
         self, candidate: CandidateEvent, tier1: VerifierVerdict, job: _Verification
     ) -> Decision:
         """Chain the verdict, ask the policy and run (and chain) the actions it allows."""
-        rule, chunk, key = job.rule, job.chunk, candidate.event_id
+        rule, chunk, key = job.context.rule, job.chunk, candidate.event_id
         self._append("verdict", {"event_id": key, **_dump(tier1)}, chunk, key)
         self._bus.publish(Topic.VERDICT_NEW, VerdictNew(event_id=candidate.event_id, verdict=tier1))
         decision = self._policy.decide(candidate, rule, tier1)

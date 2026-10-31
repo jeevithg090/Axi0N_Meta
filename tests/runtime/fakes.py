@@ -19,7 +19,8 @@ from rulecam.contracts import (
 from rulecam.evidence.chain import EventChain
 from rulecam.perception.tracking import SegmentedChunk
 from rulecam.replay.errors import ReplayMiss
-from rulecam.runtime.loop import ActivePlan, ChunkTracker, RuntimeLoop
+from rulecam.rules.backtest import DecisionContext
+from rulecam.runtime.loop import ActivePlan, ChunkTracker, RuntimeLoop, StripRenderer
 from rulecam.verify.decision import Decision
 from tests.fakes import FakeClock, FakeVerifier, InMemoryTrackStore
 from tests.rules.helpers import CAL, INSIDE_M, SINK_ZONE, make_rule, walk_track
@@ -140,9 +141,17 @@ class FakeActions:
 class FakeStrips:
     def __init__(self) -> None:
         self.modes: list[PrivacyMode] = []
+        self.contexts: list[DecisionContext] = []
 
-    def render(self, candidate: CandidateEvent, chunk: Chunk, mode: PrivacyMode) -> CandidateEvent:
+    def render(
+        self,
+        candidate: CandidateEvent,
+        chunk: Chunk,
+        mode: PrivacyMode,
+        context: DecisionContext,
+    ) -> CandidateEvent:
         self.modes.append(mode)
+        self.contexts.append(context)
         return candidate.model_copy(update={"strip_paths": ("strip/f0.png",)})
 
 
@@ -197,7 +206,7 @@ def make_loop(
     clock: FakeClock,
     verifier: Verifier | None = None,
     *,
-    strips: FakeStrips | None = None,
+    strips: StripRenderer | None = None,
     tracker: ChunkTracker | None = None,
     store: InMemoryTrackStore | None = None,
     **kwargs: object,

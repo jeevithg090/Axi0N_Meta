@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 import { Shell } from "@/components/Shell";
+import { AuthProvider } from "@/lib/auth";
 import { StreamProvider } from "@/lib/stream";
 
 import "./globals.css";
@@ -18,7 +19,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body>
         <StreamProvider>
-          <Shell>{children}</Shell>
+          <AuthProvider>
+            <Shell>{children}</Shell>
+          </AuthProvider>
         </StreamProvider>
       </body>
     </html>

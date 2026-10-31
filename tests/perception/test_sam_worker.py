@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import contextlib
 import json
+from collections.abc import Iterator
 from typing import Any
 
 import numpy as np
@@ -175,3 +177,38 @@ def test_drop_unsupported_init_kwargs_leaves_var_kwargs_alone() -> None:
     sam_worker.drop_unsupported_init_kwargs(model)
     assert model.init_state == original
     assert model.init_state(offload_state_to_cpu=True) == {"offload_state_to_cpu": True}
+
+
+def test_engine_runs_each_session_inside_the_inference_context() -> None:
+    entered: list[str] = []
+
+    @contextlib.contextmanager
+    def context() -> Iterator[None]:
+        entered.append("in")
+        yield
+        entered.append("out")
+
+    engine = sam_worker.Sam31Engine(FakePredictor([]), inference_context=context)
+    engine.segment(b"video", _request())
+    assert entered == ["in", "out"]
+
+
+def test_bf16_inference_enters_inference_mode_and_bf16_autocast() -> None:
+    calls: list[tuple[object, ...]] = []
+
+    class _Torch:
+        bfloat16 = "bf16"
+
+        @contextlib.contextmanager
+        def inference_mode(self) -> Iterator[None]:
+            calls.append(("inference_mode",))
+            yield
+
+        @contextlib.contextmanager
+        def autocast(self, device: str, dtype: object) -> Iterator[None]:
+            calls.append(("autocast", device, dtype))
+            yield
+
+    with sam_worker.bf16_inference(_Torch()):
+        pass
+    assert calls == [("inference_mode",), ("autocast", "cuda", "bf16")]

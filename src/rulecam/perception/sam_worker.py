@@ -24,7 +24,8 @@ import functools
 import inspect
 import tempfile
 import time
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -82,13 +83,20 @@ class Sam31Engine:
     instead). The start frame is 0 for forward propagation and the last frame for backward.
     """
 
-    def __init__(self, predictor: Sam3Predictor) -> None:
+    def __init__(
+        self,
+        predictor: Sam3Predictor,
+        inference_context: Callable[[], AbstractContextManager[object]] = nullcontext,
+    ) -> None:
         """Wrap a loaded predictor.
 
         Args:
             predictor: A `sam3` video predictor, or a fake in tests.
+            inference_context: Entered around every session (on a GPU: bfloat16 autocast plus
+                inference mode, as the sam3 examples run it).
         """
         self._predictor = predictor
+        self._inference_context = inference_context
 
     @classmethod
     def load(cls) -> Sam31Engine:  # pragma: no cover - needs a CUDA GPU and the sam3 package
@@ -97,13 +105,14 @@ class Sam31Engine:
         Returns:
             An engine ready to serve calls.
         """
+        import torch  # type: ignore[import-not-found]  # noqa: PLC0415
         from sam3.model_builder import (  # type: ignore[import-not-found]  # noqa: PLC0415
             build_sam3_predictor,
         )
 
         predictor = build_sam3_predictor(version="sam3.1", use_fa3=False)
         drop_unsupported_init_kwargs(predictor.model)
-        return cls(predictor)
+        return cls(predictor, inference_context=lambda: bf16_inference(torch))
 
     def segment(self, video: bytes, request: dict[str, Any]) -> dict[str, Any]:
         """Segment one chunk.
@@ -120,7 +129,8 @@ class Sam31Engine:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "chunk.mp4"
             path.write_bytes(video)
-            frames = list(self._run_session(path, request))
+            with self._inference_context():
+                frames = list(self._run_session(path, request))
         include_confidence = bool(request["include_confidence"])
         objects: list[WireObject] = []
         for frame_idx, outputs in frames:
@@ -156,6 +166,17 @@ class Sam31Engine:
                 yield int(response["frame_index"]), response["outputs"]
         finally:
             self._predictor.handle_request({"type": "close_session", "session_id": session_id})
+
+
+@contextmanager
+def bf16_inference(torch: Any) -> Iterator[None]:
+    """Run SAM 3.1 the way the sam3 examples do: CUDA bfloat16 autocast in inference mode.
+
+    The SAM 3.1 checkpoint runs in bfloat16; without autocast, linear layers mixing bfloat16
+    weights with float32 inputs fail ("mat1 and mat2 must have the same dtype").
+    """
+    with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
+        yield
 
 
 def drop_unsupported_init_kwargs(model: Any) -> None:

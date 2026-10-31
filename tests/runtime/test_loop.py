@@ -9,6 +9,8 @@ from pathlib import Path
 from rulecam.bus import Topic
 from rulecam.contracts import PrivacyMode
 from rulecam.evidence.chain import read_chain, verify_chain
+from rulecam.rules import OperatorExclusion
+from rulecam.rules.backtest import read_candidate_payload
 from rulecam.runtime.loop import ActionDone, ActivePlan, VerdictNew, chunk_end, plan_concepts
 from tests.fakes import FakeClock, FakeVerifier, InMemoryTrackStore, make_chunk, make_verdict
 from tests.runtime.fakes import (
@@ -244,3 +246,17 @@ def test_candidate_records_rederive_in_the_audit(tmp_path: Path) -> None:
     store = loop._store  # the same store the loop evaluated on
     report = audit_chain(chain.path_for(clock.now().date()), store)
     assert report.summary().endswith("1/1 decisions reproduced")
+
+
+def test_the_owner_operator_override_reaches_the_decision_context(tmp_path: Path) -> None:
+    """WS1c: operator exclusion is on by default and off for the rules the owner lists."""
+    plan = sink_plan()
+    for disabled, expected in (((), True), ((plan.rules[0].id,), False)):
+        clock = at_end_of(FakeClock(), 0)
+        operators = OperatorExclusion(disabled_rules=disabled)
+        loop, _, chain, _ = make_loop(tmp_path / str(expected), clock, operators=operators)
+        loop.set_plan(plan)
+        loop.handle_chunk(make_chunk(index=0))
+        records = read_chain(chain.path_for(clock.now().date()))
+        record = next(r for r in records if r.kind == "candidate")
+        assert read_candidate_payload(record)[1].operator_exclusion is expected

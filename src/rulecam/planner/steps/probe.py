@@ -7,23 +7,98 @@ rate, its Wilson 95% lower bound and the median box height in pixels.
 Frame count: the task book says 12 frames, but with 12 frames even 12/12 hits gives a Wilson
 lower bound of 12 / (12 + 1.96²) = 0.758, below the 0.8 "observable" bar, so nothing could ever be
 observable. The default is 24 frames: 24/24 gives 0.862 (the MP §7.2 example's 0.86).
+
+Which concepts a concern needs (`concepts_for_concerns`) is Spark 1.3's judgement, given the
+concerns and the surveyed concepts as JSON; the answer is cleaned and capped in code.
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from statistics import median
 from typing import Final
 
+from pydantic import BaseModel, Field
+
+from rulecam.contracts import StructuredLLM
 from rulecam.contracts.plan import Probe
 from rulecam.log import get_logger
+from rulecam.planner.models import DATA_NOT_INSTRUCTIONS_CLAUSE, Concern
 from rulecam.planner.steps.survey import ImageSegmenter, clean_concepts, sample_frames
 from rulecam.stats.intervals import wilson_interval
 
 _log = get_logger(__name__)
 
 DEFAULT_PROBE_FRAMES: Final = 24
+NEEDS_MODEL: Final = "muse-spark-1.3"
+MAX_CONCEPTS_PER_CONCERN: Final = 4
+
+NEEDS_SYSTEM_PROMPT = (
+    "You are Rulecam's detectability planner. You get the site's concerns and the concepts the "
+    "cameras already see, as JSON. For each concern, list the physical things (at most "
+    f"{MAX_CONCEPTS_PER_CONCERN}) a camera must see to check it, as short noun phrases a "
+    "segmentation model can be prompted with (e.g. 'sink', 'gloves', 'thermometer'). Prefer the "
+    "surveyed concepts' wording; name a thing even if no camera sees it. Copy each concern's "
+    "text exactly. Never name a person's face or identity.\n"
+    f"{DATA_NOT_INSTRUCTIONS_CLAUSE}"
+)
+
+
+class ConcernConcepts(BaseModel):
+    """The concepts one concern needs."""
+
+    concern: str
+    concepts: list[str] = Field(default_factory=list)
+
+
+class ConceptNeeds(BaseModel):
+    """Spark's answer: the concepts each concern needs."""
+
+    needs: list[ConcernConcepts] = Field(default_factory=list)
+
+
+def concepts_for_concerns(
+    concerns: Sequence[Concern],
+    inventory_concepts: Sequence[str],
+    *,
+    spark: StructuredLLM,
+) -> dict[str, tuple[str, ...]]:
+    """Ask Spark which concepts each concern needs a camera to see.
+
+    Args:
+        concerns: The concerns from intake.
+        inventory_concepts: Concepts the survey found.
+        spark: The structured-output client.
+
+    Returns:
+        Concern text -> its cleaned concepts (at most 4), for every concern in input order. A
+        concern Spark skipped, or named with different text, maps to `()`.
+    """
+    texts = list(dict.fromkeys(c.text for c in concerns))
+    if not texts:
+        return {}
+    data = {"concerns": texts, "concepts_in_view": list(dict.fromkeys(inventory_concepts))}
+    result = spark.structured(
+        model=NEEDS_MODEL,
+        messages=[
+            {"role": "system", "content": NEEDS_SYSTEM_PROMPT},
+            {"role": "user", "content": json.dumps(data, ensure_ascii=False)},
+        ],
+        schema=ConceptNeeds,
+    )
+    answered: dict[str, list[str]] = {}
+    for need in result.needs:
+        answered.setdefault(need.concern.strip(), []).extend(need.concepts)
+    needs = {
+        text: tuple(clean_concepts(answered.get(text, ()))[:MAX_CONCEPTS_PER_CONCERN])
+        for text in texts
+    }
+    missing = [text for text, concepts in needs.items() if not concepts]
+    if missing:
+        _log.info("probe_needs_missing", n_missing=len(missing))
+    return needs
 
 
 def probe_concept_on_camera(

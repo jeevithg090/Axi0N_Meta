@@ -41,3 +41,7 @@ class GuardrailDeclinedError(PlannerError):
 
 class StandardsFetchError(PlannerError):
     """A cited standard's page cannot be fetched or read as text."""
+
+
+class PipelineError(PlannerError):
+    """The fixed-step pipeline cannot run or resume (bad plan id, unknown step, missing output)."""

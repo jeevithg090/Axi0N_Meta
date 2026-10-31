@@ -237,6 +237,26 @@ per camera, `chunks_skipped_no_rule`, `chunks_skipped_idle`, `chunks_skipped_sti
 `pipeline_depth`, `segment_latency_p50_s` and `segment_latency_p95_s` (last 200 segmentations),
 next to the existing lag and keyframe fields (`lag_s` is the most-behind camera's).
 
+## Evidence strips (what Glimmer sees)
+
+Every candidate gets a strip before Tier 1 (`runtime/strips.py`, P4-05): up to 6 keyframes
+spread over the episode (at least its last 2 s), decoded from the chunks on disk with one ffmpeg
+call per chunk straight into memory (no raw frame is written), at most 640 px wide. Each frame
+shows the rule's objects as labelled boxes (the subject in red), the rule's polygon zones, a
+caption (frame, offset, rule, measured value) and, when the camera has a calibration in the
+approved plan, a ruler from the subject's foot to the nearest other object with its ground
+distance and a one-metre tick. The JPEGs go to `$RULECAM_DATA_DIR/strips/<camera>/<event>/`.
+
+The plan's privacy mode applies: `standard` keeps the real frame with faces blurred;
+`anonymous` and `strict` keep no person pixel (a clean plate, the rule's non-person objects
+minus every person box, people drawn as skeletons or stick figures; `strict` is greyscale with
+identical figures). Faces are only located to be blurred. The face detector is OpenCV's YuNet:
+put `face_detection_yunet_2023mar.onnx` from opencv_zoo (check its licence when fetching) on the
+volume and set `RULECAM_FACE_MODEL` to its path. Without it the log says `face_detector_missing`
+at start-up and only the head regions of tracked people are blurred. A strip that cannot be
+rendered is logged (`strip_render_failed`, `strip_chunk_failed`) and the candidate is verified
+without frames.
+
 ## Glimmer pod (RunPod GPU)
 
 - Image `ghcr.io/ggml-org/llama.cpp:server-cuda-b11669` (Muse Glimmer needs build ≥ b10353), RTX

@@ -53,7 +53,8 @@ export default function PlanPage() {
         <span className="pill" data-testid="approval-state">
           {isApproved ? "Approved" : "Needs approval"}
         </span>
-        {!approved && (
+        {/* A first version, or a new one whose rules and settings did not change (no diff). */}
+        {!isApproved && !showDiff && kept !== latest.version && (
           <button type="button" className="primary" onClick={approve} disabled={busy}>
             Approve plan
           </button>

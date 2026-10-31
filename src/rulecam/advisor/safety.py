@@ -32,7 +32,19 @@ _log = get_logger(__name__)
 
 EXPOSURE_OPS: Final = frozenset({"add_capacity", "move_location"})
 NON_AGENT_RESOURCES: Final = frozenset(
-    {"dock_door", "staging_space", "staging_lane", "rack", "shelving", "scanner", "signage"}
+    {
+        "dock_door",
+        "staging_space",
+        "staging_lane",
+        "rack",
+        "shelving",
+        "scanner",
+        "signage",
+        "pass_bell",
+        "heat_lamp",
+        "ticket_rail",
+        "order_printer",
+    }
 )
 ADDS_AGENTS: Final = re.compile(
     r"\b(add|adds|adding|extra|additional|more|another|second|third|hire|deploy|assign)\b"

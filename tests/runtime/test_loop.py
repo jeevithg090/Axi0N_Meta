@@ -116,13 +116,16 @@ async def test_run_consumes_chunk_ready(tmp_path: Path) -> None:
     task = asyncio.create_task(loop.run())
     await asyncio.sleep(0)
     bus.publish(Topic.CHUNK_READY, make_chunk(index=0))
-    for _ in range(200):
-        if loop.metrics.chunks_processed:
+    path = chain.path_for(clock.now().date())
+    # `chunks_processed` counts at the start of handle_chunk, which runs in a worker thread, so
+    # wait for the chain's verdict record itself rather than the counter.
+    for _ in range(500):
+        if path.is_file() and "verdict" in kinds(path):
             break
         await asyncio.sleep(0.01)
     task.cancel()
     assert loop.metrics.chunks_processed == 1
-    assert "verdict" in kinds(chain.path_for(clock.now().date()))
+    assert "verdict" in kinds(path)
 
 
 def test_candidate_records_rederive_in_the_audit(tmp_path: Path) -> None:

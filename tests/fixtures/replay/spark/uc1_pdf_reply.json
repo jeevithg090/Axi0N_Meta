@@ -21,7 +21,9 @@
       }
     ],
     "usage": {
-      "cached_tokens": 36
+      "input_tokens_details": {
+        "cached_tokens": 36
+      }
     }
   }
 }

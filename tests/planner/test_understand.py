@@ -6,10 +6,12 @@ import json
 from pathlib import Path
 from typing import Literal, TypeVar
 
+import pytest
 from pydantic import BaseModel
 
 from rulecam.clients.meta_hosted.spark import SparkClient
 from rulecam.contracts.plan import RequestItem
+from rulecam.planner.errors import IntakeError
 from rulecam.planner.models import (
     DATA_NOT_INSTRUCTIONS_CLAUSE,
     Concern,
@@ -27,6 +29,8 @@ from tests.fakes import FakeClock
 
 M = TypeVar("M", bound=BaseModel)
 
+SPARK_FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "replay" / "spark"
+
 
 class MockSparkLLM:
     """Mock StructuredLLM returning preset models in sequence and recording calls."""
@@ -34,12 +38,6 @@ class MockSparkLLM:
     def __init__(self, responses: list[BaseModel]) -> None:
         self._responses = list(responses)
         self.calls: list[dict[str, object]] = []
-        self.uploads: list[dict[str, object]] = []
-
-    def upload_file(self, path: Path | str, purpose: str = "user_data") -> str:
-        p = Path(path)
-        self.uploads.append({"path": str(p), "purpose": purpose})
-        return f"file_{p.stem}"
 
     def structured(
         self,
@@ -65,6 +63,26 @@ class MockSparkLLM:
         resp = self._responses.pop(0)
         assert isinstance(resp, schema)
         return resp
+
+
+class FakeAttacher:
+    """Stands in for `SparkClient.attach`: records uploads and returns typed parts."""
+
+    def __init__(self) -> None:
+        self.attached: list[Path] = []
+
+    def attach(self, path: Path) -> dict[str, object]:
+        self.attached.append(path)
+        kind = {".pdf": "input_file", ".mp4": "input_video"}.get(path.suffix, "input_image")
+        return {"type": kind, "file_id": f"file-{path.stem}"}
+
+
+def _user_parts(call: dict[str, object]) -> list[dict[str, object]]:
+    messages = call["messages"]
+    assert isinstance(messages, list)
+    content = messages[1]["content"]
+    assert isinstance(content, list)
+    return content
 
 
 class MockTranscriber:
@@ -103,11 +121,11 @@ def test_prompt_hygiene_clause_present_in_every_system_prompt() -> None:
 def test_uc1_photo_and_pdf_gives_handwashing_and_coldholding_with_section_refs(
     tmp_path: Path,
 ) -> None:
-    """UC1: photo + PDF yields handwash and cold-holding with citations and attaches real media."""
+    """UC1: photo + PDF yields handwash and cold-holding with citations."""
     photo_file = tmp_path / "inspection_report.jpg"
-    photo_file.write_bytes(b"fake_jpeg_content_bytes")
+    photo_file.write_bytes(b"fake_jpeg")
     pdf_file = tmp_path / "food_code_2026.pdf"
-    pdf_file.write_bytes(b"%PDF-1.4 Section 2-103.11 Cold holding specifications\nLine 2")
+    pdf_file.write_bytes(b"fake_pdf")
 
     items = [
         RequestItem(kind="photo", file=str(photo_file)),
@@ -139,7 +157,14 @@ def test_uc1_photo_and_pdf_gives_handwashing_and_coldholding_with_section_refs(
     )
 
     spark = MockSparkLLM([spark_reply_photo, spark_reply_pdf])
-    res = understand(items, spark=spark)
+    files = FakeAttacher()
+    res = understand(items, spark=spark, files=files)
+
+    assert files.attached == [photo_file, pdf_file]
+    photo_parts, pdf_parts = (_user_parts(c) for c in spark.calls)
+    assert photo_parts[1] == {"type": "input_image", "file_id": "file-inspection_report"}
+    assert pdf_parts[1] == {"type": "input_file", "file_id": "file-food_code_2026"}
+    assert str(tmp_path) not in str(photo_parts[0]["text"])  # only the file name is sent
 
     assert res.setting_guess == "commercial_kitchen"
     assert "es" in res.languages
@@ -151,28 +176,6 @@ def test_uc1_photo_and_pdf_gives_handwashing_and_coldholding_with_section_refs(
     assert "Cold-holding temperature under 41F" in concerns_by_text
     assert concerns_by_text["Cold-holding temperature under 41F"].standard_ref == "§2-103.11(G)"
     assert "quiero pasar la proxima inspeccion" in concerns_by_text
-
-    # Verify real media parts were attached to Spark requests (Point 1 fix)
-    assert len(spark.calls) == 2
-    photo_call_messages = spark.calls[0]["messages"]
-    assert isinstance(photo_call_messages, list)
-    photo_user_content = photo_call_messages[1]["content"]
-    assert isinstance(photo_user_content, list)
-    image_parts = [
-        p for p in photo_user_content if isinstance(p, dict) and p.get("type") == "input_image"
-    ]
-    assert len(image_parts) == 1
-    assert str(image_parts[0]["image_url"]).startswith("data:image/jpeg;base64,")
-
-    pdf_call_messages = spark.calls[1]["messages"]
-    assert isinstance(pdf_call_messages, list)
-    pdf_user_content = pdf_call_messages[1]["content"]
-    assert isinstance(pdf_user_content, list)
-    pdf_parts = [
-        p for p in pdf_user_content if isinstance(p, dict) and p.get("type") == "input_file"
-    ]
-    assert len(pdf_parts) == 1
-    assert str(pdf_parts[0]["file_data"]).startswith("data:application/pdf;base64,")
 
 
 def test_uc2_spanish_and_english_voice_gives_concerns_with_two_speakers(
@@ -208,7 +211,7 @@ def test_uc2_spanish_and_english_voice_gives_concerns_with_two_speakers(
     res = understand(items, spark=spark, voice=transcriber)
 
     assert len(transcriber.transcribe_calls) == 1
-    assert res.speakers == ("foreman_es", "supervisor_en")
+    assert set(res.speakers) == {"foreman_es", "supervisor_en"}
     assert "es" in res.languages
     assert "en" in res.languages
     assert len(res.concerns) == 2
@@ -218,79 +221,30 @@ def test_uc2_spanish_and_english_voice_gives_concerns_with_two_speakers(
     assert c_map["Safety vest required"].speaker == "supervisor_en"
 
 
-def test_walkthrough_video_attaches_video_part_and_extracts_areas_and_hazards(
-    tmp_path: Path,
-) -> None:
-    """Walk-through video attaches input_video with file_id and returns areas/hazards."""
-    video_file = tmp_path / "walkthrough.mp4"
-    video_file.write_bytes(b"fake_mp4_video_data")
-
-    items = [RequestItem(kind="video", file=str(video_file))]
+def test_walkthrough_video_gives_areas_hazards_and_concerns(tmp_path: Path) -> None:
+    """Walk-through video processed via Muse Spark 1.2 video+audio returns areas and hazards."""
+    video = tmp_path / "walkthrough.mp4"
+    video.write_bytes(b"fake_mp4")
+    items = [RequestItem(kind="video", file=str(video))]
 
     spark_reply_video = Walkthrough(
         areas=["sink_station", "prep_line", "walkway"],
         hazards_mentioned=["wet floor near sink", "ladder blocking walkway"],
         concerns=[
-            Concern(text="Wet floor slip hazard", source_ref=str(video_file)),
-            Concern(text="Walkway blocked by ladder", source_ref=str(video_file)),
+            Concern(text="Wet floor slip hazard", source_ref="walkthrough.mp4"),
+            Concern(text="Walkway blocked by ladder", source_ref="walkthrough.mp4"),
         ],
     )
     spark = MockSparkLLM([spark_reply_video])
 
-    res = understand(items, spark=spark)
+    res = understand(items, spark=spark, files=FakeAttacher())
 
     assert len(spark.calls) == 1
     assert spark.calls[0]["model"] == "muse-spark-1.2"
-    assert len(spark.uploads) == 1
+    assert _user_parts(spark.calls[0])[1] == {"type": "input_video", "file_id": "file-walkthrough"}
     assert res.areas == ("sink_station", "prep_line", "walkway")
     assert res.hazards_mentioned == ("wet floor near sink", "ladder blocking walkway")
     assert len(res.concerns) == 2
-
-    # Verify input_video part is attached
-    video_call_messages = spark.calls[0]["messages"]
-    assert isinstance(video_call_messages, list)
-    user_content = video_call_messages[1]["content"]
-    assert isinstance(user_content, list)
-    video_parts = [
-        p for p in user_content if isinstance(p, dict) and p.get("type") == "input_video"
-    ]
-    assert len(video_parts) == 1
-    assert video_parts[0]["file_id"] == "file_walkthrough"
-
-
-def test_voice_with_no_transcriber_logs_warning_and_does_not_fail_silently(
-    tmp_path: Path,
-) -> None:
-    """Voice item with no Transcriber configured logs warning and does not drop silently."""
-    audio_file = tmp_path / "untranscribed.wav"
-    audio_file.write_bytes(b"wav_bytes")
-
-    items = [RequestItem(kind="voice", file=str(audio_file))]
-    spark = MockSparkLLM([])
-
-    res = understand(items, spark=spark, voice=None)
-    assert len(res.concerns) == 0
-    assert len(res.speakers) == 0
-
-
-def test_deterministic_speaker_order_preserved(tmp_path: Path) -> None:
-    """Verify speaker order follows discovery order deterministically (Point 3)."""
-    audio_file = tmp_path / "multi_speaker.wav"
-    audio_file.write_bytes(b"wav_bytes")
-
-    items = [RequestItem(kind="voice", file=str(audio_file))]
-    segments = [
-        {"speaker": "charlie", "text": "c", "lang": "en"},
-        {"speaker": "alice", "text": "a", "lang": "en"},
-        {"speaker": "bob", "text": "b", "lang": "en"},
-        {"speaker": "alice", "text": "a2", "lang": "en"},
-    ]
-    transcriber = MockTranscriber(segments)
-    spark_reply = VoiceAnalysis(concerns=[], languages=["en"])
-    spark = MockSparkLLM([spark_reply])
-
-    res = understand(items, spark=spark, voice=transcriber)
-    assert res.speakers == ("charlie", "alice", "bob")
 
 
 def test_deduplication_combines_sources_and_preserves_standard_citations() -> None:
@@ -329,56 +283,165 @@ def test_text_item_passthrough() -> None:
     assert "Spill sign needed within 60s" in texts
 
 
-def test_uc1_photo_and_pdf_with_real_spark_client_and_replay_fixtures(
-    tmp_path: Path,
-) -> None:
-    """Test UC1 using the actual SparkClient wired to scripted replay fixtures (Point 4)."""
-    fixtures_dir = Path("tests/fixtures/replay/spark")
-    photo_fixture = json.loads((fixtures_dir / "uc1_photo_reply.json").read_text(encoding="utf-8"))
-    pdf_fixture = json.loads((fixtures_dir / "uc1_pdf_reply.json").read_text(encoding="utf-8"))
+def test_file_items_need_an_existing_file_of_the_right_type(tmp_path: Path) -> None:
+    spark = MockSparkLLM([])
+    with pytest.raises(IntakeError, match="does not exist"):
+        understand([RequestItem(kind="pdf", file=str(tmp_path / "gone.pdf"))], spark=spark)
+    wrong = tmp_path / "plan.docx"
+    wrong.write_bytes(b"x")
+    with pytest.raises(IntakeError, match=r"takes \.pdf"):
+        understand([RequestItem(kind="pdf", file=str(wrong))], spark=spark)
+    with pytest.raises(IntakeError, match="needs a file"):
+        understand([RequestItem(kind="video")], spark=spark)
+    assert spark.calls == []
 
-    transport = ScriptedTransport(photo_fixture, pdf_fixture)
+
+def test_file_items_need_an_uploader_and_voice_needs_a_transcriber(tmp_path: Path) -> None:
+    pdf = tmp_path / "report.pdf"
+    pdf.write_bytes(b"%PDF")
+    wav = tmp_path / "note.wav"
+    wav.write_bytes(b"RIFF")
+    with pytest.raises(IntakeError, match="uploader"):
+        understand([RequestItem(kind="pdf", file=str(pdf))], spark=MockSparkLLM([]))
+    with pytest.raises(IntakeError, match="transcriber"):
+        understand([RequestItem(kind="voice", file=str(wav))], spark=MockSparkLLM([]))
+
+
+def test_silent_voice_item_gives_no_concerns(tmp_path: Path) -> None:
+    wav = tmp_path / "silence.wav"
+    wav.write_bytes(b"RIFF")
+    spark = MockSparkLLM([])
+    res = understand(
+        [RequestItem(kind="voice", file=str(wav))], spark=spark, voice=MockTranscriber([])
+    )
+    assert res.concerns == ()
+    assert spark.calls == []
+
+
+def test_spark_client_uploads_the_pdf_and_references_it(tmp_path: Path) -> None:
+    """End to end through the real client: the PDF goes to /files and its id into /responses."""
+    pdf = tmp_path / "food_code.pdf"
+    pdf.write_bytes(b"%PDF-1.4 fake")
+    extracted = ExtractedDocument(
+        concerns=[Concern(text="Handwash", source_ref="p.3", standard_ref="§2-301.12")]
+    )
+    reply = {
+        "status": 200,
+        "headers": {},
+        "json": {
+            "id": "resp_1",
+            "status": "completed",
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": extracted.model_dump_json()}],
+                }
+            ],
+        },
+    }
+    transport = ScriptedTransport(reply)
+    client = SparkClient(transport, clock=FakeClock())
+
+    res = understand([RequestItem(kind="pdf", file=str(pdf))], spark=client, files=client)
+
+    assert res.concerns[0].standard_ref == "§2-301.12"
+    [upload] = transport.uploads
+    assert upload["file"]["content"] == b"%PDF-1.4 fake"
+    content = transport.bodies()[0]["input"][1]["content"]
+    assert content[1] == {"type": "input_file", "file_id": "file-rec-0001"}
+
+
+def test_deterministic_speaker_order_preserved(tmp_path: Path) -> None:
+    """Speakers are listed in the order they first speak."""
+    audio_file = tmp_path / "multi_speaker.wav"
+    audio_file.write_bytes(b"wav_bytes")
+    segments = [
+        {"speaker": "charlie", "text": "c", "lang": "en"},
+        {"speaker": "alice", "text": "a", "lang": "en"},
+        {"speaker": "bob", "text": "b", "lang": "en"},
+        {"speaker": "alice", "text": "a2", "lang": "en"},
+    ]
+    spark = MockSparkLLM([VoiceAnalysis(concerns=[], languages=["en"])])
+
+    res = understand(
+        [RequestItem(kind="voice", file=str(audio_file))],
+        spark=spark,
+        voice=MockTranscriber(segments),
+    )
+    assert res.speakers == ("charlie", "alice", "bob")
+
+
+def _fixture(name: str) -> dict[str, object]:
+    reply: dict[str, object] = json.loads((SPARK_FIXTURES / name).read_text(encoding="utf-8"))
+    return reply
+
+
+def test_uc1_photo_and_pdf_with_real_spark_client_and_replay_fixtures(tmp_path: Path) -> None:
+    """UC1 through the real SparkClient: both files are uploaded and referenced by id."""
+    transport = ScriptedTransport(_fixture("uc1_photo_reply.json"), _fixture("uc1_pdf_reply.json"))
     spark_client = SparkClient(transport, clock=FakeClock())
-
     photo_file = tmp_path / "inspection_report.jpg"
     photo_file.write_bytes(b"image_bytes_for_photo")
     pdf_file = tmp_path / "food_code_2026.pdf"
     pdf_file.write_bytes(b"pdf_bytes_for_code")
-
     items = [
         RequestItem(kind="photo", file=str(photo_file)),
         RequestItem(kind="pdf", file=str(pdf_file)),
     ]
 
-    res = understand(items, spark=spark_client)
+    res = understand(items, spark=spark_client, files=spark_client)
+
     assert res.setting_guess == "commercial_kitchen"
-    assert "en" in res.languages
     concerns = {c.text: c for c in res.concerns}
-    assert "Handwashing compliance before line entry" in concerns
     assert concerns["Handwashing compliance before line entry"].standard_ref == "§2-301.12"
-    assert "Cold-holding temperature under 41F" in concerns
     assert concerns["Cold-holding temperature under 41F"].standard_ref == "§2-103.11(G)"
+    assert [u["file"]["content_type"] for u in transport.uploads] == [
+        "image/jpeg",
+        "application/pdf",
+    ]
+    photo_body, pdf_body = transport.bodies()
+    assert photo_body["input"][1]["content"][1]["type"] == "input_image"
+    assert pdf_body["input"][1]["content"][1]["type"] == "input_file"
 
 
-def test_walkthrough_video_with_real_spark_client_and_replay_fixture(
-    tmp_path: Path,
-) -> None:
-    """Test Walkthrough using the actual SparkClient wired to scripted replay fixtures (Point 4)."""
-    fixtures_dir = Path("tests/fixtures/replay/spark")
-    video_fixture = json.loads(
-        (fixtures_dir / "walkthrough_reply.json").read_text(encoding="utf-8")
-    )
-
-    # ScriptedTransport automatically handles /files uploads via upload_ok fixture
-    transport = ScriptedTransport(video_fixture)
+def test_walkthrough_video_with_real_spark_client_and_replay_fixture(tmp_path: Path) -> None:
+    """Walk-through through the real SparkClient: Spark 1.2 gets the uploaded video."""
+    transport = ScriptedTransport(_fixture("walkthrough_reply.json"))
     spark_client = SparkClient(transport, clock=FakeClock())
-
     video_file = tmp_path / "walkthrough.mp4"
     video_file.write_bytes(b"fake_mp4_bytes")
 
-    items = [RequestItem(kind="video", file=str(video_file))]
-    res = understand(items, spark=spark_client)
+    res = understand(
+        [RequestItem(kind="video", file=str(video_file))], spark=spark_client, files=spark_client
+    )
 
     assert "sink_station" in res.areas
     assert "wet floor near sink" in res.hazards_mentioned
     assert len(res.concerns) == 2
+    [body] = transport.bodies()
+    assert body["model"] == "muse-spark-1.2"
+    assert body["input"][1]["content"][1] == {"type": "input_video", "file_id": "file-rec-0001"}
+
+
+def test_uc2_voice_with_real_spark_client_and_replay_fixture(tmp_path: Path) -> None:
+    """UC2 through the real SparkClient: the diarized transcript is analysed as text."""
+    transport = ScriptedTransport(_fixture("voice_analysis_reply.json"))
+    spark_client = SparkClient(transport, clock=FakeClock())
+    audio_file = tmp_path / "crew_briefing.wav"
+    audio_file.write_bytes(b"RIFF")
+    segments = [
+        {"speaker": "foreman_es", "text": "Los trabajadores deben llevar casco", "lang": "es"},
+        {"speaker": "supervisor_en", "text": "Safety vest is mandatory", "lang": "en"},
+    ]
+
+    res = understand(
+        [RequestItem(kind="voice", file=str(audio_file))],
+        spark=spark_client,
+        voice=MockTranscriber(segments),
+    )
+
+    assert res.speakers == ("foreman_es", "supervisor_en")
+    assert len(res.concerns) >= 2
+    assert transport.uploads == []  # audio goes to Voice Transcribe, not to Spark
+    [body] = transport.bodies()
+    assert "[foreman_es] (es): Los trabajadores" in body["input"][1]["content"]

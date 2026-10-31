@@ -20,11 +20,20 @@ items = [
     RequestItem(kind="pdf", file="food_code_2026.pdf"),
     RequestItem(kind="text", text="quiero pasar la proxima inspeccion", lang="es"),
 ]
-res = understand(items, spark=spark_client, voice=voice_client)
+spark = SparkClient.from_settings(settings, clock=clock, bus=bus)
+res = understand(items, spark=spark, files=spark, voice=voice_client)
 # res.concerns -> deduplicated list of Concern objects with standards citations
 # res.languages -> ('es', 'en')
 # res.setting_guess -> 'commercial_kitchen'
 ```
+
+- PDFs and photos are uploaded with the Files API (`files.attach`) and sent to Spark 1.3 as
+  `input_file` / `input_image` parts; walk-through MP4s go to Spark 1.2 as `input_video` (video
+  and narration in one call). Voice WAVs go to Voice Transcribe (diarized), then the transcript
+  to Spark 1.3. Only file names reach the model, never local paths.
+- A missing file, a wrong file type (`pdf`: .pdf; `photo`: .jpg/.jpeg/.png/.webp; `video`:
+  .mp4; `voice`: .wav), or a missing uploader/transcriber raises `IntakeError`.
+- Every system prompt carries the data-not-instructions clause.
 
 ## Tests
 

@@ -12,14 +12,14 @@ detected languages, and inferred site settings.
 
 from __future__ import annotations
 
-import base64
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Final, Protocol
 
-from rulecam.clients.meta_hosted.spark import SPARK_1_2, SPARK_1_3
 from rulecam.contracts import StructuredLLM, Transcriber
 from rulecam.contracts.plan import RequestItem
 from rulecam.log import get_logger
+from rulecam.planner.errors import IntakeError
 from rulecam.planner.models import (
     DATA_NOT_INSTRUCTIONS_CLAUSE,
     Concern,
@@ -30,6 +30,24 @@ from rulecam.planner.models import (
 )
 
 _log = get_logger(__name__)
+
+SPARK_MODEL: Final = "muse-spark-1.3"
+VIDEO_AUDIO_MODEL: Final = "muse-spark-1.2"  # 1.3 audio is degraded; 1.2 takes video + narration
+ALLOWED_SUFFIXES: Final[dict[str, frozenset[str]]] = {
+    "pdf": frozenset({".pdf"}),
+    "photo": frozenset({".jpg", ".jpeg", ".png", ".webp"}),
+    "video": frozenset({".mp4"}),  # the Files API takes video/mp4 only
+    "voice": frozenset({".wav"}),  # Voice Transcribe takes WAV only
+}
+
+
+class FileAttacher(Protocol):
+    """Uploads a local file and returns the Responses content part that references it."""
+
+    def attach(self, path: Path) -> dict[str, object]:
+        """Upload `path` and return its `input_file`/`input_image`/`input_video` part."""
+        ...
+
 
 DOCUMENT_SYSTEM_PROMPT = (
     "You are Rulecam's intake analyst. Extract safety and compliance concerns from the attached "
@@ -100,109 +118,72 @@ def _process_text_item(item: RequestItem) -> tuple[list[Concern], list[str]]:
     return concerns, languages
 
 
-MIN_LINE_LEN = 3
-MAX_SAMPLE_LINES = 30
+def _item_path(item: RequestItem) -> Path:
+    """Return the item's file, checked to exist and to have a type its kind allows."""
+    if not item.file:
+        msg = f"a {item.kind} request item needs a file"
+        raise IntakeError(msg)
+    path = Path(item.file)
+    if path.suffix.lower() not in ALLOWED_SUFFIXES[item.kind]:
+        allowed = ", ".join(sorted(ALLOWED_SUFFIXES[item.kind]))
+        msg = f"a {item.kind} item takes {allowed}, got {path.suffix or 'no extension'}"
+        raise IntakeError(msg)
+    if not path.is_file():
+        msg = f"{item.kind} file {path.name} does not exist"
+        raise IntakeError(msg)
+    return path
 
 
-def _extract_text_sample(raw_bytes: bytes) -> str:
-    try:
-        text_sample = raw_bytes.decode("utf-8", errors="ignore")
-        lines = [
-            line.strip() for line in text_sample.splitlines() if len(line.strip()) > MIN_LINE_LEN
-        ]
-        if lines and any(c.isalnum() for c in lines[0]):
-            joined = "\n".join(lines[:MAX_SAMPLE_LINES])
-            return f"\nExtracted document text sample:\n{joined}\n"
-    except (UnicodeDecodeError, ValueError):
-        _log.debug("document_text_extract_failed")
-    return ""
+def _user_content(
+    item: RequestItem, files: FileAttacher | None, intro: str
+) -> tuple[list[dict[str, object]], str]:
+    """Build the user message: a short text part, then the uploaded file as a typed part.
 
-
-def _build_doc_user_content(
-    item: RequestItem,
-) -> tuple[str | list[dict[str, object]], str]:
-    file_label = item.file or item.kind
-    user_prompt = f"Document/Photo source: {file_label}\n"
+    Only the file name reaches the model, never the local path.
+    """
+    path = _item_path(item)
+    if files is None:
+        msg = f"a {item.kind} item needs a file uploader (`files=`) to reach the model"
+        raise IntakeError(msg)
+    text = f"{intro}: {path.name}\n"
     if item.text:
-        user_prompt += f"Attached user notes: {item.text}\n"
-
-    media_parts: list[dict[str, object]] = []
-    if item.file:
-        file_path = Path(item.file)
-        if file_path.exists():
-            raw_bytes = file_path.read_bytes()
-            b64_str = base64.b64encode(raw_bytes).decode("ascii")
-            suffix = file_path.suffix.lower()
-            if item.kind == "photo" or suffix in (".jpg", ".jpeg", ".png", ".webp"):
-                mime = "image/jpeg" if suffix in (".jpg", ".jpeg") else "image/png"
-                media_parts.append(
-                    {"type": "input_image", "image_url": f"data:{mime};base64,{b64_str}"}
-                )
-            elif item.kind == "pdf" or suffix == ".pdf":
-                media_parts.append(
-                    {
-                        "type": "input_file",
-                        "file_data": f"data:application/pdf;base64,{b64_str}",
-                        "filename": file_path.name,
-                    }
-                )
-                sample = _extract_text_sample(raw_bytes)
-                if sample:
-                    user_prompt += sample
-
-    if media_parts:
-        content_parts: list[dict[str, object]] = [
-            {"type": "input_text", "text": user_prompt},
-            *media_parts,
-        ]
-        return content_parts, file_label
-    return user_prompt, file_label
+        text += f"User notes: {item.text}\n"
+    return [{"type": "input_text", "text": text}, files.attach(path)], path.name
 
 
 def _process_doc_item(
-    item: RequestItem, spark: StructuredLLM
+    item: RequestItem, spark: StructuredLLM, files: FileAttacher | None
 ) -> tuple[list[Concern], list[str], str]:
-    content, file_label = _build_doc_user_content(item)
-    messages: list[dict[str, object]] = [
-        {"role": "system", "content": DOCUMENT_SYSTEM_PROMPT},
-        {"role": "user", "content": content},
-    ]
-
+    content, label = _user_content(item, files, "Attached document or photo")
     res = spark.structured(
-        model=SPARK_1_3,
-        messages=messages,
+        model=SPARK_MODEL,
+        messages=[
+            {"role": "system", "content": DOCUMENT_SYSTEM_PROMPT},
+            {"role": "user", "content": content},
+        ],
         schema=ExtractedDocument,
     )
-    concerns: list[Concern] = []
-    for c in res.concerns:
-        src = c.source_ref or file_label
-        concerns.append(
-            Concern(text=c.text, source_ref=src, standard_ref=c.standard_ref, speaker=c.speaker)
+    concerns = [
+        Concern(
+            text=c.text,
+            source_ref=c.source_ref or label,
+            standard_ref=c.standard_ref,
+            speaker=c.speaker,
         )
+        for c in res.concerns
+    ]
     return concerns, list(res.languages), res.setting_guess
 
 
 def _transcribe_audio(
     item: RequestItem, voice: Transcriber | None
 ) -> tuple[list[dict[str, str]], list[str]]:
-    if not item.file:
-        _log.warning("voice_audio_missing_file", item=item)
-        return [], []
-    if not voice:
-        _log.warning(
-            "voice_transcriber_missing",
-            item_file=item.file,
-            hint="Voice audio supplied but no Transcriber configured",
-        )
-        return [], []
-    audio_path = Path(item.file)
-    if not audio_path.exists():
-        _log.warning("voice_audio_missing", path=str(audio_path))
-        return [], []
-
-    audio_bytes = audio_path.read_bytes()
+    path = _item_path(item)
+    if voice is None:
+        msg = "a voice item needs a transcriber (`voice=`)"
+        raise IntakeError(msg)
     lang_bias = [item.lang] if item.lang else None
-    segments = voice.transcribe(audio_bytes, diarize=True, lang_bias=lang_bias)
+    segments = voice.transcribe(path.read_bytes(), diarize=True, lang_bias=lang_bias)
     speakers = list(dict.fromkeys(seg["speaker"] for seg in segments if seg.get("speaker")))
     return segments, speakers
 
@@ -213,33 +194,28 @@ def _process_voice_item(
     voice: Transcriber | None,
 ) -> tuple[list[Concern], list[str], list[str]]:
     segments, speakers = _transcribe_audio(item, voice)
-    transcript_lines: list[str] = []
-    for seg in segments:
-        spk = seg.get("speaker", "speaker")
-        lang = seg.get("lang", "en")
-        txt = seg.get("text", "")
-        transcript_lines.append(f"[{spk}] ({lang}): {txt}")
-
-    if not transcript_lines and item.text:
-        transcript_lines.append(f"[speaker_0]: {item.text}")
-
+    transcript_lines = [
+        f"[{seg.get('speaker', 'speaker')}] ({seg.get('lang', 'und')}): {seg.get('text', '')}"
+        for seg in segments
+    ]
     if not transcript_lines:
+        _log.info("voice_item_silent", file=Path(item.file or "").name)
         return [], [], []
 
     user_prompt = "Diarized voice audio transcript:\n" + "\n".join(transcript_lines)
     res = spark.structured(
-        model=SPARK_1_3,
+        model=SPARK_MODEL,
         messages=[
             {"role": "system", "content": VOICE_SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
         ],
         schema=VoiceAnalysis,
     )
-    file_label = item.file or "voice"
+    label = Path(item.file or "voice").name
     concerns = [
         Concern(
             text=c.text,
-            source_ref=c.source_ref or file_label,
+            source_ref=c.source_ref or label,
             standard_ref=c.standard_ref,
             speaker=c.speaker or (speakers[0] if len(speakers) == 1 else None),
         )
@@ -249,47 +225,21 @@ def _process_voice_item(
 
 
 def _process_video_item(
-    item: RequestItem, spark: StructuredLLM
+    item: RequestItem, spark: StructuredLLM, files: FileAttacher | None
 ) -> tuple[list[Concern], list[str], list[str]]:
-    file_label = item.file or "video"
-    user_prompt = f"Walk-through video: {file_label}\n"
-    if item.text:
-        user_prompt += f"Notes: {item.text}\n"
-
-    file_id = ""
-    if item.file:
-        file_path = Path(item.file)
-        uploader = getattr(spark, "upload_file", None)
-        if callable(uploader) and file_path.exists():
-            file_id = str(uploader(file_path))
-        elif file_path.exists():
-            file_id = f"file_{file_path.stem}"
-        elif item.file.startswith("file_"):
-            file_id = item.file
-        else:
-            file_id = f"file_{item.file}"
-
-    user_content: str | list[dict[str, object]]
-    if file_id:
-        user_content = [
-            {"type": "input_text", "text": user_prompt},
-            {"type": "input_video", "file_id": file_id},
-        ]
-    else:
-        user_content = user_prompt
-
+    content, label = _user_content(item, files, "Attached narrated walk-through video")
     res = spark.structured(
-        model=SPARK_1_2,
+        model=VIDEO_AUDIO_MODEL,
         messages=[
             {"role": "system", "content": WALKTHROUGH_SYSTEM_PROMPT},
-            {"role": "user", "content": user_content},
+            {"role": "user", "content": content},
         ],
         schema=Walkthrough,
     )
     concerns = [
         Concern(
             text=c.text,
-            source_ref=c.source_ref or file_label,
+            source_ref=c.source_ref or label,
             standard_ref=c.standard_ref,
             speaker=c.speaker,
         )
@@ -302,17 +252,27 @@ def understand(
     items: Sequence[RequestItem],
     *,
     spark: StructuredLLM,
+    files: FileAttacher | None = None,
     voice: Transcriber | None = None,
 ) -> UnderstandResult:
     """Analyze and aggregate multimodal intake into an `UnderstandResult`.
 
+    PDFs, photos and walk-through videos are uploaded with `files` (the Files API) and sent to
+    Spark as typed content parts; voice is transcribed with `voice`, then analysed as text.
+
     Args:
         items: List of RequestItem entries (text, voice, photo, pdf, video).
         spark: StructuredLLM client (Spark 1.3 / 1.2).
-        voice: Optional Transcriber client for voice audio.
+        files: Uploads a file and returns its content part (`SparkClient` does); needed for
+            pdf, photo and video items.
+        voice: Transcriber for voice items.
 
     Returns:
         UnderstandResult containing extracted concerns, cited standards, areas, and languages.
+
+    Raises:
+        IntakeError: If an item's file is missing or of the wrong type, or the client it needs
+            was not given.
     """
     raw_concerns: list[Concern] = []
     all_languages: list[str] = []
@@ -327,7 +287,7 @@ def understand(
             raw_concerns.extend(c_list)
             all_languages.extend(l_list)
         elif item.kind in ("pdf", "photo"):
-            c_list, l_list, setting = _process_doc_item(item, spark)
+            c_list, l_list, setting = _process_doc_item(item, spark, files)
             raw_concerns.extend(c_list)
             all_languages.extend(l_list)
             if setting:
@@ -338,7 +298,7 @@ def understand(
             all_languages.extend(l_list)
             all_speakers.extend(spk_list)
         elif item.kind == "video":
-            c_list, areas, hazards = _process_video_item(item, spark)
+            c_list, areas, hazards = _process_video_item(item, spark, files)
             raw_concerns.extend(c_list)
             all_areas.extend(areas)
             all_hazards.extend(hazards)

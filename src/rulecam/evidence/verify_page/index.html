@@ -28,7 +28,7 @@
   <div id="root" class="muted"></div>
   <label>Or check a chain file yourself: <input type="file" id="file" accept=".jsonl,application/x-ndjson"></label>
   <script type="module">
-    import { compareToCommitted, merkleRoot, verifyChainText } from "./chain.js";
+    import { compareToCommitted, merkleRoot, parseHashList, verifyChainText } from "./chain.js";
 
     const verdict = document.getElementById("verdict");
     const detail = document.getElementById("detail");
@@ -71,6 +71,38 @@
       rootLine.append("Daily root: ", code);
     }
 
+    // The public gets record hashes only (the records are the site owner's): enough to check that
+    // the day's log reproduces the root committed to git.
+    async function showHashes(hashes, committed) {
+      const root = await merkleRoot(hashes);
+      const status = committed
+        ? await compareToCommitted(hashes, committed.root, committed.n)
+        : null;
+      if (status === "mismatch") {
+        verdict.textContent = "✗ The log does not match the committed daily root";
+        verdict.className = "bad";
+        detail.textContent = `${hashes.length} record hashes do not reproduce the root in git.`;
+      } else if (status === "match" || status === "extended") {
+        verdict.textContent = `✓ ${hashes.length} record hashes match the committed daily root`;
+        verdict.className = "ok";
+        detail.textContent =
+          status === "extended"
+            ? `The first ${committed.n} match it; ${hashes.length - committed.n} were added after it was committed.`
+            : "";
+      } else {
+        verdict.textContent = `${hashes.length} record hashes; today's root is not committed yet`;
+        verdict.className = "";
+        detail.textContent = "";
+      }
+      detail.append(
+        " The records themselves are visible to the site owner only; with a chain file you can recompute every one below.",
+      );
+      const code = document.createElement("code");
+      code.textContent = root;
+      rootLine.textContent = "";
+      rootLine.append("Daily root: ", code);
+    }
+
     async function loadFromServer() {
       const params = new URLSearchParams(location.search);
       const day = params.get("day");
@@ -78,16 +110,22 @@
         verdict.textContent = "Choose a chain file below.";
         return;
       }
-      const chain = await fetch(`../evidence/${day}/chain`);
-      if (!chain.ok) {
-        verdict.textContent = `No chain for ${day}.`;
-        return;
-      }
       const root = await fetch(`../evidence/${day}/root`);
       const body = root.ok ? await root.json() : null;
       const committed =
         body && body.committed_root ? { root: body.committed_root, n: body.committed_n } : null;
-      await show(await chain.text(), committed);
+      // The full chain is the owner's (loopback or a login session); everyone else gets hashes.
+      const chain = await fetch(`../evidence/${day}/chain`);
+      if (chain.ok) {
+        await show(await chain.text(), committed);
+        return;
+      }
+      const hashes = chain.status === 403 ? await fetch(`../evidence/${day}/hashes`) : chain;
+      if (!hashes.ok) {
+        verdict.textContent = `No chain for ${day}.`;
+        return;
+      }
+      await showHashes(parseHashList(await hashes.json()), committed);
     }
 
     function fail(error) {

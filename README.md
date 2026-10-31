@@ -50,7 +50,7 @@ Only models that actually run in the product are listed; this table is updated a
 | SAM 3.1 | Survey, probes, tracking, coverage, masks | Hosted + self-hosted | planned |
 | Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute | Site laptop (llama-server) | client + Tier 1 verifier (P3-03) |
 | Muse Spark Open (open weights) | Tier 2 verifier, dispute review, plan audit, devil's advocate | Baseten | client + Tier 2 (P3-04) |
-| Muse Image | Rule CI scenes, lookalikes, posters | Hosted API | integrated (P2-01) |
+| Muse Image | Rule CI scenes, lookalikes, posters | Hosted API | client (P2-01); Rule CI scenes and lookalikes (P2-09) |
 | Sapiens (FAIR) | Pose and skeletons | GPU | planned |
 | MMS-TTS (FAIR) | Spoken warnings | CPU | planned |
 | V-JEPA 2 (FAIR) | Surprise Lens world model | GPU | planned (gated) |

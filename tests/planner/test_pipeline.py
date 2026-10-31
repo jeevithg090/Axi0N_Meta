@@ -62,6 +62,7 @@ from rulecam.planner.steps.probe import (
 )
 from rulecam.planner.steps.survey import ProposedConcepts
 from rulecam.replay.cache import ReplayCache
+from rulecam.rule_ci import prove_plan_hook
 from tests.fakes import EPOCH, FakeClock, FakeLLM
 
 M = TypeVar("M", bound=BaseModel)
@@ -504,6 +505,28 @@ def test_the_audit_step_attaches_findings_and_back_translation(tmp_path: Path) -
         if isinstance(m.payload, PlannerStepEvent) and m.payload.status == "done"
     }
     assert done["audit"] == "1 audit findings; back-translated (en)"
+
+
+def test_the_prove_step_runs_rule_ci_and_completes_the_acceptance_trace(tmp_path: Path) -> None:
+    bus = Recorder()
+    prove = prove_plan_hook(bus)  # type: ignore[arg-type]
+    plan = _pipeline(tmp_path, _spark(), bus, prove=prove).run(_inputs(tmp_path))
+
+    rule_ci = [c for c in plan.acceptance.checks if c.check in {"ci_green", "nonvacuous"}]
+    assert [(c.item, c.check, c.passed) for c in rule_ci] == [
+        ("wash-before-line", "ci_green", True),
+        ("wash-before-line", "nonvacuous", True),
+    ]
+    assert plan.acceptance.all_passed
+    assert len(plan.acceptance.checks) == 9
+    results = [m.payload for m in bus.messages if m.topic is Topic.CI_RESULT]
+    assert [(r.rule_id, r.ci_green) for r in results] == [("wash-before-line", True)]  # type: ignore[attr-defined]
+    done = {
+        m.payload.step: m.payload.detail
+        for m in bus.messages
+        if isinstance(m.payload, PlannerStepEvent) and m.payload.status == "done"
+    }
+    assert done["prove"] == "Rule CI green for 1/1 rules"
 
 
 def test_an_unreachable_auditor_is_reported_in_the_audit_step(tmp_path: Path) -> None:

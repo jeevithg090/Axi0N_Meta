@@ -137,9 +137,17 @@ from rulecam.planner.pipeline import PipelineInput, PlannerPipeline, PlanStore
 pipeline = PlannerPipeline(
     spark=spark, files=spark, segmenter=sam, voice=voice, bus=bus, store=PlanStore(Path("plans"))
 )
-plan = pipeline.run(PipelineInput(plan_id="main-st", site_name="Main St", request=items,
-                                  camera_frames=frames, zones=zones, seed=7))
-plan = pipeline.resume("main-st")             # after a crash: first step without an output
+plan = pipeline.run(
+    PipelineInput(
+        plan_id="main-st",
+        site_name="Main St",
+        request=items,
+        camera_frames=frames,
+        zones=zones,
+        seed=7,
+    )
+)
+plan = pipeline.resume("main-st")  # after a crash: first step without an output
 plan = pipeline.resume("main-st", "compile")  # re-run steps 6-10 on the saved steps 1-5
 ```
 

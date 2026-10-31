@@ -37,3 +37,7 @@ class GuardrailDeclinedError(PlannerError):
         """
         super().__init__(f"Request declined under {declined.category}: {declined.reason}")
         self.declined = declined
+
+
+class StandardsFetchError(PlannerError):
+    """A cited standard's page cannot be fetched or read as text."""

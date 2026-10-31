@@ -22,6 +22,8 @@ def _system_prompts() -> dict[str, str]:
 def test_planner_has_system_prompts_to_check() -> None:
     assert "rulecam.planner.steps.survey.SURVEY_SYSTEM_PROMPT" in _system_prompts()
     assert "rulecam.planner.feasibility.CAMERA_FIX_SYSTEM_PROMPT" in _system_prompts()
+    assert "rulecam.planner.steps.ask.ASK_SYSTEM_PROMPT" in _system_prompts()
+    assert "rulecam.planner.standards.STANDARDS_SYSTEM_PROMPT" in _system_prompts()
 
 
 def test_every_planner_system_prompt_carries_the_data_not_instructions_clause() -> None:

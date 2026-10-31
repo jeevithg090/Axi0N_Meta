@@ -12,9 +12,11 @@ detected languages, and inferred site settings.
 
 from __future__ import annotations
 
+import base64
 from collections.abc import Sequence
 from pathlib import Path
 
+from rulecam.clients.meta_hosted.spark import SPARK_1_2, SPARK_1_3
 from rulecam.contracts import StructuredLLM, Transcriber
 from rulecam.contracts.plan import RequestItem
 from rulecam.log import get_logger
@@ -98,20 +100,77 @@ def _process_text_item(item: RequestItem) -> tuple[list[Concern], list[str]]:
     return concerns, languages
 
 
-def _process_doc_item(
-    item: RequestItem, spark: StructuredLLM
-) -> tuple[list[Concern], list[str], str]:
+MIN_LINE_LEN = 3
+MAX_SAMPLE_LINES = 30
+
+
+def _extract_text_sample(raw_bytes: bytes) -> str:
+    try:
+        text_sample = raw_bytes.decode("utf-8", errors="ignore")
+        lines = [
+            line.strip() for line in text_sample.splitlines() if len(line.strip()) > MIN_LINE_LEN
+        ]
+        if lines and any(c.isalnum() for c in lines[0]):
+            joined = "\n".join(lines[:MAX_SAMPLE_LINES])
+            return f"\nExtracted document text sample:\n{joined}\n"
+    except (UnicodeDecodeError, ValueError):
+        _log.debug("document_text_extract_failed")
+    return ""
+
+
+def _build_doc_user_content(
+    item: RequestItem,
+) -> tuple[str | list[dict[str, object]], str]:
     file_label = item.file or item.kind
     user_prompt = f"Document/Photo source: {file_label}\n"
     if item.text:
         user_prompt += f"Attached user notes: {item.text}\n"
 
+    media_parts: list[dict[str, object]] = []
+    if item.file:
+        file_path = Path(item.file)
+        if file_path.exists():
+            raw_bytes = file_path.read_bytes()
+            b64_str = base64.b64encode(raw_bytes).decode("ascii")
+            suffix = file_path.suffix.lower()
+            if item.kind == "photo" or suffix in (".jpg", ".jpeg", ".png", ".webp"):
+                mime = "image/jpeg" if suffix in (".jpg", ".jpeg") else "image/png"
+                media_parts.append(
+                    {"type": "input_image", "image_url": f"data:{mime};base64,{b64_str}"}
+                )
+            elif item.kind == "pdf" or suffix == ".pdf":
+                media_parts.append(
+                    {
+                        "type": "input_file",
+                        "file_data": f"data:application/pdf;base64,{b64_str}",
+                        "filename": file_path.name,
+                    }
+                )
+                sample = _extract_text_sample(raw_bytes)
+                if sample:
+                    user_prompt += sample
+
+    if media_parts:
+        content_parts: list[dict[str, object]] = [
+            {"type": "input_text", "text": user_prompt},
+            *media_parts,
+        ]
+        return content_parts, file_label
+    return user_prompt, file_label
+
+
+def _process_doc_item(
+    item: RequestItem, spark: StructuredLLM
+) -> tuple[list[Concern], list[str], str]:
+    content, file_label = _build_doc_user_content(item)
+    messages: list[dict[str, object]] = [
+        {"role": "system", "content": DOCUMENT_SYSTEM_PROMPT},
+        {"role": "user", "content": content},
+    ]
+
     res = spark.structured(
-        model="muse-spark-1.3",
-        messages=[
-            {"role": "system", "content": DOCUMENT_SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
+        model=SPARK_1_3,
+        messages=messages,
         schema=ExtractedDocument,
     )
     concerns: list[Concern] = []
@@ -126,7 +185,15 @@ def _process_doc_item(
 def _transcribe_audio(
     item: RequestItem, voice: Transcriber | None
 ) -> tuple[list[dict[str, str]], list[str]]:
-    if not item.file or not voice:
+    if not item.file:
+        _log.warning("voice_audio_missing_file", item=item)
+        return [], []
+    if not voice:
+        _log.warning(
+            "voice_transcriber_missing",
+            item_file=item.file,
+            hint="Voice audio supplied but no Transcriber configured",
+        )
         return [], []
     audio_path = Path(item.file)
     if not audio_path.exists():
@@ -136,7 +203,7 @@ def _transcribe_audio(
     audio_bytes = audio_path.read_bytes()
     lang_bias = [item.lang] if item.lang else None
     segments = voice.transcribe(audio_bytes, diarize=True, lang_bias=lang_bias)
-    speakers = list({seg.get("speaker", "unknown") for seg in segments if "speaker" in seg})
+    speakers = list(dict.fromkeys(seg["speaker"] for seg in segments if seg.get("speaker")))
     return segments, speakers
 
 
@@ -161,7 +228,7 @@ def _process_voice_item(
 
     user_prompt = "Diarized voice audio transcript:\n" + "\n".join(transcript_lines)
     res = spark.structured(
-        model="muse-spark-1.3",
+        model=SPARK_1_3,
         messages=[
             {"role": "system", "content": VOICE_SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
@@ -189,11 +256,33 @@ def _process_video_item(
     if item.text:
         user_prompt += f"Notes: {item.text}\n"
 
+    file_id = ""
+    if item.file:
+        file_path = Path(item.file)
+        uploader = getattr(spark, "upload_file", None)
+        if callable(uploader) and file_path.exists():
+            file_id = str(uploader(file_path))
+        elif file_path.exists():
+            file_id = f"file_{file_path.stem}"
+        elif item.file.startswith("file_"):
+            file_id = item.file
+        else:
+            file_id = f"file_{item.file}"
+
+    user_content: str | list[dict[str, object]]
+    if file_id:
+        user_content = [
+            {"type": "input_text", "text": user_prompt},
+            {"type": "input_video", "file_id": file_id},
+        ]
+    else:
+        user_content = user_prompt
+
     res = spark.structured(
-        model="muse-spark-1.2",
+        model=SPARK_1_2,
         messages=[
             {"role": "system", "content": WALKTHROUGH_SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
+            {"role": "user", "content": user_content},
         ],
         schema=Walkthrough,
     )

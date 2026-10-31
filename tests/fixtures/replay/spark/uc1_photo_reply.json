@@ -1,0 +1,27 @@
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "json": {
+    "id": "resp_spark_photo_01",
+    "object": "response",
+    "model": "muse-spark-1.3",
+    "status": "completed",
+    "output": [
+      {
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "{\"concerns\": [{\"text\": \"Handwashing compliance before line entry\", \"source_ref\": \"inspection_report.jpg\", \"standard_ref\": \"\\u00a72-301.12\", \"speaker\": null}], \"languages\": [\"en\"], \"setting_guess\": \"commercial_kitchen\"}"
+          }
+        ]
+      }
+    ],
+    "usage": {
+      "cached_tokens": 42
+    }
+  }
+}

@@ -29,7 +29,18 @@ die() { log "ERROR: $*"; exit 1; }
 
 secret_file() {  # secret_file <path>: must exist, be non-empty and have mode 600
   [[ -s "$1" ]] || die "$1 is missing or empty (write it with mode 600)"
-  [[ "$(stat -c %a "$1")" == "600" ]] || die "$1 must have mode 600 (chmod 600 $1)"
+  [[ "$(stat -c %a "$1")" == "600" ]] && return 0
+  chmod 600 "$1" 2>/dev/null || true
+  [[ "$(stat -c %a "$1")" == "600" ]] && return 0
+  # RunPod network volumes (MooseFS) ignore chmod, so a mode check can never pass there. The
+  # pod runs as root only; say so loudly instead of refusing to start.
+  local fs
+  fs="$(stat -f -c %T "$1" 2>/dev/null || echo unknown)"
+  case "$fs" in
+    fuseblk | fuse | fuse.* | moosefs | mfs | nfs*)
+      log "WARNING: $1 is on a $fs volume that ignores file modes; keep the pod single-user" ;;
+    *) die "$1 must have mode 600 (chmod 600 $1)" ;;
+  esac
 }
 
 pinned() {  # pinned <NAME>: a string constant from sam_worker.py, the single source of truth

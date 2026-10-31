@@ -9,10 +9,10 @@ forecast. Owner: P2.
 
 | Name | What it does |
 |---|---|
-| `generate_rule_traces(rule) -> list[TraceCase]` | Synthetic tracks from the rule's own thresholds and zones, each with its expected outcome. Raises `UnsupportedRuleError` for shapes it has no generator for |
+| `generate_rule_traces(rule, *, calibrations) -> list[TraceCase]` | Synthetic tracks from the rule's own thresholds and zones, each with its expected outcome. Raises `UnsupportedRuleError` for shapes it has no generator for, or a buffer zone without a calibration |
 | `generate_mutations(rule) -> list[MutationCase]` | Every applicable mutant: thresholds x0.1 and x10, flip `lt`/`gt`, drop `not`, swap `all`/`any`, remove `persist`, switch `semantics`, widen each zone by 50% |
-| `run_rule_ci(rule, *, bus, traces, mutants, justification) -> RuleCIReport` | Runs traces, then every mutant on every trace; publishes `ci.result` (`CIResult{rule_id, report, ci_green, summary}`) |
-| `prove_plan_hook(bus, *, justifications, red_team) -> PlanHook` | The planner's step 10: Rule CI for every rule (part 2 too when `red_team` is given), recorded as `ci_green` and `nonvacuous` checks in the acceptance trace (re-running replaces them) |
+| `run_rule_ci(rule, *, bus, traces, mutants, justification, red_team, calibrations) -> RuleCIReport` | Runs traces, then every mutant on every trace; publishes `ci.result` (`CIResult{rule_id, report, ci_green, summary}`) |
+| `prove_plan_hook(bus, *, justifications, red_team, calibrations) -> PlanHook` | The planner's step 10: Rule CI for every rule (part 2 too when `red_team` is given; buffer traces through the run's calibrations, `api.app.run_calibrations`), recorded as `ci_green` and `nonvacuous` checks in the acceptance trace (re-running replaces them) |
 | `RedTeam(...)(rule) -> RedTeamReport` | Part 2 for one rule on its real camera frame: scenes, lookalikes, injection signs, forecast; a stage that cannot run is listed in `skipped` with why |
 | `run_detectability_scenes`, `run_lookalike_red_team`, `run_injection_red_team`, `forecast_alerts` | The four stages on their own |
 | `append_regression(rule_id, item)` | Adds a confirmed real false alarm to `regressions/<rule_id>.jsonl`, a permanent lookalike test |
@@ -20,14 +20,37 @@ forecast. Owner: P2.
 
 ## Traces
 
-Supported shapes: `sequence(inside -> dwell)` (past and future), `[persist] inside`, and
-`[persist] distance_m` alone or with `moving` under `all`. For the handwash rule (20 s, gap 3 s,
+Supported shapes (`generate.py` picks the generator): `sequence(inside -> dwell)` (past and
+future), `[persist] inside` on a polygon zone, `[persist] inside` on a buffer zone alone or with
+`moving` (of the subject or of the buffer's concept) under `all`, and `[persist] distance_m` alone
+or with `moving` under `all`. For the handwash rule (20 s, gap 3 s,
 window 300 s) the traces are: 19.5/20.5 s washes; two 12 s washes 2 s and 4 s apart;
 292.4/307.5 s waits; a wash interrupted halfway; an ID swap mid-wash; entering before washing;
 and just-inside/just-outside both zones (5 cm off an edge). Expected outcomes come from how a
 trace was built, never from the engine. Rules are per track, so an ID swap loses history: the
 expected outcome is what per-track semantics give, including the 0.5 s a track's last point is
 held. Other shapes (e.g. `persist(pose)`) get an empty report that fails `ci_green` and says why.
+
+**Buffer zones** (`buffer_traces.py`). "Keep people at least 2 metres away from a moving
+forklift" compiles either to `all(distance_m(person, forklift) < 2, moving(forklift))` or to
+`all(inside(person, forklift_buffer), moving(forklift))` with `forklift_buffer` =
+`{kind: buffer, buffer_of: forklift, buffer_m: 2}`. The forklift drives along the ground; the
+person keeps a set distance from the projected bottom edge of its box (its footprint). Traces:
+1.95/2.05 m from the footprint (`zone_inside`/`zone_outside`), forklift at 0.21/0.19 m/s and
+standing still, then the persist pair, an interruption and an ID swap (with `persist`) or an
+interruption and an ID swap that still fire (without). Mutants: thresholds x0.1/x10 (speed,
+persist), `swap_all_any`, `remove_persist`, and `widen_zone` (`buffer_m` x1.5, killed by the
+2.05 m trace). Metres need a ground plane: the traces go through the zone camera's real homography
+when the run has one (`calibrations`), else the synthetic plane when the rule names
+`ground-plane@<camera>`; with neither, the report fails with "buffer zone needs calibration".
+After layout, shapely re-measures each sample's distance and the moving object's speed against
+the design, so a homography that bends the layout is refused rather than mis-expected.
+
+*Decision: no normalisation.* The planner could rewrite one form into the other, but both are
+valid Rule IR, and the forms differ slightly (`distance_m < 2` is strict, a buffer contains its
+edge; a buffer zone is also a drawable zone for lint and the UI). Rewriting compiler output
+would hide the form the owner was shown and touch the compile contract tests, so Rule CI proves
+both forms instead. A rule's Rule CI result is deterministic for a given compiled form.
 
 `nonvacuous`: every threshold and zone-edge pair has a positive member the rule fires on and a
 negative member it does not. `ci_green`: all traces pass and at least 90% of mutants are killed,

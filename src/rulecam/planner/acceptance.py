@@ -8,10 +8,14 @@ found checkable (`observable` or `caveat`):
   severity);
 - `zone_in_view`: every zone the rule uses is on one of the site's cameras, and a polygon zone
   lies wholly inside that camera's latest frame;
-- `detect_lb>=0.8`: every concept of the rule has a SAM probe on the rule's camera with a Wilson
+- `detect_lb>=0.8`: every concept of the rule has a SAM probe on the rule's cameras with a Wilson
   lower bound of at least 0.8 (concepts not probed yet are probed here);
 - `calibration_err<=tol`: a metric rule (distances, speeds, metric buffers) has a ground
   calibration on each of its cameras with `err_m <= CALIBRATION_TOL_M`;
+
+"The rule's cameras" is its camera scope (`planner.scope.rule_scope`: its feasibility evidence,
+zones and calibration cameras), the same cameras the runtime runs it on; a rule with no camera
+evidence is measured on every site camera.
 - `privacy_consistent`: no concept needs faces in Anonymous or Strict Mode;
 - `no_private_spaces`: no zone names a private space;
 - `citation_text_match`: a rule that cites a standard has a citation whose quote is on the cited
@@ -57,6 +61,7 @@ from rulecam.planner.lint import (
     private_space_zones,
 )
 from rulecam.planner.models import Concern
+from rulecam.planner.scope import scoped_cameras
 from rulecam.planner.steps.ask import Question
 from rulecam.planner.steps.compile import walk_predicates
 from rulecam.planner.steps.survey import clean_concepts
@@ -160,12 +165,6 @@ def _check(item: str, check: str, problems: Sequence[str], ok: str) -> Acceptanc
     )
 
 
-def rule_cameras(rule: RuleIR, views: CameraViews) -> list[str]:
-    """The cameras a rule runs on: its zones' cameras, or every site camera if it has no zones."""
-    cameras = {spec.camera_id for spec in rule.zones.values()}
-    return sorted(cameras or views)
-
-
 def check_zone_in_view(rule: RuleIR, views: CameraViews) -> AcceptanceCheck:
     """`zone_in_view`: every used zone's camera exists and a polygon zone is wholly in its frame.
 
@@ -208,18 +207,24 @@ def _zone_problem(name: str, spec: ZoneSpec, views: CameraViews) -> str | None:
     return None
 
 
-def check_detect_lb(rule: RuleIR, probes: Sequence[Probe], views: CameraViews) -> AcceptanceCheck:
+def check_detect_lb(
+    rule: RuleIR,
+    probes: Sequence[Probe],
+    views: CameraViews,
+    feasibility: Sequence[FeasibilityVerdict] = (),
+) -> AcceptanceCheck:
     """`detect_lb>=0.8`: each concept's best probe on the rule's cameras has `detect_lb >= 0.8`.
 
     Args:
         rule: The rule.
         probes: Available probes.
-        views: The site's cameras (used when the rule has no zones).
+        views: The site's cameras (used when the rule has no camera scope).
+        feasibility: The plan's verdicts, which scope the rule (`planner.scope`).
 
     Returns:
         The check; a concept without a probe fails.
     """
-    cameras = set(rule_cameras(rule, views))
+    cameras = set(scoped_cameras(rule, views, feasibility))
     problems: list[str] = []
     lowest: tuple[float, str] | None = None
     for name, spec in sorted(rule.concepts.items()):
@@ -248,14 +253,21 @@ def is_metric(rule: RuleIR) -> bool:
 
 
 def check_calibration(
-    rule: RuleIR, calibrations: Mapping[str, Calibration], views: CameraViews
+    rule: RuleIR,
+    calibrations: Mapping[str, Calibration],
+    views: CameraViews,
+    feasibility: Sequence[FeasibilityVerdict] = (),
 ) -> AcceptanceCheck:
     """`calibration_err<=tol`: a metric rule's cameras are calibrated within `CALIBRATION_TOL_M`.
+
+    Only the cameras in the rule's scope are measured: a rule that runs on one camera of a
+    two-camera site needs no calibration on the other.
 
     Args:
         rule: The rule.
         calibrations: Ground calibration per camera.
-        views: The site's cameras (used when the rule has no zones).
+        views: The site's cameras (used when the rule has no camera scope).
+        feasibility: The plan's verdicts, which scope the rule (`planner.scope`).
 
     Returns:
         The check; a non-metric rule passes.
@@ -263,7 +275,7 @@ def check_calibration(
     if not is_metric(rule):
         return _check(rule.id, "calibration_err<=tol", (), "the rule measures no distance")
     problems: list[str] = []
-    for camera_id in rule_cameras(rule, views):
+    for camera_id in scoped_cameras(rule, views, feasibility):
         calibration = calibrations.get(camera_id)
         if calibration is None:
             problems.append(
@@ -279,14 +291,17 @@ def check_calibration(
 
 
 def uncalibrated_cameras(
-    rule: RuleIR, calibrations: Mapping[str, Calibration], views: CameraViews
+    rule: RuleIR,
+    calibrations: Mapping[str, Calibration],
+    views: CameraViews,
+    feasibility: Sequence[FeasibilityVerdict] = (),
 ) -> list[str]:
     """The cameras a metric rule runs on whose calibration is missing or outside tolerance."""
     if not is_metric(rule):
         return []
     return [
         camera_id
-        for camera_id in rule_cameras(rule, views)
+        for camera_id in scoped_cameras(rule, views, feasibility)
         if (cal := calibrations.get(camera_id)) is None or cal.err_m > CALIBRATION_TOL_M
     ]
 
@@ -358,13 +373,16 @@ def check_concern_covered(planned: PlannedRule, lint: Sequence[LintFinding]) -> 
 
 
 def check_rule(
-    rule: RuleIR, facts: SiteFacts, citation: CitationResult | None
+    rule: RuleIR,
+    facts: SiteFacts,
+    citation: CitationResult | None,
+    feasibility: Sequence[FeasibilityVerdict] = (),
 ) -> list[AcceptanceCheck]:
-    """The six per-rule checks, in vocabulary order."""
+    """The six per-rule checks, in vocabulary order; per-camera checks use the rule's scope."""
     return [
         check_zone_in_view(rule, facts.views),
-        check_detect_lb(rule, facts.probes, facts.views),
-        check_calibration(rule, facts.calibrations, facts.views),
+        check_detect_lb(rule, facts.probes, facts.views, feasibility),
+        check_calibration(rule, facts.calibrations, facts.views, feasibility),
         check_privacy_consistent(rule, facts.privacy_mode),
         check_citation(rule, citation),
         check_no_private_spaces(rule),
@@ -425,14 +443,14 @@ class RepairLoop:
         """
         items = list(planned)
         verdicts = {v.concern: v for v in feasibility}
-        current = self._evaluate(items)
+        current = self._evaluate(items, verdicts)
         rounds = 0
         while rounds < MAX_REPAIR_ROUNDS and self._repairable(current):
             rounds += 1
             for index in self._repairable(current):
                 items[index] = self._repair(items[index], current.failing(index), verdicts)
             items = [p for p in items if verdicts[p.concern.text].verdict != "declined"]
-            current = self._evaluate(items)
+            current = self._evaluate(items, verdicts)
         return self._settle(items, current, verdicts, rounds)
 
     def _repairable(self, current: _Round) -> list[int]:
@@ -442,7 +460,9 @@ class RepairLoop:
             if any(c.check in REPAIRABLE for c in current.failing(i))
         ]
 
-    def _evaluate(self, items: Sequence[PlannedRule]) -> _Round:
+    def _evaluate(
+        self, items: Sequence[PlannedRule], verdicts: Mapping[str, FeasibilityVerdict]
+    ) -> _Round:
         self._probe_missing([p.rule for p in items if p.rule is not None])
         rules = [p.rule for p in items if p.rule is not None]
         contradictions = cross_rule_contradictions(rules)
@@ -455,7 +475,8 @@ class RepairLoop:
                 groups.append((covered,))
                 continue
             citation = self._citation(planned) if rule.source.standard else None
-            groups.append((covered, *check_rule(rule, self._facts, citation)))
+            feasibility = tuple(verdicts.values())
+            groups.append((covered, *check_rule(rule, self._facts, citation, feasibility)))
         return _Round(checks=tuple(groups))
 
     def _structural_lint(
@@ -533,7 +554,7 @@ class RepairLoop:
                 )
             if blocking:
                 questions.append(_question(len(questions) + 1, planned, blocking))
-        questions.extend(self._calibration_questions(rules, items))
+        questions.extend(self._calibration_questions(rules, items, tuple(verdicts.values())))
         return AcceptanceOutcome(
             rules=tuple(rules),
             feasibility=tuple(verdicts.values()),
@@ -542,13 +563,16 @@ class RepairLoop:
         )
 
     def _calibration_questions(
-        self, rules: Sequence[RuleIR], items: Sequence[PlannedRule]
+        self,
+        rules: Sequence[RuleIR],
+        items: Sequence[PlannedRule],
+        feasibility: Sequence[FeasibilityVerdict],
     ) -> list[Question]:
         concern_of = {p.rule.id: p.concern.text for p in items if p.rule is not None}
         needing: dict[str, list[str]] = {}
         for rule in rules:
             for camera_id in uncalibrated_cameras(
-                rule, self._facts.calibrations, self._facts.views
+                rule, self._facts.calibrations, self._facts.views, feasibility
             ):
                 needing.setdefault(camera_id, []).append(concern_of[rule.id])
         return [

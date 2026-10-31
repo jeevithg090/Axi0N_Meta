@@ -17,7 +17,8 @@ from rulecam.perception.motion_gate import GrayFrame, MotionGate
 from rulecam.perception.router import CallMeter
 from rulecam.perception.static_cache import StaticServedSegmenter
 from rulecam.perception.tracking import Tracker
-from rulecam.runtime.activate import active_plan_from, rule_cameras, rule_verdicts
+from rulecam.planner.scope import rule_scope, rule_verdicts
+from rulecam.runtime.activate import active_plan_from
 from rulecam.runtime.loop import (
     ActivePlan,
     LoopMetrics,
@@ -156,8 +157,8 @@ def test_zone_cameras_scope_a_rule_too() -> None:
         zones={"sink_zone": {"kind": "polygon", "camera_id": "cam1", "polygon_px": [[0, 0]] * 3}},
     )
     site = zoned_plan([rule], checks_for(rule.id))
-    assert rule_cameras(site, rule) == ("cam1",)
-    assert rule_verdicts(site, rule) == []
+    assert rule_scope(site.feasibility, rule) == ("cam1",)
+    assert rule_verdicts(site.feasibility, rule) == []
 
 
 def test_a_rule_without_camera_evidence_runs_everywhere(tmp_path: Path) -> None:

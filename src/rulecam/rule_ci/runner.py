@@ -17,15 +17,16 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Final
 
 from rulecam.bus import Bus, Topic
+from rulecam.contracts.core import Calibration
 from rulecam.contracts.plan import AcceptanceCheck, SitePlan
 from rulecam.contracts.rule_ir import RuleIR
 from rulecam.log import get_logger
 from rulecam.planner.acceptance import RULE_CI_CHECKS
+from rulecam.rule_ci.generate import generate_rule_traces
 from rulecam.rule_ci.geometry import UnsupportedRuleError
 from rulecam.rule_ci.models import CIResult, MutationCase, RuleCIReport, TraceCase
 from rulecam.rule_ci.mutations import generate_mutations
 from rulecam.rule_ci.red_team import RedTeamReport
-from rulecam.rule_ci.traces import generate_rule_traces
 from rulecam.rules import RuleEvaluationError, evaluate
 
 _log = get_logger(__name__)
@@ -116,6 +117,7 @@ def run_rule_ci(
     mutants: Sequence[MutationCase] | None = None,
     justification: str | None = None,
     red_team: RedTeamReport | None = None,
+    calibrations: Mapping[str, Calibration] | None = None,
 ) -> RuleCIReport:
     """Run boundary traces and mutation tests for one rule and publish the report.
 
@@ -126,13 +128,19 @@ def run_rule_ci(
         mutants: Mutants to use instead of `generate_mutations(rule)`.
         justification: Recorded reason to accept a kill ratio below 90%.
         red_team: Part 2's result for the rule (P2-09); its problems join `failures`.
+        calibrations: Real ground calibrations by camera, which buffer-zone traces are laid out
+            through (`generate_rule_traces`).
 
     Returns:
         The report. A rule Rule CI cannot generate traces for gets an empty, failing report.
     """
     failures: list[str] = []
     try:
-        cases = list(traces) if traces is not None else generate_rule_traces(rule)
+        cases = (
+            list(traces)
+            if traces is not None
+            else generate_rule_traces(rule, calibrations=calibrations)
+        )
     except UnsupportedRuleError as exc:
         cases, failures = [], [f"no boundary traces: {exc}"]
     outcomes = {trace.name: fires(rule, trace) for trace in cases}
@@ -195,6 +203,7 @@ def prove_plan_hook(
     *,
     justifications: Mapping[str, str] | None = None,
     red_team: Callable[[RuleIR], RedTeamReport] | None = None,
+    calibrations: Callable[[SitePlan], Mapping[str, Calibration]] | None = None,
 ) -> Callable[[SitePlan], SitePlan]:
     """Build the pipeline's step 10 hook: Rule CI for every rule, recorded in the acceptance trace.
 
@@ -202,6 +211,9 @@ def prove_plan_hook(
         bus: Where to publish each rule's `ci.result`.
         justifications: Recorded reasons, by rule id, to accept a kill ratio below 90%.
         red_team: Part 2 per rule (`RedTeam`); without it only part 1 runs.
+        calibrations: The plan run's ground calibrations by camera (`PlanStore.calibrations`);
+            without them a buffer rule's traces use the synthetic ground plane its
+            `calibration` names.
 
     Returns:
         A `SitePlan -> SitePlan` hook.
@@ -209,12 +221,14 @@ def prove_plan_hook(
     reasons = dict(justifications or {})
 
     def hook(plan: SitePlan) -> SitePlan:
+        cameras = calibrations(plan) if calibrations is not None else {}
         reports = [
             run_rule_ci(
                 rule,
                 bus=bus,
                 justification=reasons.get(rule.id),
                 red_team=red_team(rule) if red_team is not None else None,
+                calibrations=cameras,
             )
             for rule in plan.rules
         ]

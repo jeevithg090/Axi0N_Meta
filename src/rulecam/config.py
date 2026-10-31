@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     rulecam_sam_budget_frames_per_min: int = Field(default=1000, ge=0)  # per camera; 0 = no budget
     rulecam_sam_budget_stride: int = Field(default=3, ge=1)  # over budget: one chunk in N
     rulecam_runtime_concept_workers: int = Field(default=4, ge=1)  # concepts segmented at once
+    rulecam_runtime_pipeline_depth: int = Field(default=4, ge=1)  # chunks per camera in flight
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None
@@ -45,6 +46,8 @@ class Settings(BaseSettings):
     hf_token: SecretStr | None = None
     modal_token_id: SecretStr | None = None
     modal_token_secret: SecretStr | None = None
+    sam_base_url: str | None = None  # our own GPU pod running sam_server; wins over Modal
+    sam_api_key: SecretStr | None = None
     kasa_plug_host: str | None = None
     kasa_light_host: str | None = None
     whatsapp_token: SecretStr | None = None

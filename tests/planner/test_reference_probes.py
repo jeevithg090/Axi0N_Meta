@@ -168,7 +168,9 @@ def test_owner_calibrated_camera_is_not_probed(tmp_path: Path) -> None:
     assert set(probe.calibrations) == {"dock"}
     assert store.calibrations("dock-plan")["yard"].method == "clicks4"
     (rule,) = plan.rules
-    assert rule.calibration == "ground-plane@dock,ground-plane@yard"
+    # The gauge checks the concern on dock (its evidence camera), so the rule runs and is
+    # calibrated there only (its camera scope, P2-06c).
+    assert rule.calibration == "ground-plane@dock"
 
 
 def test_no_reference_found_means_no_calibration(tmp_path: Path) -> None:

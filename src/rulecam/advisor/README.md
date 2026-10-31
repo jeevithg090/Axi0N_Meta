@@ -73,11 +73,12 @@ or hides a finding.
 from rulecam.advisor.pipeline import SiteAdvisorPipeline
 
 advisor = SiteAdvisorPipeline(
-    spark=spark,                    # Muse Spark 1.3: Ask and Recommend
-    devil=spark_open_verifier,      # SparkOpenVerifier.devil_advocate (stores reasoning)
-    stats=p4_stats,                 # AdvisorStats: catalogue, detect, gap shares, what-ifs (P4-08)
-    bus=bus, clock=clock,
-    recorded_windows=windows,       # what was actually recorded, per station
+    spark=spark,  # Muse Spark 1.3: Ask and Recommend
+    devil=spark_open_verifier,  # SparkOpenVerifier.devil_advocate (stores reasoning)
+    stats=p4_stats,  # AdvisorStats: catalogue, detect, gap shares, what-ifs (P4-08)
+    bus=bus,
+    clock=clock,
+    recorded_windows=windows,  # what was actually recorded, per station
     active_rules=rules,
     mitigations={"ped-forklift-2m": "fenced walkway"},  # owner-entered, keyed by rule id
 )

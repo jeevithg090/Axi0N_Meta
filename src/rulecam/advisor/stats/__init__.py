@@ -26,6 +26,7 @@ from rulecam.advisor.stats.switchback import (
     minimum_pairs,
     sign_flip_ci,
     sign_flip_p,
+    sign_flip_power,
     smallest_possible_p,
 )
 
@@ -50,6 +51,7 @@ __all__ = [
     "robust_z",
     "sign_flip_ci",
     "sign_flip_p",
+    "sign_flip_power",
     "simpsons_paradox",
     "smallest_possible_p",
     "strata_from_samples",

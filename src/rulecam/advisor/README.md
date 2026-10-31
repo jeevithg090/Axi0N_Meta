@@ -142,36 +142,68 @@ decides what to show. Tracks are never a grouping key.
 For each station, the mean wait in the window is compared with the mean of every contiguous run of
 the same length in that station's other cases (before and after the window). Waits at a queue
 cluster in time, so shuffling cases between window and baseline is anti-conservative; this
-comparison respects the clustering. Benjamini-Hochberg controls the family of stations at 5%.
+comparison respects the clustering. The runs overlap, so the p-value is only nominal and the
+Benjamini-Hochberg control on top of it (5% over the stations) is approximate.
 
-Even so, in simulation (300 runs, M/M/1 queues, a 150-case baseline) the test alone flagged **12.7%
-of windows that had not changed**, because a short baseline of correlated waits is a poor estimate
-of normal. So a station is also required to be at least `min_effect_min` (default **1 set-minute**)
-above its baseline. In the same simulation that gave **0% false flags**, at the cost of power: a
-slowdown from utilisation 0.2 to 0.6 was caught in about **44%** of windows (**69%** with a
-30-second floor, about 5% false flags). Real data should be used to retune this floor. Flagged
-stations are ordered by their Roser active-period share, then by their robust z against the
-hour-of-day baseline.
+Even so, the test alone is too eager. The figures below come from
+`scripts/simulate_bottleneck_detection.py` (300 seeded runs of FIFO M/M/1 queues, a 150-visit
+baseline at utilisation 0.2, a 30-visit window that is either unchanged or at utilisation about
+0.6, one station at the nominal 5% level):
 
-### Other limits
+| Effect floor | False flags (window unchanged) | Power (window slower) |
+|---|---|---|
+| none | 12.7% | 77.7% |
+| 30 s | 4.7% | 69.0% |
+| 60 s | 0.0% | 44.3% |
+| 120 s | 0.0% | 17.3% |
 
+A short baseline of correlated waits is a poor estimate of "normal", so a station is also required
+to be at least `min_effect_min` (default **1 set-minute**) above its baseline. That keeps a null
+session quiet, at a real cost in power for modest slowdowns. The default is a guess from this
+simulation, not from recorded sessions, and should be retuned on them. Flagged stations are
+ordered by their Roser active-period share (the real-time, earliest-start variant, not the
+retrospective longest-total-period one), then by their robust z against the hour-of-day baseline.
+
+### The pre-registered detectable effect
+
+`min_detectable_effect` solves for the effect using the exact sign-flip test's own power. With 6
+pairs the test rejects only when all six differences share a sign, so reaching 80% power takes
+**1.79 sigma**, not the 1.14 sigma a normal approximation gives (which would be 44% power).
+For more pairs the power is simulated with a fixed seed (up to 12 pairs).
+
+### Known limits
+
+- **Forklift metrics need forklift rows that carry a station.** `process.py` currently writes
+  forklift activity with `station = NULL`, so `forklift_active_share`, `concurrent_forklifts` and
+  `near_miss_per_forklift_hour` return `None` on a real log until P1 attributes those rows to the
+  dock zone they are in. The end-to-end test for this is a strict `xfail`.
+- `aisle_blocked_min` is the mean over the aisles serving the dock, so it stays within 60
+  min/h. Aisles are found from the blocked rows, so pass `aisles_for` to include an aisle that was
+  never blocked. Blockers are read from the event-object links.
 - `gap_share` is the share of the **turnaround** gap (window against the station's other cases)
   that wait, handling or post-handling dwell accounts for. They sum to 1. Other metrics have no
   honest share and return `None`.
+- `wait_s` includes any gap where the dock was left without a forklift, such as forklift travel,
+  and `servers` counts forklifts at every station, not only the dock being asked about.
 - `what_if` models the forklifts as the servers of a G/G/c queue. It only models a change whose
   `params` name `servers_added` (an integer; `add_capacity` defaults to 1) and/or
   `arrival_scv_scale` (a factor on arrival variability). Other changes return `None`. The
-  recommend prompt must therefore put those params on changes it wants modelled.
+  recommend prompt must therefore put those params on changes it wants modelled. When the
+  Erlang C checks pass, a smoothing change is modelled by Allen-Cunneen with the scaled arrival
+  variation (the baseline's variation is taken as 1).
 - A what-if returns `None` when the station is unstable, no rung's assumptions hold, or the model
   does not reproduce the observed wait (`baseline_fit`, within 50% or half a minute). The gain is
   minutes of waiting freed per truck, and `p20_weekly_value` is minutes per week at
   `operating_hours_per_week`. Neither is money.
 - The assumption thresholds (dispersion index 0.5 to 1.5, service variation 0.6 to 1.4, utilisation
   under 0.95) are heuristics to be tuned on recorded sessions.
-- `near_miss_per_forklift_hour` needs a `near_miss_events(ts, station, provenance)` table; without
-  it the metric returns `None`.
-- A plan needs at least 6 pairs (`2 / 2**5 = 0.0625` is still above 0.05); fewer raises.
+- `near_miss_per_forklift_hour` also needs a `near_miss_events(ts, station, provenance)` table.
+- A plan needs at least 6 pairs (`2 / 2**5 = 0.0625` is still above 0.05) and at most 12. The plan
+  does not yet record the on/off order per pair or the "start and end with an empty queue" rule:
+  the `MeasurementPlan` contract has no field for them, and changing it needs a contract-change PR.
   `read_out` stays `not_enough_data` until every pair is done.
+- SA §5's "merge cells with fewer than 3 tracks upward" is not implemented; only the
+  `meets_minimum_k` flag is.
 
 ## Tests
 

@@ -34,6 +34,11 @@ def test_erlang_c_matches_the_textbook_sum(servers: int, utilisation: float) -> 
     assert erlang_c(servers, load) == pytest.approx(erlang_c_direct(servers, load), rel=1e-6)
 
 
+def test_erlang_c_matches_published_table_values() -> None:
+    assert erlang_c(5, 4.0) == pytest.approx(0.5541, abs=5e-5)
+    assert erlang_c(10, 8.0) == pytest.approx(0.4092, abs=5e-5)
+
+
 def test_more_servers_never_increase_the_chance_of_waiting() -> None:
     assert erlang_c(3, 2.0) > erlang_c(4, 2.0) > erlang_c(5, 2.0)
 

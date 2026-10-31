@@ -67,6 +67,10 @@ def moving_window_pvalue(
         baseline_segments: Contiguous stretches of values outside the window, each in time order
             (for example, before and after it). Runs never straddle two segments.
 
+    The runs overlap, so they are not independent draws: the p-value is only nominal, and the
+    Benjamini-Hochberg control built on it is only approximate. `scripts/simulate_bottleneck_
+    detection.py` measures how far off it is.
+
     Returns:
         `(1 + runs at least as high) / (1 + runs)`, or None if no baseline segment is as long as
         the window. The smallest value it can give is `1 / (1 + runs)`, so a short baseline cannot

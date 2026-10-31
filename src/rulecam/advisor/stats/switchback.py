@@ -16,6 +16,9 @@ import numpy as np
 from numpy.typing import NDArray
 
 MAX_PAIRS = 20
+MAX_PLAN_PAIRS = 12
+MAX_EFFECT_SIGMAS = 12.0
+POWER_BISECTION_STEPS = 30
 GRID_POINTS = 401
 BISECTION_STEPS = 40
 
@@ -106,31 +109,93 @@ def sign_flip_ci(differences: Sequence[float], alpha: float = 0.05) -> tuple[flo
     return lower, upper
 
 
-def min_detectable_effect(
-    sigma: float, pairs: int, alpha: float = 0.05, power: float = 0.8
+def _normal_cdf(x: float) -> float:
+    return NormalDist().cdf(x)
+
+
+def _rejects(draws: NDArray[np.float64], alpha: float) -> NDArray[np.bool_]:
+    """For each row of per-pair differences, whether the exact sign-flip test rejects zero."""
+    pairs = draws.shape[1]
+    patterns = (np.arange(2**pairs)[:, None] >> np.arange(pairs) & 1) * 2.0 - 1.0
+    sums = np.abs(patterns @ np.abs(draws).T)  # one column per row of draws
+    observed = np.abs(draws.sum(axis=1))
+    scale = np.maximum(1.0, np.abs(draws).sum(axis=1))
+    p_values = np.mean(sums >= (observed - 1e-9 * scale)[None, :], axis=0)
+    return np.asarray(p_values <= alpha, dtype=np.bool_)
+
+
+def sign_flip_power(
+    effect: float,
+    sigma: float,
+    pairs: int,
+    alpha: float = 0.05,
+    *,
+    seed: int = 0,
+    n_sim: int = 4000,
 ) -> float:
-    """Smallest true mean difference the trial is likely to detect (normal approximation).
+    """Chance the exact sign-flip test rejects when the true mean difference is `effect`.
 
-    This is `(z(1 - alpha/2) + z(power)) * sigma / sqrt(pairs)`. The exact test is a little more
-    conservative, so treat it as a planning figure.
-
-    Args:
-        sigma: Standard deviation of the per-pair differences.
-        pairs: Number of pairs of blocks.
-        alpha: Two-sided significance level.
-        power: Wanted probability of detecting the effect.
+    Differences are drawn from a normal distribution with mean `effect` and spread `sigma`.
+    With the fewest pairs that can reach significance, only a unanimous sign rejects, and the
+    answer is exact: `Phi(effect/sigma)**k + Phi(-effect/sigma)**k`. Otherwise it is estimated by
+    simulation.
 
     Raises:
-        ValueError: If `sigma` is negative, or `pairs` are too few to reach significance at all.
+        ValueError: If `sigma` is not positive, or `pairs` is outside what can be planned.
     """
-    if sigma < 0:
-        raise ValueError("sigma must not be negative")
+    if sigma <= 0:
+        raise ValueError("sigma must be positive")
+    _check_plannable(pairs, alpha)
+    ratio = effect / sigma
+    if pairs == minimum_pairs(alpha):
+        return _normal_cdf(ratio) ** pairs + _normal_cdf(-ratio) ** pairs
+    draws = np.random.default_rng(seed).standard_normal((n_sim, pairs)) + ratio
+    return float(np.mean(_rejects(draws, alpha)))
+
+
+def _check_plannable(pairs: int, alpha: float) -> None:
     if smallest_possible_p(pairs) > alpha:
         needed = minimum_pairs(alpha)
         raise ValueError(
             f"{pairs} pairs can never reach p <= {alpha}: the smallest possible p is "
             f"{smallest_possible_p(pairs):g}; at least {needed} pairs are needed"
         )
-    normal = NormalDist()
-    z = normal.inv_cdf(1.0 - alpha / 2.0) + normal.inv_cdf(power)
-    return z * sigma / math.sqrt(pairs)
+    if pairs > MAX_PLAN_PAIRS:
+        raise ValueError(f"plans are limited to {MAX_PLAN_PAIRS} pairs")
+
+
+def min_detectable_effect(
+    sigma: float, pairs: int, alpha: float = 0.05, power: float = 0.8, *, seed: int = 0
+) -> float:
+    """Smallest true mean difference the exact test detects with the wanted power.
+
+    This solves for the effect using the exact test's own power (see `sign_flip_power`), not a
+    normal approximation. With 6 pairs the test rejects only when all six differences share a
+    sign, so the effect needed is about 1.79 sigma, not the 1.14 sigma a t-test would suggest.
+
+    Args:
+        sigma: Standard deviation of the per-pair differences.
+        pairs: Number of pairs of blocks.
+        alpha: Two-sided significance level.
+        power: Wanted probability of detecting the effect, in (0, 1).
+        seed: Seed for the simulated power when `pairs` is above the fewest possible.
+
+    Raises:
+        ValueError: If `sigma` is negative, `power` is outside (0, 1), `pairs` are too few to
+            reach significance at all, or more than `MAX_PLAN_PAIRS`.
+    """
+    if sigma < 0:
+        raise ValueError("sigma must not be negative")
+    if not 0.0 < power < 1.0:
+        raise ValueError("power must be strictly between 0 and 1")
+    _check_plannable(pairs, alpha)
+    if sigma == 0:
+        return 0.0
+    low, high = 0.0, MAX_EFFECT_SIGMAS
+    for _ in range(POWER_BISECTION_STEPS):
+        middle = (low + high) / 2.0
+        if sign_flip_power(middle * sigma, sigma, pairs, alpha, seed=seed) >= power:
+            high = middle
+        else:
+            low = middle
+    return high * sigma

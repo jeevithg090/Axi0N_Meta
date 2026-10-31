@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from statistics import NormalDist
 
 import pytest
 
@@ -9,6 +10,7 @@ from rulecam.advisor.stats import (
     minimum_pairs,
     sign_flip_ci,
     sign_flip_p,
+    sign_flip_power,
     smallest_possible_p,
 )
 
@@ -69,14 +71,47 @@ def test_interval_rejects_bad_sizes() -> None:
         sign_flip_ci([])
 
 
-def test_min_detectable_effect_matches_the_normal_formula() -> None:
-    assert min_detectable_effect(3.0, 6) == pytest.approx(2.80157 * 3.0 / math.sqrt(6), rel=1e-4)
+def test_six_pairs_need_about_one_point_eight_sigma_not_the_normal_approximation() -> None:
+    expected = NormalDist().inv_cdf(0.8 ** (1 / 6))  # P(all six share a sign) = 0.8
+    assert min_detectable_effect(1.0, 6) == pytest.approx(expected, abs=1e-6)
+    assert min_detectable_effect(3.0, 6) == pytest.approx(3.0 * expected, abs=1e-5)
+    assert min_detectable_effect(1.0, 6) > 2.80157 / math.sqrt(6)  # the old, too-small figure
+
+
+def test_the_normal_approximation_gave_only_about_44_percent_power_at_six_pairs() -> None:
+    old = 2.80157 / math.sqrt(6)
+    assert sign_flip_power(old, 1.0, 6) == pytest.approx(0.445, abs=0.005)
+
+
+@pytest.mark.parametrize("pairs", [6, 7, 8, 10])
+def test_the_stated_effect_really_has_the_wanted_power(pairs: int) -> None:
+    effect = min_detectable_effect(1.0, pairs)
+    # a different seed from the one the effect was solved with
+    assert sign_flip_power(effect, 1.0, pairs, seed=12345, n_sim=8000) == pytest.approx(
+        0.8, abs=0.04
+    )
+
+
+def test_more_pairs_detect_smaller_effects_and_zero_spread_needs_none() -> None:
+    effects = [min_detectable_effect(1.0, k) for k in (6, 8, 10)]
+    assert effects == sorted(effects, reverse=True)
     assert min_detectable_effect(0.0, 6) == 0.0
 
 
-def test_min_detectable_effect_refuses_plans_that_cannot_reach_significance() -> None:
+def test_power_at_no_effect_is_the_false_alarm_rate() -> None:
+    assert sign_flip_power(0.0, 1.0, 6) == pytest.approx(2 * 0.5**6)
+    assert sign_flip_power(0.0, 1.0, 8, seed=3, n_sim=8000) <= 0.06
+
+
+def test_planning_limits_and_invalid_arguments() -> None:
     with pytest.raises(ValueError, match="never reach") as error:
         min_detectable_effect(3.0, 3)
     assert "at least 6 pairs" in str(error.value)
+    with pytest.raises(ValueError, match="limited to 12"):
+        min_detectable_effect(1.0, 13)
     with pytest.raises(ValueError, match="sigma"):
         min_detectable_effect(-1.0, 6)
+    with pytest.raises(ValueError, match="sigma"):
+        sign_flip_power(1.0, 0.0, 6)
+    with pytest.raises(ValueError, match="power"):
+        min_detectable_effect(1.0, 6, power=1.0)

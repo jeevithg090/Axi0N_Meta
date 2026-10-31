@@ -165,6 +165,14 @@ def _forklift_bins(value: str) -> Callable[[Scope], Query | None]:
     return build
 
 
+# An empty window has no blocked rows to read a provenance from, so take the log's own. A process
+# log comes from one provenance, and the same mixing check still applies.
+LOG_PROVENANCE: Final = (
+    "(SELECT string_agg(DISTINCT p, ',') FROM "
+    "(SELECT provenance AS p FROM station_intervals UNION ALL SELECT provenance FROM cases))"
+)
+
+
 def _aisle_blocked(scope: Scope) -> Query | None:
     if not scope.aisles:
         return None
@@ -175,16 +183,20 @@ def _aisle_blocked(scope: Scope) -> Query | None:
     )
     # LEAST and GREATEST skip NULLs, so an empty bin from the LEFT JOIN needs an explicit zero
     blocked = f"COALESCE(SUM(CASE WHEN i.start_ts IS NULL THEN 0 ELSE {OVERLAP} END), 0)"
+    t0, t1 = timestamp_literal(scope.t0), timestamp_literal(scope.t1)
     return Query(
         units=(
             f"WITH {_bins(scope)} SELECT "
-            f"{blocked} / (epoch(b.b1) - epoch(b.b0)) * 60 AS value, b.b0 AS ts, "
-            f"string_agg(DISTINCT i.provenance, ',') AS provenance {joined} "
+            f"{blocked} / (epoch(b.b1) - epoch(b.b0)) * 60 / {len(scope.aisles)} AS value, "
+            f"b.b0 AS ts, {LOG_PROVENANCE} AS provenance {joined} "
             "GROUP BY b.b0, b.b1 ORDER BY b.b0"
         ),
+        # Blockers are recorded as event-object links; the interval rows carry no object.
         objects=(
-            f"WITH {_bins(scope)} SELECT DISTINCT i.object_id {joined} "
-            "WHERE i.object_id IS NOT NULL"
+            "SELECT DISTINCT eo.object_id FROM event_object eo "
+            "JOIN events e ON e.event_id = eo.event_id "
+            f"WHERE e.activity = 'aisle_blocked' AND e.station IN ({stations}) "
+            f"AND eo.qualifier = 'blocker' AND e.ts >= {t0} AND e.ts < {t1}"
         ),
     )
 
@@ -257,8 +269,8 @@ CATALOGUE: Final[Mapping[str, MetricDef]] = {
         ),
         MetricDef(
             "aisle_blocked_min",
-            "Minutes per hour that the travel aisle serving the dock was blocked by a pallet or "
-            "a parked forklift, averaged over time bins.",
+            "Minutes per hour that a travel aisle serving the dock was blocked by a pallet or a "
+            "parked forklift, averaged over the aisles and over time bins.",
             "min",
             _aisle_blocked,
         ),

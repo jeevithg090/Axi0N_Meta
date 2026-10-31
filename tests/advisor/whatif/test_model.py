@@ -44,12 +44,29 @@ def test_the_result_is_reproducible_and_depends_on_the_seed() -> None:
     assert other.gain.interval != first.gain.interval
 
 
-def test_smoothing_arrivals_needs_a_rung_that_uses_arrival_variation() -> None:
-    # Erlang C ignores arrival variation, so the change has no effect there: gain is exactly 0.
+def test_smoothing_arrivals_is_modelled_and_shortens_the_wait() -> None:
+    # Under the Erlang C rung the arrivals are Poisson (variation 1); halving that variation is
+    # an Allen-Cunneen what-if. It must not come back as a made-up gain of exactly zero.
     result = run(observed(), Scenario(arrival_scv_scale=0.5))
     assert result is not None
     assert result.gain.model_rung == "erlang_c"
-    assert result.gain.interval == (0.0, 0.0)
+    low, high = result.gain.interval
+    assert low < high < 0
+    assert result.p20_weekly_value > 0
+
+
+def test_smoothing_helps_less_than_adding_a_server_here() -> None:
+    smooth = run(observed(), Scenario(arrival_scv_scale=0.5))
+    server = run(observed(), Scenario(servers_added=1))
+    assert smooth is not None
+    assert server is not None
+    assert server.gain.interval[1] < smooth.gain.interval[1]
+
+
+def test_a_scenario_that_changes_nothing_has_no_gain() -> None:
+    result = run(observed(), Scenario())
+    assert result is not None
+    assert result.gain.interval == (0.0, 0.0)  # genuinely nothing changed, and said so
 
 
 def test_none_when_the_station_is_overloaded() -> None:

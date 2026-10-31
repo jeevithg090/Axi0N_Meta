@@ -24,7 +24,7 @@ def test_plan_states_its_limits_before_the_change() -> None:
     p = plan()
     assert p.design == "switchback"
     assert p.smallest_possible_p == 0.03125
-    assert p.min_detectable_effect == pytest.approx(2.80157 * 3.0 / 6**0.5, rel=1e-4)
+    assert p.min_detectable_effect == pytest.approx(3.0 * 1.7927, rel=1e-3)
     assert p.id == "mp-rec-0007"
     assert "worked" in p.decision_rule
     assert "wait_for_forklift" in p.decision_rule

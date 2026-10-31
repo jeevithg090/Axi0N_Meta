@@ -67,8 +67,12 @@ def _wait(
     arrival_rate = 1.0 / float(gaps.mean())
     service_rate = 1.0 / float(services.mean())
     try:
-        if rung == "erlang_c":
+        if rung == "erlang_c" and arrival_scv_scale == 1.0:
             return mmc_wait(arrival_rate, service_rate, servers)
+        if rung == "erlang_c":
+            # The Erlang C checks passed, so arrivals and service are taken as exponential
+            # (variation 1). Smoothing arrivals scales that variation; Erlang C alone can't say.
+            return allen_cunneen_wait(arrival_rate, service_rate, servers, arrival_scv_scale, 1.0)
         arrival_scv = squared_cv(gaps.tolist())
         service_scv = squared_cv(services.tolist())
         if arrival_scv is None or service_scv is None:

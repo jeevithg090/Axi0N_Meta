@@ -6,7 +6,15 @@ import pytest
 from rulecam.advisor.dock_stats import DockAdvisorStats
 from rulecam.advisor.metrics import CATALOGUE
 from rulecam.contracts import Provenance
-from tests.advisor.dock_log import Visit, add_interval, add_visits, at, empty_log, shifts
+from tests.advisor.dock_log import (
+    Visit,
+    add_blocker,
+    add_interval,
+    add_visits,
+    at,
+    empty_log,
+    shifts,
+)
 
 T0, T1 = at(0), at(900)
 CATALOGUE_IDS = {
@@ -37,7 +45,7 @@ def bin_log() -> duckdb.DuckDBPyConnection:
     add_interval(con, "b", "forklift_active", "dock_3", (0, 150), object_id="F2")
     add_interval(con, "c", "forklift_active", "dock_3", (300, 450), object_id="F1")
     add_interval(con, "d", "forklift_idle", "dock_3", (450, 600), object_id="F1")
-    add_interval(con, "e", "aisle_blocked", "aisle_1", (100, 250), object_id="P1")
+    add_blocker(con, "e", "aisle_1", (100, 250), "P1")
     return con
 
 
@@ -160,3 +168,34 @@ def test_unknown_metric_and_bad_station_ids_are_refused() -> None:
         stats.metric("revenue", "dock_3", T0, T1)
     with pytest.raises(ValueError, match="bad station id"):
         stats.metric("turnaround", "dock_3' OR '1'='1", T0, T1)
+
+
+def test_a_window_with_no_blocking_reads_zero_not_nothing() -> None:
+    con = bin_log()
+    stats = DockAdvisorStats(
+        con,
+        shifts=shifts(3, 300.0),
+        coverage=lambda *_: 1.0,
+        aisles_for={"dock_3": ("aisle_1",)},
+    )
+    quiet = stats.metric("aisle_blocked_min", "dock_3", at(300), at(900))
+    assert quiet is not None
+    assert quiet.value == 0.0
+    assert quiet.n_tracks == 0
+    assert quiet.provenance is Provenance.RECORDED
+
+
+def test_several_aisles_are_averaged_so_the_figure_stays_within_an_hour() -> None:
+    con = empty_log()
+    add_blocker(con, "a", "aisle_1", (0, 300), "P1")
+    add_blocker(con, "b", "aisle_2", (0, 300), "P2")
+    stats = DockAdvisorStats(
+        con,
+        shifts=shifts(1, 300.0),
+        coverage=lambda *_: 1.0,
+        aisles_for={"dock_3": ("aisle_1", "aisle_2")},
+    )
+    both = stats.metric("aisle_blocked_min", "dock_3", at(0), at(300))
+    assert both is not None
+    assert both.value == pytest.approx(60.0)  # both aisles blocked the whole hour-rate window
+    assert both.n_tracks == 2

@@ -57,6 +57,28 @@ def add_interval(
     )  # fmt: skip
 
 
+def add_blocker(
+    con: duckdb.DuckDBPyConnection,
+    name: str,
+    station: str,
+    span_s: tuple[float, float],
+    object_id: str,
+    *,
+    provenance: str = "recorded",
+) -> None:
+    """An aisle blocked by an object, recorded the way the real builder does it: the interval
+    row carries no object; the blocker is an event-object link."""
+    add_interval(con, name, "aisle_blocked", station, span_s, provenance=provenance)
+    con.execute(
+        "INSERT INTO events VALUES (?, 'aisle_blocked', ?, ?, ?)",
+        [f"ev-{name}", naive(span_s[0]), station, provenance],
+    )
+    con.execute(
+        "INSERT INTO event_object VALUES (?, ?, 'blocker', ?)",
+        [f"ev-{name}", object_id, provenance],
+    )
+
+
 @dataclass(frozen=True)
 class Visit:
     arrive_s: float

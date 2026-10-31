@@ -7,24 +7,23 @@ import { CameraTiles } from "@/components/plan/CameraTiles";
 import { RequestComposer } from "@/components/plan/RequestComposer";
 import { StepProgress } from "@/components/plan/StepProgress";
 import { api, type CameraInfo } from "@/lib/api";
-import { isDemo, useStream } from "@/lib/stream";
+import { useDemo, useStream } from "@/lib/stream";
 import { usePlans } from "@/lib/usePlans";
 
 export default function PlannerPage() {
   const state = useStream();
   const { plans } = usePlans();
   const [cameras, setCameras] = useState<CameraInfo[]>([]);
-  const [demo, setDemo] = useState(false);
+  const demo = useDemo() === true;
 
   useEffect(() => {
-    const demoMode = isDemo();
-    setDemo(demoMode);
-    if (!demoMode)
+    setCameras([]);
+    if (!demo)
       api
         .cameras()
         .then(setCameras)
         .catch(() => setCameras([]));
-  }, []);
+  }, [demo]);
 
   const planId = state.planner.planId;
   const plan = planId ? plans[planId]?.latest : undefined;

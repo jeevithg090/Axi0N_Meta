@@ -34,5 +34,9 @@ class ModelResponseError(ModelClientError):
     """The model API answered successfully but the body could not be understood."""
 
 
+class StructuredOutputError(ModelResponseError):
+    """The model output could not be validated against the schema even after retry."""
+
+
 class ClientConfigError(ModelClientError):
     """A client cannot be built from the current settings (missing key or base URL)."""

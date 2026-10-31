@@ -122,9 +122,15 @@ class ChainEventSource:
         files = sorted(folder.glob("*.jsonl"), reverse=True) if folder.is_dir() else []
         for path in files:
             for record in reversed(read_chain(path)):
-                if record.kind == "candidate" and record.payload.get("event_id") == event_id:
+                if record.kind == "candidate" and _candidate_event_id(record) == event_id:
                     return record
         return None
+
+
+def _candidate_event_id(record: EventRecord) -> object:
+    """The event id of a candidate record written by `candidate_payload` (P3-07b)."""
+    candidate = record.payload.get("candidate")
+    return candidate.get("event_id") if isinstance(candidate, dict) else None
 
 
 class VerifyOnlyPolicy:

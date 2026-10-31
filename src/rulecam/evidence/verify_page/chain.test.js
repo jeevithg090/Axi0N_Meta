@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { merkleRoot, verifyChainText } from "./chain.js";
+import { canonical, compareToCommitted, merkleRoot, verifyChainText } from "./chain.js";
 
 const fixtures = fileURLToPath(new URL("../../../../tests/fixtures/evidence/", import.meta.url));
 const chain = readFileSync(fixtures + "chain.jsonl", "utf8");
@@ -25,5 +25,36 @@ describe("verify page chain code", () => {
     const report = await verifyChainText(lines.join("\n"));
     expect(report.ok).toBe(false);
     expect(report.firstBadSeq).toBe(3);
+  });
+
+  it("rejects records Python would reject", async () => {
+    const lines = chain.split("\n");
+    for (const [from, to] of [
+      ['"i":2', '"i":"\\ud800"'],
+      ['"kind":"verdict"', '"extra":1,"kind":"verdict"'],
+      ['"kind":"verdict"', '"kind":"verdikt"'],
+    ]) {
+      const edited = [...lines];
+      edited[2] = edited[2].replace(from, to);
+      const report = await verifyChainText(edited.join("\n"));
+      expect(report.firstBadSeq).toBe(3);
+    }
+  });
+
+  it("keeps the canonical key order JavaScript sorts by", () => {
+    expect(canonical({ b: 1, a: [2, { d: null, c: "\u00e9" }], A: 1e21 })).toBe(
+      '{"A":1e+21,"a":[2,{"c":"é","d":null}],"b":1}',
+    );
+    expect(() => canonical("\ud800")).toThrow(RangeError);
+  });
+
+  it("checks a growing chain against the committed root over its first n records", async () => {
+    const { hashes } = await verifyChainText(chain);
+    const prefix = await merkleRoot(hashes.slice(0, 3));
+    expect(await compareToCommitted(hashes, expected.root, hashes.length)).toBe("match");
+    expect(await compareToCommitted(hashes, prefix, 3)).toBe("extended");
+    expect(await compareToCommitted(hashes, prefix, 4)).toBe("mismatch");
+    expect(await compareToCommitted(hashes.slice(0, 2), prefix, 3)).toBe("mismatch");
+    expect(await compareToCommitted(hashes, expected.root, "5")).toBe("mismatch");
   });
 });

@@ -301,3 +301,17 @@ def test_unsafe_integers_and_lone_surrogates_are_rejected(tmp_path: Path) -> Non
 
 def test_event_kinds_match_the_contract() -> None:
     assert get_args(EventKind) == get_args(EventRecord.model_fields["kind"].annotation)
+
+
+@pytest.mark.parametrize(
+    "edit", ['"i":NaN', '"i":1e400', '"i":9007199254740993', '"i":"\\ud800"', '"i":{"__proto__":1}']
+)
+def test_unrepresentable_edits_are_reported_not_raised(tmp_path: Path, edit: str) -> None:
+    path = build_chain(tmp_path, 3)
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    assert '"i":1' in lines[1]
+    lines[1] = lines[1].replace('"i":1', edit, 1)
+    path.write_text("".join(lines), encoding="utf-8")
+    report = verify_chain(path)
+    assert not report.ok
+    assert report.first_bad_seq == 2

@@ -62,13 +62,19 @@ export type Action =
   | { type: "connection"; connection: Connection }
   | { type: "mode"; mode: ModeChanged }
   | { type: "plan-loaded"; plan: SitePlan; approved: boolean }
-  | { type: "plan-approved"; planId: string };
+  | { type: "plan-approved"; planId: string }
+  | { type: "reset" };
+
+/** The newer of two versions of one plan (a reload must not undo a `plan.updated`). */
+function newer(a: SitePlan | null | undefined, b: SitePlan): SitePlan {
+  return a && a.version > b.version ? a : b;
+}
 
 function withPlan(state: UiState, plan: SitePlan, approved: boolean): UiState {
   const previous = state.plans[plan.plan_id];
   const entry: PlanEntry = {
-    latest: plan,
-    approved: approved ? plan : (previous?.approved ?? null),
+    latest: newer(previous?.latest, plan),
+    approved: approved ? newer(previous?.approved, plan) : (previous?.approved ?? null),
   };
   return { ...state, plans: { ...state.plans, [plan.plan_id]: entry } };
 }
@@ -147,7 +153,7 @@ export function reducer(state: UiState, action: Action): UiState {
     case "frame":
       return reduceFrame(state, action.frame);
     case "connection":
-      return { ...state, connection: action.connection };
+      return reduceConnection(state, action.connection);
     case "mode":
       return { ...state, mode: action.mode.mode, badge: action.mode.badge };
     case "plan-loaded":
@@ -156,7 +162,20 @@ export function reducer(state: UiState, action: Action): UiState {
       const entry = state.plans[action.planId];
       return entry ? withPlan(state, entry.latest, true) : state;
     }
+    case "reset":
+      return initialState;
   }
+}
+
+/**
+ * Track the socket. Once it drops, the last mode is forgotten (it may change while we cannot
+ * hear `mode.changed`) and the badge stays OFFLINE through reconnect attempts until a socket is
+ * open again and `GET /mode` has answered.
+ */
+function reduceConnection(state: UiState, connection: Connection): UiState {
+  if (connection === "closed") return { ...state, connection, mode: null, badge: null };
+  if (connection === "connecting" && state.connection === "closed") return state;
+  return { ...state, connection };
 }
 
 /** True when the camera's rules must show BLIND (never "compliant"). */
@@ -196,8 +215,22 @@ export function ruleCards(state: UiState): RuleCardView[] {
   return [...cards.values()];
 }
 
+/** Cameras whose coverage is BLIND, sorted: none of their rules is being checked. */
+export function blindCameras(state: UiState): string[] {
+  return Object.keys(state.coverage)
+    .filter((cameraId) => isBlind(state, cameraId))
+    .sort();
+}
+
 /** What the badge shows: LIVE/REPLAY from the server, OFFLINE when the socket is down. */
 export function badgeLabel(state: UiState): "LIVE" | "REPLAY" | "OFFLINE" | "…" {
   if (state.connection === "closed") return "OFFLINE";
   return state.badge ?? "…";
+}
+
+/** The monitor's empty-list line: never claims rules are running when the stream is down. */
+export function noAlertsText(state: UiState): string {
+  if (state.connection !== "open") return "Not connected to the Rulecam server: no live data.";
+  if (blindCameras(state).length > 0) return "No alerts from the cameras that can see.";
+  return "No alerts yet.";
 }

@@ -1,6 +1,7 @@
 // Thin, typed calls to the Rulecam API. Owner-only calls work from the owner's machine (loopback).
+// They go through the same-origin rewrite (next.config.ts): the API sends no CORS headers.
 
-import { API_BASE } from "./config";
+import { API_PROXY } from "./config";
 import type { PlanSummary, SitePlan } from "./plan";
 
 export interface RequestItemInput {
@@ -33,7 +34,7 @@ export class ApiError extends Error {
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, init);
+  const response = await fetch(`${API_PROXY}${path}`, init);
   if (!response.ok) {
     let detail = response.statusText;
     try {

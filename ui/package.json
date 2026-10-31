@@ -10,6 +10,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
+    "test:verify-page": "vitest run --root ../src/rulecam/evidence/verify_page",
     "format": "prettier --write .",
     "openapi": "openapi-typescript src/api/openapi.json -o src/api/schema.d.ts"
   },

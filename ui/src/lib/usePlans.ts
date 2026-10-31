@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { demoPlanV1 } from "@/fixtures/demo-plan";
 
 import { api, ApiError } from "./api";
-import { isDemo, useDispatch, useStream } from "./stream";
+import { useDemo, useDispatch, useStream } from "./stream";
 
 /**
  * Loads every plan into the store once (from `/plans`, or the recorded UC1 plan in demo mode)
@@ -14,12 +14,15 @@ import { isDemo, useDispatch, useStream } from "./stream";
 export function usePlans() {
   const state = useStream();
   const dispatch = useDispatch();
+  const demo = useDemo();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isDemo()) {
+    setError(null);
+    if (demo === null) return undefined;
+    if (demo) {
       dispatch({ type: "plan-loaded", plan: demoPlanV1, approved: true });
-      return;
+      return undefined;
     }
     let cancelled = false;
     (async () => {
@@ -37,7 +40,7 @@ export function usePlans() {
     return () => {
       cancelled = true;
     };
-  }, [dispatch]);
+  }, [demo, dispatch]);
 
   return { plans: state.plans, error };
 }

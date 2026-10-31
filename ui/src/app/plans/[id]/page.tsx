@@ -10,13 +10,14 @@ import { PlanDiffView } from "@/components/plan/PlanDiffView";
 import { PlanView } from "@/components/plan/PlanView";
 import { api, ApiError } from "@/lib/api";
 import { diffPlans, isEmptyDiff } from "@/lib/plan";
-import { isDemo, useDispatch } from "@/lib/stream";
+import { useDemo, useDispatch } from "@/lib/stream";
 import { usePlans } from "@/lib/usePlans";
 
 export default function PlanPage() {
   const { id } = useParams<{ id: string }>();
   const { plans, error } = usePlans();
   const dispatch = useDispatch();
+  const demo = useDemo();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [kept, setKept] = useState<number | null>(null);
@@ -33,7 +34,7 @@ export default function PlanPage() {
   const approve = async (): Promise<void> => {
     setBusy(true);
     try {
-      if (!isDemo()) await api.approve(latest.plan_id);
+      if (!demo) await api.approve(latest.plan_id);
       dispatch({ type: "plan-approved", planId: latest.plan_id });
       setMessage(`Approved v${latest.version}.`);
     } catch (e) {

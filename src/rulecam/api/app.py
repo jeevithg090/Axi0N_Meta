@@ -66,7 +66,9 @@ class AppServices:
         correction: The correction loop (P1-10); mounted at `/correction` when set.
         chunks: Index of recent chunks, fed from `chunk.ready` (feeds `/cameras`).
         plans: The `/plans` registry.
-        verify_dir: The browser verify page served at `/verify` (P3-07b); `None` skips it.
+        verify_dir: Directory served at `/verify` (the packaged browser verify page in
+            production, P3-07b); `None` skips it.
+        tickers: Called once a second off the event loop (e.g. `EscalationManager.tick`).
         uploads_dir: Where planner uploads are stored (`POST /plans/uploads`).
         planner: The Site Planner runner (P2-06); `POST /plans/requests` needs it.
     """
@@ -84,19 +86,39 @@ class AppServices:
     chunks: ChunkIndex | None = None
     plans: PlanRegistry = field(default_factory=PlanRegistry)
     verify_dir: Path | None = None
+    tickers: Sequence[Callable[[], object]] = field(default_factory=tuple)
     uploads_dir: Path | None = None
     planner: PlannerRunner | None = None
+
+
+TICK_S = 1.0
+
+
+async def _tick_forever(tickers: Sequence[Callable[[], object]]) -> None:
+    """Call every ticker once a second in a worker thread until cancelled."""
+    while tickers:
+        for tick in tickers:
+            try:
+                await asyncio.to_thread(tick)
+            except Exception:  # one failing ticker must not stop the escalation timers
+                _log.exception("ticker_failed", ticker=getattr(tick, "__qualname__", repr(tick)))
+        await asyncio.sleep(TICK_S)
 
 
 VERIFY_PAGE_DIR = Path(__file__).resolve().parent.parent / "evidence" / "verify_page"
 
 
 class DayRoot(BaseModel):
-    """Body of `GET /evidence/{day}/root`: the current and the committed Merkle root."""
+    """Body of `GET /evidence/{day}/root`: the current and the committed Merkle root.
+
+    `committed_n` is how many records the committed root covers: a chain that is still growing
+    must reproduce it over its first `committed_n` records.
+    """
 
     root: str
     n: int
     committed_root: str | None
+    committed_n: int | None
 
 
 class ModeRequest(BaseModel):
@@ -223,11 +245,14 @@ def _evidence_router(services: AppServices) -> APIRouter:
     @router.get("/{day}/root")
     def root(day: date) -> DayRoot:
         current, n = chain_root(_chain_file(services, day))
-        committed = None
         roots_file = services.roots_dir / f"{day.isoformat()}.txt"
-        if roots_file.is_file():
-            committed = read_day_roots(roots_file).get(services.site, (None, 0))[0]
-        return DayRoot(root=current, n=n, committed_root=committed)
+        committed = read_day_roots(roots_file).get(services.site) if roots_file.is_file() else None
+        return DayRoot(
+            root=current,
+            n=n,
+            committed_root=committed[0] if committed else None,
+            committed_n=committed[1] if committed else None,
+        )
 
     return router
 
@@ -282,6 +307,8 @@ def _lifespan(
             tasks.append(asyncio.create_task(_index_chunks(services.bus, services.chunks)))
         if services.runtime is not None:
             tasks.append(asyncio.create_task(services.runtime.run()))
+        if services.tickers:
+            tasks.append(asyncio.create_task(_tick_forever(services.tickers)))
         for task in tasks:
             task.add_done_callback(_log_task_end)
         try:

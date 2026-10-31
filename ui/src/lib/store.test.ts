@@ -5,9 +5,11 @@ import { demoFrames } from "@/fixtures/demo-frames";
 import { parseFrame, type Frame } from "./events";
 import {
   badgeLabel,
+  blindCameras,
   initialState,
   isBlind,
   MAX_EVENTS,
+  noAlertsText,
   reducer,
   ruleCards,
   type UiState,
@@ -90,6 +92,42 @@ describe("store reducer (event → state)", () => {
     const live = reducer(initialState, { type: "mode", mode: { mode: "record", badge: "LIVE" } });
     expect(badgeLabel(live)).toBe("LIVE");
     expect(badgeLabel(reducer(live, { type: "connection", connection: "closed" }))).toBe("OFFLINE");
+  });
+});
+
+describe("connection honesty", () => {
+  const live = reducer(reducer(initialState, { type: "connection", connection: "open" }), {
+    type: "mode",
+    mode: { mode: "live", badge: "LIVE" },
+  });
+
+  it("forgets the mode when the socket drops and stays OFFLINE while reconnecting", () => {
+    const dropped = reducer(live, { type: "connection", connection: "closed" });
+    expect(dropped.badge).toBeNull();
+    const retrying = reducer(dropped, { type: "connection", connection: "connecting" });
+    expect(badgeLabel(retrying)).toBe("OFFLINE");
+    const reopened = reducer(retrying, { type: "connection", connection: "open" });
+    expect(badgeLabel(reopened)).toBe("…"); // until GET /mode answers, never a stale LIVE
+  });
+
+  it("resets everything when the source switches", () => {
+    expect(reducer(fold(demoFrames, live), { type: "reset" })).toEqual(initialState);
+  });
+
+  it("lists BLIND cameras even when they have no alerts", () => {
+    const state = fold([
+      { topic: "coverage.changed", payload: { camera_id: "cam2", state: "blind" } },
+      { topic: "coverage.changed", payload: { camera_id: "cam1", state: "ok" } },
+      { topic: "coverage.changed", payload: { camera_id: "cam0", state: "blind" } },
+    ]);
+    expect(ruleCards(state)).toEqual([]);
+    expect(blindCameras(state)).toEqual(["cam0", "cam2"]);
+    expect(noAlertsText(state)).toBe("Not connected to the Rulecam server: no live data.");
+    const open = reducer(state, { type: "connection", connection: "open" });
+    expect(noAlertsText(open)).toBe("No alerts from the cameras that can see.");
+    expect(noAlertsText(reducer(initialState, { type: "connection", connection: "open" }))).toBe(
+      "No alerts yet.",
+    );
   });
 });
 

@@ -5,17 +5,67 @@
 
 const GENESIS = "0".repeat(64);
 const FIRST_SEQ = 1;
+// The fields of contracts.EventRecord, sorted; Python rejects any other shape.
+const RECORD_KEYS = "hash,kind,payload,prev_hash,seq,site,ts";
+const EVENT_KINDS = new Set([
+  "candidate", "verdict", "action", "ack", "dispute", "label", "plan", "rule_change",
+  "coverage", "advice", "measurement_plan", "sealed_cause", "surprise", "tamper_attempt",
+]);
+// The only timestamp shape Python's utc_iso writes (rulecam.evidence.chain._TS_PATTERN).
+const TS_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{6})?Z$/;
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 
-/** Canonical JSON: sorted keys, no whitespace; numbers and strings as JSON.stringify writes them. */
+/**
+ * Canonical JSON: sorted keys, no whitespace; numbers and strings as JSON.stringify writes them.
+ * Throws, like Python's canonical_json, on lone surrogates (TextEncoder would silently replace
+ * them). Non-finite numbers and unsafe integers need no check: they never re-serialise to the
+ * text they were parsed from, so the canonical-form comparison already rejects them.
+ */
 export function canonical(value) {
   if (Array.isArray(value)) {
     return "[" + value.map(canonical).join(",") + "]";
   }
   if (value !== null && typeof value === "object") {
     const keys = Object.keys(value).sort();
-    return "{" + keys.map((k) => JSON.stringify(k) + ":" + canonical(value[k])).join(",") + "}";
+    return "{" + keys.map((k) => canonical(k) + ":" + canonical(value[k])).join(",") + "}";
+  }
+  if (typeof value === "string" && LONE_SURROGATE.test(value)) {
+    throw new RangeError("lone surrogate in a chain record");
   }
   return JSON.stringify(value);
+}
+
+/** A real UTC instant in utc_iso's shape (Python's datetime parse rejects e.g. day 31 of April). */
+function isTimestamp(ts) {
+  if (typeof ts !== "string" || !TS_PATTERN.test(ts)) return false;
+  const parsed = new Date(ts.slice(0, 19) + "Z");
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 19) === ts.slice(0, 19);
+}
+
+function isRecord(data) {
+  return (
+    data !== null &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    Object.keys(data).sort().join(",") === RECORD_KEYS &&
+    Number.isSafeInteger(data.seq) &&
+    EVENT_KINDS.has(data.kind) &&
+    isTimestamp(data.ts) &&
+    typeof data.site === "string" &&
+    data.payload !== null &&
+    typeof data.payload === "object" &&
+    !Array.isArray(data.payload) &&
+    typeof data.prev_hash === "string" &&
+    typeof data.hash === "string"
+  );
+}
+
+function isCanonical(data, raw) {
+  try {
+    return canonical(data) === raw;
+  } catch {
+    return false;
+  }
 }
 
 async function sha256Hex(text) {
@@ -46,10 +96,8 @@ async function checkLine(raw, expectedSeq, prevHash) {
   } catch {
     return { problem: "not a valid record", hash: "" };
   }
-  if (data === null || typeof data !== "object" || typeof data.hash !== "string") {
-    return { problem: "not a valid record", hash: "" };
-  }
-  if (canonical(data) !== raw) return { problem: "not in canonical form", hash: data.hash };
+  if (!isRecord(data)) return { problem: "not a valid record", hash: "" };
+  if (!isCanonical(data, raw)) return { problem: "not in canonical form", hash: data.hash };
   if (data.seq !== expectedSeq) return { problem: `seq ${data.seq} out of order`, hash: data.hash };
   if (data.prev_hash !== prevHash) {
     return { problem: "prev_hash does not link to the previous record", hash: data.hash };
@@ -102,4 +150,20 @@ export async function merkleRoot(leaves) {
     level = next;
   }
   return level[0];
+}
+
+/**
+ * Compare a verified chain with the root committed to git for its day.
+ *
+ * The committed root covers the first `committedN` records; a chain may have grown since, but
+ * those records must reproduce it exactly. Returns "match" (same records), "extended" (the
+ * committed prefix matches and records were appended after it) or "mismatch" (records dropped,
+ * changed or the chain rewritten).
+ */
+export async function compareToCommitted(hashes, committedRoot, committedN) {
+  if (!Number.isSafeInteger(committedN) || committedN < 0 || committedN > hashes.length) {
+    return "mismatch";
+  }
+  if ((await merkleRoot(hashes.slice(0, committedN))) !== committedRoot) return "mismatch";
+  return committedN === hashes.length ? "match" : "extended";
 }

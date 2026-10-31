@@ -24,6 +24,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
@@ -41,6 +42,8 @@ _log = get_logger(__name__)
 
 GENESIS_HASH = "0" * 64
 FIRST_SEQ = 1
+# The only timestamp shape `utc_iso` writes; the verify page checks the same pattern.
+_TS_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{6})?Z")
 EventKind = Literal[
     "candidate",
     "verdict",
@@ -343,16 +346,47 @@ class EventChain:
             raise ChainError(msg) from exc
 
 
-def _check_line(raw: bytes, expected_seq: int, prev_hash: str) -> tuple[str | None, str]:
-    """Return (problem or None, this record's hash) for one raw line."""
+def _is_canonical(data: object, text: str) -> bool:
+    """Whether `text` is exactly the canonical form of `data`.
+
+    NaN, infinity, unsafe integers and lone surrogates parse but have no canonical form: an edit
+    no writer could produce, reported as a broken record rather than raised.
+    """
+    try:
+        return canonical_json(data) == text
+    except (TypeError, ValueError):
+        return False
+
+
+def _is_written_shape(data: dict[str, object]) -> bool:
+    """Whether a validated record also has the exact JSON types a writer produces.
+
+    Pydantic's lax mode would accept `"seq": true` or a numeric `ts`; no writer emits those, and
+    the browser verify page rejects them, so both verifiers flag the same record.
+    """
+    seq, ts = data["seq"], data["ts"]
+    return type(seq) is int and isinstance(ts, str) and _TS_PATTERN.fullmatch(ts) is not None
+
+
+def _parse_line(raw: bytes) -> tuple[str, dict[str, object]] | None:
+    """Return (text, parsed record) for a well-formed record line, or None."""
     try:
         text = raw.decode("utf-8")
         data = json.loads(text)
         EventRecord.model_validate(data)
     except (UnicodeDecodeError, ValueError, ValidationError):
+        return None
+    return (text, data) if _is_written_shape(data) else None
+
+
+def _check_line(raw: bytes, expected_seq: int, prev_hash: str) -> tuple[str | None, str]:
+    """Return (problem or None, this record's hash) for one raw line."""
+    parsed = _parse_line(raw)
+    if parsed is None:
         return "not a valid record", ""
+    text, data = parsed
     claimed = str(data["hash"])
-    if canonical_json(data) != text:
+    if not _is_canonical(data, text):
         return "not in canonical form", claimed
     if data["seq"] != expected_seq:
         return f"seq {data['seq']} out of order", claimed

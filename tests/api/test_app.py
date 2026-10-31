@@ -197,24 +197,29 @@ async def test_bus_publish_from_worker_thread_is_delivered() -> None:
     assert message.payload == "x"
 
 
-def test_verify_page_and_day_root(services: AppServices, tmp_path: Path) -> None:
-    from rulecam.api.app import VERIFY_PAGE_DIR  # noqa: PLC0415
-    from rulecam.evidence.merkle import write_day_roots  # noqa: PLC0415
+def test_tickers_survive_a_failing_ticker(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rulecam.api import app as app_module  # noqa: PLC0415
 
-    EventChain(services.chain_root, "site", clock=FakeClock()).append("plan", {})
-    services.roots_dir = tmp_path / "roots"
-    services.verify_dir = VERIFY_PAGE_DIR
-    with TestClient(create_app(services)) as client:
-        page = client.get("/verify/")
-        assert page.status_code == 200
-        assert "Rulecam evidence check" in page.text
-        assert client.get("/verify/chain.js").status_code == 200
-        before = client.get("/evidence/2026-10-30/root").json()
-        assert before["n"] == 1
-        assert before["committed_root"] is None
-        write_day_roots(services.chain_root, services.roots_dir, FakeClock().now().date())
-        after = client.get("/evidence/2026-10-30/root").json()
-        assert after["committed_root"] == after["root"]
+    monkeypatch.setattr(app_module, "TICK_S", 0.0)
+    calls: list[str] = []
+
+    def boom() -> None:
+        calls.append("boom")
+        raise RuntimeError("tick failed")
+
+    def ok() -> None:
+        calls.append("ok")
+
+    async def run() -> None:
+        task = asyncio.create_task(app_module._tick_forever([boom, ok]))
+        while calls.count("ok") < 3:
+            await asyncio.sleep(0.01)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    asyncio.run(asyncio.wait_for(run(), timeout=5))
+    assert calls.count("boom") >= 3
 
 
 def test_state_changes_and_ws_are_owner_only(services: AppServices, tmp_path: Path) -> None:
@@ -298,10 +303,10 @@ def test_cameras_metrics_and_verify(services: AppServices) -> None:
         assert client.get("/verify/").text == "<p>verify</p>"
 
 
-def test_no_verify_dir_means_no_verify_route(services: AppServices) -> None:
-    services.verify_dir = None
-    with TestClient(create_app(services)) as client:
-        assert client.get("/verify/").status_code == 404
+def test_verify_dir_is_created(services: AppServices) -> None:
+    create_app(services)
+    assert services.verify_dir is not None
+    assert services.verify_dir.is_dir()
 
 
 def test_cameras_lists_paired_phones(services: AppServices) -> None:
@@ -339,3 +344,29 @@ async def test_dead_background_task_is_logged() -> None:
     with contextlib.suppress(asyncio.CancelledError):
         await cancelled
     _log_task_end(cancelled)
+
+
+def test_verify_page_and_day_root(services: AppServices, tmp_path: Path) -> None:
+    from rulecam.api.app import VERIFY_PAGE_DIR  # noqa: PLC0415
+    from rulecam.evidence.merkle import write_day_roots  # noqa: PLC0415
+
+    EventChain(services.chain_root, "site", clock=FakeClock()).append("plan", {})
+    services.roots_dir = tmp_path / "roots"
+    services.verify_dir = VERIFY_PAGE_DIR
+    with TestClient(create_app(services)) as client:
+        page = client.get("/verify/")
+        assert page.status_code == 200
+        assert "Rulecam evidence check" in page.text
+        assert client.get("/verify/chain.js").status_code == 200
+        before = client.get("/evidence/2026-10-30/root").json()
+        assert before["n"] == 1
+        assert before["committed_root"] is None
+        assert before["committed_n"] is None
+        write_day_roots(services.chain_root, services.roots_dir, FakeClock().now().date())
+        after = client.get("/evidence/2026-10-30/root").json()
+        assert after["committed_root"] == after["root"]
+        assert after["committed_n"] == 1
+        EventChain(services.chain_root, "site", clock=FakeClock()).append("plan", {"n": 2})
+        grown = client.get("/evidence/2026-10-30/root").json()
+        assert (grown["n"], grown["committed_n"]) == (2, 1)
+        assert grown["committed_root"] == after["root"] != grown["root"]

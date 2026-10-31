@@ -45,15 +45,18 @@ uv run pytest tests/evidence
 - **Verify page** (`verify_page/`, served at `/verify/?day=YYYY-MM-DD`). `chain.js` recomputes
   every hash and the Merkle root in the browser with Web Crypto, then shows either
   "✓ Chain intact · N records · watched X%" or "✗ Chain broken at event N". It also compares the
-  result with the committed root (`GET /evidence/{day}/root`), and anyone can drop a `.jsonl` file
-  on it. Cross-language check: `tests/evidence/test_verify_page.py` writes the fixture, and
+  result with the committed root (`GET /evidence/{day}/root`): the chain's first `committed_n`
+  records must reproduce it, so a day that kept growing after its root was committed still
+  verifies, while dropped or rewritten records do not. Anyone can drop a `.jsonl` file on it.
+  Both verifiers accept only the record shape writers produce (integer `seq`, `ts` exactly as
+  `utc_iso` writes it), so they flag the same first bad event. Cross-language check: `tests/evidence/test_verify_page.py` writes the fixture, and
   `cd src/rulecam/evidence/verify_page && npm install && npx vitest run` checks the JS against it.
   That pytest also runs the JS directly when `node` is on PATH.
 - **Evidence packs** (`packs.py`, `templates/pack.html.j2`).
   - Each row runs clause → rule → compliance (Wilson 95% CI) → watched fraction → thumbnails →
     corrective actions, and the pack ends with a QR code to the verify page.
   - Templates: `food_code` (leads with §2-103.11(G), then §2-301.12), `f689` and `generic`.
-  - Packs never hold clip paths. Anonymous and strict modes keep skeleton thumbnails only, and raw
+  - Packs never hold clip or file paths: stills are inlined as data URIs. Anonymous and strict modes keep skeleton thumbnails only, and raw
     frames are never allowed in any mode.
   - `render_pdf` prints the pack through Playwright (`uv sync --extra ui` and
     `playwright install chromium`).

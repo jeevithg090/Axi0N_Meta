@@ -1,16 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-
 import { acceptanceSummary } from "@/lib/plan";
-import { isDemo } from "@/lib/stream";
+import { useDemo } from "@/lib/stream";
 import { usePlans } from "@/lib/usePlans";
 
 export default function PlansPage() {
   const { plans, error } = usePlans();
-  const [query, setQuery] = useState("");
-  useEffect(() => setQuery(isDemo() ? "?demo=1" : ""), []);
+  const query = useDemo() ? "?demo=1" : "";
   const entries = Object.values(plans);
 
   return (

@@ -69,9 +69,13 @@ export interface ActionDone {
   action: ActionRecord;
 }
 
+/** perception.coverage.CoverageChange as published on `coverage.changed`. */
 export interface CoverageChanged {
   camera_id: string;
-  state: string; // "OK" | "BLIND" | … from perception.coverage
+  state: "ok" | "blind";
+  reason?: "frozen" | "dark" | "blocked" | "moved" | null;
+  moved?: boolean;
+  ts?: string;
 }
 
 export type Frame =

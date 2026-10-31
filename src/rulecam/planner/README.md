@@ -4,11 +4,12 @@ The Site Planner turns multimodal requests into proven, verifiable Site Plans.
 
 ## Pipeline Steps
 1. **Understand** (`planner/steps/understand.py`): Multimodal intake of text, photos/PDFs, voice, and video walk-throughs.
-2. **Survey & Probes** (`planner/steps/survey.py`, `probes.py`): Camera inventory and SAM detectability probes.
-3. **Compile** (`planner/steps/compile.py`): Compiles concerns into typed RuleIR with guardrail validation, static concept tagging, and repair rounds.
-4. **Guardrails** (`planner/guardrails.py`): Deterministic (English + Spanish) and model guardrails declining banned surveillance categories with alternatives.
-5. **Lint & Acceptance** (`planner/lint.py`, `acceptance.py`): Static plan linter and executable acceptance checks.
-6. **Audit** (`planner/audit.py`): Spark Open plan audit and Glimmer back-translation.
+2. **Survey & Probes** (`planner/steps/survey.py`, `probe.py`): Camera inventory and SAM detectability probes.
+3. **Gauge** (`planner/feasibility.py`): Per-concern feasibility verdicts from the probes.
+4. **Compile** (`planner/steps/compile.py`): Compiles concerns into typed RuleIR with guardrail validation, static concept tagging, and repair rounds.
+5. **Guardrails** (`planner/guardrails.py`): Deterministic (English + Spanish) and model guardrails declining banned surveillance categories with alternatives.
+6. **Lint & Acceptance** (`planner/lint.py`, `acceptance.py`): Static plan linter and executable acceptance checks.
+7. **Audit** (`planner/audit.py`): Spark Open plan audit and Glimmer back-translation.
 
 ## Understand Step API
 
@@ -73,6 +74,34 @@ rule = compile_rule(
   `RuleCompilationError`. Transport errors are not retried as "invalid output".
 - `apply_static_hints` marks fixed objects (sink, door, racks, shelving, exits) static by whole
   word, plus any names in `static_concepts`.
+
+## Survey, Probe and Gauge API
+
+```python
+from rulecam.planner.steps.survey import survey_cameras
+from rulecam.planner.steps.probe import probe_concepts
+from rulecam.planner.feasibility import gauge_plan_feasibility
+
+sam = HostedSam31.from_settings(settings, clock=clock, bus=bus)  # replay cache inside
+inventory = survey_cameras(camera_frames, spark=spark, files=spark, segmenter=sam, seed=7)
+probes = probe_concepts(["sink", "gloves", "thermometer"], camera_frames, segmenter=sam, seed=7)
+verdicts = gauge_plan_feasibility(
+    {"handwashing": ["sink"], "gloves for ready-to-eat food": ["gloves"]}, probes, spark=spark
+)
+```
+
+- `camera_frames` maps camera id -> that camera's frames (JPEG/PNG) from the last 60 s. Frame
+  sampling is seeded (`numpy.random.default_rng`). The survey samples 8 frames per camera, shows
+  4 of them (round-robin across cameras, via the Files API) to Spark 1.3 for up to 30 concepts,
+  and runs SAM `segment_image` on every sampled frame, concepts in parallel.
+- A probe frame is a hit when SAM returns any detection. `detect_lb` is the Wilson 95% lower
+  bound (`rulecam.stats.wilson_interval`). Probes sample **24** frames by default: with the task
+  book's 12, a perfect 12/12 gives a lower bound of only 0.758, so nothing could be observable.
+- Verdicts: guardrail decline (P2-03) -> `declined`; a required concept missing on the chosen
+  camera or `detect_lb < 0.5` -> `not_observable` with an alternative; `0.5 <= detect_lb < 0.8`
+  -> `caveat` with the cheapest camera fix (Spark, template fallback); otherwise `observable`.
+  All of a concern's concepts must be seen by one camera. `says` is always a fixed template;
+  model text only goes into `alternative`.
 
 ## Tests
 

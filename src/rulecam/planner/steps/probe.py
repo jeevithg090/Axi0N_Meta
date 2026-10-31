@@ -1,49 +1,29 @@
-"""The 'Probe' detectability probing step (task P2-04, MP §3.2).
+"""The 'Probe' step: how reliably does SAM see each needed concept? (task P2-04, MP §3.2).
 
-Runs SAM 3.1 on 12 sampled frames per camera for each required concept.
-Computes detect_rate, Wilson 95% lower bound (detect_lb), and median pixel height.
+For each concept the concerns need, SAM 3.1 runs on sampled frames of every camera. A frame is a
+hit when SAM returns at least one detection. Each (concept, camera) gets a `Probe` with the hit
+rate, its Wilson 95% lower bound and the median box height in pixels.
+
+Frame count: the task book says 12 frames, but with 12 frames even 12/12 hits gives a Wilson
+lower bound of 12 / (12 + 1.96²) = 0.758, below the 0.8 "observable" bar, so nothing could ever be
+observable. The default is 24 frames: 24/24 gives 0.862 (the MP §7.2 example's 0.86).
 """
 
 from __future__ import annotations
 
-import random
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from statistics import median
+from typing import Final
 
-import numpy as np
-
-from rulecam.contracts.core import Detection
 from rulecam.contracts.plan import Probe
 from rulecam.log import get_logger
-from rulecam.planner.steps.survey import ImageSegmenter
+from rulecam.planner.steps.survey import ImageSegmenter, clean_concepts, sample_frames
 from rulecam.stats.intervals import wilson_interval
 
 _log = get_logger(__name__)
 
-DEFAULT_PROBE_FRAMES = 12
-
-
-def sample_probe_frames(
-    frames: Sequence[Path],
-    n_samples: int = DEFAULT_PROBE_FRAMES,
-    *,
-    seed: int = 42,
-) -> list[Path]:
-    """Sample `n_samples` frames for detectability probing deterministically.
-
-    Args:
-        frames: Sequence of frame paths available for the camera.
-        n_samples: Number of frames to sample (default: 12).
-        seed: Random seed for deterministic selection.
-
-    Returns:
-        Sorted list of sampled frame paths.
-    """
-    if len(frames) <= n_samples:
-        return list(frames)
-    rng = random.Random(seed)  # noqa: S311 - deterministic sampling seed
-    indices = sorted(rng.sample(range(len(frames)), n_samples))
-    return [frames[i] for i in indices]
+DEFAULT_PROBE_FRAMES: Final = 24
 
 
 def probe_concept_on_camera(
@@ -52,58 +32,41 @@ def probe_concept_on_camera(
     frames: Sequence[Path],
     *,
     segmenter: ImageSegmenter,
+    seed: int,
     n_samples: int = DEFAULT_PROBE_FRAMES,
-    seed: int = 42,
 ) -> Probe:
-    """Run SAM detectability probe for one concept on one camera.
+    """Measure how often SAM finds `concept` in one camera's frames.
 
     Args:
-        concept: Concept noun phrase being probed (e.g. 'sink', 'gloves').
-        camera_id: Identifier of the camera.
-        frames: Frame paths available for this camera.
-        segmenter: SAM 3.1 image segmenter.
-        n_samples: Number of frames to sample (default: 12).
-        seed: Sampling seed for determinism.
+        concept: The concept noun phrase.
+        camera_id: The camera.
+        frames: The camera's frames, oldest first.
+        segmenter: SAM 3.1 on single images.
+        seed: Seed for frame sampling.
+        n_samples: Frames to sample.
 
     Returns:
-        Probe containing detect_rate, Wilson 95% lower bound, and median pixel height.
+        The probe. With no frames it has `n_frames=0` and a zero rate and bound.
     """
-    sampled = sample_probe_frames(frames, n_samples=n_samples, seed=seed)
-    if not sampled:
-        return Probe(
-            concept=concept,
-            camera_id=camera_id,
-            n_frames=0,
-            detect_rate=0.0,
-            detect_lb=0.0,
-            median_px_height=0.0,
-        )
-
-    successes = 0
-    all_heights: list[float] = []
-
+    sampled = sample_frames(frames, n_samples, seed=seed)
+    hits = 0
+    heights: list[float] = []
     for frame in sampled:
-        dets: list[Detection] = segmenter.segment_image(frame, concept, camera_id=camera_id)
-        if dets:
-            successes += 1
-            for d in dets:
-                h = max(0.0, float(d.mask.box_xyxy[3] - d.mask.box_xyxy[1]))
-                if h > 0:
-                    all_heights.append(h)
-
-    n_total = len(sampled)
-    detect_rate = successes / n_total
-    detect_lb, _ = wilson_interval(successes, n_total, confidence=0.95)
-    median_px = float(np.median(all_heights)) if all_heights else 0.0
-
-    return Probe(
+        detections = segmenter.segment_image(frame, concept, camera_id=camera_id)
+        hits += bool(detections)
+        heights.extend(h for d in detections if (h := d.mask.box_xyxy[3] - d.mask.box_xyxy[1]) > 0)
+    n_frames = len(sampled)
+    lower, _ = wilson_interval(hits, n_frames)
+    probe = Probe(
         concept=concept,
         camera_id=camera_id,
-        n_frames=n_total,
-        detect_rate=round(detect_rate, 4),
-        detect_lb=round(detect_lb, 4),
-        median_px_height=round(median_px, 2),
+        n_frames=n_frames,
+        detect_rate=round(hits / n_frames, 4) if n_frames else 0.0,
+        detect_lb=round(lower, 4),
+        median_px_height=round(median(heights), 2) if heights else 0.0,
     )
+    _log.info("probe", concept=concept, camera_id=camera_id, hits=hits, n=n_frames)
+    return probe
 
 
 def probe_concepts(
@@ -111,34 +74,25 @@ def probe_concepts(
     camera_frames: Mapping[str, Sequence[Path]],
     *,
     segmenter: ImageSegmenter,
+    seed: int,
     n_samples: int = DEFAULT_PROBE_FRAMES,
-    seed: int = 42,
 ) -> tuple[Probe, ...]:
-    """Run detectability probes for all requested concepts across all cameras.
+    """Probe every concept on every camera.
 
     Args:
-        concepts: List of concept noun phrases.
-        camera_frames: Mapping of camera_id -> sequence of frame paths.
-        segmenter: SAM 3.1 segmenter.
-        n_samples: Number of frames per camera (default: 12).
-        seed: Random seed for sampling.
+        concepts: Concept noun phrases (normalised and de-duplicated here).
+        camera_frames: Camera id -> that camera's frames, oldest first.
+        segmenter: SAM 3.1 on single images.
+        seed: Seed for frame sampling.
+        n_samples: Frames to sample per camera.
 
     Returns:
-        Tuple of Probes for each (concept, camera_id) pair.
+        One probe per (concept, camera), concepts in first-seen order and cameras in id order.
     """
-    probes: list[Probe] = []
-    unique_concepts = list(dict.fromkeys(c.strip().lower() for c in concepts if c.strip()))
-
-    for concept in unique_concepts:
-        for cam_id, frames in sorted(camera_frames.items()):
-            p = probe_concept_on_camera(
-                concept=concept,
-                camera_id=cam_id,
-                frames=frames,
-                segmenter=segmenter,
-                n_samples=n_samples,
-                seed=seed,
-            )
-            probes.append(p)
-
-    return tuple(probes)
+    return tuple(
+        probe_concept_on_camera(
+            concept, cam_id, frames, segmenter=segmenter, seed=seed, n_samples=n_samples
+        )
+        for concept in clean_concepts(concepts)
+        for cam_id, frames in sorted(camera_frames.items())
+    )

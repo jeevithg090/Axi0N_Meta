@@ -1,218 +1,235 @@
-"""Feasibility gauge and verdict engine (task P2-04, MP §3.2, §5).
+"""The feasibility gauge: can this site's cameras check each concern? (task P2-04, MP §3.2).
 
-Evaluates whether user safety concerns can be reliably verified with available cameras:
-- All required concepts have `detect_lb >= 0.8`: `observable`.
-- Any required concept has `0.5 <= detect_lb < 0.8`: `caveat` (with cheapest camera fix).
-- Any required concept has `detect_lb < 0.5` or is absent: `not_observable` (with an alternative).
-- Declines from guardrail checks (P2-03) yield `declined`.
+Verdict rules, applied per concern in this order:
+
+1. **declined**: the guardrails (P2-03, `check_request`) decline the concern.
+2. **not_observable**: no required concept was named, or a required concept has no probe on the
+   chosen camera, or its Wilson lower bound is below 0.5. The verdict carries an alternative.
+3. **caveat**: the weakest required concept has `0.5 <= detect_lb < 0.8`. The verdict carries
+   the cheapest camera fix, proposed by Spark from the probe (pixel height), with a
+   deterministic fallback when Spark is not given or fails.
+4. **observable**: every required concept has `detect_lb >= 0.8`.
+
+A rule is evaluated on one camera, so all required concepts must be seen by the same camera.
+The chosen camera is the one that covers the most required concepts, then has the highest
+weakest lower bound, then the smallest id. `says` is always a fixed first-person template; model
+text only ever goes into `alternative`.
 """
 
 from __future__ import annotations
 
+import json
+from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from typing import Final
 
 from pydantic import BaseModel, Field
 
-from rulecam.clients.meta_hosted.spark import SPARK_1_3
+from rulecam.clients.errors import ModelClientError
 from rulecam.contracts import StructuredLLM
 from rulecam.contracts.plan import FeasibilityVerdict, Probe
 from rulecam.log import get_logger
 from rulecam.planner.guardrails import Declined, check_request
 from rulecam.planner.models import DATA_NOT_INSTRUCTIONS_CLAUSE
+from rulecam.planner.steps.survey import clean_concepts
 
 _log = get_logger(__name__)
 
-OBSERVABLE_THRESHOLD = 0.80
-CAVEAT_THRESHOLD = 0.50
-MIN_REASONABLE_PX_HEIGHT = 30.0
+FIX_MODEL: Final = "muse-spark-1.3"
+OBSERVABLE_LB: Final = 0.80
+CAVEAT_LB: Final = 0.50
+SMALL_PX_HEIGHT: Final = 30.0
+MAX_FIX_CHARS: Final = 200
 
-CAVEAT_SYSTEM_PROMPT = (
-    "You are Rulecam's camera placement engineer. Given a camera detectability probe with "
-    "borderline confidence or small pixel height, propose the cheapest, most practical physical "
-    "camera fix (e.g. 'Move camera 2 about 0.5 m closer', 'Adjust angle downward by 15 deg'). "
-    "Return a concise single-sentence recommendation.\n"
+CAMERA_FIX_SYSTEM_PROMPT = (
+    "You are Rulecam's camera placement engineer. You get one detectability probe as JSON: a "
+    "concept, its camera, the Wilson lower bound of SAM's detection rate and the median object "
+    "height in pixels. Propose the single cheapest physical fix (move the camera closer, zoom, "
+    "change the angle or the lighting) in one short sentence, e.g. 'Move cam2 about 0.5 m "
+    "closer to the sink.'\n"
     f"{DATA_NOT_INSTRUCTIONS_CLAUSE}"
 )
 
 
-class CameraFixProposal(BaseModel):
-    """Camera repositioning or optical adjustment recommendation."""
+class CameraFix(BaseModel):
+    """Spark's proposed camera fix."""
 
-    fix: str = Field(description="Actionable physical camera adjustment or zoom fix")
+    fix: str = Field(description="One short sentence: the cheapest physical camera adjustment")
 
 
-def _get_cheapest_fix(
-    probe: Probe,
-    *,
-    spark: StructuredLLM | None = None,
-) -> str:
-    """Generate the cheapest camera adjustment fix for a caveat probe."""
-    if spark is not None:
-        user_prompt = (
-            f"Concept '{probe.concept}' on camera '{probe.camera_id}' has detect_lb="
-            f"{probe.detect_lb} and median pixel height={probe.median_px_height}px. "
-            "Propose the cheapest camera fix."
-        )
-        try:
-            res = spark.structured(
-                model=SPARK_1_3,
-                messages=[
-                    {"role": "system", "content": CAVEAT_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
-                schema=CameraFixProposal,
-            )
-            if res.fix.strip():
-                return res.fix.strip()
-        except Exception as err:
-            _log.warning("spark_camera_fix_failed", error=str(err))
-
-    # Deterministic fallback based on pixel height
-    if probe.median_px_height < MIN_REASONABLE_PX_HEIGHT:
+def _fallback_fix(probe: Probe) -> str:
+    if probe.median_px_height < SMALL_PX_HEIGHT:
         return (
-            f"Move {probe.camera_id} about 0.5 m closer or increase optical zoom to "
-            f"increase {probe.concept} height from {probe.median_px_height}px."
+            f"Move {probe.camera_id} about 0.5 m closer or zoom in: the {probe.concept} is only "
+            f"{probe.median_px_height:.0f} px tall."
         )
-    return (
-        f"Adjust {probe.camera_id} angle and lighting to improve {probe.concept} "
-        f"detection reliability (currently {probe.detect_lb:.2f} lower bound)."
+    return f"Adjust the angle or lighting of {probe.camera_id} so the {probe.concept} is clearer."
+
+
+def cheapest_fix(probe: Probe, *, spark: StructuredLLM | None = None) -> str:
+    """Propose the cheapest camera fix for a borderline probe.
+
+    Args:
+        probe: The weakest probe of a caveat verdict.
+        spark: Proposes the fix; without it (or if the call fails) a template is used.
+
+    Returns:
+        One sentence.
+    """
+    if spark is None:
+        return _fallback_fix(probe)
+    try:
+        result = spark.structured(
+            model=FIX_MODEL,
+            messages=[
+                {"role": "system", "content": CAMERA_FIX_SYSTEM_PROMPT},
+                {"role": "user", "content": json.dumps(probe.model_dump(), sort_keys=True)},
+            ],
+            schema=CameraFix,
+        )
+    except ModelClientError as err:
+        _log.warning("camera_fix_fallback", camera_id=probe.camera_id, error=str(err))
+        return _fallback_fix(probe)
+    fix = " ".join(result.fix.split())
+    return fix[:MAX_FIX_CHARS] if fix else _fallback_fix(probe)
+
+
+def _alternative(concept: str, concern: str) -> str:
+    return f"Point a phone at the {concept}, or add a sensor or a manual log, to check {concern}."
+
+
+def _choose_camera(
+    concepts: Sequence[str], probes: Sequence[Probe]
+) -> tuple[str, dict[str, Probe]] | None:
+    """Pick the camera that best sees all `concepts`; `None` if no probe names any of them."""
+    by_camera: dict[str, dict[str, Probe]] = defaultdict(dict)
+    for probe in probes:
+        concept = " ".join(probe.concept.split()).lower()
+        if concept in concepts:
+            best = by_camera[probe.camera_id].get(concept)
+            if best is None or probe.detect_lb > best.detect_lb:
+                by_camera[probe.camera_id][concept] = probe
+    if not by_camera:
+        return None
+
+    def rank(cam_id: str) -> tuple[int, float, str]:
+        seen = by_camera[cam_id]
+        return (-len(seen), -min(p.detect_lb for p in seen.values()), cam_id)
+
+    cam_id = min(by_camera, key=rank)
+    return cam_id, by_camera[cam_id]
+
+
+def _not_observable(
+    concern: str, concept: str, says: str, evidence: Sequence[Probe]
+) -> FeasibilityVerdict:
+    return FeasibilityVerdict(
+        concern=concern,
+        verdict="not_observable",
+        says=says,
+        evidence=tuple(evidence),
+        alternative=_alternative(concept, concern),
     )
 
 
-def _default_alternative(missing_concept: str, concern: str) -> str:
-    """Provide a practical alternative when camera observation is not feasible."""
-    lowered = missing_concept.lower()
-    if "thermometer" in lowered or "temperature" in lowered:
-        return "Point a phone at the dial thermometer, or add an automated IoT temperature sensor."
-    if "gauge" in lowered or "meter" in lowered:
-        return "Install a digital datalogger or perform manual shift-change clipboard logs."
-    return (
-        f"Use a dedicated mobile device check, or verify {concern} through manual supervisor logs."
-    )
-
-
-def _evaluate_thresholds(
+def _grade(
     concern: str,
-    required_concepts: Sequence[str],
-    best_probes: list[Probe],
+    concepts: Sequence[str],
+    cam_id: str,
+    seen: Mapping[str, Probe],
     spark: StructuredLLM | None,
 ) -> FeasibilityVerdict:
-    limiting_probe = min(best_probes, key=lambda p: p.detect_lb)
-    lowest_lb = limiting_probe.detect_lb
-
-    if lowest_lb >= OBSERVABLE_THRESHOLD:
-        concepts_str = ", ".join(required_concepts)
-        return FeasibilityVerdict(
-            concern=concern,
-            verdict="observable",
-            says=f"I can reliably observe {concepts_str} to verify {concern}.",
-            evidence=tuple(best_probes),
-            alternative=None,
+    evidence = tuple(seen[c] for c in concepts if c in seen)
+    missing = [c for c in concepts if c not in seen]
+    if missing:
+        says = f"I can't see a {missing[0]}, so I can't check {concern}."
+        return _not_observable(concern, missing[0], says, evidence)
+    weakest = min(evidence, key=lambda p: p.detect_lb)
+    if weakest.detect_lb < CAVEAT_LB:
+        says = (
+            f"I can't see the {weakest.concept} reliably (lower bound {weakest.detect_lb:.2f}), "
+            f"so I can't check {concern}."
         )
-
-    if lowest_lb >= CAVEAT_THRESHOLD:
-        fix = _get_cheapest_fix(limiting_probe, spark=spark)
+        return _not_observable(concern, weakest.concept, says, evidence)
+    if weakest.detect_lb < OBSERVABLE_LB:
         return FeasibilityVerdict(
             concern=concern,
             verdict="caveat",
             says=(
-                f"I can detect {limiting_probe.concept} with caveats (lower bound: "
-                f"{limiting_probe.detect_lb:.2f}). {fix}"
+                f"I can see the {weakest.concept} on {cam_id}, but not reliably enough yet "
+                f"(lower bound {weakest.detect_lb:.2f}), so I can check {concern} with a caveat."
             ),
-            evidence=tuple(best_probes),
-            alternative=fix,
+            evidence=evidence,
+            alternative=cheapest_fix(weakest, spark=spark),
         )
-
-    alt = _default_alternative(limiting_probe.concept, concern)
     return FeasibilityVerdict(
         concern=concern,
-        verdict="not_observable",
-        says=(
-            f"I can't reliably see {limiting_probe.concept} (lower bound: {lowest_lb:.2f} < 0.50), "
-            f"so I can't check {concern}."
-        ),
-        evidence=tuple(best_probes),
-        alternative=alt,
+        verdict="observable",
+        says=f"I can see the {', '.join(concepts)} on {cam_id}, so I can check {concern}.",
+        evidence=evidence,
     )
 
 
 def evaluate_concern_feasibility(
     concern: str,
     required_concepts: Sequence[str],
-    camera_probes: Sequence[Probe],
+    probes: Sequence[Probe],
     *,
     spark: StructuredLLM | None = None,
     declined: Declined | None = None,
 ) -> FeasibilityVerdict:
-    """Evaluate camera observation feasibility for one safety concern.
+    """Grade one concern against the probes.
 
     Args:
-        concern: The text of the user's safety concern or rule.
-        required_concepts: Physical concepts required to verify this concern.
-        camera_probes: Detectability probes gathered across cameras for these concepts.
-        spark: StructuredLLM client for camera fix proposals.
-        declined: If already flagged by guardrails, provide the Declined object.
+        concern: The concern text.
+        required_concepts: Concepts a rule for this concern must see.
+        probes: Probes for those concepts across cameras.
+        spark: Runs the model guardrail pass and proposes camera fixes.
+        declined: A decline P2-03 already made for this concern, if any.
 
     Returns:
-        FeasibilityVerdict with status ('observable', 'caveat', 'not_observable', 'declined').
+        The verdict.
+
+    Raises:
+        ModelClientError: If the guardrail model pass fails (guardrails fail closed).
     """
+    if declined is None:
+        guardrail = check_request(concern, spark=spark)
+        declined = guardrail if isinstance(guardrail, Declined) else None
     if declined is not None:
         return declined.to_feasibility_verdict(concern)
-
-    guardrail_res = check_request(concern, spark=spark)
-    if isinstance(guardrail_res, Declined):
-        return guardrail_res.to_feasibility_verdict(concern)
-
-    if not required_concepts:
+    concepts = clean_concepts(required_concepts)
+    if not concepts:
         return FeasibilityVerdict(
             concern=concern,
             verdict="not_observable",
-            says=f"No observable physical objects were identified for: {concern}.",
-            evidence=(),
-            alternative="Clarify the required physical equipment or process.",
+            says=f"I don't know what to look for to check {concern}.",
+            alternative="Name the objects or stations a camera would have to see.",
         )
-
-    best_probes: list[Probe] = []
-    for concept in required_concepts:
-        matching = [p for p in camera_probes if p.concept.lower() == concept.lower()]
-        if not matching:
-            alt = _default_alternative(concept, concern)
-            return FeasibilityVerdict(
-                concern=concern,
-                verdict="not_observable",
-                says=f"I can't see a {concept}, so I can't check {concern}.",
-                evidence=(),
-                alternative=alt,
-            )
-        best = max(matching, key=lambda p: p.detect_lb)
-        best_probes.append(best)
-
-    return _evaluate_thresholds(concern, required_concepts, best_probes, spark)
+    chosen = _choose_camera(concepts, probes)
+    if chosen is None:
+        says = f"I can't see a {concepts[0]}, so I can't check {concern}."
+        return _not_observable(concern, concepts[0], says, ())
+    return _grade(concern, concepts, *chosen, spark)
 
 
 def gauge_plan_feasibility(
     concern_requirements: Mapping[str, Sequence[str]],
-    all_probes: Sequence[Probe],
+    probes: Sequence[Probe],
     *,
     spark: StructuredLLM | None = None,
 ) -> tuple[FeasibilityVerdict, ...]:
-    """Gauge feasibility across a collection of concerns and their required concepts.
+    """Grade every concern.
 
     Args:
-        concern_requirements: Mapping of concern text -> sequence of required concepts.
-        all_probes: All probes performed across cameras.
-        spark: StructuredLLM client.
+        concern_requirements: Concern text -> the concepts it needs.
+        probes: All probes.
+        spark: Runs the model guardrail pass and proposes camera fixes.
 
     Returns:
-        Tuple of FeasibilityVerdict entries for each concern.
+        One verdict per concern, in mapping order.
     """
-    verdicts: list[FeasibilityVerdict] = []
-    for concern, req_concepts in concern_requirements.items():
-        v = evaluate_concern_feasibility(
-            concern=concern,
-            required_concepts=req_concepts,
-            camera_probes=all_probes,
-            spark=spark,
-        )
-        verdicts.append(v)
-    return tuple(verdicts)
+    return tuple(
+        evaluate_concern_feasibility(concern, concepts, probes, spark=spark)
+        for concern, concepts in concern_requirements.items()
+    )

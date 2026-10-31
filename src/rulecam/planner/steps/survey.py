@@ -1,173 +1,212 @@
-"""The 'Survey' camera survey step (task P2-04, MP §3.2).
+"""The 'Survey' step: what can each camera see? (task P2-04, MP §3.2).
 
-Samples 8 frames per camera across the last 60 seconds (seeded).
-Spark 1.3 proposes up to 30 noun phrases visible in the scene.
-SAM 3.1 `segment_image` runs each concept in parallel, producing `InventoryItem`s.
+For each camera, 8 frames are sampled (seeded) from the frames the caller passes in, which are
+the camera's last 60 s. Muse Spark 1.3 looks at a few of them and proposes up to 30 noun phrases.
+SAM 3.1 `segment_image` then runs every concept on every sampled frame, concepts in parallel,
+and the concepts it finds become `InventoryItem`s.
+
+SAM is reached only through an `ImageSegmenter` (in production `HostedSam31`, which sits on the
+replay cache). Text Spark reads in the frames is data: the system prompt says so, and the
+proposals are only ever used as SAM concept prompts, capped in number and length.
 """
 
 from __future__ import annotations
 
-import base64
-import random
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Protocol
+from typing import Final, Protocol
 
 import numpy as np
 from pydantic import BaseModel, Field
 
-from rulecam.clients.meta_hosted.spark import SPARK_1_3
 from rulecam.contracts import StructuredLLM
 from rulecam.contracts.core import Detection
 from rulecam.contracts.plan import InventoryItem
 from rulecam.log import get_logger
 from rulecam.planner.models import DATA_NOT_INSTRUCTIONS_CLAUSE
+from rulecam.planner.steps.understand import FileAttacher
 
 _log = get_logger(__name__)
 
-DEFAULT_SURVEY_FRAMES = 8
-MAX_SURVEY_CONCEPTS = 30
+SURVEY_MODEL: Final = "muse-spark-1.3"
+DEFAULT_SURVEY_FRAMES: Final = 8
+MAX_SURVEY_CONCEPTS: Final = 30
+MAX_CONCEPT_CHARS: Final = 60
+MAX_SPARK_FRAMES: Final = 4
+MAX_PARALLEL_CONCEPTS: Final = 8
 
 SURVEY_SYSTEM_PROMPT = (
-    "You are Rulecam's camera survey analyst. Analyze the attached camera survey frames "
-    "and propose up to 30 salient physical object, person, equipment, or structural noun phrases "
-    "present in the scene (e.g. 'sink', 'handwash station', 'prep counter', 'person', "
-    "'refrigerator', 'gloves', 'door', 'floor'). Return only distinct, concise noun phrases.\n"
+    "You are Rulecam's camera survey analyst. Look at the attached camera frames and list up to "
+    f"{MAX_SURVEY_CONCEPTS} distinct physical things visible in the scene: objects, equipment, "
+    "fixtures, surfaces and people (e.g. 'sink', 'prep counter', 'person', 'gloves', 'door'). "
+    "Each entry is a short noun phrase a segmentation model can be prompted with.\n"
     f"{DATA_NOT_INSTRUCTIONS_CLAUSE}"
 )
 
 
 class ImageSegmenter(Protocol):
-    """Protocol for segmenting a single image with SAM 3.1."""
+    """SAM 3.1 on a single image, one concept per call (`HostedSam31.segment_image`)."""
 
     def segment_image(
         self,
         frame: Path,
         concept: str,
         *,
-        camera_id: str = "cam0",
+        camera_id: str = ...,
         include_confidence: bool = True,
     ) -> list[Detection]:
-        """Segment one concept in a single image."""
+        """Return the concept's detections in `frame`; `[]` when nothing matched."""
         ...
 
 
 class ProposedConcepts(BaseModel):
-    """List of up to 30 physical concepts identified in survey frames."""
+    """Spark's answer: the noun phrases it sees in the survey frames."""
 
     concepts: list[str] = Field(default_factory=list, max_length=MAX_SURVEY_CONCEPTS)
 
 
-def sample_survey_frames(
-    frames: Sequence[Path],
-    n_samples: int = DEFAULT_SURVEY_FRAMES,
-    *,
-    seed: int = 42,
-) -> list[Path]:
-    """Sample `n_samples` frames deterministically using a seed.
+def sample_frames(frames: Sequence[Path], n_samples: int, *, seed: int) -> list[Path]:
+    """Pick `n_samples` frames at random, reproducibly for a given seed.
 
     Args:
-        frames: Sequence of frame paths available for one camera.
-        n_samples: Number of frames to sample (default: 8).
-        seed: Random seed for deterministic selection.
+        frames: The camera's frames, oldest first.
+        n_samples: How many to keep.
+        seed: Seed for `numpy.random.default_rng`.
 
     Returns:
-        Sorted list of sampled frame paths.
+        The chosen frames in their original order; all of them when there are not more than
+        `n_samples`.
     """
     if len(frames) <= n_samples:
         return list(frames)
-    rng = random.Random(seed)  # noqa: S311 - deterministic sampling seed
-    indices = sorted(rng.sample(range(len(frames)), n_samples))
-    return [frames[i] for i in indices]
+    rng = np.random.default_rng(seed)
+    chosen = sorted(int(i) for i in rng.choice(len(frames), size=n_samples, replace=False))
+    return [frames[i] for i in chosen]
+
+
+def clean_concepts(raw: Sequence[str]) -> list[str]:
+    """Normalise concept phrases: whitespace collapsed, lower case, de-duplicated.
+
+    Args:
+        raw: Phrases as proposed.
+
+    Returns:
+        The phrases in first-seen order; empty and over-long (> 60 chars) phrases are dropped.
+    """
+    cleaned = (" ".join(c.split()).lower() for c in raw)
+    kept = [c for c in cleaned if c and len(c) <= MAX_CONCEPT_CHARS]
+    return list(dict.fromkeys(kept))
+
+
+def _spread(sampled_per_cam: Mapping[str, Sequence[Path]], limit: int) -> list[Path]:
+    """Take frames round-robin across cameras so every camera is shown to Spark."""
+    out: list[Path] = []
+    depth = max((len(f) for f in sampled_per_cam.values()), default=0)
+    for i in range(depth):
+        for cam_id in sorted(sampled_per_cam):
+            frames = sampled_per_cam[cam_id]
+            if i < len(frames) and len(out) < limit:
+                out.append(frames[i])
+    return out
 
 
 def propose_survey_concepts(
-    sample_frames: Sequence[Path],
+    frames: Sequence[Path],
     *,
     spark: StructuredLLM,
+    files: FileAttacher,
 ) -> list[str]:
-    """Ask Spark 1.3 to propose up to 30 salient noun phrases from survey frames.
+    """Ask Spark 1.3 which concepts are visible in the survey frames.
 
     Args:
-        sample_frames: Representative frames sampled across cameras.
-        spark: StructuredLLM client.
+        frames: Frames to show (uploaded through the Files API); only file names reach the model.
+        spark: The structured-output client.
+        files: Uploads each frame and returns its `input_image` part.
 
     Returns:
-        List of unique proposed concept noun phrases.
+        Up to 30 cleaned, de-duplicated noun phrases.
     """
-    user_prompt = "Propose up to 30 physical concepts, items, stations, or objects visible:\n"
-    content_parts: list[dict[str, object]] = [{"type": "input_text", "text": user_prompt}]
-
-    for frame in sample_frames[:4]:  # Attach up to 4 representative images
-        if frame.exists():
-            mime = "image/jpeg" if frame.suffix.lower() in (".jpg", ".jpeg") else "image/png"
-            b64 = base64.b64encode(frame.read_bytes()).decode("ascii")
-            content_parts.append({"type": "input_image", "image_url": f"data:{mime};base64,{b64}"})
-
-    res = spark.structured(
-        model=SPARK_1_3,
+    content: list[dict[str, object]] = [
+        {"type": "input_text", "text": f"Survey frames: {', '.join(f.name for f in frames)}\n"}
+    ]
+    content.extend(files.attach(frame) for frame in frames)
+    result = spark.structured(
+        model=SURVEY_MODEL,
         messages=[
             {"role": "system", "content": SURVEY_SYSTEM_PROMPT},
-            {"role": "user", "content": content_parts},
+            {"role": "user", "content": content},
         ],
         schema=ProposedConcepts,
     )
-    # Deduplicate and normalize
-    cleaned = [c.strip().lower() for c in res.concepts if c.strip()]
-    return list(dict.fromkeys(cleaned))[:MAX_SURVEY_CONCEPTS]
+    return clean_concepts(result.concepts)[:MAX_SURVEY_CONCEPTS]
+
+
+def _inventory_item(
+    concept: str, camera_id: str, per_frame: Sequence[list[Detection]]
+) -> InventoryItem | None:
+    """Summarise one concept on one camera; `None` when SAM found it in no frame."""
+    detections = [d for frame in per_frame for d in frame]
+    if not detections:
+        return None
+    confidences = [d.mask.confidence for d in detections if d.mask.confidence is not None]
+    return InventoryItem(
+        concept=concept,
+        camera_id=camera_id,
+        count=max(len(frame) for frame in per_frame),  # instances seen at once, not frame-sums
+        mean_confidence=round(float(np.mean(confidences)), 4) if confidences else 0.0,
+    )
+
+
+def _survey_camera(
+    camera_id: str,
+    frames: Sequence[Path],
+    concepts: Sequence[str],
+    segmenter: ImageSegmenter,
+) -> list[InventoryItem]:
+    def run(concept: str) -> InventoryItem | None:
+        per_frame = [segmenter.segment_image(f, concept, camera_id=camera_id) for f in frames]
+        return _inventory_item(concept, camera_id, per_frame)
+
+    workers = max(1, min(MAX_PARALLEL_CONCEPTS, len(concepts)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        items = list(pool.map(run, concepts))
+    return [item for item in items if item is not None]
 
 
 def survey_cameras(
     camera_frames: Mapping[str, Sequence[Path]],
     *,
     spark: StructuredLLM,
+    files: FileAttacher,
     segmenter: ImageSegmenter,
-    seed: int = 42,
-    custom_concepts: Sequence[str] | None = None,
+    seed: int,
+    required_concepts: Sequence[str] = (),
 ) -> tuple[InventoryItem, ...]:
-    """Run camera survey to build an inventory of detected concepts across cameras.
+    """Build the inventory of concepts each camera can see.
 
     Args:
-        camera_frames: Mapping of camera_id -> sequence of frame paths.
-        spark: StructuredLLM for concept discovery.
-        segmenter: SAM 3.1 segmenter for detecting concepts in frames.
+        camera_frames: Camera id -> that camera's frames from the last 60 s, oldest first.
+        spark: Proposes the concepts.
+        files: Uploads the frames Spark looks at.
+        segmenter: SAM 3.1 on single images.
         seed: Seed for frame sampling.
-        custom_concepts: Optional list of concepts to force inclusion in the survey.
+        required_concepts: Concepts the concerns need; surveyed even if Spark did not propose
+            them.
 
     Returns:
-        Tuple of InventoryItems found in the cameras.
+        One `InventoryItem` per (camera, concept) SAM found, cameras in id order and concepts
+        in proposal order.
     """
-    # Sample 8 frames per camera
-    sampled_per_cam: dict[str, list[Path]] = {}
-    all_sample_frames: list[Path] = []
-    for cam_id, frames in sorted(camera_frames.items()):
-        sampled = sample_survey_frames(frames, n_samples=DEFAULT_SURVEY_FRAMES, seed=seed)
-        sampled_per_cam[cam_id] = sampled
-        all_sample_frames.extend(sampled)
-
-    # Propose concepts from survey frames
-    concepts = list(custom_concepts) if custom_concepts else []
-    if not concepts and all_sample_frames:
-        concepts = propose_survey_concepts(all_sample_frames, spark=spark)
-
+    sampled = {
+        cam_id: sample_frames(frames, DEFAULT_SURVEY_FRAMES, seed=seed)
+        for cam_id, frames in sorted(camera_frames.items())
+    }
+    shown = _spread(sampled, MAX_SPARK_FRAMES)
+    proposed = propose_survey_concepts(shown, spark=spark, files=files) if shown else []
+    concepts = list(dict.fromkeys([*proposed, *clean_concepts(required_concepts)]))
+    _log.info("survey_concepts", n_cameras=len(sampled), n_concepts=len(concepts))
     inventory: list[InventoryItem] = []
-    for cam_id, frames in sorted(sampled_per_cam.items()):
-        for concept in concepts:
-            all_dets: list[Detection] = []
-            for frame in frames:
-                dets = segmenter.segment_image(frame, concept, camera_id=cam_id)
-                all_dets.extend(dets)
-
-            if all_dets:
-                confidences = [d.mask.confidence for d in all_dets if d.mask.confidence is not None]
-                mean_conf = float(np.mean(confidences)) if confidences else 1.0
-                inventory.append(
-                    InventoryItem(
-                        concept=concept,
-                        camera_id=cam_id,
-                        count=len(all_dets),
-                        mean_confidence=round(mean_conf, 4),
-                    )
-                )
-
+    for cam_id, frames in sampled.items():
+        inventory.extend(_survey_camera(cam_id, frames, concepts, segmenter))
     return tuple(inventory)

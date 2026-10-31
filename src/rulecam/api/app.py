@@ -11,10 +11,14 @@ Approving a plan (`POST /plans/{id}/approve`) activates it in the runtime throug
 `AppServices.activator` (`rulecam.runtime.activate`); `services_from_settings` persists the active
 plan under `<data>/runtime/active_plan.json` and restores it at start-up.
 
-Anything that changes state (`PUT /mode`, `PUT /runtime/plan`, plan create/approve) is owner-only:
-both the target host and the client must be loopback, because the same app is reachable through
-the Pair-a-Phone tunnel. The read-only `/ws` mirror is owner-only too, except for a browser whose
-`Origin` is the public web UI (`PUBLIC_UI_URL`).
+Anything that changes state (`PUT /mode`, `PUT /runtime/plan`, plan create/approve,
+`POST /correction`) is owner-only: both the target host and the client must be loopback, because
+the same app is reachable through the Pair-a-Phone tunnel. Reads that expose site content (the
+`/ws` mirror, `GET /plans`, `GET /plans/{id}` and `GET /evidence/{day}/chain`) are owner-only too,
+unless the site is a public demo (`PUBLIC_DEMO=true`); then the public web UI's origin
+(`PUBLIC_UI_URL`) may also watch `/ws`. An `Origin` header is easy to forge outside a browser, so it
+never grants access on its own. Roots and verify reports carry no content and stay public; the
+browser verify page can also check a chain file the visitor uploads.
 
 `make api` serves the module-level `app`, built from settings with the replay cache, the bus, the
 evidence chain, perception and Pair-a-Phone; `RULECAM_RUNTIME=true` also starts the runtime loop.
@@ -31,7 +35,7 @@ from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket, params, status
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -100,7 +104,10 @@ class AppServices:
         planner: The Site Planner runner (P2-06); `POST /plans/requests` needs it.
         activator: Activates approved plans in the runtime; approval answers 503 without one.
         viewer_origins: Browser origins (e.g. the public web UI) that may watch the read-only
-            `/ws` mirror without being the owner. Nothing that changes state accepts them.
+            `/ws` mirror without being the owner, on a public demo only. Nothing that changes
+            state accepts them.
+        public_demo: Demo sites only: non-owners may read the live feed, plans and evidence
+            chain. Off by default; a real site keeps those reads owner-only.
     """
 
     bus: Bus
@@ -121,6 +128,7 @@ class AppServices:
     planner: PlannerRunner | None = None
     activator: PlanActivator | None = None
     viewer_origins: frozenset[str] = frozenset()
+    public_demo: bool = False
 
 
 TICK_S = 1.0
@@ -187,6 +195,11 @@ def _chain_file(services: AppServices, day: date) -> Path:
 _OWNER = [Depends(require_owner)]
 
 
+def _content_reads(services: AppServices) -> list[params.Depends]:
+    """Authentication for reads that expose site content: none on a public demo, else owner."""
+    return [] if services.public_demo else _OWNER
+
+
 def _core_router(services: AppServices) -> APIRouter:
     router = APIRouter()
 
@@ -211,7 +224,10 @@ def _core_router(services: AppServices) -> APIRouter:
 
     @router.websocket("/ws")
     async def ws(websocket: WebSocket) -> None:
-        if websocket.headers.get("origin") not in services.viewer_origins:
+        public_viewer = (
+            services.public_demo and websocket.headers.get("origin") in services.viewer_origins
+        )
+        if not public_viewer:
             try:
                 require_owner(websocket)
             except HTTPException:
@@ -266,7 +282,9 @@ def _evidence_router(services: AppServices) -> APIRouter:
     def days() -> list[date]:
         return _chain_days(services.chain_root / services.site)
 
-    @router.get("/{day}/chain", response_class=PlainTextResponse)
+    @router.get(
+        "/{day}/chain", response_class=PlainTextResponse, dependencies=_content_reads(services)
+    )
     def chain(day: date) -> PlainTextResponse:
         text = _chain_file(services, day).read_text(encoding="utf-8")
         return PlainTextResponse(text, media_type="application/x-ndjson")
@@ -321,12 +339,13 @@ def _routers(services: AppServices) -> list[APIRouter]:
             uploads_dir=services.uploads_dir,
             planner=services.planner,
             activator=services.activator,
+            read_dependencies=_content_reads(services),
         ),
     ]
     if services.pair is not None:
         routers.append(build_router(services.pair))
     if services.correction is not None:
-        routers.append(correction_router(services.correction, services.bus))
+        routers.append(correction_router(services.correction, services.bus, dependencies=_OWNER))
     return [*routers, *services.routers]
 
 
@@ -587,6 +606,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         planner=planner,
         activator=activator,
         viewer_origins=viewer_origins(settings.public_ui_url),
+        public_demo=settings.public_demo,
         routers=(
             build_worker_router(
                 settings, cache=cache, clock=clock, bus=bus, chain=chain, plans=plans

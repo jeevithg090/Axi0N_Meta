@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 import pytest
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from rulecam.act import ActionExecutor, EscalationManager, Interlock, LanNotifier, PhraseBook
@@ -310,6 +310,7 @@ def client(rig: Rig) -> TestClient:
             escalation=rig.escalation,
             chain=rig.chain,
             interlock=rig.interlock,
+            dependencies=(),
         )
     )
     return TestClient(app)
@@ -504,6 +505,7 @@ def test_http_inputs_are_validated(tmp_path: Path) -> None:
             chain=rig.chain,
             interlock=rig.interlock,
             roles={"aide", "dock_lead"},
+            dependencies=(),
         )
     )
     with TestClient(app) as c:
@@ -528,7 +530,11 @@ def test_resume_device_failure_is_502(tmp_path: Path) -> None:
     app = FastAPI()
     app.include_router(
         alerts_router(
-            notifier=rig.notifier, escalation=rig.escalation, chain=rig.chain, interlock=interlock
+            notifier=rig.notifier,
+            escalation=rig.escalation,
+            chain=rig.chain,
+            interlock=interlock,
+            dependencies=(),
         )
     )
     with TestClient(app) as c:
@@ -547,3 +553,26 @@ def test_phrase_book_matches_unicode_normal_forms() -> None:
     ]
     book = PhraseBook.from_prerendered({"hat": unicodedata.normalize("NFD", nfc)}, rendered, ["es"])
     assert book.wavs_for("hat", "es") == [Path("tts/es.wav")]
+
+
+def test_alerts_router_applies_the_auth_it_is_given(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+
+    def refuse() -> None:
+        raise HTTPException(status_code=401, detail="sign in")
+
+    app = FastAPI()
+    app.include_router(
+        alerts_router(
+            notifier=rig.notifier,
+            escalation=rig.escalation,
+            chain=rig.chain,
+            interlock=rig.interlock,
+            dependencies=[Depends(refuse)],
+        )
+    )
+    with TestClient(app) as c:
+        assert c.get("/alerts").status_code == 401
+        assert c.post("/ack", json={"event_id": "ev-1", "role": "aide"}).status_code == 401
+        assert c.post("/interlock/forklift/resume", json={"role": "lead"}).status_code == 401
+    assert rig.records() == []

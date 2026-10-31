@@ -29,7 +29,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Annotated, Literal, Protocol
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, params, status
 from fastapi import Path as PathParam
 from pydantic import BaseModel, Field
 
@@ -271,6 +271,7 @@ def plans_router(
     planner: PlannerRunner | None = None,
     activator: PlanActivator | None = None,
     max_upload_bytes: int = MAX_UPLOAD_BYTES,
+    read_dependencies: Sequence[params.Depends] = (),
 ) -> APIRouter:
     """Build the `/plans` router.
 
@@ -281,6 +282,8 @@ def plans_router(
         planner: The Site Planner runner; `POST /plans/requests` answers 503 without one.
         activator: Puts approved plans into force; approval answers 503 without one.
         max_upload_bytes: Upload size cap (the Voice Transcribe file limit by default).
+        read_dependencies: Authentication for the two read routes; plans hold the owner's request
+            text, so the API app passes the owner check unless the site is a public demo.
 
     Returns:
         The router.
@@ -310,7 +313,7 @@ def plans_router(
         items = [resolve_upload(uploads_dir, item) for item in body.items]
         return PlanRequestAccepted(plan_id=planner.submit(items))
 
-    @router.get("")
+    @router.get("", dependencies=list(read_dependencies))
     def list_plans() -> list[PlanSummary]:
         return registry.summaries()
 
@@ -318,7 +321,7 @@ def plans_router(
     def create_plan(plan: SitePlan) -> PlanSummary:
         return registry.put(plan)
 
-    @router.get("/{plan_id}")
+    @router.get("/{plan_id}", dependencies=list(read_dependencies))
     def get_plan(plan_id: PlanId) -> SitePlan:
         return registry.get(plan_id)[0]
 

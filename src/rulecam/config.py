@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str | None = None
     public_tunnel_url: str | None = None
     public_ui_url: str | None = None  # public origin of the web UI (worker page QR on posters)
+    # Demo sites only: let non-owners read the live feed, plans and evidence chain. Never on a real
+    # site, where those reads stay owner-only (W-01).
+    public_demo: bool = False
     planner_survey_window_s: float = (
         60.0  # seconds of recent chunks the planner samples frames from
     )

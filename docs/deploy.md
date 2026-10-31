@@ -1,14 +1,21 @@
 # Deployment: Vercel UI + RunPod API + RunPod Glimmer
 
 A view-only public deployment for showing the product. There is no owner login yet: everything that
-changes state (mode switch, plan approval, pairing, runtime plan) only works from the API pod itself.
+changes state (mode switch, plan approval, pairing, runtime plan, corrections) only works from the
+API pod itself.
+
+**Public reads need `PUBLIC_DEMO=true`.** The live feed (`/ws`), `GET /plans`, `GET /plans/{id}`
+and `GET /evidence/{day}/chain` expose site content, so they are owner-only unless the API pod sets
+`PUBLIC_DEMO=true`. Set it only on a demo site with staged, consenting data, never on a real site.
+Without it the public UI still loads, but its monitor, plans and verify-by-URL pages get 403; the
+verify page can still check a chain file the visitor uploads.
 
 ```
 browser ──► https://rulecam.vercel.app  (Next.js, ui/)
               │  /rulecam-api/*  (Next rewrite)
               ▼
             https://<api-pod>-8000.proxy.runpod.net   (FastAPI, live mode)
-              │  /ws  (read-only bus mirror; allowed for the PUBLIC_UI_URL origin only)
+              │  /ws  (read-only bus mirror; PUBLIC_UI_URL origin, only with PUBLIC_DEMO=true)
               ├─► Meta Model API (Spark, Voice, Image, SAM) via the replay cache
               ├─► https://<gpu-pod>-8080.proxy.runpod.net/v1  (llama-server + Muse Glimmer 30B)
               └─► https://<sam-pod>-8090.proxy.runpod.net     (sam_server + SAM 3.1, runtime only)
@@ -28,7 +35,7 @@ browser ──► https://rulecam.vercel.app  (Next.js, ui/)
 - Code in `/workspace/rulecam` (a `git archive` of `main`), deps with `uv sync --no-dev`.
 - `/workspace/rulecam/.env` holds non-secret settings: `RULECAM_MODE=live`, data and evidence dirs
   on `/workspace`, `META_API_BASE_URL`, `GLIMMER_*`, `PUBLIC_TUNNEL_URL` (this pod's proxy URL),
-  `PUBLIC_UI_URL=https://rulecam.vercel.app`.
+  `PUBLIC_UI_URL=https://rulecam.vercel.app`, and `PUBLIC_DEMO=true` (demo site only; see above).
 - Secrets are files with mode 600, read by `start.sh` into the environment: `.meta_api_key`,
   `.glimmer_api_key` (add `.baseten_api_key` / `HF_TOKEN` the same way when needed). The owner
   writes them; they are never in `.env`, argv, chat or git.
@@ -231,6 +238,8 @@ returns.
 
 - `curl https://rulecam.vercel.app/rulecam-api/mode` → `{"mode":"live","badge":"LIVE"}`.
 - `PUT /mode` through the public URL → 403 (also with a spoofed `X-Forwarded-For: 127.0.0.1`).
+- `POST /correction` through the public URL → 403.
+- With `PUBLIC_DEMO` unset: `GET /plans` through the public URL → 403. With `PUBLIC_DEMO=true`: 200.
 - Glimmer chat without the key → 401.
 - SAM `POST /segment` without the key → 401; `GET /health` → `{"status": "ok", …}`.
 - On the API pod: `uv run python -m rulecam.replay.preflight` (with the key files exported).

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None
     baseten_api_key: SecretStr | None = None
+    baseten_base_url: str = "https://inference.baseten.co/v1"
     baseten_spark_open_model: str = "meta-models/muse-spark-open-1026"
     glimmer_base_url: str = "http://127.0.0.1:8080/v1"
     hf_token: SecretStr | None = None

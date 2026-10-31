@@ -1,5 +1,6 @@
 # Rulecam developer commands (task book §3.3). `make check` must pass before every push.
-.PHONY: setup fmt lint type test check ui-check api ui openapi preflight golden live-test
+.PHONY: setup fmt lint type test check ui-check api ui openapi preflight golden live-test \
+	eval-replay
 
 UI_EXISTS := $(wildcard ui/package.json)
 
@@ -53,3 +54,9 @@ golden:
 
 live-test:
 	uv run pytest -m live
+
+# WS0 eval harness in replay mode: validate the eval set and re-score the recorded baseline
+# offline (no API, no network). `rulecam eval run` is the live counterpart (see eval/README.md).
+eval-replay:
+	uv run rulecam eval validate
+	uv run rulecam eval score eval/baseline/2026-10-31-live --out $(or $(EVAL_OUT),reports/eval)

@@ -16,7 +16,7 @@ from pathlib import Path
 STRICT_FLOOR = 85.0
 DEFAULT_FLOOR = 70.0
 STRICT_PACKAGES = frozenset(
-    {"contracts", "rules", "evidence", "advisor", "verify", "planner/lint.py"}
+    {"contracts", "rules", "evidence", "advisor", "verify", "planner/lint.py", "eval"}
 )
 
 

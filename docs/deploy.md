@@ -272,6 +272,15 @@ Update the API: `git archive origin/main | ssh … 'tar -x -C /workspace/rulecam
 `uv sync --no-dev` and restart (`pkill -f "[u]vicorn rulecam.api.app"` then `./start.sh` via
 `setsid nohup`, or restart the pod).
 
+### Operator exclusion (forklift drivers)
+
+A person riding a vehicle (forklift, pallet jack, cart, truck, ...) inside its box and moving with
+it is that vehicle's operator, not a pedestrian: person-vehicle distance and buffer rules ignore
+the ridden vehicle for them (`src/rulecam/rules/operators.py`). It is on for every rule. To count
+riders as pedestrians for a rule, list its id in `RULECAM_OPERATOR_EXCLUSION_OFF` (comma-separated,
+e.g. `RULECAM_OPERATOR_EXCLUSION_OFF=forklift-proximity`) and restart the API; each candidate's
+evidence record keeps the flag it was decided with.
+
 ## Runtime SAM cost
 
 Hosted SAM 3.1 takes **one concept per request** (a text prompt is a single noun phrase; see

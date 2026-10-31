@@ -51,6 +51,7 @@ class DecisionContext(Frozen):
     episode_gap_s: float = EPISODE_GAP_S
     cooldown_s: float = 0.0
     plan_version_hash: str = ""
+    operator_exclusion: bool = True
 
     def evaluate(
         self, tracks: Sequence[Track], *, pose: PoseFeatures | None = None
@@ -68,6 +69,7 @@ class DecisionContext(Frozen):
             cooldown_s=self.cooldown_s,
             plan_version_hash=self.plan_version_hash,
             pose=pose,
+            operator_exclusion=self.operator_exclusion,
         )
 
 

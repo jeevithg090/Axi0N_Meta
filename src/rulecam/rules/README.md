@@ -8,10 +8,11 @@ the semantics below are the contract that the tests pin down.
 
 | Name | What it does |
 |---|---|
-| `evaluate(rule, tracks, *, calibration, zones, t0, t1, hz=10.0, episode_gap_s=2.0, cooldown_s=0.0, plan_version_hash="", pose=None)` | Pure: no I/O, no clock, no randomness. Identical inputs give byte-identical output; the order of `tracks` does not matter. Returns candidates sorted by `(ts_start, camera_id, event_id)` |
+| `evaluate(rule, tracks, *, calibration, zones, t0, t1, hz=10.0, episode_gap_s=2.0, cooldown_s=0.0, plan_version_hash="", pose=None, operator_exclusion=True)` | Pure: no I/O, no clock, no randomness. Identical inputs give byte-identical output; the order of `tracks` does not matter. Returns candidates sorted by `(ts_start, camera_id, event_id)` |
 | `rule_ir_hash(rule)` | sha256 of the rule's canonical JSON (sorted keys) |
 | `backtest(rule, store, camera_id, t0, t1, *, calibration, zones, hz, baseline, pose) -> BacktestReport` | Re-runs the engine on `TrackStore.window` (no SAM calls): events, count, per-hour rate, `backtestable` (`yes`/`partial`/`no` from the concepts present in the stored tracks), and an optional v1-vs-v2 diff (`added`/`removed`, matched by subject and overlapping time). `report.headline()` gives "would have fired N× earlier today" |
-| `DecisionContext`, `candidate_payload(candidate, context)` | What a decision depended on besides tracks (rule, calibration, zones, window, rates). P3-07 stores `candidate_payload(...)` as the `candidate` record's payload |
+| `DecisionContext`, `candidate_payload(candidate, context)` | What a decision depended on besides tracks (rule, calibration, zones, window, rates, `operator_exclusion`). P3-07 stores `candidate_payload(...)` as the `candidate` record's payload |
+| `OperatorExclusion(disabled_rules=...)`, `.from_csv(text)`, `.enabled_for(rule_id)` | Engine configuration keyed by rule id: the rules whose owner turned operator exclusion off (`RULECAM_OPERATOR_EXCLUSION_OFF`) |
 | `rederive(record, store, *, pose=None) -> bool` | E9 audit: checks the rule hash, re-evaluates the stored window and requires the recorded candidate to be reproduced exactly. Tampered payloads, swapped rules or changed tracks give False |
 | `near_miss_at(tracks, *, camera_id, subject_concept, other_concept, at, calibration)` | Closest approach and time-to-collision per subject at one instant (e.g. person vs forklift) |
 | `PoseFeatures` | Protocol `(state, point) -> bool \| None` that adapts P4-04's `rulecam.pose.features`; passed as `pose=` |
@@ -78,9 +79,26 @@ coverage watchdog's job (P1-08).
 
 **Near-miss metrics.** For every `distance_m` node, the trace also holds `<path>.separation_m`,
 `<path>.closest_m` and `<path>.closest_in_s` (closest approach within a 1 s horizon), and
-`<path>.ttc_s` (time until the foot points come within 0.5 m, or `"none"`). Both objects are
-extrapolated at constant velocity; velocities are least-squares slopes of the ground foot point
-over the last 5 samples. These are part of the candidate, so `rederive` checks them too.
+`<path>.ttc_s` (time until they come within 0.5 m, or `"none"`). Both objects are extrapolated at
+constant velocity; velocities are least-squares slopes of the ground foot point over the last 5
+samples (an object seen once counts as standing still). The metrics measure the same geometry as
+the node (WS1d): to the other object's footprint when the node does (calibration, no
+`.foot_point`), the footprint moving rigidly with the object, and without the vehicle the subject
+operates. So `separation_m` equals the node's `value` at the firing time, and a candidate of
+`distance_m(lt=d)` always has `separation_m < d`. These are part of the candidate, so `rederive`
+checks them too.
+
+**Operator exclusion** (`operators.py`, WS1c). In `distance_m`, buffer-zone `inside` (and
+`count` in a buffer) and the near-miss metrics between a person-like concept (person, worker,
+pedestrian, ...) and a vehicle-like one (forklift, pallet jack, cart, vehicle, truck, ...), a
+vehicle is ignored for the person riding it. A person rides a vehicle during a *boarding*: a run
+of samples where at least 50% of the person's box lies in the vehicle's box (gaps up to 0.5 s
+bridged) in which, on the samples where the vehicle moves (5% of its box height per second), the
+two image velocities co-move (cosine >= 0.9, speeds within 30%) at least 80% of the time, for at
+least 1 s. Pedestrians in front of a moving vehicle overlap its box but do not co-move, so they
+still fire; a driver on a vehicle that does not move is never linked (the conservative side). On
+by default; `evaluate(..., operator_exclusion=False)` turns it off, which the runtime does for the
+rule ids in `RULECAM_OPERATOR_EXCLUSION_OFF` (owner override, no Rule IR change).
 
 **Episodes.** True samples of one subject merge into an episode across gaps shorter than
 `episode_gap_s` (2 s). With `cooldown_s`, an episode starting within that long after the

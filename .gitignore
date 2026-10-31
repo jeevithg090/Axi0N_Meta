@@ -25,6 +25,8 @@ data/
 node_modules/
 ui/.next/
 ui/out/
+ui/tsconfig.tsbuildinfo
+ui/src/api/openapi.json
 
 # OS / editors
 .DS_Store

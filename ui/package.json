@@ -1,0 +1,38 @@
+{
+  "name": "rulecam-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:verify-page": "vitest run --root ../src/rulecam/evidence/verify_page",
+    "format": "prettier --write .",
+    "openapi": "openapi-typescript src/api/openapi.json -o src/api/schema.d.ts"
+  },
+  "dependencies": {
+    "next": "15.1.6",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "3.2.0",
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/react": "16.2.0",
+    "@types/node": "22.10.7",
+    "@types/react": "19.0.8",
+    "@types/react-dom": "19.0.3",
+    "@vitejs/plugin-react": "4.3.4",
+    "eslint": "9.18.0",
+    "eslint-config-next": "15.1.6",
+    "jsdom": "25.0.1",
+    "openapi-typescript": "7.5.2",
+    "prettier": "3.4.2",
+    "typescript": "5.7.3",
+    "vitest": "2.1.9"
+  }
+}

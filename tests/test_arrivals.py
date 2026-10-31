@@ -126,3 +126,11 @@ def test_cli_rejects_print_cause_without_a_cause() -> None:
 def test_cli_rejects_a_cause_window_past_the_end() -> None:
     with pytest.raises(ValueError, match="cause window"):
         arrivals.main(["--seed", "7", "--cause", "replenishment", "--cause-start-min", "24"])
+
+
+def test_print_cause_refuses_a_window_the_card_would_reject() -> None:
+    # The sealed text must describe a session that can actually run.
+    with pytest.raises(ValueError, match="cause window"):
+        arrivals.main(
+            ["--seed", "7", "--cause", "replenishment", "--cause-start-min", "24", "--print-cause"]
+        )

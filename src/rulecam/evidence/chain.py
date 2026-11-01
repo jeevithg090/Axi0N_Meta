@@ -23,8 +23,10 @@ import sys
 
 if sys.platform != "win32":
     import fcntl
+    msvcrt = None
 else:
     fcntl = None
+    import msvcrt
 import hashlib
 import json
 import math
@@ -247,14 +249,27 @@ def _record_line(record: EventRecord) -> str:
 @contextmanager
 def _locked(path: Path) -> Iterator[None]:
     lock_path = path.with_name(path.name + ".lock")
-    with lock_path.open("a") as lock:
-        if fcntl is not None:
+    if fcntl is not None:
+        with lock_path.open("a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            if fcntl is not None:
+            try:
+                yield
+            finally:
                 fcntl.flock(lock, fcntl.LOCK_UN)
+    elif msvcrt is not None:
+        with lock_path.open("a+b") as lock:
+            if lock.tell() == 0:
+                lock.write(b" ")
+                lock.flush()
+            lock.seek(0)
+            msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                lock.seek(0)
+                msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        yield
 
 
 def _last_line(path: Path) -> str | None:

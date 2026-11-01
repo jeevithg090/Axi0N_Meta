@@ -547,3 +547,52 @@ def test_phrase_book_matches_unicode_normal_forms() -> None:
     ]
     book = PhraseBook.from_prerendered({"hat": unicodedata.normalize("NFD", nfc)}, rendered, ["es"])
     assert book.wavs_for("hat", "es") == [Path("tts/es.wav")]
+
+
+def test_dry_run_records_what_would_run_and_touches_nothing(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    executor = ActionExecutor(
+        clock=rig.clock,
+        notifier=rig.notifier,
+        escalation=rig.escalation,
+        interlock=rig.interlock,
+        speaker=rig.speaker,
+        light=StrobeLight(rig.light_plug, flashes=1, sleep=lambda s: None),
+        phrases=rig.phrases,
+        bus=rig.bus,
+        dry_run=True,
+    )
+    assert executor.dry_run
+    r = rule(
+        [
+            {"kind": "speak", "lang": "es"},
+            {"kind": "visual_signal"},
+            {"kind": "coach_station"},
+            {"kind": "notify", "role": "dock_lead"},
+            {"kind": "escalate", "role": "aide,charge_nurse"},
+            {"kind": "interlock_cut"},
+            {"kind": "log"},
+        ]
+    )
+    records = executor.run(make_candidate(), r, ALERT)
+    assert [x.detail for x in records] == [
+        "dry-run: would cut power",
+        "dry-run: would notify dock_lead",
+        "dry-run: would escalate aide → charge_nurse",
+        "dry-run: would strobe the light",
+        "dry-run: would play the warning (es)",
+        "dry-run: would show the station display and play the warning (crew)",
+        "dry-run: logged",
+    ]
+    assert all(x.ok and x.gate == "auto" for x in records)
+    assert rig.plug.events == []
+    assert rig.light_plug.events == []
+    assert rig.speaker.played == []
+    assert rig.notifier.list() == []
+    assert not rig.escalation.is_open(make_candidate().event_id)
+    human = executor.run(make_candidate(), r, HUMAN)
+    assert [x.detail for x in human] == [
+        "dry-run: would notify dock_lead (needs review)",
+        "dry-run: would escalate aide → charge_nurse (needs review)",
+    ]
+    assert executor.run(make_candidate(), r, SUPPRESSED) == []

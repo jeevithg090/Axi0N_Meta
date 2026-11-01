@@ -94,6 +94,7 @@ adds a row here with its licence.
 | `eval/runners/e3.py`, `eval/heldout/` | **Simulated** E3 harness and a team-written request set (S-04). It does not call the Planner; relabelled and its outputs withdrawn on Oct 31 (W-00) | #63 |
 | `docs/deploy.md` | Deployment guide: RunPod, Glimmer server, public UI, Pair-a-Phone behind the proxy | #54, #58, #59, #60 |
 | `docs/sets.md`, `docs/social.md`, `docs/standups.md` | Physical sets (S-01), X posts plan (S-08), standups and gate ledger (S-10) | #64, #67, #69, #74 |
+| `src/rulecam/advisor/{metrics,dock_stats,measurement}.py`, `advisor/stats/`, `advisor/whatif/` | Site Advisor metric catalogue, bottleneck detection, queueing what-ifs (Little, Erlang C, Allen-Cunneen), switchback plan and sign-flip read-out (P4-08b) | #80 |
 | `src/rulecam/pose/` | COCO-17 pose features (`is_down`, `hands_above_shoulder`, `ladder_three_point_lost`, `bent_back_lift`), the `PoseStates` adapter for the rule engine, the RTMPose ONNX estimator and keypoint interpolation (P4-04) | #77 |
 | `scripts/arrivals.py`, `eval/advisor/README.md` | Seeded truck-arrival script and seal protocol for Site Advisor sessions (P4-08a) | #76 |
 | `docs/consent.md` | Consent template and collection checklist for raw footage (S-02) | #75 |

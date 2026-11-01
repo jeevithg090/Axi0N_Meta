@@ -115,12 +115,12 @@ class Scene:
     def _compute_ignored(self, subject: SampledTrack, other: SampledTrack) -> BoolArray | None:
         if not self.operator_exclusion:
             return None
-        hz = self.timeline.hz
+        hz, horizon = self.timeline.hz, self.timeline.n
         if self._person_like(subject) and self._vehicle_like(other):
-            mask = operator_mask(subject, other, hz)
+            mask = operator_mask(subject, other, hz, horizon)
             return mask if mask.any() else None
         if self._vehicle_like(subject) and self._person_like(other):
-            mask = operator_mask(other, subject, hz)
+            mask = operator_mask(other, subject, hz, horizon)
             if not mask.any():
                 return None
             out = np.zeros(len(subject.present), dtype=np.bool_)

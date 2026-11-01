@@ -7,7 +7,7 @@ import pytest
 
 from rulecam.contracts import Calibration, CandidateEvent, RuleIR, Track, Zone
 from rulecam.rules import RuleEvaluationError, evaluate
-from rulecam.rules.predicates.spatial import rolling_median
+from rulecam.rules.geometry import rolling_median
 from tests.rules.helpers import (
     CAL,
     INSIDE_M,

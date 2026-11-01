@@ -16,7 +16,12 @@ describe, and the forklift-driver case:
   riding Y inside its box, `r = min(d/2, 0.5)` m from its footprint (must NOT fire: Y's operator),
   a pedestrian walking beside Y at the same distance, and one standing in front of it while it
   passes, inside its box but not moving with it (both MUST fire). The `drop_operator_exclusion`
-  mutant (`rule_ci.mutations`) is killed by the riding trace.
+  mutant (`rule_ci.mutations`) is killed by the riding traces.
+- **slow close-up operator traces** (live P1-07, phone-23): Y moves just above `moving`'s
+  threshold (or `SLOW_SPEED_MPS` without `moving`) with a box that fills the 720 px frame
+  (`CLOSE_UP_BOX_M`): at 0.2 m/s it moves 3% of its box height per second in the image. A person
+  riding it must NOT fire; a pedestrian it drives up to from `APPROACH_S` away, who stands
+  inside its box once it arrives, MUST fire.
 
 All traces use the synthetic camera (100 px = 1 m, `rule_ci.geometry`), also for a buffer rule
 whose other traces go through a real homography: they test the rule's kinematics and the
@@ -68,6 +73,12 @@ VEHICLE_BOX_M: Final = (2.0, 2.4)
 """A ridden vehicle's box: wide and tall enough to hold its operator."""
 RIDER_BOX_M: Final = (0.6, 1.2)
 RIDER_MAX_M: Final = 0.5
+CLOSE_UP_BOX_M: Final = (4.0, 7.2)
+"""A close-up vehicle's box: as tall as the 720 px frame (the live phone-23 forklift)."""
+SLOW_SPEED_MPS: Final = 0.25
+"""The slow traces' speed for a rule without `moving`."""
+APPROACH_S: Final = 2.0
+"""How long the slow vehicle drives before its box reaches the standing pedestrian."""
 
 
 @dataclass(frozen=True)
@@ -297,11 +308,13 @@ def operator_traces(sep: Separation) -> list[TraceCase]:
     """
     if not sep.operator_pair or not sep.footprint:
         return []
-    d = sep.threshold_m
-    r = round(min(d / 2, RIDER_MAX_M), 6)
+    return [*_operator_traces(sep), *_slow_operator_traces(sep)]
+
+
+def _operator_traces(sep: Separation) -> list[TraceCase]:
+    r = _rider_offset(sep)
     v = max(sep.speed, OPERATOR_SPEED_MPS)
-    hold = ENTER_S if sep.persist_s is None else above(sep.persist_s, time_eps(sep.persist_s))
-    n_samples = round((LEAD_IN_S + hold + STEP_S) * HZ)
+    n_samples = _hold_samples(sep)
     x0, y0 = ORIGIN
     half = VEHICLE_BOX_M[0] / 2
 
@@ -354,11 +367,68 @@ def operator_traces(sep: Separation) -> list[TraceCase]:
             )
         )
     return [
-        _case(
-            sep,
-            spec,
-            (_Actor(sep.subject, path, RIDER_BOX_M), _Actor(sep.other, vehicle, VEHICLE_BOX_M)),
-            n_samples,
-        )
+        _operator_case(sep, spec, path, vehicle, box=VEHICLE_BOX_M, n_samples=n_samples)
         for spec, path in layouts
     ]
+
+
+def _slow_operator_traces(sep: Separation) -> list[TraceCase]:
+    """The live close-up: a slow vehicle whose box fills the frame, ridden or driving up."""
+    r = _rider_offset(sep)
+    v = sep.speed if sep.moving is not None else SLOW_SPEED_MPS
+    x0, y0 = ORIGIN
+
+    def vehicle(i: int) -> XY:
+        return (x0 + v * i / HZ, y0)
+
+    def rider(i: int) -> XY:
+        return (x0 + v * i / HZ, y0 - r)
+
+    riding = Spec(
+        f"operator_riding_slow_{r:g}m",
+        f"rides the {sep.other} at {v:g} m/s filmed close up (its box fills the frame, so it "
+        f"moves {v / CLOSE_UP_BOX_M[1]:.1%} of its height per second in the image), {r:g} m "
+        "from its footprint: its operator, not a pedestrian",
+        "operator",
+        False,
+        pair="operator_vs_pedestrian",
+    )
+    cases = [
+        _operator_case(
+            sep, riding, rider, vehicle, box=CLOSE_UP_BOX_M, n_samples=_hold_samples(sep)
+        )
+    ]
+    if sep.persist_s is None and not sep.moving_subject:
+        reach = CLOSE_UP_BOX_M[0] / 2 + RIDER_BOX_M[0] / 2  # front edge to the person's centre
+        front = (x0 + reach + v * APPROACH_S, y0 + r)
+        n_samples = math.ceil((APPROACH_S + reach / v + ENTER_S) * HZ)
+        approach = Spec(
+            f"pedestrian_slow_approach_{r:g}m",
+            f"stands {r:g} m in front of the close-up {sep.other} that drives up to them at "
+            f"{v:g} m/s and over them: outside its box first, never moving with it",
+            "operator",
+            True,
+            pair="operator_vs_pedestrian",
+        )
+        cases.append(
+            _operator_case(
+                sep, approach, _static(front), vehicle, box=CLOSE_UP_BOX_M, n_samples=n_samples
+            )
+        )
+    return cases
+
+
+def _rider_offset(sep: Separation) -> float:
+    return round(min(sep.threshold_m / 2, RIDER_MAX_M), 6)
+
+
+def _hold_samples(sep: Separation) -> int:
+    hold = ENTER_S if sep.persist_s is None else above(sep.persist_s, time_eps(sep.persist_s))
+    return round((LEAD_IN_S + hold + STEP_S) * HZ)
+
+
+def _operator_case(
+    sep: Separation, spec: Spec, person: Path, vehicle: Path, *, box: XY, n_samples: int
+) -> TraceCase:
+    actors = (_Actor(sep.subject, person, RIDER_BOX_M), _Actor(sep.other, vehicle, box))
+    return _case(sep, spec, actors, n_samples)

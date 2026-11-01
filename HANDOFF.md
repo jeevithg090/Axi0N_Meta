@@ -59,7 +59,7 @@ All Must-tier, Should-tier, Shared Duties, and Stretch goals assigned to P2 have
 
 - **Status**: **SUBMITTED & CONFIRMED** on Nov 1, 2026.
 - **Full Name**: Navadarshanth Shanmugasundaram
-- **Email**: `nav6.aus@gmail.com`
+- **Email**: `nav6aus@gmail.com` (no dot, per Google Form credit claim requirement)
 - **Team ID**: `1097704756498249`
 - **Meta Billing URL**: [https://dev.meta.ai/billing?team_id=1097704756498249](https://dev.meta.ai/billing?team_id=1097704756498249)
 - **ETA**: 1 to 2 business days (distributed in batches; expect Mon Nov 2 or Tue Nov 3).

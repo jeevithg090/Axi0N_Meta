@@ -400,3 +400,122 @@ def test_run_e3_evaluation_with_real_pipeline(tmp_path: Path) -> None:
     assert summary.gate_passed is True
     assert summary.mean_duration_s >= 0.0
     assert results_path.exists()
+
+
+def test_plan_for_request_observable_declined_counts_as_miss() -> None:
+    req = HeldoutRequest(
+        id="req-obs-declined",
+        domain="kitchen",
+        author="Chef",
+        text="Make sure staff wash hands for 20 seconds",
+        expected_outcome="observable",
+        expected_category="valid_rule",
+    )
+
+    def make_declined_plan(inputs: Any) -> SitePlan:
+        return SitePlan(
+            plan_id=inputs.plan_id,
+            site_name=inputs.site_name,
+            setting_inferred="kitchen",
+            languages=("en",),
+            request=inputs.request,
+            inventory=(),
+            feasibility=(
+                FeasibilityVerdict(
+                    concern=inputs.request[0].text,
+                    verdict="declined",
+                    says="Declined by policy.",
+                    reason="custom policy",
+                ),
+            ),
+            rules=(),
+            privacy_mode=PrivacyMode.STANDARD,
+            acceptance=AcceptanceResult(checks=(), rounds=0),
+        )
+
+    fake_pipe = FakePipeline(make_declined_plan)
+    _plan, record = plan_for_request(req, run_idx=0, pipeline=fake_pipe)  # type: ignore[arg-type]
+    assert record.outcome == "declined"
+    assert record.is_valid_or_honest is False
+
+
+def test_plan_for_request_observable_punted_not_observable_counts_as_miss() -> None:
+    req = HeldoutRequest(
+        id="req-obs-not-obs",
+        domain="kitchen",
+        author="Chef",
+        text="Make sure staff wash hands for 20 seconds",
+        expected_outcome="observable",
+        expected_category="valid_rule",
+    )
+
+    def make_not_obs_plan(inputs: Any) -> SitePlan:
+        return SitePlan(
+            plan_id=inputs.plan_id,
+            site_name=inputs.site_name,
+            setting_inferred="kitchen",
+            languages=("en",),
+            request=inputs.request,
+            inventory=(),
+            feasibility=(
+                FeasibilityVerdict(
+                    concern=inputs.request[0].text,
+                    verdict="not_observable",
+                    says="Camera cannot see this.",
+                ),
+            ),
+            rules=(),
+            privacy_mode=PrivacyMode.STANDARD,
+            acceptance=AcceptanceResult(checks=(), rounds=0),
+        )
+
+    fake_pipe = FakePipeline(make_not_obs_plan)
+    _plan, record = plan_for_request(req, run_idx=0, pipeline=fake_pipe)  # type: ignore[arg-type]
+    assert record.outcome == "not_observable"
+    assert record.is_valid_or_honest is False
+
+
+def test_plan_for_request_guardrail_decline_on_observable_counts_as_miss() -> None:
+    # A request that triggers deterministic guardrail but was labeled observable is a miss
+    req = HeldoutRequest(
+        id="req-guardrail-mismatch",
+        domain="warehouse",
+        author="Auditor",
+        text="Tell me who is the slowest worker in the packaging line",
+        expected_outcome="observable",
+        expected_category="per_person_productivity",
+    )
+    fake_pipe = FakePipeline()
+    _plan, record = plan_for_request(req, run_idx=0, pipeline=fake_pipe)  # type: ignore[arg-type]
+    assert record.outcome == "declined"
+    assert record.is_valid_or_honest is False
+
+
+def test_aggregate_e3_team_written_requests_never_pass_gate() -> None:
+    records = [
+        RequestRunRecord(
+            request_id="req-1",
+            run_index=0,
+            outcome="valid_rule",
+            is_valid_or_honest=True,
+            first_pass_accepted=True,
+            repair_rounds=0,
+            duration_s=0.5,
+        ),
+    ]
+    summary = aggregate_e3(
+        records,
+        total_requests=1,
+        simulated=False,
+        has_outside_requests=False,
+        any_team_written=True,
+    )
+    assert summary.simulated is False
+    assert summary.any_team_written is True
+    assert summary.has_outside_requests is False
+    assert summary.valid_or_honest_rate == 1.0
+    assert summary.gate_passed is False
+
+    md = render_e3_markdown_table(summary)
+    assert "TEAM-WRITTEN" in md
+    assert "BLOCKED: team-written requests" in md

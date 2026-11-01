@@ -3,12 +3,19 @@
 E3 asks whether the Planner turns every concern in a held-out request into a valid RuleIR, an
 honest guardrail decline, or an honest not_observable verdict (target: >= 80% valid-or-honest).
 
-**This runner is a simulated harness. It does not call the Planner.** `simulate_plan_for_request`
-is a stand-in: declines come from the real deterministic guardrail, "not observable" outcomes are
-copied from the dataset's own `expected_outcome` label, and every other request receives the same
-fixed `inside` rule. It exists to exercise loading, aggregation and reporting, so every summary it
-produces is marked `simulated=True` and can never pass the E3 gate. A real E3 replaces the stand-in
-with the Planner pipeline and requests written by people outside the team (W-10).
+This runner supports both real PlannerPipeline execution (`run_e3_evaluation(pipeline=...)`)
+and a simulated harness (`simulate_plan_for_request`) for smoke-testing aggregation and reporting.
+When run without a pipeline, summaries are marked `simulated=True` and cannot pass the E3 gate.
+
+Outcomes are strictly checked against each request's `expected_outcome` label:
+- `observable`: must produce an accepted, valid RuleIR. Punting or declining counts as a miss.
+- `not_observable`: must produce an honest non-observable feasibility verdict with no rules.
+- `declined`: must produce an honest guardrail decline with reason and alternative.
+
+Furthermore, passing the E3 evaluation gate (`gate_passed=True`) requires:
+1. `simulated=False` (real PlannerPipeline run).
+2. Held-out requests authored by people outside the team (no `team-written` authors; S-04 / W-10).
+3. Achieved valid-or-honest rate >= 80.0%.
 """
 
 from __future__ import annotations
@@ -80,6 +87,8 @@ class E3Summary(BaseModel):
     mean_repair_rounds: float
     mean_duration_s: float
     simulated: bool
+    has_outside_requests: bool = True
+    any_team_written: bool = False
     gate_passed: bool
     runs: list[RequestRunRecord] = Field(default_factory=list)
 
@@ -329,11 +338,12 @@ def plan_for_request(
             ),
         )
         duration_s = max(0.001, time.monotonic() - t0)
+        is_honest = request.expected_outcome == "declined"
         record = RequestRunRecord(
             request_id=request.id,
             run_index=run_idx,
             outcome="declined",
-            is_valid_or_honest=True,
+            is_valid_or_honest=is_honest,
             first_pass_accepted=True,
             repair_rounds=0,
             duration_s=round(duration_s, 3),
@@ -381,11 +391,12 @@ def plan_for_request(
     not_obs = [f for f in plan.feasibility if f.verdict == "not_observable"]
     declined = [f for f in plan.feasibility if f.verdict == "declined"]
     if not_obs and not plan.rules:
+        is_honest = request.expected_outcome == "not_observable"
         record = RequestRunRecord(
             request_id=request.id,
             run_index=run_idx,
             outcome="not_observable",
-            is_valid_or_honest=True,
+            is_valid_or_honest=is_honest,
             first_pass_accepted=True,
             repair_rounds=plan.acceptance.rounds,
             duration_s=round(duration_s, 3),
@@ -393,11 +404,12 @@ def plan_for_request(
         )
         return plan, record
     if declined and not plan.rules:
+        is_honest = request.expected_outcome == "declined"
         record = RequestRunRecord(
             request_id=request.id,
             run_index=run_idx,
             outcome="declined",
-            is_valid_or_honest=True,
+            is_valid_or_honest=is_honest,
             first_pass_accepted=True,
             repair_rounds=plan.acceptance.rounds,
             duration_s=round(duration_s, 3),
@@ -406,11 +418,12 @@ def plan_for_request(
         return plan, record
     if plan.rules:
         all_passed = plan.acceptance.all_passed
+        is_valid = all_passed and (request.expected_outcome == "observable")
         record = RequestRunRecord(
             request_id=request.id,
             run_index=run_idx,
             outcome="valid_rule",
-            is_valid_or_honest=all_passed,
+            is_valid_or_honest=is_valid,
             first_pass_accepted=(plan.acceptance.rounds == 0 and all_passed),
             repair_rounds=plan.acceptance.rounds,
             duration_s=round(duration_s, 3),
@@ -434,8 +447,10 @@ def aggregate_e3(
     total_requests: int,
     *,
     simulated: bool,
+    has_outside_requests: bool = True,
+    any_team_written: bool = False,
 ) -> E3Summary:
-    """Aggregate run records into summary statistics; a simulated run never passes the gate."""
+    """Aggregate run records into summary statistics; non-outside runs never pass the gate."""
     total_runs = len(records)
     if total_runs == 0:
         return E3Summary(
@@ -449,6 +464,8 @@ def aggregate_e3(
             mean_repair_rounds=0.0,
             mean_duration_s=0.0,
             simulated=simulated,
+            has_outside_requests=has_outside_requests,
+            any_team_written=any_team_written,
             gate_passed=False,
             runs=[],
         )
@@ -459,6 +476,13 @@ def aggregate_e3(
     mean_duration = sum(r.duration_s for r in records) / total_runs
     valid_rate = valid_honest / total_runs
     first_pass_rate = first_pass / total_runs
+
+    gate_unblocked = (
+        not simulated
+        and has_outside_requests
+        and not any_team_written
+        and valid_rate >= TARGET_VALID_OR_HONEST_RATE
+    )
 
     return E3Summary(
         total_requests=total_requests,
@@ -471,7 +495,9 @@ def aggregate_e3(
         mean_repair_rounds=round(mean_repairs, 3),
         mean_duration_s=round(mean_duration, 3),
         simulated=simulated,
-        gate_passed=not simulated and valid_rate >= TARGET_VALID_OR_HONEST_RATE,
+        has_outside_requests=has_outside_requests,
+        any_team_written=any_team_written,
+        gate_passed=gate_unblocked,
         runs=list(records),
     )
 
@@ -483,6 +509,9 @@ def render_e3_markdown_table(summary: E3Summary) -> str:
     if summary.simulated:
         title = "### Evaluation E3: Held-Out Requests (SIMULATED HARNESS, not a Planner run)"
         status_str = "SIMULATED: no gate"
+    elif summary.any_team_written or not summary.has_outside_requests:
+        title = "### Evaluation E3: Held-Out Requests (TEAM-WRITTEN: outside authors required)"
+        status_str = "BLOCKED: team-written requests"
     else:
         title = "### Evaluation E3: Held-Out Requests Generalisation"
         status_str = "PASS (Gate unblocked)" if summary.gate_passed else "FAIL"
@@ -517,6 +546,11 @@ def render_e3_markdown_table(summary: E3Summary) -> str:
             f"*Simulated: `simulate_plan_for_request` stood in for the Planner on "
             f"{summary.total_requests} requests x {summary.runs_per_request} runs. "
             "These numbers are true by construction and are not evidence of generalisation.*"
+        )
+    elif summary.any_team_written or not summary.has_outside_requests:
+        footnote = (
+            f"*Team-written: all {summary.total_requests} requests are team-written personas. "
+            "Per S-04 and W-10, gate passage requires requests written by people outside the team.*"
         )
     lines.extend(["", footnote])
     return "\n".join(lines)
@@ -555,7 +589,15 @@ def run_e3_evaluation(
             json_file.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
             yaml_file.write_text(plan_to_yaml(plan), encoding="utf-8")
 
-    summary = aggregate_e3(records, len(requests), simulated=(pipeline is None))
+    any_team_written = any("team-written" in req.author.lower() for req in requests)
+    has_outside_requests = not any_team_written and len(requests) > 0
+    summary = aggregate_e3(
+        records,
+        len(requests),
+        simulated=(pipeline is None),
+        has_outside_requests=has_outside_requests,
+        any_team_written=any_team_written,
+    )
 
     results_path.write_text(summary.model_dump_json(indent=2), encoding="utf-8")
     _log.info(

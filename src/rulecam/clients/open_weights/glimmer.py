@@ -33,7 +33,13 @@ from rulecam.clients.errors import ModelHTTPError, ModelResponseError
 from rulecam.clients.open_weights.evidence_log import EvidenceLog, InferenceLine
 from rulecam.clients.ratelimit import TokenBucket
 from rulecam.clients.relay import ModelUsed, publish_model_used
-from rulecam.clients.transport import HttpxTransport, RetryPolicy, Sender, Transport
+from rulecam.clients.transport import (
+    HttpxTransport,
+    PooledTransport,
+    RetryPolicy,
+    Sender,
+    Transport,
+)
 from rulecam.config import Settings
 from rulecam.contracts import Clock
 from rulecam.log import get_logger
@@ -63,6 +69,11 @@ IMAGE_TYPES: Mapping[str, str] = {
     ".png": "image/png",
     ".webp": "image/webp",
 }
+
+
+def glimmer_extra_urls(settings: Settings) -> list[str]:
+    """The extra Glimmer servers of `GLIMMER_EXTRA_BASE_URLS`, in order, blanks dropped."""
+    return [url.strip() for url in settings.glimmer_extra_base_urls.split(",") if url.strip()]
 
 
 def image_data_url(path: Path) -> str:
@@ -214,7 +225,9 @@ class GlimmerClient:
         )
         # llama-server ignores the key unless started with --api-key (needed when it is remote).
         key = settings.glimmer_api_key.get_secret_value() if settings.glimmer_api_key else "local"
-        http = HttpxTransport(settings.glimmer_base_url, key, timeout_s=DEFAULT_TIMEOUT_S)
+        urls = [settings.glimmer_base_url, *glimmer_extra_urls(settings)]
+        servers = [HttpxTransport(url, key, timeout_s=DEFAULT_TIMEOUT_S) for url in urls]
+        http: Transport = servers[0] if len(servers) == 1 else PooledTransport(servers)
         transport = cache.wrap_transport(PROVIDER, config.model, http)
         evidence = EvidenceLog(settings.evidence_dir / "glimmer" / "inference-log.jsonl")
         return cls(

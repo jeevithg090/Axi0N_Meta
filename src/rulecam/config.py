@@ -74,6 +74,8 @@ class Settings(BaseSettings):
     # people out by race, ethnicity, religion, nationality or sexual orientation; every compiled
     # rule activates (failed checks are caveats); the verifier's verdict is final.
     rulecam_prototype_mode: bool = False
+    # The site's time zone (IANA name), for owner questions like "how many customers at 1 pm".
+    rulecam_site_timezone: str = "UTC"
     # Evidence strips sent to Glimmer: frames per strip and their width in pixels.
     rulecam_strip_frames: int = Field(default=6, ge=1, le=12)
     rulecam_strip_max_width: int = Field(default=640, ge=320, le=1920)
@@ -87,6 +89,9 @@ class Settings(BaseSettings):
     glimmer_base_url: str = "http://127.0.0.1:8080/v1"
     glimmer_api_key: SecretStr | None = None
     glimmer_model: str = "muse-glimmer-30b"
+    # More llama-server URLs serving the same model, comma-separated: Tier 1 calls are spread
+    # over all of them, least busy first, with failover (`clients.transport.PooledTransport`).
+    glimmer_extra_base_urls: str = ""
     glimmer_quant: str = ""
     glimmer_hardware: str = ""
     # Hosted OpenAI-compatible Glimmer (e.g. Routeway) may honour JSON mode but not a strict

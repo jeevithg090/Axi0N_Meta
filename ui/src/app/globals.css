@@ -96,6 +96,9 @@ a {
 .badge-offline {
   color: var(--offline);
 }
+.badge-alarm {
+  color: var(--high);
+}
 
 .hud {
   display: flex;

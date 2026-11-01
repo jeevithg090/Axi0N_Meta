@@ -234,6 +234,15 @@ h2 {
 .tier-violation strong {
   color: var(--high);
 }
+.needs-review {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border: 2px solid var(--high);
+  border-radius: 8px;
+  color: var(--high);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
 pre {
   white-space: pre-wrap;
   font-size: 12px;

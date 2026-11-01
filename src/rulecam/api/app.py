@@ -754,6 +754,7 @@ def cost_watch(
         plan=lambda: runtime.plan,
         last_seen=chunks.last_seen,
         idle_stop=IdleGpuStop.from_settings(settings),
+        busy=lambda: runtime.verify_pending > 0,
     )
 
 

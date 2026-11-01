@@ -22,6 +22,8 @@ from rulecam.replay.errors import ReplayMiss
 from rulecam.rules.backtest import DecisionContext
 from rulecam.runtime.loop import ActivePlan, ChunkTracker, RuntimeLoop, StripRenderer
 from rulecam.verify.decision import Decision
+from rulecam.verify.guard import verifier_error
+from rulecam.verify.policy import decide_unverified
 from tests.fakes import FakeClock, FakeVerifier, InMemoryTrackStore
 from tests.rules.helpers import CAL, INSIDE_M, SINK_ZONE, make_rule, walk_track
 
@@ -117,6 +119,9 @@ class FakePolicy:
         return candidate.severity == "high"
 
     def decide(self, candidate: CandidateEvent, rule: RuleIR, tier1: VerifierVerdict) -> Decision:
+        error = verifier_error(tier1)
+        if error is not None:  # as the real policy: a failed verification goes to a person
+            return decide_unverified(candidate, rule, error)
         alert = tier1.verdict == "violation"
         return Decision(
             alert=alert, route="auto", act_first=self.act_first(candidate, rule), reason="fake"

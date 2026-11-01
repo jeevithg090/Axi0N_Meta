@@ -266,7 +266,7 @@ async def test_act_first_runs_in_order_before_verification(tmp_path: Path) -> No
     assert len(strips.modes) == 1  # the act-first strip is reused for verification
 
 
-async def test_a_failing_verification_is_counted_and_the_loop_carries_on(tmp_path: Path) -> None:
+async def test_a_failing_verification_is_decided_and_the_loop_carries_on(tmp_path: Path) -> None:
     store = InMemoryTrackStore()
     tracker = CameraTracker(store)
     verifier = GatedVerifier(raise_for="cam1")
@@ -279,16 +279,20 @@ async def test_a_failing_verification_is_counted_and_the_loop_carries_on(tmp_pat
             for i in range(2):
                 bus.publish(Topic.CHUNK_READY, make_chunk(camera, i))
         await wait_until(
-            lambda: loop.metrics.verifications_failed == 1 and verdicts(loop, tmp_path) == 1
-        )
-        await wait_until(
             lambda: loop.metrics.chunks_processed == 4 and loop.metrics.verify_pending == 0
         )
     metrics = loop.metrics
-    assert metrics.chunks_failed == 0
-    kinds = [kind for kind, _ in chain_records(loop, tmp_path)]
-    assert kinds.count("candidate") == 2
-    assert kinds.count("verdict") == 1  # cam2's; cam1's raised and was never chained
+    assert (metrics.chunks_failed, metrics.verifications_failed, metrics.verify_errors) == (0, 1, 0)
+    records = chain_records(loop, tmp_path)
+    assert [kind for kind, _ in records].count("candidate") == 2
+    # cam2's verdict, and for cam1 (whose verifier raised) an error verdict and its decision.
+    reasons = [str(p.get("reason", "")) for kind, p in records if kind == "verdict"]
+    assert (
+        sum(r.startswith("verifier_error: RuntimeError: verifier exploded") for r in reasons) == 1
+    )
+    decisions = [p["decision"] for kind, p in records if kind == "verdict" and "decision" in p]
+    assert [d["route"] for d in decisions] == ["human_queue"]  # type: ignore[index]
+    assert_chain_order(records)
 
 
 # --- executors ---------------------------------------------------------------------------------

@@ -65,6 +65,7 @@ from rulecam.runtime.response import Response, build_response
 from rulecam.runtime.sampling import SamplingPolicy
 from rulecam.runtime.strips import EpisodeStrips, face_detector
 from rulecam.runtime.timings import StageTimings
+from rulecam.verify.guard import BreakerPolicy, CircuitBreaker, GuardedVerifier, http_probe
 from rulecam.verify.tier1 import GlimmerVerifier
 
 _log = get_logger(__name__)
@@ -246,9 +247,33 @@ def build_perception(
 
 def build_tier1(
     settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus
-) -> GlimmerVerifier:
-    """The Tier 1 verifier: Glimmer through the replay cache."""
-    return GlimmerVerifier(GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus))
+) -> GuardedVerifier:
+    """The Tier 1 verifier: Glimmer through the replay cache, behind retry and a circuit breaker.
+
+    A failure never passes silently: it becomes a `verifier_error` verdict that the policy sends
+    to a person (`verify.guard`). While the circuit is open, the API's ticker probes llama-server's
+    `/health` (not in replay mode, where nothing is called).
+    """
+    client = GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+    policy = BreakerPolicy(
+        retries=settings.rulecam_verify_retries,
+        failure_threshold=settings.rulecam_verify_breaker_failures,
+        cooldown_s=settings.rulecam_verify_breaker_cooldown_s,
+    )
+    probe = None
+    if settings.rulecam_mode != "replay":
+        probe = http_probe(glimmer_health_url(settings.glimmer_base_url))
+    return GuardedVerifier(
+        GlimmerVerifier(client, raise_errors=True),
+        model_version=client.model,
+        breaker=CircuitBreaker(policy),
+        probe=probe,
+    )
+
+
+def glimmer_health_url(base_url: str) -> str:
+    """llama-server's `/health` for an OpenAI-style base URL (`…/v1` → `…/health`)."""
+    return base_url.rstrip("/").removesuffix("/v1") + "/health"
 
 
 def build_runtime(

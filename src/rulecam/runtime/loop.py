@@ -34,6 +34,16 @@ candidate is chained, so a slow verdict never holds up the chunks behind it or o
 A candidate's `verdict` and `action` records always follow its `candidate` record (they name its
 `event_id`); records of other candidates may come in between.
 
+**A failed verification is never silent (P3-05):** when Tier 1 gives no verdict (the verifier, or
+the strip render before it, raised; or `verify.guard.GuardedVerifier` gave up after its retries or
+while its circuit is open), the candidate is still decided. An `unsure` error verdict whose reason
+starts `verifier_error: ` is chained and published like any verdict, the policy routes it to the
+human queue (`policy.decide_unverified`; Tier 2 may confirm it first), the decision is chained as
+a second `verdict` record, and the human-queue actions (notify/escalate, or a `site_lead`
+notification) run. `verifications_failed` counts these; `verifier` / `verifier_down` in
+`metrics` show the Tier 1 circuit. Only an error after the decision (actions, chain) is counted
+in `verify_errors` and logged.
+
 **Threads:** admission (motion gate, ffmpeg), the SAM concept pass, the in-order stage and
 verification each run on their own bounded `ThreadPoolExecutor`, never on asyncio's shared
 default executor, so one stage cannot starve another. Runtime SAM calls are also capped across
@@ -75,7 +85,7 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from pydantic import Field
 
@@ -113,6 +123,7 @@ from rulecam.runtime.sampling import chunk_end as chunk_end  # noqa: PLC0414 - r
 from rulecam.runtime.timings import StageStats, StageTimings
 from rulecam.runtime.timings import percentile as percentile  # noqa: PLC0414 - re-export
 from rulecam.verify.decision import Decision
+from rulecam.verify.guard import VerifierHealth, describe, error_verdict, verifier_error
 
 _log = get_logger(__name__)
 
@@ -183,6 +194,15 @@ class ActionRunner(Protocol):
         ...
 
 
+@runtime_checkable
+class ReportsHealth(Protocol):
+    """A verifier with a circuit breaker (`verify.guard.GuardedVerifier`)."""
+
+    def health(self) -> VerifierHealth:
+        """The circuit's state."""
+        ...
+
+
 class SamUsage(Protocol):
     """Counts the runtime segmenter's SAM requests and billed frames (`perception.CallMeter`)."""
 
@@ -226,8 +246,10 @@ class LoopMetrics(Frozen):
     in it. `in_flight` counts chunks submitted for segmentation and not yet consumed, at most
     `pipeline_depth` per camera; the latency percentiles cover the last 200 segmentations.
     `stages` holds each stage's p50/p95 (`runtime.timings`); `verify_pending` counts candidates
-    waiting for or in Tier 1 verification, `verifications_failed` the ones whose verification
-    raised (logged, never chained).
+    waiting for or in Tier 1 verification, `verifications_failed` the ones Tier 1 gave no verdict
+    for (each chained as an error verdict and sent to the human queue), and `verify_errors` the
+    verifications that raised after their decision (logged). `verifier` is the Tier 1 circuit
+    breaker (when the verifier has one) and `verifier_down` whether it is not closed.
     """
 
     chunks_processed: int = 0
@@ -252,6 +274,9 @@ class LoopMetrics(Frozen):
     segment_latency_p95_s: float = 0.0
     verify_pending: int = 0
     verifications_failed: int = 0
+    verify_errors: int = 0
+    verifier_down: bool = False
+    verifier: VerifierHealth | None = None
     stages: dict[str, StageStats] = Field(default_factory=dict)
 
 
@@ -500,7 +525,9 @@ class RuntimeLoop:
         self._lock = threading.RLock()  # submission and in-order consumption share the state
         self._in_flight = 0  # touched on the event loop only
         self._verify_pending = 0  # touched on the event loop only
-        self._verify_failed = 0
+        self._verify_failed = 0  # incremented on the verification threads, under `_count_lock`
+        self._verify_errors = 0  # touched on the event loop only
+        self._count_lock = threading.Lock()
         self._verify_workers = max(1, verify_workers)
         self._timings = timings or StageTimings(monotonic=lambda: clock.now().timestamp())
 
@@ -508,6 +535,11 @@ class RuntimeLoop:
     def plan(self) -> ActivePlan | None:
         """The plan being enforced, if any."""
         return self._plan
+
+    @property
+    def verify_pending(self) -> int:
+        """Candidates waiting for or in verification (the idle GPU stop waits for them)."""
+        return self._verify_pending
 
     @property
     def timings(self) -> StageTimings:
@@ -521,6 +553,7 @@ class RuntimeLoop:
         lags = list(s.lag.values())
         stages = self._timings.report()
         segment = stages["segment"]
+        health = self._verifier.health() if isinstance(self._verifier, ReportsHealth) else None
         return LoopMetrics(
             chunks_processed=s.processed,
             chunks_skipped=s.skipped,
@@ -544,6 +577,9 @@ class RuntimeLoop:
             segment_latency_p95_s=segment.p95_s,
             verify_pending=self._verify_pending,
             verifications_failed=self._verify_failed,
+            verify_errors=self._verify_errors,
+            verifier_down=health.down if health is not None else False,
+            verifier=health,
             stages=stages,
         )
 
@@ -661,12 +697,12 @@ class RuntimeLoop:
                     lane.slots.release()
 
     async def _verify_later(self, verification: _Verification, executors: _Executors) -> None:
-        """Verify one chained candidate on the verification pool; a failure is logged."""
+        """Verify one chained candidate on the verification pool; an error after it is logged."""
         loop = asyncio.get_running_loop()
         try:
             await loop.run_in_executor(executors.verify, self._verify, verification)
         except Exception:
-            self._verify_failed += 1
+            self._verify_errors += 1
             _log.exception(
                 "runtime_verify_failed",
                 event_id=verification.candidate.event_id,
@@ -707,7 +743,8 @@ class RuntimeLoop:
 
         Raises:
             RulecamError: The chunk failed (it is accounted for as a gap first), or a candidate's
-                verification failed.
+                actions or chain records failed after its decision. A failed verification does
+                not raise: it is decided (human queue).
         """
         job = self._admit(chunk, self._timings.now())
         if job is None:
@@ -998,19 +1035,17 @@ class RuntimeLoop:
         """Verify a chained candidate, decide, act; chain and publish the verdict and actions.
 
         Its stages are timed on a timeline of its own (keyed by `event_id`), logged as
-        `runtime_verify_timing`.
+        `runtime_verify_timing`. Without a verdict, it is decided as unverified (module docstring).
         """
         camera, chunk_id, key = job.chunk.camera_id, job.chunk.chunk_id, job.candidate.event_id
         started = self._timings.now()
         self._timings.record("verify_queue", camera, chunk_id, started - job.recorded, key=key)
         try:
-            candidate = job.rendered or self._render(
-                job.candidate, job.context, job.chunk, job.mode, key
-            )
-            verifying = self._timings.now()
-            tier1 = self._verifier.verify(candidate, job.context.rule)
+            candidate, tier1 = self._tier1(job)
             verified = self._timings.now()
-            self._timings.record("verify", camera, chunk_id, verified - verifying, key=key)
+            if verifier_error(tier1) is not None:
+                with self._count_lock:
+                    self._verify_failed += 1
             decision = self._conclude(candidate, tier1, job)
             self._timings.record(
                 "decide", camera, chunk_id, self._timings.now() - verified, key=key
@@ -1019,26 +1054,46 @@ class RuntimeLoop:
             self._timings.finish(camera, chunk_id, key=key, event="runtime_verify_timing")
         return decision
 
+    def _tier1(self, job: _Verification) -> tuple[CandidateEvent, VerifierVerdict]:
+        """Render the strip (if not yet) and ask Tier 1, timed (`verify`).
+
+        Returns:
+            The candidate (with its strip when it rendered) and Tier 1's verdict, or an error
+            verdict when rendering or verification raised: never an exception.
+        """
+        camera, chunk_id, key = job.chunk.camera_id, job.chunk.chunk_id, job.candidate.event_id
+        candidate = job.rendered or job.candidate
+        verifying = self._timings.now()
+        try:
+            if job.rendered is None:
+                candidate = self._render(job.candidate, job.context, job.chunk, job.mode, key)
+                verifying = self._timings.now()
+            tier1 = self._verifier.verify(candidate, job.context.rule)
+        except Exception as exc:  # no verdict: decided as unverified below, never dropped
+            _log.exception("runtime_verify_failed", event_id=key, camera_id=camera)
+            latency_ms = round((self._timings.now() - verifying) * 1000)
+            tier1 = error_verdict(describe(exc), latency_ms=latency_ms)
+        self._timings.record("verify", camera, chunk_id, self._timings.now() - verifying, key=key)
+        return candidate, tier1
+
     def _conclude(
         self, candidate: CandidateEvent, tier1: VerifierVerdict, job: _Verification
     ) -> Decision:
-        """Chain the verdict, ask the policy and run (and chain) the actions it allows."""
+        """Chain the verdict, ask the policy and run (and chain) the actions it allows.
+
+        After act-first actions, or when Tier 1 gave no verdict, the decision is chained too.
+        """
         rule, chunk, key = job.context.rule, job.chunk, candidate.event_id
         self._append("verdict", {"event_id": key, **_dump(tier1)}, chunk, key)
         self._bus.publish(Topic.VERDICT_NEW, VerdictNew(event_id=candidate.event_id, verdict=tier1))
         decision = self._policy.decide(candidate, rule, tier1)
-        if not job.act_first:
-            self._record_actions(
-                candidate, self._actions.run(candidate, rule, decision), chunk, key
-            )
+        if job.act_first or verifier_error(tier1) is not None:
+            self._append("verdict", {"event_id": key, "decision": _dump(decision)}, chunk, key)
+        if job.act_first and decision.route != "human_queue":
             return decision
-        # Actions already ran. Chain the after-the-fact decision, and if a verifier demoted the
-        # alert, ask a person to review it (notify/escalate only: nothing is re-cut or re-spoken).
-        self._append("verdict", {"event_id": key, "decision": _dump(decision)}, chunk, key)
-        if decision.route == "human_queue":
-            self._record_actions(
-                candidate, self._actions.run(candidate, rule, decision), chunk, key
-            )
+        # Actions already ran for act-first: if the alert was demoted (or could not be verified),
+        # ask a person to review it (notify/escalate only: nothing is re-cut or re-spoken).
+        self._record_actions(candidate, self._actions.run(candidate, rule, decision), chunk, key)
         return decision
 
     def _record_actions(

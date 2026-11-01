@@ -19,6 +19,15 @@ the tiers and the decision (see `firewall.py`).
 alerts, Tier 1 confidently rejecting suppresses, and anything else (unsure, low score) goes to
 `human_queue`. Nothing passes silently. A dispute then stays `pending` for a person.
 
+**When Tier 1 fails** (no verdict: Glimmer unreachable, a timeout, a bad reply, or its circuit is
+open; `verify.guard`), the loop records an `unsure` error verdict (`verifier_error: …`) and
+`decide_unverified` applies, for every severity: **the alert goes to `human_queue`** ("verifier
+unavailable — <reason>"), never suppressed and never left undecided. For HIGH the actions already
+ran; a person reviews them. When the rule allows Tier 2 and it is configured, Tier 2 reviews the
+candidate first (without a Tier 1 description of the frames): if it confirms, the alert goes out
+(`auto`, after the firewall); anything else, including a confident Tier 2 rejection, still goes
+to a person, because one tier alone never suppresses an alert whose Tier 1 check could not run.
+
 **Without the firewall** (`screen_required`: the runtime wanted it but Prompt Guard 2 is not
 available) scene text cannot be screened, so a candidate whose verdicts report scene text is
 never suppressed on those verdicts: it goes to `human_queue` instead.
@@ -34,12 +43,14 @@ from rulecam.errors import RulecamError
 from rulecam.log import get_logger
 from rulecam.verify.decision import Decision
 from rulecam.verify.firewall import SceneTextFirewall
+from rulecam.verify.guard import verifier_error
 
 _log = get_logger(__name__)
 
 _TAMPER_REASON = "text in view tried to instruct the verifier; a person reviews it"
 _UNSCREENED_REASON = "text in view could not be screened (firewall degraded); a person reviews it"
 NO_TIER2_REASONING = "no Tier 2 reviewer is configured; a person decides"
+UNAVAILABLE = "verifier unavailable — "
 
 
 class Tier2(Protocol):
@@ -100,6 +111,37 @@ def _low(tier1: VerifierVerdict, tier2: VerifierVerdict | None, threshold: float
     )
 
 
+def decide_unverified(
+    candidate: CandidateEvent,
+    rule: RuleIR,
+    error: str,
+    tier2: VerifierVerdict | None = None,
+    *,
+    threshold: float | None = None,
+) -> Decision:
+    """Decide a candidate whose Tier 1 verification failed (a pure function).
+
+    Args:
+        candidate: The candidate (HIGH already acted first).
+        rule: Its rule (for the default threshold).
+        error: Why Tier 1 failed.
+        tier2: Spark Open's verdict, when it reviewed the candidate instead.
+        threshold: Calibrated threshold; defaults to `rule.verify.min_confidence`.
+
+    Returns:
+        An alert: `auto` only when Tier 2 confirmed it, else `human_queue`. Never suppressed.
+    """
+    tau = rule.verify.min_confidence if threshold is None else threshold
+    act_first = candidate.severity == Severity.HIGH
+    if tier2 is not None and confirms(tier2, tau):
+        reason = f"Tier 2 confirmed; Tier 1 unavailable ({error})"
+        return Decision(alert=True, route="auto", act_first=act_first, reason=reason)
+    seen = f"; Tier 2 said {tier2.verdict} ({tier2.score:.2f})" if tier2 is not None else ""
+    return Decision(
+        alert=True, route="human_queue", act_first=act_first, reason=f"{UNAVAILABLE}{error}{seen}"
+    )
+
+
 def decide(
     candidate: CandidateEvent,
     rule: RuleIR,
@@ -113,14 +155,17 @@ def decide(
     Args:
         candidate: The candidate (its severity picks the branch).
         rule: Its rule (for the default threshold).
-        tier1: Glimmer's verdict.
+        tier1: Glimmer's verdict (an error verdict means Tier 1 failed: `decide_unverified`).
         tier2: Spark Open's verdict, when it ran.
         threshold: Calibrated threshold; defaults to `rule.verify.min_confidence`.
 
     Returns:
-        The decision. For HIGH severity `alert` is always true.
+        The decision. For HIGH severity, and whenever Tier 1 failed, `alert` is always true.
     """
     tau = rule.verify.min_confidence if threshold is None else threshold
+    error = verifier_error(tier1)
+    if error is not None:
+        return decide_unverified(candidate, rule, error, tier2, threshold=tau)
     if candidate.severity == Severity.HIGH:
         return _high(tier1, tier2, tau)
     return _low(tier1, tier2, tau)
@@ -185,6 +230,9 @@ class VerificationPolicy:
         Returns:
             The decision.
         """
+        error = verifier_error(tier1)
+        if error is not None:
+            return self._unverified(candidate, rule, tier1, error)
         tau = self.threshold(rule)
         tier2 = None
         try:
@@ -209,6 +257,33 @@ class VerificationPolicy:
             event_id=candidate.event_id,
             alert=decision.alert,
             route=decision.route,
+        )
+        return decision
+
+    def _unverified(
+        self, candidate: CandidateEvent, rule: RuleIR, failed: VerifierVerdict, error: str
+    ) -> Decision:
+        """Tier 1 failed: Tier 2 may confirm (then the firewall screens it); else a person."""
+        tau = self.threshold(rule)
+        tier2 = None
+        try:
+            if self._tier2 is not None and needs_tier2(rule, failed, tau):
+                tier2 = self._tier2.verify(candidate, rule, None)  # no Tier 1 description
+            decision = decide_unverified(candidate, rule, error, tier2, threshold=tau)
+            wall = self._firewall if decision.route == "auto" else None
+            if wall is not None and wall.screen(candidate, rule, failed, tier2).flagged:
+                return self._to_human(candidate, rule, _TAMPER_REASON)
+        except (RulecamError, OSError, ImportError) as exc:
+            _log.warning(
+                "policy_tier2_error", event_id=candidate.event_id, error=type(exc).__name__
+            )
+            decision = decide_unverified(candidate, rule, error, threshold=tau)
+        _log.warning(
+            "policy_unverified",
+            event_id=candidate.event_id,
+            route=decision.route,
+            tier2=tier2.verdict if tier2 is not None else None,
+            error=error,
         )
         return decision
 

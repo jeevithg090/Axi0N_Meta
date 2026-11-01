@@ -8,9 +8,21 @@ const VERDICT_TEXT = {
   unsure: "Unsure",
 } as const;
 
+/** Prefix of a Tier 1 error verdict's reason (`rulecam.verify.guard`): no real verdict. */
+export const VERIFIER_ERROR_PREFIX = "verifier_error: ";
+
+/** Why Tier 1 could not verify this event, if it could not (a person then reviews it). */
+export function verifierError(view: EventView): string | null {
+  const failed = view.verdicts.find(
+    (v) => v.verdict === "unsure" && v.reason.startsWith(VERIFIER_ERROR_PREFIX),
+  );
+  return failed ? failed.reason.slice(VERIFIER_ERROR_PREFIX.length) : null;
+}
+
 /** Predicate trace plus each verifier tier's verdict, with Spark Open's reasoning expandable. */
 export function VerifierPanel({ view }: { view: EventView }) {
   const { candidate } = view;
+  const error = verifierError(view);
   return (
     <section
       className="verifier"
@@ -28,6 +40,11 @@ export function VerifierPanel({ view }: { view: EventView }) {
           </div>
         ))}
       </dl>
+      {error !== null && (
+        <p className="needs-review" data-testid="needs-review" role="status">
+          Needs review: verifier unavailable — {error}
+        </p>
+      )}
       {view.verdicts.length === 0 && <p className="muted">Waiting for the verifier…</p>}
       {view.verdicts.map((v, index) => (
         <div key={`${v.tier}-${index}`} className={`tier tier-${v.verdict}`}>

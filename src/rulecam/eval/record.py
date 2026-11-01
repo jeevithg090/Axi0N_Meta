@@ -124,6 +124,28 @@ class Timeline:
             return None
         return slot.clip_start_s + offset
 
+    def clip_span(self, start: datetime, end: datetime) -> tuple[float, float] | None:
+        """Return the clip seconds an episode covers, or `None` when it misses the scored pass.
+
+        An episode counts when it overlaps the pass at all. Its ends are clamped into the pass: a
+        candidate the runtime stamps a few milliseconds before the first chunk's upload time (the
+        feeder and the API stamp chunks separately) starts at the pass's first second instead of
+        being dropped, and a time in the gap between two chunks maps to the end of the earlier one.
+        """
+        if not self._chunks or end < start:
+            return None
+        first, last = self._chunks[0], self._chunks[-1]
+        pass_end = last.cam_start + timedelta(seconds=last.duration_s)
+        if end < first.cam_start or start > pass_end:
+            return None
+        return self._clamped(max(start, first.cam_start)), self._clamped(min(end, pass_end))
+
+    def _clamped(self, ts: datetime) -> float:
+        """The clip second at `ts`, which lies within the pass (gaps map to the earlier chunk)."""
+        slot = self._chunks[max(0, bisect.bisect_right(self._starts, ts) - 1)]
+        offset = min(max(0.0, (ts - slot.cam_start).total_seconds()), slot.duration_s)
+        return slot.clip_start_s + offset
+
     def to_camera(self, clip_s: float) -> datetime | None:
         """Return the camera time at which clip second `clip_s` was shown, or `None`."""
         for slot in self._chunks:

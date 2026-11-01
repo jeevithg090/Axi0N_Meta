@@ -141,10 +141,10 @@ def observe(run: RunRecord) -> list[Observed]:
     bus = _bus_alerts(run.bus)
     out = []
     for event_id, candidate in candidates.items():
-        start = timeline.to_clip_s(candidate.ts_start)
-        if start is None:
-            continue  # fired on a chunk outside the scored pass (survey or drain)
-        end = timeline.to_clip_s(candidate.ts_end)
+        span = timeline.clip_span(candidate.ts_start, candidate.ts_end)
+        if span is None:
+            continue  # fired on chunks outside the scored pass (survey or drain)
+        start, end = span
         folded = verdicts.get(event_id, _Verdicts())
         alert, at = folded.alert()
         bus_at = bus.get(event_id)
@@ -153,7 +153,7 @@ def observe(run: RunRecord) -> list[Observed]:
                 event_id=event_id,
                 rule_id=candidate.rule_id,
                 start_s=start,
-                end_s=max(start, end if end is not None else start),
+                end_s=max(start, end),
                 cam_start=candidate.ts_start,
                 tier1=folded.tier1,
                 tier2=folded.tier2,

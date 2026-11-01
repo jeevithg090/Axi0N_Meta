@@ -12,6 +12,7 @@ from eval.runners.e3 import (
     HeldoutRequest,
     RequestRunRecord,
     aggregate_e3,
+    is_outside_author,
     load_heldout_requests,
     plan_for_request,
     render_e3_markdown_table,
@@ -115,12 +116,27 @@ def test_aggregate_e3_gate_pass() -> None:
         )
         for i in range(10)
     ]
-    summary = aggregate_e3(records, total_requests=10, simulated=False)
+    # Calling aggregate_e3 directly without explicit outside requests fails by default
+    default_summary = aggregate_e3(records, total_requests=10, simulated=False)
+    assert default_summary.gate_passed is False
+    assert default_summary.has_outside_requests is False
+    assert default_summary.any_team_written is True
+
+    # With outside requests explicitly confirmed, gate passes
+    summary = aggregate_e3(
+        records,
+        total_requests=10,
+        simulated=False,
+        has_outside_requests=True,
+        any_team_written=False,
+    )
     assert summary.total_runs == 10
     assert summary.valid_or_honest_count == 10
     assert summary.valid_or_honest_rate == 1.0
     assert summary.first_pass_acceptance_rate == 1.0
     assert summary.simulated is False
+    assert summary.has_outside_requests is True
+    assert summary.any_team_written is False
     assert summary.gate_passed is True
 
 
@@ -155,6 +171,8 @@ def test_render_e3_markdown_table() -> None:
         mean_repair_rounds=0.033,
         mean_duration_s=0.85,
         simulated=False,
+        has_outside_requests=True,
+        any_team_written=False,
         gate_passed=True,
     )
     md = render_e3_markdown_table(summary)
@@ -365,7 +383,7 @@ def test_run_e3_evaluation_with_real_pipeline(tmp_path: Path) -> None:
         HeldoutRequest(
             id="req-1",
             domain="kitchen",
-            author="Chef",
+            author="outside: Chef",
             text="Make cooks wash hands for 20 seconds",
             expected_outcome="observable",
             expected_category="valid_rule",
@@ -373,7 +391,7 @@ def test_run_e3_evaluation_with_real_pipeline(tmp_path: Path) -> None:
         HeldoutRequest(
             id="req-2",
             domain="kitchen",
-            author="Owner",
+            author="outside: Owner",
             text="Rank workers by speed",
             expected_outcome="declined",
             expected_category="per_person_productivity",
@@ -519,3 +537,142 @@ def test_aggregate_e3_team_written_requests_never_pass_gate() -> None:
     md = render_e3_markdown_table(summary)
     assert "TEAM-WRITTEN" in md
     assert "BLOCKED: team-written requests" in md
+
+
+def test_is_outside_author_validation() -> None:
+    # Empty or whitespace
+    assert is_outside_author("") is False
+    assert is_outside_author("   ") is False
+    assert is_outside_author(None) is False
+
+    # Team / internal personas (various delimiters and cases)
+    assert is_outside_author("team-written persona: warehouse manager") is False
+    assert is_outside_author("team written persona: warehouse manager") is False
+    assert is_outside_author("team_written persona: warehouse manager") is False
+    assert is_outside_author("team\u2013written persona: warehouse manager") is False
+    assert is_outside_author("internal persona: cook") is False
+    assert is_outside_author("team persona: nurse") is False
+    assert is_outside_author("persona: safety lead") is False
+
+    # Unprefixed ordinary string without outside marker
+    assert is_outside_author("Chef") is False
+    assert is_outside_author("Manager") is False
+
+    # Positive outside markers
+    assert is_outside_author("outside: Jane Doe") is True
+    assert is_outside_author("outsider: John Smith") is True
+    assert is_outside_author("external: Food Safety Consultant") is True
+    assert is_outside_author("@jane_safety_expert") is True
+
+
+def test_run_e3_evaluation_with_team_written_requests_blocks_gate(tmp_path: Path) -> None:
+    reqs_file = tmp_path / "team_reqs.jsonl"
+    reqs = [
+        HeldoutRequest(
+            id="req-tw-1",
+            domain="kitchen",
+            author="team-written persona: chef",
+            text="Staff must wear hairnets in prep area",
+            expected_outcome="observable",
+            expected_category="valid_rule",
+        ),
+        HeldoutRequest(
+            id="req-tw-2",
+            domain="kitchen",
+            author="team written persona: auditor",
+            text="Staff must wash hands for 20 seconds",
+            expected_outcome="observable",
+            expected_category="valid_rule",
+        ),
+    ]
+    reqs_file.write_text("\n".join(r.model_dump_json() for r in reqs), encoding="utf-8")
+
+    def make_valid_plan(inputs: Any) -> SitePlan:
+        return SitePlan(
+            plan_id=inputs.plan_id,
+            site_name=inputs.site_name,
+            setting_inferred="kitchen",
+            languages=("en",),
+            request=inputs.request,
+            inventory=(),
+            feasibility=(
+                FeasibilityVerdict(
+                    concern=inputs.request[0].text,
+                    verdict="observable",
+                    says="Observable.",
+                ),
+            ),
+            rules=(
+                RuleIR.model_validate(
+                    {
+                        "id": f"rule-{inputs.plan_id}",
+                        "version": 1,
+                        "source": {"kind": "plan", "plan_id": inputs.plan_id},
+                        "concepts": {"worker": {"prompt": "person"}},
+                        "zones": {
+                            "active_zone": {
+                                "kind": "polygon",
+                                "camera_id": "cam1",
+                                "polygon_px": [[0, 0], [10, 0], [10, 10], [0, 10]],
+                            }
+                        },
+                        "predicate": {"op": "inside", "object": "worker", "zone": "active_zone"},
+                        "severity": "medium",
+                        "actions": [{"kind": "log"}],
+                    }
+                ),
+            ),
+            privacy_mode=PrivacyMode.STANDARD,
+            acceptance=AcceptanceResult(
+                checks=(AcceptanceCheck(item="rule", check="ok", passed=True),),
+                rounds=0,
+            ),
+        )
+
+    plans_dir = tmp_path / "plans"
+    results_path = tmp_path / "results" / "e3.json"
+    fake_pipe = FakePipeline(make_valid_plan)
+
+    summary = run_e3_evaluation(
+        reqs_file,
+        plans_dir,
+        results_path,
+        runs_per_request=1,
+        pipeline=fake_pipe,  # type: ignore[arg-type]
+    )
+
+    assert summary.simulated is False
+    assert summary.has_outside_requests is False
+    assert summary.any_team_written is True
+    assert summary.team_written_count == 2
+    assert summary.valid_or_honest_rate == 1.0
+    assert summary.gate_passed is False
+
+    md = render_e3_markdown_table(summary)
+    assert "TEAM-WRITTEN" in md
+    assert "BLOCKED: team-written requests" in md
+    assert "*Team-written: all 2 requests are team-written personas." in md
+
+
+def test_render_e3_markdown_table_repair_rounds_fail() -> None:
+    records = [
+        RequestRunRecord(
+            request_id="req-repair",
+            run_index=0,
+            outcome="valid_rule",
+            is_valid_or_honest=True,
+            first_pass_accepted=False,
+            repair_rounds=2,
+            duration_s=1.0,
+        )
+    ]
+    summary = aggregate_e3(
+        records,
+        total_requests=1,
+        simulated=False,
+        has_outside_requests=True,
+        any_team_written=False,
+    )
+    assert summary.mean_repair_rounds == 2.0
+    md = render_e3_markdown_table(summary)
+    assert r"| **Mean Repair Rounds** | $\le 1.0$ | 2.00 rounds | FAIL |" in md

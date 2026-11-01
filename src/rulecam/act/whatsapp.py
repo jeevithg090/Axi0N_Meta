@@ -9,6 +9,11 @@
   token. `POST /whatsapp/webhook` checks `X-Hub-Signature-256` (HMAC-SHA256 of the raw body with
   the app secret), then turns each button tap into the same ack / false-alarm label / escalation as
   the LAN buttons (`handle_button`). Taps from numbers that are not a configured role are ignored.
+  Meta delivers webhooks at least once, so each message id is handled once (a bounded seen-set),
+  and messages older than `REPLAY_WINDOW` are dropped. The work runs in the threadpool, off the
+  event loop, because a tap may send the next escalation over the network.
+- **Timeouts.** Graph calls use a short timeout (`GRAPH_TIMEOUT_S`), and the escalation manager
+  sends them outside its lock, so a slow Graph API never stalls acks or the timers.
 - **Privacy.** Phone numbers live only in `.env` (`WHATSAPP_RECIPIENTS`) and are never logged:
   logs and chain records carry roles only.
 """
@@ -19,12 +24,15 @@ import hashlib
 import hmac
 import json
 import mimetypes
+import threading
+from collections import OrderedDict
 from collections.abc import Mapping
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import PlainTextResponse
 
 from rulecam.act.api import RespondRequest, handle_button
@@ -45,6 +53,9 @@ MAX_BODY_CHARS = 1024
 MAX_TITLE_CHARS = 20
 ID_SEPARATOR = "|"
 HEADER_TYPES = {"image/png": "image", "image/jpeg": "image", "video/mp4": "video"}
+GRAPH_TIMEOUT_S = 10.0
+REPLAY_WINDOW = timedelta(minutes=10)
+SEEN_CAPACITY = 4096
 
 
 class WhatsAppError(RulecamError):
@@ -66,6 +77,38 @@ def parse_recipients(spec: str) -> dict[str, str]:
             raise WhatsAppError(msg)
         out[role.strip()] = digits
     return out
+
+
+class SeenIds:
+    """A bounded, thread-safe set of recently seen ids (oldest forgotten first)."""
+
+    def __init__(self, capacity: int = SEEN_CAPACITY) -> None:
+        """Create the set.
+
+        Args:
+            capacity: How many ids to remember.
+        """
+        self._capacity = capacity
+        self._ids: OrderedDict[str, None] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def add(self, key: str) -> bool:
+        """Remember `key`; returns whether it was new."""
+        with self._lock:
+            if key in self._ids:
+                return False
+            self._ids[key] = None
+            if len(self._ids) > self._capacity:
+                self._ids.popitem(last=False)
+            return True
+
+
+def sent_at(message: Mapping[str, object]) -> datetime | None:
+    """When a webhook message was sent (its unix `timestamp`), or `None` if unreadable."""
+    try:
+        return datetime.fromtimestamp(int(str(message.get("timestamp", ""))), tz=UTC)
+    except (ValueError, OverflowError, OSError):
+        return None
 
 
 def button_message(
@@ -127,6 +170,7 @@ class WhatsAppNotifier:
         self._roles_by_number = {number: role for role, number in self._recipients.items()}
         self._clock = clock
         self._last_inbound: dict[str, datetime] = {}
+        self._seen = SeenIds()
 
     def role_for(self, number: str) -> str | None:
         """The role a phone number belongs to, or `None`."""
@@ -135,6 +179,22 @@ class WhatsAppNotifier:
     def opened(self, role: str) -> None:
         """Record an inbound message from `role` (it opens the 24-hour window)."""
         self._last_inbound[role] = self._clock.now()
+
+    def accept(self, message: Mapping[str, object]) -> bool:
+        """Whether an inbound message is new and recent; records its id as seen.
+
+        Duplicate deliveries (same message id) and messages sent more than `REPLAY_WINDOW` ago,
+        or with no readable id or timestamp, are refused.
+        """
+        when = sent_at(message)
+        message_id = str(message.get("id", ""))
+        if when is None or not message_id or self._clock.now() - when > REPLAY_WINDOW:
+            _log.info("whatsapp_stale_message")
+            return False
+        if not self._seen.add(message_id):
+            _log.info("whatsapp_duplicate_message")
+            return False
+        return True
 
     def window_open(self, role: str) -> bool:
         """Whether WhatsApp may send `role` a free-form message right now."""
@@ -255,6 +315,16 @@ def whatsapp_router(
             raise HTTPException(status.HTTP_403_FORBIDDEN, "verification failed")
         return challenge
 
+    def handle(payload: Mapping[str, object]) -> int:
+        handled = 0
+        for message in _messages(payload):
+            role = notifier.role_for(str(message.get("from", "")))
+            if role is None or not notifier.accept(message):
+                continue
+            notifier.opened(role)
+            handled += _handle_tap(message, role, lan=lan, escalation=escalation, chain=chain)
+        return handled
+
     @router.post("/webhook")
     async def receive(
         request: Request,
@@ -267,13 +337,8 @@ def whatsapp_router(
             payload = json.loads(raw)
         except ValueError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "not JSON") from exc
-        handled = 0
-        for message in _messages(payload if isinstance(payload, dict) else {}):
-            role = notifier.role_for(str(message.get("from", "")))
-            if role is None:
-                continue
-            notifier.opened(role)
-            handled += _handle_tap(message, role, lan=lan, escalation=escalation, chain=chain)
+        # A tap may send the next escalation over the network: keep it off the event loop.
+        handled = await run_in_threadpool(handle, payload if isinstance(payload, dict) else {})
         return {"handled": handled}
 
     return router

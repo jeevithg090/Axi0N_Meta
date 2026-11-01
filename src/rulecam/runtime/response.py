@@ -37,7 +37,12 @@ from fastapi import APIRouter, params
 from rulecam.act import ActionExecutor, EscalationManager, Interlock, LanNotifier, alerts_router
 from rulecam.act.devices import Connectable, KasaPlug, Light, StrobeLight
 from rulecam.act.errors import DeviceError
-from rulecam.act.whatsapp import WhatsAppNotifier, parse_recipients, whatsapp_router
+from rulecam.act.whatsapp import (
+    GRAPH_TIMEOUT_S,
+    WhatsAppNotifier,
+    parse_recipients,
+    whatsapp_router,
+)
 from rulecam.bus import Bus
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clients.transport import HttpxTransport
@@ -343,7 +348,9 @@ def build_whatsapp(
     ):
         return None
     transport = HttpxTransport(
-        settings.whatsapp_api_base, settings.whatsapp_token.get_secret_value()
+        settings.whatsapp_api_base,
+        settings.whatsapp_token.get_secret_value(),
+        timeout_s=GRAPH_TIMEOUT_S,
     )
     return WhatsAppNotifier(
         lan=lan,

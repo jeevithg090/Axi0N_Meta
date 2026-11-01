@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
+import itertools
 import json
+import threading
 from collections.abc import Mapping
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -15,10 +19,13 @@ from fastapi.testclient import TestClient
 from rulecam.act import EscalationManager, LanNotifier
 from rulecam.act.notify import for_event
 from rulecam.act.whatsapp import (
+    GRAPH_TIMEOUT_S,
+    SeenIds,
     WhatsAppError,
     WhatsAppNotifier,
     button_message,
     parse_recipients,
+    sent_at,
     valid_signature,
     whatsapp_router,
 )
@@ -26,12 +33,13 @@ from rulecam.bus import Bus
 from rulecam.config import Settings
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.runtime.response import build_whatsapp
-from tests.fakes import FakeClock
+from tests.fakes import EPOCH, FakeClock
 
 SECRET = "app-secret"  # noqa: S105 - test fixture, not a real secret
 TOKEN = "verify-me"  # noqa: S105 - test fixture
 AIDE = "15551234567"
 NURSE = "15557654321"
+_IDS = itertools.count()
 
 
 class FakeGraph:
@@ -40,9 +48,15 @@ class FakeGraph:
     def __init__(self, status: int = 200) -> None:
         self.status = status
         self.requests: list[Mapping[str, object]] = []
+        self.on_event_loop: list[bool] = []
 
     def __call__(self, request: Mapping[str, object]) -> Mapping[str, object]:
         self.requests.append(request)
+        try:
+            asyncio.get_running_loop()
+            self.on_event_loop.append(True)
+        except RuntimeError:
+            self.on_event_loop.append(False)
         if self.status != 200:
             return {"status": self.status, "json": {"error": {"message": "nope"}}}
         if str(request["path"]).endswith("/media"):
@@ -93,9 +107,18 @@ def signed(payload: object) -> tuple[bytes, dict[str, str]]:
 
 
 def inbound(
-    number: str, *, text: str | None = None, button_id: str | None = None
+    number: str,
+    *,
+    text: str | None = None,
+    button_id: str | None = None,
+    msg_id: str | None = None,
+    ts: datetime = EPOCH,
 ) -> dict[str, object]:
-    message: dict[str, object] = {"from": number, "id": "wamid.in", "timestamp": "1"}
+    message: dict[str, object] = {
+        "from": number,
+        "id": msg_id or f"wamid.in.{next(_IDS)}",
+        "timestamp": str(int(ts.timestamp())),
+    }
     if button_id is not None:
         message |= {
             "type": "interactive",
@@ -286,3 +309,120 @@ def test_build_whatsapp_from_settings(tmp_path: Path) -> None:
     notifier = build_whatsapp(settings, lan=lan, clock=FakeClock())
     assert notifier is not None
     assert notifier.role_for(f"+{AIDE}") == "aide"
+
+
+def test_a_redelivered_escalate_tap_escalates_once(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    rig.wa.opened("charge_nurse")
+    rig.escalation.start(
+        "ev-9", ["aide", "charge_nurse", "on_call"], after_s=60, title="t", body="b"
+    )
+    raw, headers = signed(inbound(AIDE, button_id="ev-9|Escalate"))
+    with rig.app() as client:
+        first = client.post("/whatsapp/webhook", content=raw, headers=headers)
+        again = client.post("/whatsapp/webhook", content=raw, headers=headers)
+    assert (first.json(), again.json()) == ({"handled": 1}, {"handled": 0})
+    assert again.status_code == 200
+    records = read_chain(rig.chain.path_for(rig.clock.now().date()))
+    assert [r.payload["role"] for r in records] == ["aide", "charge_nurse"]
+    assert rig.graph.on_event_loop == [False]  # the Graph send ran off the event loop
+
+
+def test_a_redelivered_false_alarm_labels_once(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    rig.escalation.start("ev-10", ["aide"], after_s=60, title="t", body="b")
+    raw, headers = signed(inbound(AIDE, button_id="ev-10|False alarm", msg_id="wamid.dup"))
+    with rig.app() as client:
+        for _ in range(3):
+            assert client.post("/whatsapp/webhook", content=raw, headers=headers).status_code == 200
+    kinds = [r.kind for r in read_chain(rig.chain.path_for(rig.clock.now().date()))]
+    assert kinds == ["action", "ack", "label"]
+
+
+def test_stale_or_undated_messages_are_dropped(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    rig.escalation.start("ev-11", ["aide"], after_s=60, title="t", body="b")
+    rig.clock.advance(11 * 60)
+    undated = inbound(AIDE, button_id="ev-11|False alarm")
+    messages = undated["entry"][0]["changes"][0]["value"]["messages"]  # type: ignore[index]
+    del messages[0]["timestamp"]
+    with rig.app() as client:
+        for payload in (inbound(AIDE, button_id="ev-11|False alarm"), undated):
+            raw, headers = signed(payload)
+            assert client.post("/whatsapp/webhook", content=raw, headers=headers).json() == {
+                "handled": 0
+            }
+    assert rig.escalation.is_open("ev-11")
+    assert not rig.wa.window_open("aide")  # a replayed "start" does not open the window either
+    assert sent_at({"timestamp": "x"}) is None
+
+
+def test_seen_ids_are_bounded() -> None:
+    seen = SeenIds(capacity=2)
+    assert seen.add("a")
+    assert not seen.add("a")
+    assert seen.add("b")
+    assert seen.add("c")  # forgets "a"
+    assert seen.add("a")
+
+
+def test_build_whatsapp_uses_a_short_graph_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, object]] = []
+
+    def recording_transport(*args: object, **kwargs: object) -> FakeGraph:
+        calls.append(kwargs)
+        return FakeGraph()
+
+    monkeypatch.setattr("rulecam.runtime.response.HttpxTransport", recording_transport)
+    settings = Settings(
+        _env_file=None,
+        whatsapp_token="t",  # noqa: S106 - test fixture
+        whatsapp_phone_number_id="PNID",
+        whatsapp_recipients=f"aide={AIDE}",
+    )
+    assert build_whatsapp(
+        settings, lan=LanNotifier(bus=Bus(), clock=FakeClock()), clock=FakeClock()
+    )
+    assert calls == [{"timeout_s": GRAPH_TIMEOUT_S}]
+    assert GRAPH_TIMEOUT_S <= 10
+
+
+class LockProbe:
+    """A notifier that checks, from another thread, that the escalation lock is free."""
+
+    def __init__(self) -> None:
+        self.escalation: EscalationManager | None = None
+        self.lock_free: list[bool] = []
+
+    def send(
+        self,
+        role: str,
+        title: str,
+        body: str,
+        *,
+        clip_path: str | None = None,
+        buttons: tuple[str, ...] = (),
+    ) -> str:
+        assert self.escalation is not None
+        probe = threading.Thread(target=self.escalation.is_open, args=("ev-x",))
+        probe.start()
+        probe.join(timeout=2)
+        self.lock_free.append(not probe.is_alive())
+        return role
+
+
+def test_escalation_sends_without_holding_its_lock(tmp_path: Path) -> None:
+    clock = FakeClock()
+    probe = LockProbe()
+    escalation = EscalationManager(
+        notifier=probe,
+        clock=clock,
+        chain=EventChain(tmp_path / "chain", "unit", clock=clock),
+        bus=Bus(),
+    )
+    probe.escalation = escalation
+    escalation.start("ev-x", ["aide", "charge_nurse", "on_call"], after_s=60, title="t", body="b")
+    escalation.escalate_now("ev-x")
+    clock.advance(61)
+    assert len(escalation.tick()) == 1
+    assert probe.lock_free == [True, True, True]

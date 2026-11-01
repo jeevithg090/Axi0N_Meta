@@ -4,13 +4,13 @@
     "evidence": {
       "candidates": 1,
       "event_ids": [
-        "ev-86fe839b744f2f026c25404c"
+        "ev-725c63ca121b14653fc2f43e"
       ],
-      "n": 21,
+      "n": 32,
       "ok": true,
       "reason": "",
-      "reproduced": 0,
-      "root": "4711cffad0433bccd7a89a3ef440b2a0ccb2c4a40be13ec3a2453a23a932aac1",
+      "reproduced": 1,
+      "root": "210c33b41e9ef40353f8ae49f00e32040a9a952df0e20e978e94a93b5d58ad11",
       "run_kinds": [
         "candidate",
         "action",
@@ -19,11 +19,11 @@
         "action"
       ],
       "run_seqs": [
-        16,
-        17,
-        18,
-        19,
-        20
+        26,
+        27,
+        28,
+        29,
+        30
       ],
       "site": "demo"
     },
@@ -90,7 +90,7 @@
           "verdict": "observable"
         }
       ],
-      "plan_id": "plan-5cdb5eed5405",
+      "plan_id": "plan-098d7b6fb193",
       "planner_steps": [
         {
           "detail": "1 concerns",
@@ -98,7 +98,7 @@
           "step": "understand"
         },
         {
-          "detail": "11 things seen; phone-25 calibrated from pallet_48x40in (0.10 m)",
+          "detail": "13 things seen; phone-26 calibrated from pallet_48x40in (0.10 m)",
           "status": "done",
           "step": "survey"
         },
@@ -113,7 +113,7 @@
           "step": "gauge"
         },
         {
-          "detail": "4 questions",
+          "detail": "3 questions",
           "status": "done",
           "step": "ask"
         },
@@ -148,7 +148,7 @@
       "rules": [
         {
           "canonical": true,
-          "canonical_rule_hash": "c1932665cb9e1de7a0f030838b6c62708f6e1b84b475c1b924fe069a05329584",
+          "canonical_rule_hash": "ac68c5fd4b09ebf0306fdea18d8277eaf46dac1a0bec27632a11394fc179dda7",
           "id": "keep-people-2m-from-moving-forklift",
           "predicate": {
             "of": [
@@ -167,7 +167,7 @@
             ],
             "op": "all"
           },
-          "rule_ir_hash": "89676193996fe35291bd4952aed2e98aabe1033b9cf2ba7e7128eedb1e133b75",
+          "rule_ir_hash": "ad4b59ab864a8037ecb285f5c353f0e4398080898be7c7d8cb944197facf43e5",
           "severity": "high"
         }
       ],
@@ -210,22 +210,22 @@
           "route": "human_queue"
         },
         "decision_matches_chain": true,
-        "event_id": "ev-86fe839b744f2f026c25404c",
+        "event_id": "ev-725c63ca121b14653fc2f43e",
         "measurement": {
           "hi": null,
           "lo": null,
           "unit": "m",
-          "value": 0.025025
+          "value": 0.026799
         },
         "rule_id": "keep-people-2m-from-moving-forklift",
         "severity": "high",
         "strip_frames": 6,
         "tier1": {
           "model_version": "muse-glimmer-30b",
-          "reason": "The visible person is seated in the operator\u2019s seat of the forklift and is operating it; there is no separate person near a moving forklift in the frames.",
+          "reason": "The visible person is seated in the operator\u2019s seat of the forklift and is operating it, so there is no separate person near a moving forklift; the measured proximity is the operator with the vehicle.",
           "reasoning": null,
-          "scene_text": "1/6 t-1.0s keep-people-2m-from-moving-forklift measured 0.03 m\n2/6 t-0.6s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n3/6 t-0.2s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n4/6 t+0.2s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n5/6 t+0.6s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n5.0 m\n6/6 t+1.0s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n4.9 m",
-          "score": 0.05,
+          "scene_text": "1/6 t-1.2s keep-people-2m-from-moving-forklift measured 0.03 m\n2/6 t-0.8s keep-people-2m-from-moving-forklift measured 0.03 m\n3/6 t-0.4s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n4/6 t+0.0s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n5/6 t+0.4s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n5.0 m\n6/6 t+0.8s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n4.9 m",
+          "score": 0.02,
           "tamper": false,
           "tier": "glimmer",
           "verdict": "no_violation"

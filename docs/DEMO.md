@@ -23,8 +23,9 @@ on 1 Nov 2026, it shows honestly what the deployed system did:
    dry-run notification was recorded; **Glimmer then answered "no violation: the person is
    seated in the operator's seat"** from the six strip frames, and the policy moved the alert to
    a person's review queue. The eval harness counts that as 1 false alert on a negative clip.
-4. The evidence chain: 21 records intact from the day's first, the daily root, and the browser
-   verify page that recomputes every SHA-256 itself.
+4. The evidence chain: 32 records intact from the day's first, the run's decision re-derived
+   from the stored tracks (1/1), the daily root, and the browser verify page that recomputes
+   every SHA-256 itself.
 
 Say it the way it happened: "the rule fired on the driver; Glimmer caught it and a person
 reviews it; the act-first notification was a dry run". Do not claim "the driver was not alerted".
@@ -67,7 +68,7 @@ rows inside the §2 targets.
 - [ ] `/runtime/metrics`: `verifier.state` is `closed`, `response.actions_dry_run` is what you
       intend to show (keep `true` unless the interlock hardware is on the table).
 - [ ] `/demo?demo=1` loads on the presenting laptop **and** on a phone (375 px), and the verify
-      link shows "✓ Chain intact · 21 records".
+      link shows "✓ Chain intact · 32 records".
 
 **T-30 min, the scene**
 

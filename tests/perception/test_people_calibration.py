@@ -103,3 +103,14 @@ def test_a_box_without_height_is_rejected() -> None:
     cal = calibrate_people("dock", crowd(20.0), WIDTH, HEIGHT)
     with pytest.raises(CalibrationError, match="positive width and height"):
         person_scale_ratio(cal, (10.0, 50.0, 20.0, 50.0))
+
+
+def test_a_lucky_median_does_not_pass_when_most_people_disagree() -> None:
+    right = calibrate_people("dock", crowd(20.0), WIDTH, HEIGHT)
+    spots = [(-2.0, 5.0), (1.0, 6.0), (3.0, 8.0), (-1.0, 9.0), (0.5, 11.0)]
+    stretch = [0.3, 0.3, 1.0, 1.7, 1.7]  # median 1.0, but only one person fits
+    people = []
+    for (x_m, z_m), factor in zip(spots, stretch, strict=True):
+        x1, y1, x2, y2 = person_box(x_m, z_m, 20.0)
+        people.append((x1, y2 - factor * (y2 - y1), x2, y2))
+    assert not people_agree(right, people)

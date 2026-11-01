@@ -305,25 +305,31 @@ def people_agree(
     *,
     tolerance: float = PERSON_SCALE_TOLERANCE,
 ) -> bool:
-    """True when fewer than `MIN_PERSON_BOXES` people were seen, or their median ratio fits.
+    """True when fewer than `MIN_PERSON_BOXES` people were seen, or most of them fit the scale.
+
+    Each standing person is measured on its own; a person the calibration cannot measure (feet
+    beyond its horizon, no ground width) counts against it. At least half the people must be
+    within `tolerance` of a 1.7 m adult, so a degenerate fit cannot pass on a lucky median.
 
     Args:
         cal: The calibration under test.
         person_boxes: Boxes of standing people on that camera.
-        tolerance: Allowed relative deviation of the median `person_scale_ratio` from 1.
+        tolerance: Allowed relative deviation of each `person_scale_ratio` from 1.
 
     Returns:
         Whether the people in view agree with the calibration's scale.
     """
-    ratios: list[float] = []
+    if len(person_boxes) < MIN_PERSON_BOXES:
+        return True
+    agreeing = 0
     for person_box in person_boxes:
         try:
-            ratios.append(person_scale_ratio(cal, person_box))
+            ratio = person_scale_ratio(cal, person_box)
         except CalibrationError:
             continue
-    if len(ratios) < MIN_PERSON_BOXES:
-        return True
-    return abs(float(np.median(ratios)) - 1.0) <= tolerance
+        if abs(ratio - 1.0) <= tolerance:
+            agreeing += 1
+    return 2 * agreeing >= len(person_boxes)
 
 
 def calibrate_people(

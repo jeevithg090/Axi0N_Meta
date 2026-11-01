@@ -56,6 +56,7 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
+from rulecam.act.drills import DrillRunner, drills_router
 from rulecam.advisor.api import AdviceStore, PlanFactory, advice_router
 from rulecam.api.auth import ClientAddress, OwnerAuth
 from rulecam.api.plans import PlannerRunner, PlanRegistry, QuestionsService, plans_router
@@ -822,12 +823,15 @@ def cost_watch(
 
 
 def owner_alerts_router(response: Response) -> APIRouter:
-    """The alerts PWA routes (`/alerts`, `/ack`, interlock resume), owner-only (P3-06).
+    """The alerts PWA routes (`/alerts`, `/ack`, interlock resume, `/drills`), owner-only.
 
     They show alert titles and clips and can restore power, so they need the owner (loopback or
     an owner session), like every other route that reads traces or changes state.
     """
-    return response.router(dependencies=_OWNER)
+    router = response.router(dependencies=_OWNER)
+    runner = DrillRunner(response.escalation, response.chain, SystemClock())
+    router.include_router(drills_router(runner), dependencies=_OWNER)
+    return router
 
 
 def viewer_origins(public_ui_url: str | None) -> frozenset[str]:

@@ -7,6 +7,14 @@ tracks into `CandidateEvent`s. See this package's README for the semantics.
 from rulecam.rules.engine import evaluate
 from rulecam.rules.errors import RuleEvaluationError
 from rulecam.rules.hashing import rule_ir_hash
+from rulecam.rules.operators import OperatorExclusion
 from rulecam.rules.pose import PoseFeatures, PoseStateName
 
-__all__ = ["PoseFeatures", "PoseStateName", "RuleEvaluationError", "evaluate", "rule_ir_hash"]
+__all__ = [
+    "OperatorExclusion",
+    "PoseFeatures",
+    "PoseStateName",
+    "RuleEvaluationError",
+    "evaluate",
+    "rule_ir_hash",
+]

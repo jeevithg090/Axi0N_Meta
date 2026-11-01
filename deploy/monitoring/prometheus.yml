@@ -1,0 +1,13 @@
+# Scrapes the Rulecam API's /metrics (public, aggregates only) through the RunPod HTTPS proxy.
+# Targets come from targets/*.json (host:443 of the API pod, e.g. abc123-8000.proxy.runpod.net:443).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+rule_files:
+  - /etc/prometheus/alerts.yml
+scrape_configs:
+  - job_name: rulecam
+    scheme: https
+    metrics_path: /metrics
+    file_sd_configs:
+      - files: [/etc/prometheus/targets/*.json]

@@ -6,7 +6,14 @@ import numpy as np
 
 from rulecam.contracts.rule_ir import DistanceM, Inside, Moving, Overlap, Without
 from rulecam.rules.errors import RuleEvaluationError
-from rulecam.rules.geometry import BoolArray, FloatArray, box_centres, box_iou, norm
+from rulecam.rules.geometry import (
+    BoolArray,
+    FloatArray,
+    box_centres,
+    box_iou,
+    ground_speed,
+    norm,
+)
 from rulecam.rules.ir import parse_ref
 from rulecam.rules.scene import (
     Scene,
@@ -21,7 +28,6 @@ from rulecam.rules.scene import (
 from rulecam.rules.signals import Signal, make_series
 from rulecam.rules.timeline import SampledTrack
 
-SPEED_MEDIAN_SAMPLES = 5
 TOP_FRACTION = 0.25
 LOWER_HALF = 0.5
 
@@ -46,7 +52,12 @@ def distance_m(node: DistanceM, scene: Scene) -> Signal:
         candidates = tuple(o for o in others if o.track_id != subject.track_id)
         nears = [
             nearest_distance(
-                scene, points.m, subject.start, candidates, footprint=b_part != "foot_point"
+                scene,
+                points.m,
+                subject.start,
+                candidates,
+                footprint=b_part != "foot_point",
+                subject=subject,
             )
             for points in ref_points(scene, subject, a_part)
         ]
@@ -74,7 +85,7 @@ def inside(node: Inside, scene: Scene) -> Signal:
     for subject in scene.tracks_of(concept):
         hit = np.zeros(len(subject.present), dtype=np.bool_)
         for points in ref_points(scene, subject, part):
-            hit |= zone_contains(scene, zone, points, subject.start)
+            hit |= zone_contains(scene, zone, points, subject.start, subject)
         series[subject.track_id] = make_series(
             subject.start, hit, hit.astype(np.float64), subject.present
         )
@@ -146,31 +157,13 @@ def _in_region(region: str, subject: SampledTrack, own: slice, centres: FloatArr
 
 
 def moving(node: Moving, scene: Scene) -> Signal:
-    """Smoothed ground speed (centred 5-sample median) above `speed_mps_gt`."""
+    """Smoothed ground speed (`geometry.ground_speed`, centred 5-sample median) above the bound."""
     concept, _ = parse_ref(node.object)
     hz = scene.timeline.hz
     series = {}
     for subject in scene.tracks_of(concept):
-        speed = np.full(len(subject.present), np.nan)
-        if len(speed) > 1:
-            speed[1:] = norm(np.diff(subject.foot_m, axis=0)) * hz
-        smooth = rolling_median(speed, SPEED_MEDIAN_SAMPLES)
+        smooth = ground_speed(subject.foot_m, hz)
         with np.errstate(invalid="ignore"):
             truth = smooth > node.speed_mps_gt
         series[subject.track_id] = make_series(subject.start, truth, smooth, subject.present)
     return Signal(subject=concept, unit="m/s", series=series)
-
-
-def rolling_median(values: FloatArray, window: int) -> FloatArray:
-    """Centred rolling median ignoring NaN; NaN where the window has no finite value."""
-    half = window // 2
-    padded = np.concatenate([np.full(half, np.nan), values, np.full(half, np.nan)])
-    windows = np.lib.stride_tricks.sliding_window_view(padded, window)
-    ordered = np.sort(windows, axis=1)
-    valid = (~np.isnan(windows)).sum(axis=1)
-    lo = np.maximum((valid - 1) // 2, 0)
-    hi = np.maximum(valid // 2, 0)
-    rows = np.arange(len(values))
-    median: FloatArray = (ordered[rows, lo] + ordered[rows, hi]) / 2.0
-    median[valid == 0] = np.nan
-    return median

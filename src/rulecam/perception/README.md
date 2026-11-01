@@ -9,11 +9,14 @@ it can.
 
 | Module | Task | Public API |
 |---|---|---|
-| `sam_runtime.py` | P1-03 | `ModalSam31` (a `Segmenter`), `ModalWorker`, `SamRequest` / `SamResponse` (wire format), `SamWorker` |
-| `sam_worker.py` | P1-03 | `Sam31Engine` (runs SAM 3.1 on a GPU), `build_app()` and `deploy()` for the Modal app `rulecam-sam` |
+| `sam_runtime.py` | P1-03 | `ModalSam31` (a `Segmenter`), `ModalWorker`, `HttpSamWorker`, `SamRequest` / `SamResponse` and `SamImageRequest` / `SamImageResponse` (wire formats), `SamWorker`, `SamImageWorker` |
+| `sam_worker.py` | P1-03 | `Sam31Engine` (runs SAM 3.1 video on a GPU), `Sam31ImageEngine` (image mode on the same loaded detector), `build_app()` and `deploy()` for the Modal app `rulecam-sam` |
+| `sam_server.py` | P1-03 | HTTP front on our GPU pod: `GET /health`, `POST /segment`, `POST /segment_image` |
 | `motion_gate.py` | P1-03 | `MotionGate`, pure `motion_stats` / `decide`, `GateConfig`, `GateDecision` |
 | `static_cache.py` | P1-03 | `StaticCache` (listens on `coverage.changed`), `moved_camera`, `StaticServedSegmenter` (runtime) |
-| `router.py` | P1-03 | `SegmenterRouter`, `Purpose`, `RoutingPolicy`, `FallbackSegmenter`, `MeteredSegmenter`, `CallMeter` |
+| `router.py` | P1-03 | `SegmenterRouter`, `Purpose`, `RoutingPolicy`, `FallbackSegmenter`, `MeteredSegmenter`, `CallMeter`; image mode: `KeyframeFallback`, `keyframe_chain` |
+| `keyframes.py` | P1-03 (WS2b) | `keyframe_indices`, `KeyframeRates`, `decode_keyframes`, `KeyframeSegmenter`, `HostedKeyframes`, `SelfHostedKeyframes` |
+| `keyframe_tracker.py` | P1-04 (WS2b) | `KeyframeTracker` (image-mode `ChunkTracker`: static cache, cost meter, budget estimate), `KeyframeIdentities` (Roboflow `trackers` ByteTrack per camera and concept) |
 | `metrics.py` | P1-03 | `PerceptionMetrics` (`report()` is the body of `GET /metrics/perception`) |
 | `masks.py` | P1-02 | `encode_rle` / `decode_rle`: `Mask.rle` as JSON `{"size": [h, w], "counts": "<COCO RLE>"}` |
 | `errors.py` | shared | `PerceptionError`; P1-03 adds `SamRuntimeError`, `SamRuntimeUnavailableError`, `SamResponseError` |
@@ -38,6 +41,19 @@ for concept in decision.run:
     runtime.segment(chunk, concept)
 for concept in static_concepts:  # ConceptSpec.static is true
     static.get(chunk, concept, calibration=calibration_id)
+```
+
+## Image mode (the runtime default, PLAN-9.5 WS2b)
+
+```python
+keyframes = keyframe_chain(  # self-hosted /segment_image first, hosted image requests on failure
+    HostedKeyframes(hosted.runtime_view(), max_concurrency=8, metrics=metrics),
+    SelfHostedKeyframes(HttpSamWorker.from_settings(settings), metrics=metrics),
+    policy=router.policy,
+    clock=clock,
+)
+tracker = KeyframeTracker(keyframes, rates=KeyframeRates.parse(2.0, "dock=4"), store=store, bus=bus)
+tracks = tracker.stitch(chunk, tracker.segment(chunk, ["person", "forklift"]))  # ids survive chunks
 ```
 
 `coverage.changed` payloads that invalidate the static cache: the watchdog's `{"camera_id": ...,

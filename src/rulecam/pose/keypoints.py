@@ -7,9 +7,11 @@ interpolation. Only person tracks should be passed in: this produces joints, nev
 
 from __future__ import annotations
 
+import hashlib
 from bisect import bisect_left
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -82,7 +84,8 @@ def prepare_input(frame: Frame, window: CropWindow) -> NDArray[np.float32]:
     """Crop and normalise `window` into a `(1, 3, INPUT_H, INPUT_W)` model input.
 
     Args:
-        frame: An RGB image, height x width x 3. Areas outside the frame become black.
+        frame: A BGR image (OpenCV order, like every frame in the pipeline), height x width x 3.
+            It is converted to RGB for the model. Areas outside the frame become black.
         window: The crop from `crop_window`.
 
     Returns:
@@ -94,7 +97,8 @@ def prepare_input(frame: Frame, window: CropWindow) -> NDArray[np.float32]:
         dtype=np.float32,
     )
     crop = cv2.warpAffine(frame, matrix, (INPUT_W, INPUT_H), flags=cv2.INTER_LINEAR)
-    normalised = (crop.astype(np.float32) - MEAN) / STD
+    rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+    normalised = (rgb.astype(np.float32) - MEAN) / STD
     return np.ascontiguousarray(normalised.transpose(2, 0, 1)[np.newaxis])
 
 
@@ -145,15 +149,25 @@ class RtmposeOnnx:
         self._input_name = input_name
 
     @classmethod
-    def load(cls, model_path: Path) -> RtmposeOnnx:
+    def load(cls, model_path: Path, *, sha256: str) -> RtmposeOnnx:
         """Load an RTMPose ONNX file on the CPU (needs the `ml` extra).
+
+        The checkpoint must be pinned: its sha256 is required and checked, so the weights that ran
+        are the weights whose licence was reviewed (see `WHAT-WE-BUILT.md`).
 
         Args:
             model_path: Path to the exported ONNX model.
+            sha256: The file's expected sha256, as hex.
 
         Returns:
             A ready estimator.
+
+        Raises:
+            ValueError: If the file's sha256 is not `sha256`.
         """
+        actual = hashlib.sha256(model_path.read_bytes()).hexdigest()
+        if actual != sha256.lower():
+            raise ValueError(f"{model_path.name} has sha256 {actual}, expected {sha256.lower()}")
         import onnxruntime  # noqa: PLC0415 - optional `ml` extra, only needed to load a model
 
         session = onnxruntime.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
@@ -202,17 +216,19 @@ def _blend(a: Keypoint, b: Keypoint, weight: float) -> Keypoint:
 def fill_keypoints(
     points: Sequence[TrackPoint],
     sampled: Mapping[int, tuple[Keypoint, ...]],
-    max_gap_frames: int = 15,
+    max_gap_s: float = 1.5,
 ) -> tuple[TrackPoint, ...]:
-    """Fill keypoints between pose-estimated points by linear interpolation over frame index.
+    """Fill keypoints between pose-estimated points by linear interpolation over time.
 
-    Points before the first or after the last estimated one, and points between two estimates more
-    than `max_gap_frames` apart, keep no keypoints.
+    Weights come from `ts`, never `frame_idx`: frame indices restart in every 3-second chunk, but
+    a track window spans chunks. The weight is kept between 0 and 1, so a value is never
+    extrapolated. Points before the first or after the last estimated one, and points between two
+    estimates more than `max_gap_s` apart, keep no keypoints.
 
     Args:
         points: The track's points in time order.
         sampled: Estimated keypoints, keyed by index into `points`.
-        max_gap_frames: Largest frame distance between two estimates that may be bridged.
+        max_gap_s: Largest time between two estimates that may be bridged, in seconds.
 
     Returns:
         The points with keypoints set where known or interpolated.
@@ -231,14 +247,15 @@ def fill_keypoints(
             result.append(point)
             continue
         before, after = ordered[slot - 1], ordered[slot]
-        span = points[after].frame_idx - points[before].frame_idx
-        if span > max_gap_frames or span <= 0:
+        span = (points[after].ts - points[before].ts).total_seconds()
+        if span > max_gap_s or span <= 0:
             result.append(point)
             continue
         first, last = sampled[before], sampled[after]
         if len(first) != len(last):
             raise ValueError("bracketing estimates must have the same keypoint count")
-        weight = (point.frame_idx - points[before].frame_idx) / span
+        weight = (point.ts - points[before].ts).total_seconds() / span
+        weight = min(1.0, max(0.0, weight))
         blended = tuple(_blend(a, b, weight) for a, b in zip(first, last, strict=True))
         result.append(point.model_copy(update={"keypoints": blended}))
     return tuple(result)
@@ -246,29 +263,30 @@ def fill_keypoints(
 
 def estimate_track(
     track: Track,
-    frame_at: Callable[[int], Frame | None],
+    frame_at: Callable[[datetime], Frame | None],
     estimator: PoseEstimator,
     stride: int = 3,
-    max_gap_frames: int = 15,
+    max_gap_s: float = 1.5,
 ) -> Track:
     """Return `track` with keypoints on every point that can be sampled or interpolated.
 
     Args:
         track: A person track.
-        frame_at: Returns the RGB frame for a frame index, or None if it is no longer available.
+        frame_at: Returns the BGR frame at a timestamp, or None if it is no longer available.
+            Frames are looked up by `ts`, not `frame_idx`, which restarts in every chunk.
         estimator: The pose model.
         stride: Run the model on every `stride`-th point.
-        max_gap_frames: Largest frame gap that interpolation may bridge.
+        max_gap_s: Largest time gap, in seconds, that interpolation may bridge.
 
     Returns:
         A new track; the input is unchanged.
     """
     sampled = {}
     for i in sample_indices(len(track.points), stride):
-        frame = frame_at(track.points[i].frame_idx)
+        frame = frame_at(track.points[i].ts)
         if frame is not None:
             sampled[i] = estimator.estimate(frame, track.points[i].box_xyxy)
-    filled = fill_keypoints(track.points, sampled, max_gap_frames)
+    filled = fill_keypoints(track.points, sampled, max_gap_s)
     return track.model_copy(update={"points": filled})
 
 

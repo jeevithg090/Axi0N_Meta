@@ -31,7 +31,7 @@ def count_in_zone(scene: Scene, ref: str, zone_name: str | None) -> FloatArray:
     for track in tracks:
         hit = np.zeros(len(track.present), dtype=np.bool_)
         for points in ref_points(scene, track, part):
-            hit |= zone_contains(scene, zone, points, track.start)
+            hit |= zone_contains(scene, zone, points, track.start, track)
         counts[track.start : track.stop] += hit & track.present
     return counts
 

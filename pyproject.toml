@@ -25,6 +25,9 @@ dependencies = [
   "python-multipart>=0.0.9",
   "typer>=0.12",
   "meta-sam-parser>=0.1.0",
+  "prometheus-client>=0.21",
+  "trackers==2.6.1",  # Apache-2.0: ByteTrack between SAM keyframes (P1-03)
+  "supervision==0.30.0",  # MIT: the detections type `trackers` takes
 ]
 
 [project.optional-dependencies]
@@ -32,6 +35,8 @@ ml = ["torch>=2.3", "transformers>=4.53", "modal>=0.64", "onnxruntime>=1.18"]
 ui = ["playwright>=1.45"]
 # YOLOv8 (ultralytics) is AGPL-3.0: evaluation baseline only, never imported by runtime code.
 eval = ["matplotlib>=3.8", "ultralytics>=8.2"]
+# Tracking metrics for the WS0 eval harness (IDF1, ID switches): py-motmetrics is MIT.
+tracking = ["motmetrics>=1.4"]
 
 [project.scripts]
 rulecam = "rulecam.cli:app"
@@ -46,6 +51,7 @@ dev = [
   "ruff>=0.5",
   "pre-commit>=3.7",
   "types-PyYAML",
+  "motmetrics>=1.4",
 ]
 
 [tool.uv.sources]
@@ -100,7 +106,7 @@ explicit_package_bases = true
 [[tool.mypy.overrides]]
 module = [
   "rulecam.contracts.*", "rulecam.rules.*", "rulecam.evidence.*",
-  "rulecam.advisor.*", "rulecam.verify.*",
+  "rulecam.advisor.*", "rulecam.verify.*", "rulecam.eval.*",
 ]
 strict = true
 
@@ -111,7 +117,7 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = [
   "cv2.*", "kasa.*", "modal.*", "transformers.*", "duckdb.*", "shapely.*",
-  "qrcode.*", "ultralytics.*", "onnxruntime.*", "playwright.*",
+  "qrcode.*", "ultralytics.*", "onnxruntime.*", "playwright.*", "motmetrics.*",
 ]
 ignore_missing_imports = true
 
@@ -130,3 +136,10 @@ asyncio_default_fixture_loop_scope = "function"
 [tool.coverage.run]
 source = ["src/rulecam"]
 branch = true
+
+[tool.uv]
+# `trackers` (Apache-2.0) declares opencv-python; the repo ships opencv-python-headless, which
+# provides the same `cv2` module without the GUI libraries. Never install both.
+override-dependencies = ["opencv-python; sys_platform == 'never'"]
+# Transitive pins of `trackers`/`supervision` to releases at least two weeks old (repo rule).
+constraint-dependencies = ["av==19.0.1"]

@@ -1,0 +1,11 @@
+{
+  "actions_dry_run": true,
+  "firewall": "degraded",
+  "firewall_reason": "the ml extra (transformers) is not installed",
+  "interlock_devices": [],
+  "interlock_unreachable": [],
+  "light": false,
+  "notifier": "lan",
+  "tier2": "absent",
+  "tier2_absent": "Tier 1 decides alone: a confirmed violation alerts, a confident rejection is suppressed, anything unsure goes to the human queue; disputes stay pending for a person"
+}

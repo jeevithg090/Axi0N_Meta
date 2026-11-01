@@ -14,6 +14,9 @@ from rulecam.contracts import Calibration
 FloatArray = npt.NDArray[np.float64]
 BoolArray = npt.NDArray[np.bool_]
 
+SPEED_MEDIAN_SAMPLES = 5
+"""Window of the centred rolling median that smooths ground speed (`ground_speed`)."""
+
 
 def project(calibration: Calibration, points_px: FloatArray) -> FloatArray:
     """Map image pixels to ground-plane metres with the calibration homography.
@@ -87,3 +90,34 @@ def point_segment_distance(points: FloatArray, seg_a: FloatArray, seg_b: FloatAr
     t = np.clip(t, 0.0, 1.0)
     closest = seg_a + d * t[:, None]
     return norm(points - closest)
+
+
+def rolling_median(values: FloatArray, window: int) -> FloatArray:
+    """Centred rolling median ignoring NaN; NaN where the window has no finite value."""
+    half = window // 2
+    padded = np.concatenate([np.full(half, np.nan), values, np.full(half, np.nan)])
+    windows = np.lib.stride_tricks.sliding_window_view(padded, window)
+    ordered = np.sort(windows, axis=1)
+    valid = (~np.isnan(windows)).sum(axis=1)
+    lo = np.maximum((valid - 1) // 2, 0)
+    hi = np.maximum(valid // 2, 0)
+    rows = np.arange(len(values))
+    median: FloatArray = (ordered[rows, lo] + ordered[rows, hi]) / 2.0
+    median[valid == 0] = np.nan
+    return median
+
+
+def ground_speed(foot_m: FloatArray, hz: float) -> FloatArray:
+    """Smoothed ground speed in m/s: frame-to-frame speed, centred `SPEED_MEDIAN_SAMPLES` median.
+
+    Args:
+        foot_m: Ground positions in metres, shape (L, 2); NaN where unknown.
+        hz: Timeline rate.
+
+    Returns:
+        Speeds, shape (L,); NaN where no finite speed is in the window.
+    """
+    speed = np.full(len(foot_m), np.nan)
+    if len(speed) > 1:
+        speed[1:] = norm(np.diff(foot_m, axis=0)) * hz
+    return rolling_median(speed, SPEED_MEDIAN_SAMPLES)

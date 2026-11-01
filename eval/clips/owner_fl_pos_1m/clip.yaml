@@ -1,0 +1,12 @@
+# PLACEHOLDER: the owner records this clip (eval/README.md, "Recording the owner's clips").
+# Intended label: POSITIVE for forklift_2m. Once recorded, set `source`, `duration_s`,
+# `placeholder: false` and `status: labelled` with its events.
+# Also label box tracks in CVAT (MOT 1.1 export) and add a `tracks:` block.
+name: owner_fl_pos_1m
+description: A pedestrian walks past the moving forklift (or cart stand-in) at about 1 m.
+camera_id: owner-warehouse
+placeholder: true
+rules:
+  - id: forklift_2m
+    request: Keep people at least 2 metres away from a moving forklift.
+    status: unlabelled

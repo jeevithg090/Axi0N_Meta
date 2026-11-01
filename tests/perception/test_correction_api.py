@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from rulecam.bus import Topic
@@ -24,7 +24,7 @@ class RecordingBus:
 
 def client(h: Harness, bus: RecordingBus) -> TestClient:
     app = FastAPI()
-    app.include_router(correction_router(h.service, bus))
+    app.include_router(correction_router(h.service, bus, dependencies=()))
     return TestClient(app)
 
 
@@ -71,3 +71,17 @@ def test_errors_map_to_http_codes() -> None:
     assert http.post("/correction", json=body(h, frame_idx=-1)).status_code == 422
     assert http.post("/correction", json={**body(h), "x": 999.0}).status_code == 422
     assert bus.published == []
+
+
+def test_correction_applies_the_auth_it_is_given() -> None:
+    h, bus = build(), RecordingBus()
+
+    def refuse() -> None:
+        raise HTTPException(status_code=403, detail="owner only")
+
+    app = FastAPI()
+    app.include_router(correction_router(h.service, bus, dependencies=[Depends(refuse)]))
+    response = TestClient(app).post("/correction", json=body(h))
+    assert response.status_code == 403
+    assert bus.published == []
+    assert h.segmenter.calls == []

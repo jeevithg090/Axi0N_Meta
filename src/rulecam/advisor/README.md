@@ -211,3 +211,51 @@ For more pairs the power is simulated with a fixed seed (up to 12 pairs).
 uv run pytest tests/advisor tests/guardrails/test_process_log_people.py \
   tests/guardrails/test_advisor_per_person.py
 ```
+
+## `recompute.py`, `ledger.py`, `seal.py`, `api.py`: checked cards (P3-10)
+
+- **Independent recompute.** `Recomputer(glimmer, db_path).check_card(rec, numbers)`. For each number
+  a card's slots reference, Glimmer gets **only** the metric's plain-language definition, the station,
+  the window and the process-log schema, and writes its own SQL. That SQL runs on a **read-only**
+  DuckDB connection with `enable_external_access = false`, after DuckDB's own parser confirms it is a
+  single `SELECT` over `objects / events / event_object / station_intervals / cases`. A result
+  outside 1% tolerance is **hidden** and **flags the card**; `with_recompute` copies
+  `numbers_total` / `numbers_reproduced` onto the card.
+- **Pre-registration.** `AdviceLedger(chain).accept(rec, plan)` hashes P4's `MeasurementPlan`
+  (canonical JSON, without its own hash field), appends a `measurement_plan` record, **then** returns
+  the card as `measuring`. `record_block` / `record_verdict` come after it.
+  `preregistered_first(records, plan_id)` checks both the order and the hash.
+- **Sealed causes.**
+  - `rulecam advisor seal "<cause>"` appends only `sha256(cause + salt)`. The cause and salt stay in
+    `data/seals/<id>.json` (mode 600), never in the chain.
+  - `rulecam advisor reveal <id>` appends the cause and salt.
+  - `rulecam advisor seal-status <day>` and `GET /advice/seals` recompute the hash, so a wrong
+    cause or salt reads `matches: false`.
+- **API.**
+  - `GET /advice`, `GET /advice/{id}`: cards with their checks, `hidden` and `flagged`.
+  - `POST /advice/{id}/accept`: owner-only, needs `AppServices.plan_factory` from P4 (503 without
+    it), and replies with the pre-registration seq.
+  - `GET /advice/seals`.
+- **UI** `/advice`: the six-part card, clickable numbers (Glimmer's SQL, result and ✓/✗), source
+  badges, "considered and not recommended", *Accept* → "pre-registered at event N", the verdict dot
+  plot with CI, and the sealed-cause badge.
+
+## `brief.py`: the 60-second morning brief (P3-S3)
+
+`BriefService(rates=RatesStore(data/owner_rates.json), tts=MmsTts, notifier=…, writer=glimmer,
+out_dir=data/briefs)`. The brief follows SA §7:
+
+- **Order:** what was watched, yesterday's load, three numbers against the same weekday, the biggest
+  leak, the safety/flow overlap, checks in progress, one decision, and what it couldn't see.
+- **Length:** at most **150 words**. Lines are dropped from the end, but the watched line and the
+  decision always stay.
+- **Nothing to report:** it says "Nothing worth your time today."
+- **Unit-level sites** (`unit_level`) get 7-day figures only.
+- **Money:** the leak appears in dollars **only with the owner's own rate** for that leak kind;
+  otherwise it is "hours a week of capacity".
+- **Language:** Glimmer translates into the owner's language, and a translation that changes or
+  drops a number is refused.
+- **Voice note:** MMS-TTS speaks it, and a note over **60 s is refused**. It goes to the `owner`
+  role through the notifier (LAN app, or WhatsApp with P3-S1).
+- **Routes** (owner-only, mount with `brief_router(service, rates)`): `GET`/`PUT /brief/rates`,
+  `POST /brief/preview`, `POST /brief/send`.

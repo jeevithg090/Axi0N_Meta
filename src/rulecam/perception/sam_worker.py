@@ -21,6 +21,14 @@ No downscaling: SAM 3.1 resizes every frame to a fixed 1008 x 1008 input before 
 `build_sam3_multiplex_video_predictor`), so shrinking 1280 x 720 frames first saves no encoder
 work and would only cost mask resolution.
 
+Image mode (`Sam31ImageEngine`, the runtime's keyframes) runs the *detector* of the same loaded
+SAM 3.1 model (`predictor.model.detector`, a `Sam3MultiplexDetector`, which is a `Sam3Image`)
+through `sam3`'s own `Sam3Processor`: one image encoder pass per keyframe, then one
+text-conditioned detection per concept on it. It shares the weights already on the GPU (no second
+checkpoint) and keeps no session state, so memory stays flat; the video predictor stays loaded
+for offline uses. At the pinned commit `build_sam3_image_model` only loads the SAM 3 (not 3.1)
+image checkpoint, which is why the engine reuses the SAM 3.1 detector instead.
+
 This module imports with the base dependencies only. It must stay free of pydantic and structlog
 because the GPU image ships just numpy and `rulecam.perception.masks` from this repo; `modal`,
 `torch` and `sam3` are imported lazily inside the functions that need them.
@@ -50,11 +58,14 @@ from typing import Any, Protocol
 import numpy as np
 
 from rulecam.perception.errors import PerceptionError
-from rulecam.perception.masks import decode_rle, encode_rle
+from rulecam.perception.masks import NO_MASK, decode_rle, encode_rle
 
 MODAL_APP_NAME = "rulecam-sam"
 MODAL_CLASS_NAME = "Sam31Worker"
 MODEL_VERSION = "facebook/sam3.1@sam3.1_multiplex"
+IMAGE_MODEL_VERSION = f"{MODEL_VERSION}#detector"
+IMAGE_THRESH_ENV = "SAM_IMAGE_THRESH"
+DEFAULT_IMAGE_THRESH = 0.5  # `Sam3Processor`'s default confidence threshold
 DEFAULT_GPU = "L4"
 WARM_CONTAINERS = 1
 SCALEDOWN_WINDOW_S = 600
@@ -329,6 +340,26 @@ class Sam31Engine:
             model_config={**model_config, "compile": settings.compile},
         )
 
+    @property
+    def predictor(self) -> Sam3Predictor:
+        """The loaded `sam3` video predictor (its `model.detector` also serves images)."""
+        return self._predictor
+
+    @property
+    def inference_context(self) -> Callable[[], AbstractContextManager[object]]:
+        """The context every GPU call runs in (bfloat16 autocast on a GPU)."""
+        return self._inference_context
+
+    @property
+    def memory(self) -> GpuMemory:
+        """The device memory reader shared with the image engine."""
+        return self._memory
+
+    @property
+    def memory_guard_bytes(self) -> int | None:
+        """Allocated bytes after a call that trigger the guard."""
+        return self._guard_bytes
+
     def segment(self, video: bytes, request: dict[str, Any]) -> dict[str, Any]:
         """Segment one chunk.
 
@@ -445,6 +476,217 @@ class Sam31Engine:
         for session_id in leftover:
             self._predictor.handle_request({"type": "close_session", "session_id": session_id})
         return len(leftover)
+
+
+class ImagePredictor(Protocol):
+    """Runs SAM 3.1 image detection (`Sam3ProcessorPredictor` on a GPU, a fake in tests)."""
+
+    def set_image(self, image: np.ndarray) -> Any:
+        """Encode one RGB `uint8` image (H, W, 3) and return its state."""
+        ...
+
+    def detect(self, state: Any, concept: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Detect one concept on an encoded image.
+
+        Returns:
+            Pixel `xyxy` boxes `(N, 4)`, scores `(N,)` and boolean masks `(N, H, W)`.
+        """
+        ...
+
+
+class Sam3ProcessorPredictor:  # pragma: no cover - needs a CUDA GPU and the sam3 package
+    """`ImagePredictor` over `sam3.model.sam3_image_processor.Sam3Processor`."""
+
+    def __init__(self, processor: Any) -> None:
+        """Wrap a processor built on a loaded SAM 3.1 detector."""
+        self._processor = processor
+
+    def set_image(self, image: np.ndarray) -> Any:
+        """Encode the image (the processor takes a PIL image for HWC pixels)."""
+        from PIL import Image  # noqa: PLC0415 - GPU image only
+
+        return self._processor.set_image(Image.fromarray(image))
+
+    def detect(self, state: Any, concept: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Run the text prompt on the encoded image."""
+        self._processor.reset_all_prompts(state)
+        out = self._processor.set_text_prompt(prompt=concept, state=state)
+        boxes = out["boxes"].float().cpu().numpy().reshape(-1, 4)
+        scores = out["scores"].float().cpu().numpy().reshape(-1)
+        masks = out["masks"].cpu().numpy().astype(bool)
+        return boxes, scores, masks.reshape(len(scores), *masks.shape[-2:])
+
+
+def decode_jpeg(data: bytes) -> np.ndarray:
+    """Decode JPEG or PNG bytes into RGB `uint8` pixels.
+
+    Raises:
+        ValueError: If the bytes are not an image.
+    """
+    import cv2  # noqa: PLC0415 - opencv-python-headless is in both images
+
+    pixels = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_COLOR)
+    if pixels is None:
+        msg = "image bytes could not be decoded"
+        raise ValueError(msg)
+    return np.ascontiguousarray(pixels[:, :, ::-1])
+
+
+def image_objects(
+    image_idx: int,
+    concept: str,
+    found: tuple[np.ndarray, np.ndarray, np.ndarray],
+    *,
+    masks: bool,
+    include_confidence: bool,
+) -> list[WireObject]:
+    """Convert one concept's detections on one image into wire objects (best score first).
+
+    Args:
+        image_idx: The image's place in the request.
+        concept: The concept.
+        found: `(boxes, scores, masks)` from `ImagePredictor.detect`.
+        masks: Whether to encode masks (otherwise `rle` is empty: boxes only).
+        include_confidence: Whether to report the scores.
+
+    Returns:
+        One dict per object with `image_idx`, `concept`, `object_id` (0.. in score order),
+        `rle`, `box_xyxy` (pixels, clipped to the image) and `confidence`.
+    """
+    boxes, scores, binary = found
+    height, width = binary.shape[-2:] if binary.ndim == 3 else (0, 0)  # noqa: PLR2004 - (N, H, W)
+    order = np.argsort(-scores, kind="stable")
+    objects = []
+    for object_id, i in enumerate(order):
+        x0, y0, x1, y1 = (float(v) for v in boxes[i])
+        if width and height:
+            x0, x1 = (min(max(v, 0.0), float(width)) for v in (x0, x1))
+            y0, y1 = (min(max(v, 0.0), float(height)) for v in (y0, y1))
+        objects.append(
+            {
+                "image_idx": image_idx,
+                "concept": concept,
+                "object_id": object_id,
+                "rle": encode_rle(binary[i]) if masks else NO_MASK,
+                "box_xyxy": [x0, y0, x1, y1],
+                "confidence": float(scores[i]) if include_confidence else None,
+            }
+        )
+    return objects
+
+
+class Sam31ImageEngine:
+    """SAM 3.1 image detection for runtime keyframes; serves `POST /segment_image`.
+
+    Every image is encoded once and each concept detected on it. After every call, also a failed
+    one, GPU memory is released and the guard checked, as after a video session.
+    """
+
+    def __init__(
+        self,
+        predictor: ImagePredictor,
+        inference_context: Callable[[], AbstractContextManager[object]] = nullcontext,
+        *,
+        memory: GpuMemory | None = None,
+        memory_guard_bytes: int | None = None,
+        decode: Callable[[bytes], np.ndarray] = decode_jpeg,
+    ) -> None:
+        """Wrap a loaded image predictor.
+
+        Args:
+            predictor: The detector behind an `ImagePredictor`, or a fake in tests.
+            inference_context: Entered around every call (bfloat16 autocast on a GPU).
+            memory: Reads and frees GPU memory (defaults to `NoGpuMemory`).
+            memory_guard_bytes: Allocated bytes after a call that trigger a second release.
+            decode: Decodes an image's bytes into RGB pixels.
+        """
+        self._predictor = predictor
+        self._inference_context = inference_context
+        self._memory: GpuMemory = memory or NoGpuMemory()
+        self._guard_bytes = memory_guard_bytes
+        self._decode = decode
+        self._calls = 0
+        self._guard_trips = 0
+
+    @classmethod
+    def from_video_engine(cls, engine: Sam31Engine) -> Sam31ImageEngine:  # pragma: no cover
+        """Serve images with the detector of an already loaded video engine (needs a GPU).
+
+        The confidence threshold comes from `SAM_IMAGE_THRESH` (default 0.5).
+        """
+        from sam3.model.sam3_image_processor import (  # type: ignore[import-not-found]  # noqa: PLC0415
+            Sam3Processor,
+        )
+
+        threshold = float(os.environ.get(IMAGE_THRESH_ENV) or DEFAULT_IMAGE_THRESH)
+        video_predictor: Any = engine.predictor
+        detector = video_predictor.model.detector
+        processor = Sam3Processor(detector, confidence_threshold=threshold)
+        _log.info("sam_image_engine_loaded threshold=%s", threshold)
+        return cls(
+            Sam3ProcessorPredictor(processor),
+            inference_context=engine.inference_context,
+            memory=engine.memory,
+            memory_guard_bytes=engine.memory_guard_bytes,
+        )
+
+    def segment_images(self, images: list[bytes], request: dict[str, Any]) -> dict[str, Any]:
+        """Detect every concept of `request` on every image.
+
+        Args:
+            images: JPEG or PNG bytes, in request order.
+            request: A `SamImageRequest` in JSON form.
+
+        Returns:
+            A `SamImageResponse` in JSON form.
+
+        Raises:
+            ValueError: If an image cannot be decoded.
+        """
+        started = time.perf_counter()
+        concepts = [str(c) for c in request["concepts"]]
+        masks, confidence = bool(request.get("masks")), bool(request["include_confidence"])
+        objects: list[WireObject] = []
+        try:
+            with self._inference_context():
+                for image_idx, data in enumerate(images):
+                    state = self._predictor.set_image(self._decode(data))
+                    for concept in concepts:
+                        found = self._predictor.detect(state, concept)
+                        objects.extend(
+                            image_objects(
+                                image_idx,
+                                concept,
+                                found,
+                                masks=masks,
+                                include_confidence=confidence,
+                            )
+                        )
+        finally:
+            self._after_call()
+        return {
+            "objects": objects,
+            "images_processed": len(images),
+            "gpu_seconds": time.perf_counter() - started,
+            "model_version": IMAGE_MODEL_VERSION,
+        }
+
+    def memory_stats(self) -> dict[str, Any]:
+        """The image engine's own counters for `/health` (device memory is the video engine's)."""
+        return {"calls": self._calls, "guard_trips": self._guard_trips}
+
+    def _after_call(self) -> None:
+        self._calls += 1
+        self._memory.release()
+        allocated = self._memory.stats().get("allocated_bytes", 0)
+        if self._guard_bytes is not None and allocated > self._guard_bytes:
+            self._guard_trips += 1
+            self._memory.release()
+            _log.warning(
+                "sam_image_memory_guard allocated_bytes=%d guard_bytes=%d",
+                allocated,
+                self._guard_bytes,
+            )
 
 
 def with_prompt_frame(

@@ -26,6 +26,12 @@ from rulecam.rules.geometry import (
     project,
 )
 from rulecam.rules.ir import HANDS_CONCEPT
+from rulecam.rules.operators import (
+    OPERATOR_WARMUP_S,
+    is_person_like,
+    is_vehicle_like,
+    operator_mask,
+)
 from rulecam.rules.pose import PoseFeatures
 from rulecam.rules.timeline import SampledTrack, Timeline
 
@@ -70,7 +76,10 @@ class Scene:
     zones: Mapping[str, Zone]
     tracks: tuple[SampledTrack, ...]
     pose: PoseFeatures | None = None
+    operator_exclusion: bool = True
+    operator_warmup_s: float = OPERATOR_WARMUP_S
     _by_concept: dict[str, tuple[SampledTrack, ...]] = field(default_factory=dict)
+    _ignored: dict[tuple[str, str], BoolArray | None] = field(default_factory=dict)
 
     def names(self, concept: str) -> frozenset[str]:
         """Track concept names that stand for a rule concept: its key and its SAM prompt."""
@@ -83,6 +92,49 @@ class Scene:
             names = self.names(concept)
             self._by_concept[concept] = tuple(t for t in self.tracks if t.concept in names)
         return self._by_concept[concept]
+
+    def _person_like(self, track: SampledTrack) -> bool:
+        return is_person_like(track.concept, *self._rule_names(track.concept))
+
+    def _vehicle_like(self, track: SampledTrack) -> bool:
+        return is_vehicle_like(track.concept, *self._rule_names(track.concept))
+
+    def _rule_names(self, track_concept: str) -> tuple[str, ...]:
+        """Rule concept keys whose key or prompt is this track concept."""
+        return tuple(
+            key
+            for key, spec in sorted(self.rule.concepts.items())
+            if track_concept in {key, spec.prompt}
+        )
+
+    def ignored(self, subject: SampledTrack, other: SampledTrack) -> BoolArray | None:
+        """Samples of `subject`'s range where `other` must be ignored (operator exclusion).
+
+        That is where one of the two is a person riding the other, a vehicle, as its operator
+        (`rules.operators`). None when exclusion is off or the pair is not person-vehicle.
+        """
+        key = (subject.track_id, other.track_id)
+        if key not in self._ignored:
+            self._ignored[key] = self._compute_ignored(subject, other)
+        return self._ignored[key]
+
+    def _compute_ignored(self, subject: SampledTrack, other: SampledTrack) -> BoolArray | None:
+        if not self.operator_exclusion:
+            return None
+        hz, horizon = self.timeline.hz, self.timeline.n
+        if self._person_like(subject) and self._vehicle_like(other):
+            mask = operator_mask(subject, other, hz, horizon, warmup_s=self.operator_warmup_s)
+            return mask if mask.any() else None
+        if self._vehicle_like(subject) and self._person_like(other):
+            mask = operator_mask(other, subject, hz, horizon, warmup_s=self.operator_warmup_s)
+            if not mask.any():
+                return None
+            out = np.zeros(len(subject.present), dtype=np.bool_)
+            span = overlap(subject, other.start, other.stop)
+            if span is not None:
+                out[span[0]] = mask[span[1]]
+            return out
+        return None
 
     def zone(self, name: str) -> ZoneShape:
         """Resolve a zone name against the given zones, then the rule's own zone specs.
@@ -242,8 +294,13 @@ def nearest_distance(
     others: tuple[SampledTrack, ...],
     *,
     footprint: bool,
+    subject: SampledTrack | None = None,
 ) -> FloatArray:
     """Minimum ground distance from points to any of `others`.
+
+    With `subject` (whose index range the points are aligned to), an other object is treated as
+    absent at the samples where `Scene.ignored` says so: the subject rides it, or it rides the
+    subject (operator exclusion).
 
     Returns:
         Metres per sample: +inf where no other object is present, NaN where the points have no
@@ -253,6 +310,9 @@ def nearest_distance(
     unmeasured = np.zeros(len(ground), dtype=np.bool_)
     for other in others:
         dist = footprint_distance(scene, ground, start, other, footprint=footprint)
+        mask = None if subject is None else scene.ignored(subject, other)
+        if mask is not None:
+            dist = np.where(mask, np.inf, dist)
         best = np.fmin(best, dist)
         lo, hi = max(start, other.start), min(start + len(ground), other.stop)
         if lo < hi:
@@ -264,13 +324,18 @@ def nearest_distance(
     return best
 
 
-def zone_contains(scene: Scene, zone: ZoneShape, points: Points, start: int) -> BoolArray:
-    """Whether each position lies in a zone (image polygon, or metric buffer of a concept)."""
+def zone_contains(
+    scene: Scene, zone: ZoneShape, points: Points, start: int, subject: SampledTrack | None = None
+) -> BoolArray:
+    """Whether each position lies in a zone (image polygon, or metric buffer of a concept).
+
+    A buffer around a vehicle ignores the vehicle at samples where `subject` is its operator.
+    """
     if zone.polygon_px is not None:
         return points_in_polygon(points.px, zone.polygon_px)
     if not zone.in_view or zone.buffer_of is None:
         return np.zeros(len(points.px), dtype=np.bool_)
     others = scene.tracks_of(zone.buffer_of)
-    dist = nearest_distance(scene, points.m, start, others, footprint=True)
+    dist = nearest_distance(scene, points.m, start, others, footprint=True, subject=subject)
     with np.errstate(invalid="ignore"):
         return dist <= zone.buffer_m

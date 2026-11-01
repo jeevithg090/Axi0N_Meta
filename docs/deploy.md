@@ -29,6 +29,7 @@ pushes to `main` push `sha-<commit>` and `latest`):
 |---|---|
 | `ghcr.io/jeevithg090/rulecam-api` | Python 3.12 slim (Debian trixie), the locked deps (`uv sync --frozen --no-dev`), ffmpeg 7 (no more 4.4 / `-fps_mode`), tini, sshd for owner actions. Runs uvicorn with `--timeout-graceful-shutdown 5 --forwarded-allow-ips 100.64.0.0/10` as the unprivileged `rulecam` user. |
 | `ghcr.io/jeevithg090/rulecam-sam` | CUDA 12.8 base (Ubuntu 24.04), torch 2.10 cu128, `sam3` at `SAM3_COMMIT`, einops, pycocotools, psutil, pydantic, opencv, numpy < 2. Nothing is installed at boot, so no venv or uv-Python on the wiped container disk. |
+| `ghcr.io/jeevithg090/rulecam-gpu` | The SAM image's venv plus `llama-server` from `ghcr.io/ggml-org/llama.cpp:server-cuda-b11669`, under a small supervisor: Glimmer and SAM on one 48 GB pod (`--one-gpu`, "One GPU per site" below). |
 
 The packages start private on GHCR: make both public once (GitHub → Packages → the package →
 Package settings → Change visibility), or create a RunPod registry credential for GHCR and pass
@@ -61,7 +62,7 @@ scripts/deploy/runpod_down.sh              # stop all pods (volumes kept; --only
 ```
 
 What `up` does, in order (pods are found by name: `rulecam-api`, `rulecam-glimmer`,
-`rulecam-sam`; `--prefix` changes it):
+`rulecam-sam`, `rulecam-gpu`; `--prefix` changes it):
 
 1. RunPod secrets for the local key files (created when missing).
 2. The API's network volume: the one the existing API pod mounts, else `rulecam-api`, else a new
@@ -73,10 +74,13 @@ What `up` does, in order (pods are found by name: `rulecam-api`, `rulecam-glimme
    stock catalog (`/v2/catalog/gpus`, CUDA ≥ 12.8) and tries each preferred GPU type in each data
    center that has it, most stock first, until one places (`--glimmer-gpus`, `--sam-gpus`; 48 GB
    cards first, then L4 / A5000 / 4090 for SAM). GPU pods use pod volumes, so they are not tied to
-   the API volume's data center.
+   the API volume's data center. `--one-gpu` replaces both with one 48 GB pod, `rulecam-gpu`
+   ("One GPU per site" below).
 4. The API CPU pod (8 vCPU, `8000/http, 22/tcp`, SSH keys from the account) in the volume's data
    center, with `RULECAM_MODE=live`, `RULECAM_RUNTIME=true`, `GLIMMER_BASE_URL` / `SAM_BASE_URL`
-   pointing at the two GPU pods' proxy URLs and the key references. Anything else still comes
+   pointing at the GPU pods' proxy URLs, `RULECAM_GPU_USD_PER_HOUR` set to their combined price
+   (as RunPod reports it; `--gpu-usd-per-hour` overrides it), `RULECAM_IDLE_STOP_GPU_PODS` set
+   to their names, and the key references. Anything else still comes
    from `/workspace/rulecam/.env` on the volume.
 5. Existing pods are reused: a stopped pod is started; a pod whose image, env, ports or start
    command differ is patched (a manual pod's `bash -c "(boot.sh &) ; exec /start.sh"` is cleared so
@@ -104,6 +108,153 @@ loopback owner actions), then runs uvicorn as `rulecam`. On a volume that ignore
 to `bash -c "(/workspace/rulecam/deploy/api-boot.sh &) ; exec /start.sh"`, uploads `git archive
 HEAD` over SSH (`--ssh-key`, default `~/.ssh/runpod_ed25519`) and starts `deploy/api-boot.sh`,
 which keeps uv's Python, cache and the venv on the volume and runs the same entrypoint.
+
+## One GPU per site
+
+Two GPU pods per site (Glimmer on an A6000 at about $0.59/h, SAM at about $0.59/h) cost $1.18/h,
+so one camera costs $1.18 per camera-hour. The idle target is $0.15. The runtime only uses SAM
+**image** mode (no video session state, about 4 to 6 GB), so SAM fits next to Glimmer on one
+48 GB card. `scripts/deploy/runpod_up.sh --one-gpu` runs both on a single pod, `rulecam-gpu`:
+Glimmer on `8080/http` and SAM on `8090/http`, both behind the RunPod HTTPS proxy.
+
+**Image** `ghcr.io/jeevithg090/rulecam-gpu` (`deploy/gpu.Dockerfile`, built by the `images`
+workflow when its inputs change):
+
+- the SAM venv from `deploy/sam.Dockerfile`, pin for pin: CUDA 12.8 base (Ubuntu 24.04), torch
+  2.10 cu128, `sam3` at `SAM3_COMMIT`, einops, pycocotools, psutil, pydantic, opencv, numpy < 2;
+- `llama-server` and its ggml backends, copied from `ghcr.io/ggml-org/llama.cpp:server-cuda-b11669`
+  (Muse Glimmer needs ≥ b10353). That image keeps everything in `/app`: `/app/lib/*` (the shared
+  libraries, including the CUDA backend) plus `/app/llama-server`. We copy all of `/app` to
+  `/opt/llama` so the backends stay next to the binary. It links the CUDA runtime, cuBLAS and NCCL.
+  The torch wheels already ship them (`libcudart.so.12`, `libcublas.so.12`, `libcublasLt.so.12`,
+  `libnccl.so.2`), so
+  `/opt/llama/cuda` links to those and the image carries no second copy (the CUDA `runtime`
+  image would add about 3 GB). The build fails if `ldd` finds any library of the binary or its
+  backends unresolved. `libcuda.so.1` comes from the host driver at run time; at build time it
+  is checked against the image's compat copy. The runtime packages are the ggml-org image's:
+  `libgomp1`, `curl`, `ffmpeg`;
+- `deploy/gpu-entrypoint.sh` and `deploy/gpu_supervisor.py` (stdlib Python, run with the venv).
+
+**Processes.** `tini` → `gpu-entrypoint.sh serve`. As root, it reads the secrets and
+`/workspace/sam.env`, creates the caches and drops to the `sam` user (uid 10001). Then
+`gpu_supervisor.py` starts both services at once:
+
+| Service | Command | Health | Cache on the pod volume |
+|---|---|---|---|
+| glimmer | `/opt/llama/llama-server` with the Glimmer pod's documented args (`-c $GLIMMER_CTX -np $GLIMMER_PARALLEL`, defaults 32768 and 2) | `:8080/health` | `LLAMA_CACHE=/workspace/llama-cache` (GGUF + mmproj, about 18 GB) |
+| sam | `sam-entrypoint.sh _serve` (fills the checkpoint cache once, then `sam_server` offline) | `:8090/health` | `HF_HOME=/workspace/hf-cache` (about 3.5 GB) |
+
+Restart rules:
+
+- **Exit.** A service that exits is restarted. The wait starts at 2 s and doubles up to 60 s; it
+  goes back to 2 s after a run that became healthy or lasted 2 minutes.
+- **Hang.** A service whose `/health` stops answering for 3 minutes, after it had been healthy,
+  gets SIGTERM, then SIGKILL 20 s later, and is then restarted. A server that has never been
+  healthy is left to load, because the first boot downloads about 21 GB.
+- **Stop.** SIGTERM to the container stops both servers.
+- **Health.** `gpu-entrypoint.sh healthcheck`, the image's `HEALTHCHECK`, needs both `/health`
+  endpoints. `runpod_status.sh` shows the pod `ok` only when both answer.
+- **Memory log.** Once both servers are healthy, the supervisor logs one
+  `gpu memory (name, total, used, free)` line from `nvidia-smi`.
+- **Plan.** `gpu-entrypoint.sh plan` prints both commands and contains no secrets.
+
+**Secrets.** Each comes from the environment first (RunPod secrets) and otherwise from a mode-600
+file on the volume. No secret is ever logged or put in argv. The supervisor takes all three out
+of its own environment and gives each child only its own:
+
+| Variable | File fallback | Goes to |
+|---|---|---|
+| `LLAMA_API_KEY` (RunPod secret `rulecam_glimmer_api_key`) | `/workspace/.llama_api_key` | llama-server only |
+| `SAM_API_KEY` (`rulecam_sam_api_key`) | `/workspace/.sam_api_key` | the SAM server only |
+| `HF_TOKEN` (`rulecam_hf_token`) | `/workspace/.hf_token` | the SAM checkpoint download only. It is dropped once SAM has been healthy, and the SAM entrypoint unsets it before the server starts |
+
+**GPU memory budget (48 GB card; an RTX A6000 has 49,140 MiB).** These are estimates from the
+model cards. Muse Glimmer is a 30B dense model with 52 layers, 3 sliding-window layers to 1
+full-attention layer, sold as fitting in 24 to 32 GB at 4 bit. SAM 3.1 has about 0.85B
+parameters. The supervisor's `gpu memory` log line gives the real numbers on the first boot:
+record them here.
+
+| Item | Budget |
+|---|---|
+| Glimmer weights, Q4_K_M, all layers on the GPU (`-ngl 99`) | about 17 GB |
+| mmproj (perception encoder) | about 1 to 2 GB |
+| KV cache, `-c 32768` over `-np 2` (16k tokens per slot); only 13 full-attention layers keep the whole context | about 2 GB |
+| llama.cpp compute buffers (vision graph included) | about 2 to 3 GB |
+| **Glimmer, allocated once at load** | **about 24 GB (budget 26)** |
+| SAM 3.1 weights | about 3.5 GB |
+| SAM image call (every keyframe and concept of a chunk) | +1 to 2.5 GB |
+| **SAM, capped by `SAM_MEMORY_GUARD_GB=8`** (set in the image; was half the device) | **≤ 8 GB** |
+| CUDA contexts (two processes) | about 1 GB |
+| **Headroom** | **about 13 GB** |
+
+- llama.cpp allocates weights, KV cache and compute buffers once, at load. A SAM spike can
+  therefore only fail SAM's own call: the runtime falls back to hosted SAM for 60 s, and Glimmer
+  is not touched. The guard frees SAM's cache after every call, so a Glimmer restart finds its
+  memory free again.
+- The context stays at 32768. The KV cache is small because most layers use a sliding window,
+  and a 6-frame strip with the prompt uses a few thousand tokens per slot. If the memory log
+  shows less than about 6 GB free, put `GLIMMER_CTX=16384` in `/workspace/sam.env`; it saves
+  about 1 GB.
+- **Video `/segment` on this pod is offline only** (`scripts/sam_pod/compare.py`, `soak.py`). A
+  video session grew from 4 to 22 GB on an L4. Run those with the runtime stopped, or on a
+  separate SAM pod (`runpod_up.sh` without `--one-gpu`).
+
+**Deploy (operator).**
+
+1. Merge to `main`. The `images` workflow pushes `ghcr.io/jeevithg090/rulecam-gpu:sha-<commit>`
+   and `:latest`. Make the package public once (GitHub → Packages → rulecam-gpu → Package
+   settings → Change visibility), or pass `--registry <RunPod registry credential id>`.
+2. Key files: the existing `~/.runpod/rulecam-glimmer.key` (it becomes `LLAMA_API_KEY`),
+   `rulecam-sam.key` and `rulecam-hf.token`. The token's account needs access to
+   `facebook/sam3.1`.
+3. `scripts/deploy/runpod_up.sh --one-gpu --image-tag sha-<commit> --dry-run`. Check the planned
+   `rulecam-gpu` pod (ports `8080/http, 8090/http`) and the API env: `GLIMMER_BASE_URL` (…-8080
+   …/v1), `SAM_BASE_URL` (…-8090…), `RULECAM_GPU_USD_PER_HOUR` (`<gpu pod $/h>` until the pod
+   exists) and `RULECAM_IDLE_STOP_GPU_PODS=rulecam-gpu`.
+4. `scripts/deploy/runpod_up.sh --one-gpu --image-tag sha-<commit>`. It tries RTX A6000 → A40 →
+   L40S → RTX 6000 Ada (`--one-gpu-gpus`) in each data center with stock, then patches the API
+   pod's env, including `RULECAM_GPU_USD_PER_HOUR` set to the placed pod's price
+   (`--gpu-usd-per-hour` overrides it). Then it waits for every `/health`; the first boot
+   downloads about 21 GB. It warns that `rulecam-glimmer` and `rulecam-sam` still run.
+5. `scripts/deploy/runpod_status.sh`: `rulecam-gpu` must be `ok`, which needs both servers. Read
+   the `gpu memory` line in the pod log and fill in the budget table above.
+6. Stop the old pods: `scripts/deploy/runpod_down.sh --only glimmer,sam` (their volumes stay).
+   Once you are satisfied, run `--only glimmer,sam --terminate --yes`.
+7. Rollback: run `scripts/deploy/runpod_up.sh` without `--one-gpu`. It starts the two pods again,
+   rewires the API and warns that `rulecam-gpu` still runs.
+
+**Cost per camera-hour.** The GPU share is the pod's price divided by the cameras it serves. API
+CPU pod: about $0.06/h, not model spend.
+
+| Layout | GPU $/h | 1 camera | 4 cameras | 6 cameras | 8 cameras |
+|---|---|---|---|---|---|
+| Two pods (Glimmer + SAM) | 1.18 | 1.18 | 0.295 | 0.197 | 0.148 |
+| One GPU (A6000) | 0.59 | 0.59 | 0.148 | **0.098** | 0.074 |
+
+The deployment assumption next to the PLAN-9.5 cost target is **one 48 GB pod per site, shared
+by 4 to 8 cameras**. The estimate behind it:
+
+- An image-mode chunk (2 concepts, 2 keyframes/s, 3 s) takes about 1 s of GPU ("Runtime
+  perception modes": one L4 carries 2 to 3 cameras that segment every chunk).
+- Idle sampling segments one chunk in 3, and the motion gate skips still chunks.
+- An A6000 is about 1.5 to 2 times an L4.
+- Glimmer only runs on candidates, 2 at a time.
+
+This is unmeasured. The scorecard's cost rows divide by `--cameras-per-gpu N`, or by
+`cameras_per_gpu` in the site config (`RULECAM_SITE_CONFIG` or `--site-config`;
+`docs/site.example.yaml` uses 6). The target then reads "(one GPU pod per N cameras)", and the
+measured column shows `GPU $X/h ÷ N cameras = $Y`. The Cost area passes only with the
+`gpu_cameras` check in `eval/checks.yaml`: a soak showing one pod carried at least N cameras at
+the real-time targets. Example:
+
+```bash
+uv run rulecam eval score reports/eval/runs/<run> --gpu-usd-per-hour 0.59 --cameras-per-gpu 6
+```
+
+The live cost meter (`/runtime/metrics` → `cost`) does not assume anything: it shares
+`RULECAM_GPU_USD_PER_HOUR` among the cameras that are active. On a site with fewer cameras
+than the assumption it shows the real, higher cost per camera, and it books time with no
+active camera as `gpu_idle_usd`.
 
 ## Monitoring
 
@@ -719,6 +870,7 @@ returns.
 
 ## Costs and shutdown
 
-API pod about $0.06/h, Glimmer pod about $0.59/h, plus about $1.40/month for the 20 GB network
-volume. Stop the GPU pod when nobody is viewing (`runpodctl pod stop <id>`): the model stays cached
+API pod about $0.06/h, Glimmer pod about $0.59/h (with a SAM pod, about $1.18/h for both; one
+`--one-gpu` pod carries both for about $0.59/h, see "One GPU per site"), plus about $1.40/month
+for the 20 GB network volume. Stop the GPU pod when nobody is viewing (`runpodctl pod stop <id>`): the model stays cached
 on its volume.

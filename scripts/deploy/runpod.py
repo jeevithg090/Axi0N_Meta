@@ -10,9 +10,12 @@
 3. the Glimmer GPU pod (llama.cpp + Muse Glimmer 30B, `LLAMA_API_KEY`) and the SAM GPU pod
    (ghcr.io/jeevithg090/rulecam-sam), each tried on several GPU types and data centers from the
    live stock catalog until one places (RunPod places exactly one GPU type per create call);
+   or, with `--one-gpu`, a single 48 GB pod (ghcr.io/jeevithg090/rulecam-gpu) running both,
+   Glimmer on 8080 and SAM on 8090 (docs/deploy.md "One GPU per site");
 4. the API CPU pod (8 vCPU, ghcr.io/jeevithg090/rulecam-api, or the documented
-   `runpod/base` + `git archive` fallback with `--api-source archive`), wired to the two GPU
-   pods' proxy URLs;
+   `runpod/base` + `git archive` fallback with `--api-source archive`), wired to the GPU
+   pods' proxy URLs, with `RULECAM_GPU_USD_PER_HOUR` set to their price (the cost meter's GPU
+   share) and `RULECAM_IDLE_STOP_GPU_PODS` to their names;
 5. optionally (`--vercel`) the UI's `NEXT_PUBLIC_RULECAM_API` and a production redeploy.
 
 A pod that already exists (by name) is reused: started when stopped, patched when its image or
@@ -51,6 +54,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 GHCR = "ghcr.io/jeevithg090"
 API_IMAGE = f"{GHCR}/rulecam-api"
 SAM_IMAGE = f"{GHCR}/rulecam-sam"
+GPU_IMAGE = f"{GHCR}/rulecam-gpu"  # --one-gpu: Glimmer + SAM image mode on one pod
 GLIMMER_IMAGE = "ghcr.io/ggml-org/llama.cpp:server-cuda-b11669"  # Muse Glimmer needs >= b10353
 ARCHIVE_IMAGE = "runpod/base:1.4.0-ubuntu2204"  # the manual path (docs/deploy.md "API pod")
 GLIMMER_ARGS = (
@@ -81,6 +85,14 @@ SAM_GPUS = (
     "NVIDIA RTX A5000",
     "NVIDIA GeForce RTX 4090",
 )
+# --one-gpu: 48 GB cards only. Glimmer (~24 GB at -c 32768 -np 2) and SAM image mode (<= 8 GB,
+# SAM_MEMORY_GUARD_GB) share the GPU with headroom (docs/deploy.md "One GPU per site").
+ONE_GPU_GPUS = (
+    "NVIDIA RTX A6000",
+    "NVIDIA A40",
+    "NVIDIA L40S",
+    "NVIDIA RTX 6000 Ada Generation",
+)
 CPU_FLAVORS = ("cpu3c", "cpu3g", "cpu5c", "cpu5g")
 API_VCPUS = 8
 MIN_CUDA = "12.8"
@@ -90,6 +102,7 @@ LIVE = frozenset({"RUNNING", "STARTING", "PROVISIONING"})
 MAX_ATTEMPTS = 12
 CREATE_PATHS = frozenset({"/v2/pods", "/v2/network-volumes", "/v2/account/secrets"})
 POLL_S = 10.0
+PRICE_PLACEHOLDER = "<gpu pod $/h>"  # dry run of a pod that does not exist yet
 
 
 @dataclass(frozen=True)
@@ -446,12 +459,15 @@ class Options:
     api_source: str = "image"
     with_sam: bool = True
     with_glimmer: bool = True
+    one_gpu: bool = False
     runtime: bool = True
     volume_size_gb: int = 20
     gpu_volume_gb: int = 40
     data_centers: tuple[str, ...] = ()
     glimmer_gpus: tuple[str, ...] = GLIMMER_GPUS
     sam_gpus: tuple[str, ...] = SAM_GPUS
+    one_gpu_gpus: tuple[str, ...] = ONE_GPU_GPUS
+    gpu_usd_per_hour: float | None = None  # overrides the pods' reported price
     cpu_flavors: tuple[str, ...] = CPU_FLAVORS
     cloud: str = "SECURE"
     public_ui_url: str = "https://rulecam.vercel.app"
@@ -518,13 +534,52 @@ def sam_body(opts: Options, secrets: SecretRefs) -> dict[str, Any]:
     }
 
 
+def gpu_body(opts: Options, secrets: SecretRefs) -> dict[str, Any]:
+    """Create body of the one-GPU pod: Glimmer on 8080 and SAM on 8090, both http only.
+
+    The image's entrypoint hands `LLAMA_API_KEY` to llama-server only, `SAM_API_KEY` to the SAM
+    server only, and `HF_TOKEN` to the SAM checkpoint download only.
+    """
+    return {
+        "name": opts.name("gpu"),
+        "image": f"{GPU_IMAGE}:{opts.image_tag}",
+        **({"registry": opts.registry} if opts.registry else {}),
+        "env": {
+            **secrets.env(GLIMMER_KEY, "LLAMA_API_KEY"),
+            **secrets.env(SAM_KEY, "SAM_API_KEY"),
+            **secrets.env(HF_TOKEN, "HF_TOKEN"),
+        },
+        "ports": ["8080/http", "8090/http"],
+        "disk": 30,
+        "mounts": {"persistent": {"size": opts.gpu_volume_gb, "path": "/workspace"}},
+        "cloud": opts.cloud,
+    }
+
+
+def pod_price(pod: Mapping[str, Any]) -> float | None:
+    """A pod's price per hour as RunPod reports it (`None` when unknown or 0)."""
+    for key in ("cost", "costPerHr", "adjustedCostPerHr"):
+        value = pod.get(key)
+        if isinstance(value, int | float) and value > 0:
+            return float(value)
+    return None
+
+
 def api_env(
-    opts: Options, secrets: SecretRefs, *, glimmer_url: str | None, sam_url: str | None
+    opts: Options,
+    secrets: SecretRefs,
+    *,
+    glimmer_url: str | None,
+    sam_url: str | None,
+    gpu_usd_per_hour: str | None = None,
+    gpu_pods: Sequence[str] = (),
 ) -> dict[str, str]:
     """Env of the API pod: non-secret settings plus secret references.
 
     Data and evidence stay at their defaults under /workspace/rulecam (the working directory, on
     the volume); anything not set here can still come from /workspace/rulecam/.env.
+    `gpu_usd_per_hour` is the GPU pods' combined price (the cost meter shares it among the
+    active cameras); `gpu_pods` are their names, for the idle GPU stop.
     """
     env = {
         "RULECAM_MODE": "live",
@@ -543,6 +598,10 @@ def api_env(
     if sam_url:
         env["SAM_BASE_URL"] = sam_url
         env.update(secrets.env(SAM_KEY, "SAM_API_KEY"))
+    if gpu_usd_per_hour is not None:
+        env["RULECAM_GPU_USD_PER_HOUR"] = gpu_usd_per_hour
+    if gpu_pods:
+        env["RULECAM_IDLE_STOP_GPU_PODS"] = ",".join(gpu_pods)
     return env
 
 
@@ -753,19 +812,84 @@ def cpu_attempt_blocks(
 
 @dataclass
 class Stack:
-    """What `up` ended with."""
+    """What `up` ended with.
+
+    Attributes:
+        pods: Pod role (`api`, `glimmer`, `sam` or `gpu`) -> pod.
+        urls: Service (`api`, `glimmer`, `sam`) -> proxy URL.
+        served_by: Service -> the pod role serving it, when they differ (`--one-gpu`).
+    """
 
     pods: dict[str, dict[str, Any]] = field(default_factory=dict)
     urls: dict[str, str] = field(default_factory=dict)
+    served_by: dict[str, str] = field(default_factory=dict)
+
+    def pod_for(self, service: str) -> dict[str, Any]:
+        """The pod that serves `service`."""
+        return self.pods[self.served_by.get(service, service)]
 
 
-def up(runpod: RunPod, opts: Options) -> Stack:
-    """Bring the stack up (see the module docstring)."""
-    secrets, values = ensure_secrets(runpod, opts)
-    runpod.reporter.secret_values.extend(v for v in values if v)
-    pods = runpod.pods()
-    volume = ensure_volume(runpod, opts, find_pod(pods, opts.name("api")))
-    stack = Stack()
+def gpu_price(runpod: RunPod, stack: Stack, opts: Options) -> str | None:
+    """The GPU pods' combined price per hour, for `RULECAM_GPU_USD_PER_HOUR`.
+
+    `--gpu-usd-per-hour` wins; otherwise each pod's reported price (re-read once after a create
+    that did not include it). In a dry run a pod that does not exist yet has no price, so the
+    plan shows a placeholder. `None` (with a warning) when a real pod's price is unknown.
+    """
+    if opts.gpu_usd_per_hour is not None:
+        return f"{opts.gpu_usd_per_hour:g}"
+    if not stack.pods:
+        return None
+    total = 0.0
+    for role, pod in stack.pods.items():
+        price = pod_price(pod)
+        if price is None and not runpod.dry_run:
+            price = pod_price(runpod.pod(str(pod["id"])))
+        if price is None:
+            if runpod.dry_run:
+                return PRICE_PLACEHOLDER
+            runpod.reporter.line(
+                f"WARNING: {opts.name(role)} reports no price; RULECAM_GPU_USD_PER_HOUR not set "
+                "(pass --gpu-usd-per-hour)"
+            )
+            return None
+        total += price
+    return f"{round(total, 4):g}"
+
+
+def warn_superseded(
+    runpod: RunPod, pods: Sequence[Mapping[str, Any]], opts: Options, roles: Sequence[str]
+) -> None:
+    """Point at GPU pods of the other layout that still run (and bill)."""
+    for role in roles:
+        pod = find_pod(pods, opts.name(role))
+        if pod is not None and pod.get("status") in LIVE:
+            price = pod_price(pod)
+            cost = f" at ${price:.2f}/h" if price else ""
+            runpod.reporter.line(
+                f"WARNING: {opts.name(role)} ({pod.get('id')}) still runs{cost} and is no longer "
+                f"used; stop it: runpod_down.sh --only {role}"
+            )
+
+
+def ensure_gpu_pods(
+    runpod: RunPod,
+    pods: Sequence[Mapping[str, Any]],
+    opts: Options,
+    secrets: SecretRefs,
+    stack: Stack,
+) -> None:
+    """The GPU side: one pod for both services (`--one-gpu`), or one pod each."""
+    if opts.one_gpu:
+        pod = ensure_pod(
+            runpod, pods, gpu_body(opts, secrets), gpu_attempt_blocks(runpod, opts.one_gpu_gpus)
+        )
+        stack.pods["gpu"] = pod
+        stack.urls["glimmer"] = proxy_url(str(pod["id"]), 8080)
+        stack.urls["sam"] = proxy_url(str(pod["id"]), 8090)
+        stack.served_by.update(glimmer="gpu", sam="gpu")
+        warn_superseded(runpod, pods, opts, ("glimmer", "sam"))
+        return
     if opts.with_glimmer:
         pod = ensure_pod(
             runpod, pods, glimmer_body(opts, secrets), gpu_attempt_blocks(runpod, opts.glimmer_gpus)
@@ -776,8 +900,32 @@ def up(runpod: RunPod, opts: Options) -> Stack:
             runpod, pods, sam_body(opts, secrets), gpu_attempt_blocks(runpod, opts.sam_gpus)
         )
         stack.pods["sam"], stack.urls["sam"] = pod, proxy_url(str(pod["id"]), 8090)
+    warn_superseded(runpod, pods, opts, ("gpu",))
+
+
+def up(runpod: RunPod, opts: Options) -> Stack:
+    """Bring the stack up (see the module docstring).
+
+    Raises:
+        DeployError: When `--one-gpu` is combined with `--no-sam` / `--no-glimmer`, or a step
+            fails.
+    """
+    if opts.one_gpu and not (opts.with_sam and opts.with_glimmer):
+        msg = "--one-gpu runs Glimmer and SAM together; drop --no-sam / --no-glimmer"
+        raise DeployError(msg)
+    secrets, values = ensure_secrets(runpod, opts)
+    runpod.reporter.secret_values.extend(v for v in values if v)
+    pods = runpod.pods()
+    volume = ensure_volume(runpod, opts, find_pod(pods, opts.name("api")))
+    stack = Stack()
+    ensure_gpu_pods(runpod, pods, opts, secrets, stack)
     env = api_env(
-        opts, secrets, glimmer_url=stack.urls.get("glimmer"), sam_url=stack.urls.get("sam")
+        opts,
+        secrets,
+        glimmer_url=stack.urls.get("glimmer"),
+        sam_url=stack.urls.get("sam"),
+        gpu_usd_per_hour=gpu_price(runpod, stack, opts),
+        gpu_pods=[opts.name(role) for role in stack.pods],
     )
     datacenter = str(volume.get("dataCenter") or "")
     pod = ensure_pod(
@@ -826,7 +974,7 @@ def wait_healthy(runpod: RunPod, stack: Stack, opts: Options) -> dict[str, bool]
     """Wait for each pod to run and its /health to answer 200 (model loads take minutes)."""
     healthy: dict[str, bool] = {}
     for role, url in stack.urls.items():
-        pod_id = str(stack.pods[role]["id"])
+        pod_id = str(stack.pod_for(role)["id"])
         runpod.reporter.line(f"waiting for {role} ({pod_id}) …")
         running = wait_until(
             lambda pod_id=pod_id: runpod.pod(pod_id).get("status") == "RUNNING",
@@ -922,7 +1070,7 @@ def vercel_root(start: Path) -> Path | None:
 # down / status
 
 
-ROLES = ("api", "glimmer", "sam")
+ROLES = ("api", "glimmer", "sam", "gpu")
 
 
 def down(runpod: RunPod, opts: Options, roles: Sequence[str], *, terminate: bool) -> None:
@@ -949,13 +1097,18 @@ def down(runpod: RunPod, opts: Options, roles: Sequence[str], *, terminate: bool
     )
 
 
-PORTS = {"api": 8000, "glimmer": 8080, "sam": 8090}
+PORTS = {"api": (8000,), "glimmer": (8080,), "sam": (8090,), "gpu": (8080, 8090)}
 
 
 def status_rows(
-    runpod: RunPod, opts: Options, *, probe: Callable[[str], int | None] = http_status
+    runpod: RunPod, opts: Options, *, probe: Callable[[str], int | None] | None = None
 ) -> Iterator[tuple[str, str, str, str, str]]:
-    """`(name, id, status, cost/h, health)` per role; health is probed for running pods."""
+    """`(name, id, status, cost/h, health)` per role; health is probed for running pods.
+
+    The one-GPU pod is `ok` only when both its servers answer. `probe` defaults to
+    `http_status`.
+    """
+    probe = probe or http_status
     pods = runpod.pods()
     for role in ROLES:
         pod = find_pod(pods, opts.name(role))
@@ -965,8 +1118,9 @@ def status_rows(
         pod_id = str(pod["id"])
         health = "-"
         if pod.get("status") == "RUNNING":
-            code = probe(proxy_url(pod_id, PORTS[role]) + HEALTH_PATHS[role])
-            health = "ok" if code == 200 else f"down ({code})"  # noqa: PLR2004
+            codes = [probe(proxy_url(pod_id, port) + "/health") for port in PORTS[role]]
+            down = ",".join(str(code) for code in codes)
+            health = "ok" if all(c == 200 for c in codes) else f"down ({down})"  # noqa: PLR2004
         cost = pod.get("cost")
         yield (
             opts.name(role),
@@ -978,14 +1132,19 @@ def status_rows(
 
 
 def print_status(runpod: RunPod, opts: Options) -> int:
-    """Print the stack's state; exit code 0 only when every pod runs and is healthy."""
+    """Print the stack's state.
+
+    Exit code 0 only when the API pod and every other pod that exists run and are healthy (a
+    two-pod stack has no `gpu` pod, a one-GPU stack no `glimmer` / `sam` pod).
+    """
     ok = True
     runpod.reporter.line(f"{'pod':<18} {'id':<16} {'status':<12} {'cost/h':<8} health  url")
     for name, pod_id, state, cost, health in status_rows(runpod, opts):
         role = name.rsplit("-", 1)[-1]
-        url = proxy_url(pod_id, PORTS[role]) if pod_id != "-" else ""
-        runpod.reporter.line(f"{name:<18} {pod_id:<16} {state:<12} {cost:<8} {health:<7} {url}")
-        ok = ok and health == "ok"
+        urls = " ".join(proxy_url(pod_id, p) for p in PORTS[role]) if pod_id != "-" else ""
+        runpod.reporter.line(f"{name:<18} {pod_id:<16} {state:<12} {cost:<8} {health:<7} {urls}")
+        if pod_id != "-" or role == "api":
+            ok = ok and health == "ok"
     return 0 if ok else 1
 
 
@@ -1010,10 +1169,21 @@ def parser() -> argparse.ArgumentParser:
     p_up.add_argument("--api-source", choices=("image", "archive"), default="image")
     p_up.add_argument("--no-sam", action="store_true", help="runtime SAM stays hosted")
     p_up.add_argument("--no-glimmer", action="store_true")
+    p_up.add_argument(
+        "--one-gpu",
+        action="store_true",
+        help="one 48 GB pod runs Glimmer (8080) and SAM (8090): rulecam-gpu",
+    )
     p_up.add_argument("--no-runtime", action="store_true", help="RULECAM_RUNTIME=false")
     p_up.add_argument("--data-center", type=_csv, default=(), help="preferred DCs for the volume")
     p_up.add_argument("--glimmer-gpus", type=_csv, default=GLIMMER_GPUS)
     p_up.add_argument("--sam-gpus", type=_csv, default=SAM_GPUS)
+    p_up.add_argument("--one-gpu-gpus", type=_csv, default=ONE_GPU_GPUS)
+    p_up.add_argument(
+        "--gpu-usd-per-hour",
+        type=float,
+        help="RULECAM_GPU_USD_PER_HOUR for the API (default: the GPU pods' reported price)",
+    )
     p_up.add_argument("--cloud", choices=("SECURE", "COMMUNITY"), default="SECURE")
     p_up.add_argument("--public-ui-url", default="https://rulecam.vercel.app")
     p_up.add_argument("--secrets-dir", type=Path, default=Path.home() / ".runpod")
@@ -1027,7 +1197,7 @@ def parser() -> argparse.ArgumentParser:
     p_up.add_argument("--vercel", action="store_true", help="set NEXT_PUBLIC_RULECAM_API, redeploy")
     p_up.add_argument("--registry", help="RunPod registry credential id for private GHCR images")
     p_down = sub.add_parser("down", parents=[common], help="stop the pods (volume kept)")
-    p_down.add_argument("--only", type=_csv, default=ROLES, help="roles: api,glimmer,sam")
+    p_down.add_argument("--only", type=_csv, default=ROLES, help="roles: api,glimmer,sam,gpu")
     p_down.add_argument("--terminate", action="store_true", help="delete pods (needs --yes)")
     p_down.add_argument("--yes", action="store_true")
     sub.add_parser("status", parents=[common], help="state, cost and health of the pods")
@@ -1044,10 +1214,13 @@ def options(args: argparse.Namespace) -> Options:
         api_source=args.api_source,
         with_sam=not args.no_sam,
         with_glimmer=not args.no_glimmer,
+        one_gpu=args.one_gpu,
         runtime=not args.no_runtime,
         data_centers=args.data_center,
         glimmer_gpus=args.glimmer_gpus,
         sam_gpus=args.sam_gpus,
+        one_gpu_gpus=args.one_gpu_gpus,
+        gpu_usd_per_hour=args.gpu_usd_per_hour,
         cloud=args.cloud,
         public_ui_url=args.public_ui_url,
         secrets_dir=args.secrets_dir,
@@ -1090,7 +1263,18 @@ def run_up(runpod: RunPod, opts: Options) -> int:
     cost = sum(float(p.get("cost") or 0) for p in stack.pods.values())
     if cost:
         runpod.reporter.line(f"running cost about ${cost:.2f}/h (runpod_down.sh stops it)")
+    gpu = sum(pod_price(p) or 0.0 for role, p in stack.pods.items() if role != "api")
+    if gpu:
+        runpod.reporter.line(gpu_share_line(gpu))
     return 0 if all(healthy.values()) else 1
+
+
+def gpu_share_line(gpu_usd_per_hour: float, cameras: Sequence[int] = (1, 4, 6, 8)) -> str:
+    """The GPU share per camera-hour for a few cameras-per-GPU counts."""
+    shares = ", ".join(
+        f"{n} camera{'s' if n > 1 else ''} ${gpu_usd_per_hour / n:.3f}" for n in cameras
+    )
+    return f"GPU ${gpu_usd_per_hour:.2f}/h per camera-hour: {shares} (eval --cameras-per-gpu)"
 
 
 def main(argv: Sequence[str] | None = None) -> int:

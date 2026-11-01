@@ -37,6 +37,30 @@ class ScoreConfig(Frozen):
     min_alert_s: float = Field(default=m.DEFAULT_MIN_ALERT_S, ge=0)
     gpu_usd_per_hour: float = Field(default=0.0, ge=0)
     cameras_per_gpu: float = Field(default=1.0, gt=0)
+    cameras_per_gpu_source: str = ""  # where the count came from (flag, site config)
+
+
+def resolve_cameras_per_gpu(
+    flag: float | None, site_cameras_per_gpu: int | None, *, site_source: str = "site config"
+) -> tuple[float, str]:
+    """How many cameras share the GPU pod, and where that number came from.
+
+    `--cameras-per-gpu` wins, then the site config's `cameras_per_gpu`, else 1 (no sharing:
+    the camera pays the whole pod).
+
+    Args:
+        flag: `--cameras-per-gpu`, if given.
+        site_cameras_per_gpu: The site config's `cameras_per_gpu`, if any.
+        site_source: How to name the site config in the report.
+
+    Returns:
+        `(cameras per GPU, source)`.
+    """
+    if flag is not None:
+        return flag, "--cameras-per-gpu"
+    if site_cameras_per_gpu is not None:
+        return float(site_cameras_per_gpu), site_source
+    return 1.0, "default"
 
 
 class TrackingRow(Frozen):

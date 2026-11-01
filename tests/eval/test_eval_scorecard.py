@@ -241,3 +241,47 @@ def test_render_markdown() -> None:
     assert "temporal IoU ≥ 0.3" in text
     empty = render_markdown(build_scorecard(title="t"))
     assert "## Per run" not in empty
+
+
+def shared_report(runs: list[RunScore], *, gpu: float, cameras: float) -> EvalReport:
+    config = ScoreConfig(
+        gpu_usd_per_hour=gpu, cameras_per_gpu=cameras, cameras_per_gpu_source="site config s.yaml"
+    )
+    return EvalReport(generated_at=EPOCH, config=config, runs=tuple(runs), rules=(rule(),))
+
+
+def test_cost_states_the_gpu_sharing_assumption_next_to_the_target() -> None:
+    idle = run(clip="neg", status="negative", events=0, billed_frames=0, camera_hours=1.0)
+    card = build_scorecard(title="t", report=shared_report([idle], gpu=0.59, cameras=6))
+    row = by_target(card, "idle")
+    assert row.target == "≤ $0.15 per camera-hour idle (one GPU pod per 6 cameras)"
+    assert row.status == "pass"  # $0.59 / 6 = $0.098
+    assert "$0.098 over 1 metered runs" in row.measured
+    assert "GPU $0.59/h ÷ 6 cameras, site config s.yaml = $0.098 per camera-hour" in row.measured
+    alone = build_scorecard(title="t", report=shared_report([idle], gpu=0.59, cameras=1))
+    assert by_target(alone, "idle").status == "fail"  # one camera pays the whole pod
+    assert "÷ 1 camera," in by_target(alone, "idle").measured
+    assert by_target(alone, "idle").target == "≤ $0.15 per camera-hour idle"
+
+
+def test_sharing_the_gpu_needs_a_soak_that_carried_that_many_cameras() -> None:
+    idle = run(clip="neg", status="negative", events=0, billed_frames=0, camera_hours=1.0)
+    shared = shared_report([idle], gpu=0.59, cameras=6)
+    card = build_scorecard(title="t", report=shared)
+    capacity = by_target(card, "One GPU pod carries")
+    assert capacity.target.endswith(": ≥ 6")
+    assert capacity.status == "not measured"
+    assert "`gpu_cameras`" in capacity.measured
+    assert card.area_status("Cost") == "not measured"
+    carried = Checks(checks={"gpu_cameras": Check(value=6, evidence="soak 2026-11-02")})
+    assert by_target(
+        build_scorecard(title="t", report=shared, checks=carried), "carries"
+    ).status == ("pass")
+    short = Checks(checks={"gpu_cameras": Check(value=4)})
+    assert by_target(build_scorecard(title="t", report=shared, checks=short), "carries").status == (
+        "fail"
+    )
+    for unshared in (shared_report([idle], gpu=0.59, cameras=1), report([idle], [rule()])):
+        row = by_target(build_scorecard(title="t", report=unshared), "carries")
+        assert row.status == "pass"
+        assert row.measured.startswith("no sharing assumed")

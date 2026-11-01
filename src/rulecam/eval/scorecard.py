@@ -263,26 +263,61 @@ def _usd(value: float | None) -> str:
     return "n/a" if value is None else f"${value:.3f}"
 
 
+def _gpu_note(gpu: float, cameras: float, source: str) -> str:
+    if not gpu:
+        return "; GPU not priced (--gpu-usd-per-hour)"
+    plural = "" if cameras == 1 else "s"
+    origin = f", {source}" if source else ""
+    return (
+        f"; GPU ${gpu:.2f}/h ÷ {cameras:g} camera{plural}{origin} = ${gpu / cameras:.3f} "
+        "per camera-hour"
+    )
+
+
 def _cost_rows(inputs: _Inputs) -> list[Row]:
     area = "Cost"
     metered = [r for r in inputs.activated if r.billed_frames is not None]
     idle = [r for r in metered if r.events == 0]
     active = [r for r in metered if r.events > 0]
-    gpu = inputs.report.config.gpu_usd_per_hour if inputs.report else 0.0
-    note = "" if gpu else "; GPU not priced (--gpu-usd-per-hour)"
+    config = inputs.report.config if inputs.report else None
+    gpu = config.gpu_usd_per_hour if config else 0.0
+    cameras = config.cameras_per_gpu if config else 1.0
+    note = _gpu_note(gpu, cameras, config.cameras_per_gpu_source if config else "")
+    # The deployment assumption sits next to the target: the GPU share is the pod's price over
+    # the cameras it serves (docs/deploy.md "One GPU per site": 4-8 cameras per 48 GB pod).
+    shared = f" (one GPU pod per {cameras:g} cameras)" if gpu and cameras != 1 else ""
     rows = []
     for runs, label, target in ((idle, "idle", 0.15), (active, "active", 0.60)):
         value = _cost(runs, inputs)
         rows.append(
             Row(
                 area=area,
-                target=f"≤ ${target:.2f} per camera-hour {label}",
+                target=f"≤ ${target:.2f} per camera-hour {label}{shared}",
                 measured=f"{_usd(value)} over {len(runs)} metered runs{note}",
                 status=_at_most(value, target),
             )
         )
+    rows.append(_capacity_row(gpu, cameras, inputs) if config else _no_report_row(area))
     rows.append(_check_row(inputs, area, "Budget alarm works", "budget_alarm"))
     return rows
+
+
+CAPACITY_TARGET = "One GPU pod carries the cameras the cost assumes (soak at the real-time targets)"
+
+
+def _no_report_row(area: str) -> Row:
+    return Row(area=area, target=CAPACITY_TARGET, measured="n/a (no report)", status="not measured")
+
+
+def _capacity_row(gpu: float, cameras: float, inputs: _Inputs) -> Row:
+    """The cost may divide the GPU by N cameras only if one pod was seen to carry N of them."""
+    target = CAPACITY_TARGET
+    if not gpu or cameras <= 1:
+        why = "GPU not priced" if not gpu else "1 camera per GPU"
+        return Row(
+            area="Cost", target=target, measured=f"no sharing assumed ({why})", status="pass"
+        )
+    return _check_row(inputs, "Cost", f"{target}: ≥ {cameras:g}", "gpu_cameras", cameras)
 
 
 def _tracking_rows(inputs: _Inputs) -> list[Row]:

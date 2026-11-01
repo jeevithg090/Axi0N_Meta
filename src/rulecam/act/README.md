@@ -40,7 +40,7 @@ executor = ActionExecutor(
 )
 interlock.connect()  # at start-up: discovery now, so the first cut is one round trip
 # AppServices(..., routers=[alerts_router(notifier=..., escalation=..., chain=..., interlock=...,
-#                                         roles=plan_roles)],
+#                                         roles=plan_roles, dependencies=[<real auth>])],
 #             tickers=[escalation.tick])
 ```
 
@@ -71,3 +71,12 @@ interlock.connect()  # at start-up: discovery now, so the first cut is one round
 ```bash
 uv run pytest tests/act
 ```
+
+## Response drills (P3-S2)
+
+`POST /drills {roles, after_s, scenario}` (owner-only, under the alerts router) starts a **labelled
+practice alert through the real escalation chain**. Every message says "DRILL", and the start is
+chained as `label {drill: true}`. `GET /drills/report?target_s=60` measures the time from each
+drill's start to its first `ack`, from the chain alone, **by role, never by person** (acks carry
+only roles): counts, missed drills, how many met the target, and the median, p90 and max per role.
+`f689_row(report)` turns this into an F689 evidence-pack row.

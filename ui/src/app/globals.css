@@ -979,3 +979,122 @@ button.big {
 .surprise .hud-chip {
   margin-right: 4px;
 }
+/* --- P3-10: Site Advisor card ---------------------------------------------------------------- */
+.advice-page {
+  display: grid;
+  gap: 16px;
+  max-width: 760px;
+}
+.advice {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+.advice-flagged {
+  border-color: var(--high);
+}
+.advice-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+}
+.advice-head h3 {
+  margin: 0;
+  font-size: 16px;
+  flex: 1 1 auto;
+}
+.advice h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.advice ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.advice-warning {
+  color: var(--high);
+  font-weight: 600;
+  margin: 0;
+}
+.claim {
+  margin: 0;
+  line-height: 1.8;
+}
+button.num {
+  padding: 0 6px;
+  border-radius: 6px;
+  border: 1px dashed var(--chip);
+  color: var(--chip);
+  background: transparent;
+  font-weight: 700;
+}
+button.num-hidden,
+.num-hidden {
+  border-color: var(--high);
+  color: var(--high);
+  font-weight: 600;
+}
+.why-ruled_out {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.src-recorded {
+  color: var(--live);
+}
+.src-simulated,
+.src-public {
+  color: var(--replay);
+}
+.not-recommended {
+  border-left: 4px solid var(--high);
+  padding-left: 8px;
+  margin: 4px 0;
+}
+.seal-ok {
+  color: var(--live);
+  font-weight: 700;
+}
+.seal-bad {
+  color: var(--high);
+  font-weight: 700;
+}
+.number-modal {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  max-width: min(560px, calc(100vw - 32px));
+}
+.number-modal pre {
+  background: var(--bg);
+  padding: 8px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.verdict {
+  margin: 8px 0 0;
+}
+.verdict svg {
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+}
+.verdict-zero {
+  stroke: var(--muted);
+  stroke-dasharray: 3 3;
+}
+.verdict-ci {
+  stroke: var(--chip);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+.verdict-dot {
+  fill: var(--live);
+}

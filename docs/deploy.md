@@ -5,12 +5,20 @@ A public deployment for showing the product. Visitors can watch; everything that
 and the full evidence log are owner-only: from the API pod itself (loopback, over SSH) or from a
 browser logged in with the owner passphrase ("Owner login" below).
 
+**Visitors need `PUBLIC_DEMO=true`.** The live feed (`/ws`) and `GET /plans`, `GET /plans/{id}`
+expose site content (events, reasoning, the owner's request text), so they are owner-only unless
+the API pod sets `PUBLIC_DEMO=true`. Set it only on a demo site with staged, consenting data, never
+on a real site. Without it, logged-out visitors get 403 on the monitor and plans pages; the owner
+still sees everything after logging in. The evidence chain stays owner-only either way.
+`scripts/deploy/runpod_up.sh --public-demo` sets it on the API pod; without the flag the pod's
+env leaves it unset, so a value in `/workspace/rulecam/.env` still applies.
+
 ```
 browser ──► https://rulecam.vercel.app  (Next.js, ui/)
               │  /rulecam-api/*  (Next rewrite)
               ▼
             https://<api-pod>-8000.proxy.runpod.net   (FastAPI, live mode)
-              │  /ws  (read-only bus mirror; allowed for the PUBLIC_UI_URL origin only)
+              │  /ws  (read-only bus mirror; owner, or PUBLIC_UI_URL origin with PUBLIC_DEMO=true)
               ├─► Meta Model API (Spark, Voice, Image, SAM) via the replay cache
               ├─► https://<gpu-pod>-8080.proxy.runpod.net/v1  (llama-server + Muse Glimmer 30B)
               └─► https://<sam-pod>-8090.proxy.runpod.net     (sam_server + SAM 3.1, runtime only)
@@ -57,6 +65,7 @@ its id as `--registry <id>`.
 scripts/deploy/runpod_up.sh --dry-run      # reads the account, prints every write it would make
 scripts/deploy/runpod_up.sh                # does it, waits for every /health, prints the URLs
 scripts/deploy/runpod_up.sh --vercel       # also sets NEXT_PUBLIC_RULECAM_API and redeploys the UI
+scripts/deploy/runpod_up.sh --public-demo  # demo site only: logged-out visitors can watch /ws and plans
 scripts/deploy/runpod_status.sh            # state, $/h and health of each pod (exit 1 if not all ok)
 scripts/deploy/runpod_down.sh              # stop all pods (volumes kept; --only sam to stop one)
 ```
@@ -310,7 +319,7 @@ script cannot be used.
 - Code in `/workspace/rulecam` (a `git archive` of `main`), deps with `uv sync --no-dev`.
 - `/workspace/rulecam/.env` holds non-secret settings: `RULECAM_MODE=live`, data and evidence dirs
   on `/workspace`, `META_API_BASE_URL`, `GLIMMER_*`, `PUBLIC_TUNNEL_URL` (this pod's proxy URL),
-  `PUBLIC_UI_URL=https://rulecam.vercel.app`.
+  `PUBLIC_UI_URL=https://rulecam.vercel.app`, and `PUBLIC_DEMO=true` (demo site only; see above).
 - Secrets are files with mode 600, read by `start.sh` into the environment: `.meta_api_key`,
   `.glimmer_api_key` (add `.baseten_api_key` / `HF_TOKEN` the same way when needed). The owner
   writes them; they are never in `.env`, argv, chat or git.
@@ -861,6 +870,7 @@ returns.
   → 403; `/evidence/<day>/hashes` and `/evidence/<day>/root` → 200. The verify page
   (`/rulecam-api/verify/?day=<day>`) checks the hashes against the committed root for everyone
   and recomputes every record for the logged-in owner.
+- Logged out, with `PUBLIC_DEMO` unset: `GET /rulecam-api/plans` → 403. With `PUBLIC_DEMO=true`: 200.
 - Glimmer chat without the key → 401.
 - SAM `POST /segment` without the key → 401; `GET /health` → `{"status": "ok", …}`.
 - `curl https://<api-pod>-8000.proxy.runpod.net/metrics` → Prometheus text with

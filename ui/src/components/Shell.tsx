@@ -20,6 +20,7 @@ const LINKS = [
   { href: "/ci", label: "Rule CI" },
   { href: "/cards", label: "Cards" },
   { href: "/surprise", label: "Surprise" },
+  { href: "/advice", label: "Advice" },
 ];
 
 /** Owner state in the header: a login link for visitors, log out for a session. */

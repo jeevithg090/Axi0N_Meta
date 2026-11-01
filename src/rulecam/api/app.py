@@ -15,8 +15,11 @@ plan under `<data>/runtime/active_plan.json` and restores it at start-up.
 Anything that changes state (`PUT /mode`, `PUT /runtime/plan`, plan create/approve/answers,
 `POST /correction`, pairing) is owner-only: the request comes from this machine (loopback host
 and client), or carries a signed owner session from `POST /auth/login` plus, for writes, an
-allowed `Origin` and the CSRF header (`rulecam.api.auth`). The read-only `/ws` mirror is
-owner-only too, except for a browser whose `Origin` is the public web UI (`PUBLIC_UI_URL`).
+allowed `Origin` and the CSRF header (`rulecam.api.auth`). Reads that expose site content (the
+read-only `/ws` mirror, `GET /plans` and `GET /plans/{id}`, which hold the owner's request text)
+are owner-only too, unless the site is a public demo (`PUBLIC_DEMO=true`); then anyone may read
+plans and the public web UI's origin (`PUBLIC_UI_URL`) may watch `/ws`. An `Origin` header is easy
+to forge outside a browser, so it never grants `/ws` access on its own.
 
 Evidence: the chain itself (`GET /evidence/{day}/chain`, every record and payload) is owner-only.
 The public verify page gets `GET /evidence/{day}/hashes` (record hashes only) and
@@ -48,11 +51,13 @@ from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket, status
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket, params, status
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
+from rulecam.act.drills import DrillRunner, drills_router
+from rulecam.advisor.api import AdviceStore, PlanFactory, advice_router
 from rulecam.api.auth import ClientAddress, OwnerAuth
 from rulecam.api.plans import PlannerRunner, PlanRegistry, QuestionsService, plans_router
 from rulecam.api.prometheus import (
@@ -131,13 +136,18 @@ class AppServices:
         planner: The Site Planner runner (P2-06); `POST /plans/requests` needs it.
         activator: Activates approved plans in the runtime; approval answers 503 without one.
         viewer_origins: Browser origins (e.g. the public web UI) that may watch the read-only
-            `/ws` mirror without being the owner. Nothing that changes state accepts them.
+            `/ws` mirror without being the owner, on a public demo only. Nothing that changes
+            state accepts them without an owner session.
         auth: Owner login (`rulecam.api.auth`); `None` means loopback only, with login off.
         questions: The planner's questions and re-runs (`PlannerService`).
         verdicts: Verdict counts for `GET /metrics`, fed from `verdict.new`.
         health_probes: Dependencies (Glimmer, the SAM pod) whose health `GET /metrics` shows.
         response: How the policy, firewall and actions are configured (`/runtime/metrics`).
         cost: The dollar budget's report (`/runtime/metrics` → `cost`, `/metrics`).
+        advice: Checked Site Advisor cards served at `/advice` (P3-10).
+        plan_factory: P4's measurement-plan builder; `POST /advice/{id}/accept` needs it.
+        public_demo: Demo sites only: non-owners may watch `/ws` (from a viewer origin) and read
+            plans. Off by default; a real site keeps those reads owner-only.
     """
 
     bus: Bus
@@ -164,6 +174,9 @@ class AppServices:
     health_probes: Sequence[HealthProbe] = ()
     response: ResponseStatus | None = None
     cost: Callable[[], CostReport] | None = None
+    advice: AdviceStore = field(default_factory=AdviceStore)
+    plan_factory: PlanFactory | None = None
+    public_demo: bool = False
 
 
 class RuntimeReport(LoopMetrics):
@@ -244,6 +257,11 @@ def _chain_file(services: AppServices, day: date) -> Path:
 _OWNER = [Depends(require_owner)]
 
 
+def _content_reads(services: AppServices) -> list[params.Depends]:
+    """Authentication for reads that expose site content: none on a public demo, else owner."""
+    return [] if services.public_demo else _OWNER
+
+
 def _core_router(services: AppServices, auth: OwnerAuth) -> APIRouter:
     router = APIRouter()
 
@@ -268,7 +286,10 @@ def _core_router(services: AppServices, auth: OwnerAuth) -> APIRouter:
 
     @router.websocket("/ws")
     async def ws(websocket: WebSocket) -> None:
-        if websocket.headers.get("origin") not in services.viewer_origins:
+        public_viewer = (
+            services.public_demo and websocket.headers.get("origin") in services.viewer_origins
+        )
+        if not public_viewer:
             try:
                 auth.require_owner(websocket)
             except HTTPException:
@@ -402,14 +423,23 @@ def _routers(services: AppServices, auth: OwnerAuth) -> list[APIRouter]:
             planner=services.planner,
             activator=services.activator,
             questions=services.questions,
+            read_dependencies=_content_reads(services),
         ),
     ]
+    clock = SystemClock()
+    routers.append(
+        advice_router(
+            services.advice,
+            EventChain(services.chain_root, services.site, clock=clock),
+            services.bus,
+            clock,
+            plan_factory=services.plan_factory,
+        )
+    )
     if services.pair is not None:
         routers.append(build_router(services.pair))
     if services.correction is not None:
-        correction = APIRouter(dependencies=_OWNER)
-        correction.include_router(correction_router(services.correction, services.bus))
-        routers.append(correction)
+        routers.append(correction_router(services.correction, services.bus, dependencies=_OWNER))
     return [*routers, *services.routers]
 
 
@@ -748,6 +778,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         questions=planner,
         activator=activator,
         viewer_origins=origins,
+        public_demo=settings.public_demo,
         auth=auth,
         health_probes=dependency_probes(settings.glimmer_base_url, settings.sam_base_url),
         tickers=(*response.tickers, *((watch.tick,) if watch is not None else ())),
@@ -792,13 +823,14 @@ def cost_watch(
 
 
 def owner_alerts_router(response: Response) -> APIRouter:
-    """The alerts PWA routes (`/alerts`, `/ack`, interlock resume), owner-only (P3-06).
+    """The alerts PWA routes (`/alerts`, `/ack`, interlock resume, `/drills`), owner-only.
 
     They show alert titles and clips and can restore power, so they need the owner (loopback or
     an owner session), like every other route that reads traces or changes state.
     """
-    router = APIRouter(dependencies=_OWNER)
-    router.include_router(response.router())
+    router = response.router(dependencies=_OWNER)
+    runner = DrillRunner(response.escalation, response.chain, SystemClock())
+    router.include_router(drills_router(runner), dependencies=_OWNER)
     return router
 
 

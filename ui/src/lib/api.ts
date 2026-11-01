@@ -3,6 +3,7 @@
 // owner session: the HttpOnly cookie from `POST /auth/login` rides along, and every write also
 // sends the session's CSRF token (`setCsrfToken`, kept in memory only) in `X-CSRF-Token`.
 
+import type { AdviceCard, SealStatus } from "./advice";
 import { API_PROXY } from "./config";
 import type { Alert } from "./ops";
 import type { PlanSummary, SitePlan } from "./plan";
@@ -194,4 +195,10 @@ export const api = {
     call<{ rule_id: string }>(`/surprise/${encodeURIComponent(surpriseId)}/suggest`, {
       method: "POST",
     }),
+  advice: () => call<AdviceCard[]>("/advice"),
+  acceptAdvice: (id: string) =>
+    call<{ preregistered_seq: number }>(`/advice/${encodeURIComponent(id)}/accept`, {
+      method: "POST",
+    }),
+  seals: () => call<SealStatus[]>("/advice/seals"),
 };

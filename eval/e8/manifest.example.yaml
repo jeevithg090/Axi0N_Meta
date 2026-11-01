@@ -1,0 +1,15 @@
+# E8 dataset manifest template (task P4-07). Copy to data/urfall/manifest.yaml and fill in.
+#
+# `data/` is git-ignored, so the dataset never enters the repository. Download it by hand
+# from the URL below, under the terms its authors state there. E8 refuses to report any
+# figure until `terms_accepted` is true, `accepted_by` names who accepted them, and
+# `sequences` lists what was used, because accepting someone else's terms is a person's
+# decision, not a script's.
+name: UR Fall Detection
+url: http://fenix.ur.edu.pl/~mkepski/ds/uf.html
+licence: 'FILL IN: the terms as the dataset''s authors state them'
+terms_accepted: false
+accepted_by: 'FILL IN: who read and accepted the terms'
+sequences: []
+notes: Download by hand under the dataset's own terms. E8 refuses to report any figure
+  until terms_accepted is true and sequences are listed.

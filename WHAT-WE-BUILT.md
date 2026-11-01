@@ -96,6 +96,7 @@ adds a row here with its licence.
 | `docs/sets.md`, `docs/social.md`, `docs/standups.md` | Physical sets (S-01), X posts plan (S-08), standups and gate ledger (S-10) | #64, #67, #69, #74 |
 | `src/rulecam/pose/` | COCO-17 pose features (`is_down`, `hands_above_shoulder`, `ladder_three_point_lost`, `bent_back_lift`), the `PoseStates` adapter for the rule engine, the RTMPose ONNX estimator and keypoint interpolation (P4-04) | #77 |
 | `scripts/arrivals.py`, `eval/advisor/README.md` | Seeded truck-arrival script and seal protocol for Site Advisor sessions (P4-08a) | #76 |
+| `eval/runners/{common,e4,e5,e7,e8,e9,e11}.py` | Evaluation runners E4 to E11: Rule CI aggregation with the D1/D2/D3 injection defences, Anonymous-Mode paired accuracy, cost and latency, UR Fall Detection (refused until its terms are recorded as accepted), chain re-derivation, Site Advisor sealed-cause and null-session scoring. **None run:** each writes a "not measured" result naming what is missing (P4-07) | #TBD |
 | `docs/consent.md` | Consent template and collection checklist for raw footage (S-02) | #75 |
 | `HANDOFF.md`, `docs/SESSION_HANDOVER_P2.md` | Project handoff and P2 session state notes | #84 |
 | `src/rulecam/runtime/strips.py`, `strip_draw.py` | Runtime evidence strips for Glimmer: keyframes across the episode (one in-memory ffmpeg decode per chunk), rule boxes, zones and a calibrated distance ruler, privacy modes (standard face blur via YuNet; anonymous/strict plate + skeletons, no person pixels) (P4-05) | #98 |

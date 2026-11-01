@@ -18,7 +18,9 @@ For every candidate the loop hands over, `EpisodeStrips.render`:
    the ground distance in metres) goes in Rulecam's **annotation band** below the frame, never
    on the scene (`strip_draw.with_band`);
 5. applies the privacy mode (`runtime.strip_draw`): standard blurs faces on the real frame;
-   anonymous and strict keep no person pixel (plate + objects minus people + skeletons);
+   anonymous and strict keep no person pixel (plate + objects minus people + skeletons), and
+   each person's skeleton carries a PPE mark per `without` predicate of the rule (`ppe_marks`:
+   was an item's box centre in that region of the person at this keyframe);
 6. writes the JPEGs under `<data dir>/strips/<camera>/<event>/`, with `annotations.json` listing
    every string the bands show (`verify.annotations`: the verifiers remove copies of them from
    `scene_text` before the firewall), atomically (a half-written strip is never returned), and
@@ -36,7 +38,7 @@ import re
 import shutil
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Final, Protocol
@@ -56,15 +58,25 @@ from rulecam.contracts import (
     Zone,
 )
 from rulecam.contracts.core import PointXY
+from rulecam.contracts.rule_ir import Without
 from rulecam.log import get_logger
 from rulecam.planner.runner import passthrough_args
 from rulecam.rules.backtest import DecisionContext
 from rulecam.rules.engine import relevant_concepts
 from rulecam.rules.errors import RuleEvaluationError
 from rulecam.rules.geometry import project
-from rulecam.rules.ir import referenced_zones, walk
-from rulecam.rules.scene import resolve_zone
+from rulecam.rules.ir import parse_ref, referenced_zones, walk
+from rulecam.rules.predicates.spatial import LOWER_HALF, TOP_FRACTION
+from rulecam.rules.scene import (
+    HAND_REACH_M,
+    LEFT_WRIST,
+    MIN_KEYPOINT_SCORE,
+    PERSON_HEIGHT_M,
+    RIGHT_WRIST,
+    resolve_zone,
+)
 from rulecam.runtime.sampling import chunk_end
+from rulecam.runtime.skeleton import PpeMark, Region
 from rulecam.runtime.strip_draw import (
     FaceDetector,
     Frame,
@@ -407,7 +419,13 @@ class EpisodeStrips:
         scale = size[0] / chunk.width
         overlays = [
             keyframe_overlay(
-                candidate, context, tracks, key, scale=scale, position=(k, len(decoded))
+                candidate,
+                context,
+                tracks,
+                key,
+                scale=scale,
+                position=(k, len(decoded)),
+                ppe=mode is not PrivacyMode.STANDARD,
             )
             for k, (key, _) in enumerate(decoded, start=1)
         ]
@@ -473,6 +491,7 @@ def keyframe_overlay(
     *,
     scale: float,
     position: tuple[int, int],
+    ppe: bool = False,
 ) -> Overlay:
     """What is drawn on one keyframe: the rule's tracks, its zones, the ruler and the caption.
 
@@ -483,6 +502,8 @@ def keyframe_overlay(
         key: The keyframe.
         scale: Strip pixels per chunk pixel.
         position: `(k, n)`: this is frame `k` of `n`.
+        ppe: Give each person its PPE marks (anonymous and strict mode, where the person's
+            pixels, and so the item itself, are not shown).
 
     Returns:
         The overlay, in strip pixels.
@@ -490,12 +511,17 @@ def keyframe_overlay(
     rule = context.rule
     concepts = relevant_concepts(rule, context.zones)
     subject_id = str(candidate.predicate_trace.get("subject", ""))
-    seen: list[tuple[Item, TrackPoint]] = []
+    present: list[tuple[Track, TrackPoint]] = []
     for track in tracks:
         point = nearest_point(track, key.ts)
         if point is None or (concepts and track.concept not in concepts):
             continue
+        present.append((track, point))
+    seen: list[tuple[Item, TrackPoint]] = []
+    for track, point in present:
         item = _item(track, point, rule, scale, subject=track.track_id == subject_id)
+        if ppe and item.person:
+            item = replace(item, ppe=ppe_marks(rule, track, point, present))
         seen.append((item, point))
     return Overlay(
         items=tuple(item for item, _ in seen),
@@ -547,6 +573,69 @@ def _item(track: Track, point: TrackPoint, rule: RuleIR, scale: float, *, subjec
         colour_key=track.track_id,
         keypoints=keypoints,
     )
+
+
+def ppe_marks(
+    rule: RuleIR,
+    person: Track,
+    point: TrackPoint,
+    present: Sequence[tuple[Track, TrackPoint]],
+) -> tuple[PpeMark, ...]:
+    """The person's PPE marks at one keyframe: one per region the rule's `without` checks.
+
+    A region is `seen` when any other track of the predicate's item concept has its box centre
+    in that region of the person's box at this keyframe, with the same regions as the
+    `without` predicate: `full` is the box, `top_25pct` its top quarter, `hands` within
+    `HAND_REACH_M` of a wrist keypoint (the lower half of the box without pose). Two predicates
+    on the same region give one mark, seen only if both items were.
+
+    Args:
+        rule: The rule (its `without` predicates).
+        person: The person's track.
+        point: The person's point at this keyframe (chunk pixels).
+        present: Every rule track seen at this keyframe, with its point.
+
+    Returns:
+        The marks, in region order; empty when no `without` predicate is about this concept.
+    """
+    marks: dict[Region, bool] = {}
+    for _, node in walk(rule.predicate):
+        if not isinstance(node, Without) or parse_ref(node.subject)[0] != person.concept:
+            continue
+        item_concept = parse_ref(node.item)[0]
+        found = any(
+            track.concept == item_concept
+            and track.track_id != person.track_id
+            and _in_region(node.region, point, _centre(other))
+            for track, other in present
+        )
+        marks[node.region] = marks.get(node.region, True) and found
+    return tuple(PpeMark(region=region, seen=seen) for region, seen in sorted(marks.items()))
+
+
+def _centre(point: TrackPoint) -> PointXY:
+    x0, y0, x1, y1 = point.box_xyxy
+    return ((x0 + x1) / 2, (y0 + y1) / 2)
+
+
+def _in_region(region: str, person: TrackPoint, at: PointXY) -> bool:
+    """Whether `at` lies in a `without` region of the person's box (chunk pixels)."""
+    x0, y0, x1, y1 = person.box_xyxy
+    height = y1 - y0
+    if region == "top_25pct":
+        y1 = y0 + TOP_FRACTION * height
+    elif region == "hands":
+        keypoints = person.keypoints or ()
+        wrists = [
+            (kp.x, kp.y)
+            for k, kp in enumerate(keypoints)
+            if k in (LEFT_WRIST, RIGHT_WRIST) and kp.score >= MIN_KEYPOINT_SCORE
+        ]
+        if wrists:
+            reach = height * HAND_REACH_M / PERSON_HEIGHT_M
+            return any(np.hypot(at[0] - wx, at[1] - wy) <= reach for wx, wy in wrists)
+        y0 += LOWER_HALF * height
+    return x0 <= at[0] <= x1 and y0 <= at[1] <= y1
 
 
 def _ruler(

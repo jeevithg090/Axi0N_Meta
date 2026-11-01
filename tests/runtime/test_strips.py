@@ -29,6 +29,7 @@ from rulecam.contracts import (
 from rulecam.rules.backtest import DecisionContext
 from rulecam.runtime import strips as strips_module
 from rulecam.runtime.loop import ActivePlan
+from rulecam.runtime.skeleton import GLYPH_COLOUR, GLYPH_LEGEND, PpeMark
 from rulecam.runtime.strip_draw import (
     BAND_EDGE_COLOUR,
     BAND_HEADER,
@@ -55,6 +56,7 @@ from rulecam.runtime.strips import (
     keyframe_overlay,
     nearest_point,
     pick_keyframes,
+    ppe_marks,
     render_frames,
     rule_polygons,
     safe_name,
@@ -489,6 +491,119 @@ def test_pose_keypoints_are_drawn_as_a_skeleton() -> None:
     assert not np.all(out == SENTINEL, axis=2).any()
     column = out[145:170, 106]  # the bones run down x = 106, where no stick figure would be
     assert (np.abs(column.astype(int) - 128).sum(axis=1) > 30).any()
+
+
+# --- PPE marks (anonymous and strict) --------------------------------------------------------
+
+PPE_RULE = make_rule(
+    {
+        "op": "any",
+        "of": [
+            {"op": "without", "subject": "person", "item": "hard_hat", "region": "top_25pct"},
+            {"op": "without", "subject": "person", "item": "vest", "region": "full"},
+            {"op": "without", "subject": "person", "item": "glove", "region": "hands"},
+        ],
+    },
+    concepts={"person": "person", "hard_hat": "hard hat", "vest": "safety vest", "glove": "glove"},
+    rule_id="ppe",
+)
+HAT_BOX = (225.0, 195.0, 255.0, 225.0)  # centre (240, 210): the person's top quarter
+
+
+def _ppe_tracks(*extra: Track) -> list[Track]:
+    return [track("cam1:person:1", "person", PERSON_BOX), *extra]
+
+
+def _present(tracks: Sequence[Track]) -> list[tuple[Track, TrackPoint]]:
+    return [(t, t.points[20]) for t in tracks]
+
+
+def test_ppe_marks_follow_the_rules_without_regions() -> None:
+    hat = track("cam1:hard_hat:1", "hard_hat", HAT_BOX)
+    low_vest = track("cam1:vest:1", "vest", (600.0, 600.0, 610.0, 610.0))  # outside the person
+    present = _present(_ppe_tracks(hat, low_vest))
+    person, point = present[0]
+    assert ppe_marks(PPE_RULE, person, point, present) == (
+        PpeMark(region="full", seen=False),
+        PpeMark(region="hands", seen=False),
+        PpeMark(region="top_25pct", seen=True),
+    )
+    # A hat lower down the body is not on the head; without pose, hands are the lower half.
+    low_hat = track("cam1:hard_hat:1", "hard_hat", (225.0, 330.0, 255.0, 350.0))
+    glove = track("cam1:glove:1", "glove", (225.0, 330.0, 255.0, 350.0))
+    present = _present(_ppe_tracks(low_hat, glove))
+    marks = {m.region: m.seen for m in ppe_marks(PPE_RULE, *present[0], present)}
+    assert marks == {"full": False, "hands": True, "top_25pct": False}
+    assert ppe_marks(RULE, *present[0], present) == ()  # no `without` predicate: no marks
+
+
+def test_hand_marks_use_the_wrists_when_pose_is_known() -> None:
+    wrists = {9: (210.0, 300.0), 10: (270.0, 300.0)}
+    kps = tuple(
+        Keypoint(x=wrists.get(k, (0.0, 0.0))[0], y=wrists.get(k, (0.0, 0.0))[1], score=0.9)
+        for k in range(17)
+    )
+    person = track("cam1:person:1", "person", PERSON_BOX)
+    point = person.points[20].model_copy(update={"keypoints": kps})
+    near = track("cam1:glove:1", "glove", (205.0, 295.0, 215.0, 305.0))  # on the left wrist
+    far = track("cam1:glove:1", "glove", (235.0, 340.0, 245.0, 350.0))  # lower half, no wrist
+    for glove, seen in ((near, True), (far, False)):
+        present = [(person, point), (glove, glove.points[20])]
+        assert PpeMark(region="hands", seen=seen) in ppe_marks(PPE_RULE, person, point, present)
+
+
+def test_two_items_on_one_region_give_one_mark_seen_only_if_both_are() -> None:
+    rule = make_rule(
+        {
+            "op": "any",
+            "of": [
+                {"op": "without", "subject": "person", "item": "hard_hat", "region": "top_25pct"},
+                {"op": "without", "subject": "person", "item": "hood", "region": "top_25pct"},
+            ],
+        },
+        concepts={"person": "person", "hard_hat": "hard hat", "hood": "hood"},
+    )
+    present = _present(_ppe_tracks(track("cam1:hard_hat:1", "hard_hat", HAT_BOX)))
+    assert ppe_marks(rule, *present[0], present) == (PpeMark(region="top_25pct", seen=False),)
+
+
+def test_only_anonymous_and_strict_overlays_carry_ppe_marks() -> None:
+    key = Keyframe(chunk=make_chunk(), frame_idx=20, ts=at(2.0))
+    tracks = _ppe_tracks(track("cam1:hard_hat:1", "hard_hat", HAT_BOX))
+    ppe_context = DecisionContext(rule=PPE_RULE, calibration=None, t0=at(0), t1=at(6))
+    plain = keyframe_overlay(candidate(), ppe_context, tracks, key, scale=0.5, position=(1, 1))
+    marked = keyframe_overlay(
+        candidate(), ppe_context, tracks, key, scale=0.5, position=(1, 1), ppe=True
+    )
+    assert all(item.ppe == () for item in plain.items)
+    assert GLYPH_LEGEND not in annotation_texts(plain)
+    person, hat = marked.items
+    assert PpeMark(region="top_25pct", seen=True) in person.ppe
+    assert hat.ppe == ()  # objects carry no marks
+    assert GLYPH_LEGEND in annotation_texts(marked)
+    (out,) = render_frames(
+        [scene_frame((640, 360))], [marked], PrivacyMode.STRICT, NoFaceDetector()
+    )
+    white = np.all(out == GLYPH_COLOUR, axis=2)
+    vest = white[122:142, 117:123]  # the stick figure's torso (not seen: crossed, not filled)
+    assert vest.any()
+    assert not vest.all()
+    assert white[103:105, 116:124].all()  # the cap over the head, below the subject box
+    assert not (np.abs(out.astype(int) - np.asarray(SENTINEL)).sum(axis=2) < 60).any()
+
+
+def test_anonymous_strip_lists_the_ppe_legend_but_standard_does_not(tmp_path: Path) -> None:
+    store = InMemoryTrackStore()
+    store.append(_ppe_tracks(track("cam1:hard_hat:1", "hard_hat", HAT_BOX)))
+    ppe_context = DecisionContext(rule=PPE_RULE, calibration=None, t0=at(0), t1=at(6))
+    folder = tmp_path / "strips" / "cam1" / "ev_.._1"
+    for mode, listed in ((PrivacyMode.ANONYMOUS, True), (PrivacyMode.STANDARD, False)):
+        out = renderer(tmp_path, store=store).render(
+            candidate(rule_id="ppe"), make_chunk(index=1), mode, ppe_context
+        )
+        assert out.strip_paths
+        drawn = json.loads((folder / "annotations.json").read_text("utf-8"))["drawn"]
+        assert (GLYPH_LEGEND in drawn) is listed
 
 
 # --- the renderer, end to end with fakes -----------------------------------------------------

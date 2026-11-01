@@ -32,6 +32,10 @@ owner-only), ticks the escalation timers once a second, and serves how the respo
 configured (Tier 2, firewall, dry run, interlock) in `GET /runtime/metrics` under `response`.
 Upheld disputes and owner corrections become permanent Rule CI regressions (WS1f).
 
+Cost (WS3): with the runtime on, a `CostWatch` ticks once a second: the per-camera dollar budget
+(alarm and degrade, `runtime.cost`), the cost per camera-hour, and the optional idle GPU stop
+(`runtime.idle_stop`), all served under `cost` in `GET /runtime/metrics` and in `GET /metrics`.
+
 `make api` serves the module-level `app`, built from settings with the replay cache, the bus, the
 evidence chain, perception and Pair-a-Phone; `RULECAM_RUNTIME=true` also starts the runtime loop.
 """
@@ -88,6 +92,7 @@ from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
 from rulecam.rule_ci import prove_plan_hook
 from rulecam.rule_ci.hard_negatives import HardNegatives
 from rulecam.runtime.activate import PlanActivator, restore_activation
+from rulecam.runtime.cost import CostMeter, CostReport, CostSettings, CostWatch
 from rulecam.runtime.factory import (
     ChainEventSource,
     ChunkIndex,
@@ -96,6 +101,7 @@ from rulecam.runtime.factory import (
     build_runtime,
     build_tier1,
 )
+from rulecam.runtime.idle_stop import IdleGpuStop
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
 from rulecam.runtime.response import Response, ResponseStatus, build_response
 from rulecam.verify.tier2 import SparkOpenVerifier
@@ -135,6 +141,7 @@ class AppServices:
         verdicts: Verdict counts for `GET /metrics`, fed from `verdict.new`.
         health_probes: Dependencies (Glimmer, the SAM pod) whose health `GET /metrics` shows.
         response: How the policy, firewall and actions are configured (`/runtime/metrics`).
+        cost: The dollar budget's report (`/runtime/metrics` → `cost`, `/metrics`).
         public_demo: Demo sites only: non-owners may watch `/ws` (from a viewer origin) and read
             plans. Off by default; a real site keeps those reads owner-only.
     """
@@ -162,13 +169,15 @@ class AppServices:
     verdicts: VerdictCounter = field(default_factory=VerdictCounter)
     health_probes: Sequence[HealthProbe] = ()
     response: ResponseStatus | None = None
+    cost: Callable[[], CostReport] | None = None
     public_demo: bool = False
 
 
 class RuntimeReport(LoopMetrics):
-    """Body of `GET /runtime/metrics`: the loop's metrics plus the response side's status."""
+    """Body of `GET /runtime/metrics`: the loop's metrics, the response side and the spend."""
 
     response: ResponseStatus | None = None
+    cost: CostReport | None = None
 
 
 TICK_S = 1.0
@@ -378,7 +387,8 @@ def _runtime_router(services: AppServices) -> APIRouter:
 
     @router.get("/metrics")
     def metrics() -> RuntimeReport:
-        return RuntimeReport(**dict(runtime().metrics), response=services.response)
+        cost = services.cost() if services.cost is not None else None
+        return RuntimeReport(**dict(runtime().metrics), response=services.response, cost=cost)
 
     return router
 
@@ -389,6 +399,7 @@ def _metrics_sources(services: AppServices) -> MetricsSources:
         perception=services.perception_metrics.report,
         verdicts=services.verdicts,
         probes=services.health_probes,
+        cost=lambda: services.cost() if services.cost is not None else None,
     )
 
 
@@ -650,13 +661,22 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         bus=bus,
         chain=chain,
     )
+    meter = CostMeter(CostSettings.from_settings(settings), usage=perception.metrics.hosted_usage)
     runtime = (
         build_runtime(
-            settings, perception, cache=cache, clock=clock, bus=bus, chain=chain, response=response
+            settings,
+            perception,
+            cache=cache,
+            clock=clock,
+            bus=bus,
+            chain=chain,
+            response=response,
+            cost=meter,
         )
         if settings.rulecam_runtime
         else None
     )
+    watch = cost_watch(settings, meter, runtime, perception.chunks, clock=clock)
     hard_negatives = HardNegatives(settings.regressions_dir)
 
     def concepts() -> list[str]:
@@ -712,8 +732,9 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         public_demo=settings.public_demo,
         auth=auth,
         health_probes=dependency_probes(settings.glimmer_base_url, settings.sam_base_url),
-        tickers=response.tickers,
+        tickers=(*response.tickers, *((watch.tick,) if watch is not None else ())),
         response=response.status,
+        cost=watch.report if watch is not None else None,
         routers=(
             build_worker_router(
                 settings,
@@ -728,6 +749,26 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             ),
             owner_alerts_router(response),
         ),
+    )
+
+
+def cost_watch(
+    settings: Settings,
+    meter: CostMeter,
+    runtime: RuntimeLoop | None,
+    chunks: ChunkIndex,
+    *,
+    clock: Clock,
+) -> CostWatch | None:
+    """The cost ticker (dollar budget, cost per camera-hour, idle GPU stop); runtime only."""
+    if runtime is None:
+        return None
+    return CostWatch(
+        meter,
+        clock=clock,
+        plan=lambda: runtime.plan,
+        last_seen=chunks.last_seen,
+        idle_stop=IdleGpuStop.from_settings(settings),
     )
 
 

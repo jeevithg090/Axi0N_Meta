@@ -14,6 +14,9 @@ Hosted-equivalent cost prices every call as hosted SAM 3.1 video: `max(50, frame
 at $0.20 per 1,000 frames. Actual cost prices self-hosted calls by GPU-seconds at
 `gpu_usd_per_hour`, and hosted calls at the hosted price. GPU-seconds count only time spent
 serving calls; Modal also bills the idle time of the warm container.
+
+`hosted_usage()` gives each camera's hosted bill as billed frames and images (single-image
+requests, `record_image_call`), which the runtime's dollar budget prices with `sam_cost`.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from enum import StrEnum
 from rulecam.contracts.core import Frozen
 
 HOSTED_USD_PER_FRAME = 0.20 / 1000
+HOSTED_USD_PER_IMAGE = 2.50 / 1000
 HOSTED_MIN_BILLED_FRAMES = 50
 DEFAULT_GPU_USD_PER_HOUR = 0.80  # Modal L4 on-demand list price; set from the real bill for E7
 SECONDS_PER_HOUR = 3600.0
@@ -82,6 +86,20 @@ class CameraPerceptionMetrics(Frozen):
     sam_fallbacks: int = 0
 
 
+class HostedUsage(Frozen):
+    """One camera's hosted SAM bill so far, and the camera time it covered.
+
+    Attributes:
+        billed_frames: Video frames billed (`max(50, frames)` per request).
+        images: Single-image requests.
+        seconds: Camera time recorded (`record_chunk`).
+    """
+
+    billed_frames: int = 0
+    images: int = 0
+    seconds: float = 0.0
+
+
 class PerceptionMetricsReport(Frozen):
     """What `GET /metrics/perception` returns."""
 
@@ -102,6 +120,8 @@ class CameraCounters:
     concepts_considered: int = 0
     concepts_gated: int = 0
     fallbacks: int = 0
+    hosted_billed_frames: int = 0
+    hosted_images: int = 0
 
     def add(self, other: CameraCounters) -> None:
         """Add another camera's counters into this one."""
@@ -114,6 +134,8 @@ class CameraCounters:
         self.concepts_considered += other.concepts_considered
         self.concepts_gated += other.concepts_gated
         self.fallbacks += other.fallbacks
+        self.hosted_billed_frames += other.hosted_billed_frames
+        self.hosted_images += other.hosted_images
 
 
 def summarize(camera_id: str, counters: CameraCounters) -> CameraPerceptionMetrics:
@@ -206,10 +228,43 @@ class PerceptionMetrics:
             if backend is Backend.HOSTED:
                 counters.calls_hosted += 1
                 counters.actual_usd += hosted_price
+                counters.hosted_billed_frames += hosted_billed_frames(frames)
             else:
                 counters.calls_self_hosted += 1
                 counters.gpu_seconds += gpu_seconds
                 counters.actual_usd += gpu_seconds * self._gpu_usd_per_second
+
+    def record_image_call(
+        self, camera_id: str, *, backend: Backend, gpu_seconds: float = 0.0
+    ) -> None:
+        """Record one SAM 3.1 single-image request (e.g. a runtime keyframe).
+
+        Args:
+            camera_id: The camera.
+            backend: Which deployment served it.
+            gpu_seconds: GPU time used (self-hosted only).
+        """
+        with self._lock:
+            counters = self._counters(camera_id)
+            counters.hosted_equivalent_usd += HOSTED_USD_PER_IMAGE
+            if backend is Backend.HOSTED:
+                counters.calls_hosted += 1
+                counters.actual_usd += HOSTED_USD_PER_IMAGE
+                counters.hosted_images += 1
+            else:
+                counters.calls_self_hosted += 1
+                counters.gpu_seconds += gpu_seconds
+                counters.actual_usd += gpu_seconds * self._gpu_usd_per_second
+
+    def hosted_usage(self) -> dict[str, HostedUsage]:
+        """Each camera's hosted SAM bill so far (frames, images) and its camera time."""
+        with self._lock:
+            return {
+                camera: HostedUsage(
+                    billed_frames=c.hosted_billed_frames, images=c.hosted_images, seconds=c.seconds
+                )
+                for camera, c in self._cameras.items()
+            }
 
     def record_fallback(self, camera_id: str) -> None:
         """Record that self-hosted SAM failed and runtime calls went to hosted SAM.

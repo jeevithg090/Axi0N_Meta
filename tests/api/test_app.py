@@ -225,6 +225,12 @@ def test_services_from_settings_with_runtime(tmp_path: Path) -> None:
         assert response["firewall"] == "degraded"
         assert "HF_TOKEN" in response["firewall_reason"]
         assert response["actions_dry_run"] is True
+        cost = client.get("/runtime/metrics").json()["cost"]
+        assert cost["budget_usd_per_camera_hour"] == 12.0
+        assert cost["alarm"] is False
+        assert cost["idle_stop"]["enabled"] is False  # off by default
+        assert "rulecam_cost_budget_alarm 0.0" in client.get("/metrics").text
+    assert len(services.tickers) == 2  # escalation timers and the cost watch
 
 
 def test_alert_routes_are_owner_only(tmp_path: Path) -> None:

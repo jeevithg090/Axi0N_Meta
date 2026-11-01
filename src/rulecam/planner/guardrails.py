@@ -12,6 +12,10 @@
    categories. A model failure is not swallowed: the check fails closed by raising.
 
 A decline becomes a `FeasibilityVerdict(verdict="declined", reason=…, alternative=…)`.
+
+In prototype mode (`rulecam.prototype`) only `profiling_check` runs: a request that singles people
+out by race, ethnicity, skin colour, religion, nationality, immigration status or sexual
+orientation is declined; everything else is allowed and Spark's pass is skipped.
 """
 
 from __future__ import annotations
@@ -28,6 +32,7 @@ from rulecam.contracts.plan import FeasibilityVerdict
 from rulecam.contracts.protocols import StructuredLLM
 from rulecam.log import get_logger
 from rulecam.planner.models import DATA_NOT_INSTRUCTIONS_CLAUSE
+from rulecam.prototype import prototype_mode
 
 logger = get_logger(__name__)
 
@@ -296,6 +301,38 @@ _PATTERNS: Final[tuple[tuple[GuardrailCategory, re.Pattern[str], str, str], ...]
 )
 
 
+_PROFILING: Final = _rx(
+    r"racial\w*|(?:by|their|of|on|different|other|same)\s+(?:\w+\s+)?race\b|race\s+of",
+    r"ethnic\w*|skin\s+colou?r",
+    r"religio\w*|nationality|immigra\w*|sexual\s+orientation",
+    r"raza|etnia|etnic\w*|color\s+de\s+piel|religion|religios\w*|nacionalidad|inmigrant\w*",
+    r"orientacion\s+sexual",
+)
+PROFILING_REASON: Final = (
+    "Rules that single people out by race, ethnicity, skin colour, religion, nationality, "
+    "immigration status or sexual orientation are not supported, also in prototype mode."
+)
+
+
+def profiling_check(text: str) -> Declined | None:
+    """The one decline prototype mode keeps: rules that profile people by who they are.
+
+    Args:
+        text: The request text.
+
+    Returns:
+        The decline, or `None`.
+    """
+    if not _PROFILING.search(normalize(text)):
+        return None
+    logger.info("guardrail_profiling_decline")
+    return Declined(
+        category=GuardrailCategory.PROTECTED_ATTRIBUTE,
+        reason=PROFILING_REASON,
+        alternative="Write the rule for everyone in view, whoever they are.",
+    )
+
+
 class _ModelClassification(Frozen):
     """The classifier's answer; a decline must name its category."""
 
@@ -395,6 +432,8 @@ def check_request(text: str, *, spark: StructuredLLM | None = None) -> Guardrail
     cleaned = text.strip()
     if not cleaned:
         return Allowed()
+    if prototype_mode():
+        return profiling_check(cleaned) or Allowed()
     declined = deterministic_check(cleaned)
     if declined is not None:
         return declined

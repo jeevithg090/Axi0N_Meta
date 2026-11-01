@@ -47,6 +47,7 @@ from rulecam.perception.errors import ZoneError
 from rulecam.planner.errors import PlannerError
 from rulecam.planner.guardrails import GuardrailCategory, deterministic_check
 from rulecam.planner.steps.compile import walk_predicates
+from rulecam.prototype import prototype_mode
 
 MIN_DISTANCE_M: Final = 0.3
 MAX_DISTANCE_M: Final = 20.0
@@ -344,5 +345,7 @@ def _words(text: str) -> str:
 
 
 def _names_private_space(name: str) -> bool:
+    if prototype_mode():
+        return False
     declined = deterministic_check(_words(name))
     return declined is not None and declined.category is GuardrailCategory.PRIVATE_SPACE

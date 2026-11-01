@@ -28,6 +28,7 @@ from rulecam.rule_ci.models import CIResult, MutationCase, RuleCIReport, TraceCa
 from rulecam.rule_ci.mutations import generate_mutations
 from rulecam.rule_ci.red_team import RedTeamReport
 from rulecam.rules import RuleEvaluationError, evaluate
+from rulecam.rules.operators import OPERATOR_WARMUP_S
 
 _log = get_logger(__name__)
 
@@ -35,7 +36,13 @@ Outcome = bool | str
 """Whether the rule fired on a trace, or the evaluation error's text."""
 
 
-def fires(rule: RuleIR, trace: TraceCase, *, operator_exclusion: bool = True) -> Outcome:
+def fires(
+    rule: RuleIR,
+    trace: TraceCase,
+    *,
+    operator_exclusion: bool = True,
+    operator_warmup_s: float = OPERATOR_WARMUP_S,
+) -> Outcome:
     """Run the rules engine on one trace.
 
     Zones are not passed in, so the engine resolves them from the rule itself (a mutant's
@@ -46,6 +53,8 @@ def fires(rule: RuleIR, trace: TraceCase, *, operator_exclusion: bool = True) ->
         trace: The trace.
         operator_exclusion: The engine's operator exclusion (on, as in production; the
             `drop_operator_exclusion` mutant turns it off).
+        operator_warmup_s: The engine's operator warm-up (the production default; the
+            `drop_operator_warmup` mutant sets it to 0).
 
     Returns:
         True if at least one candidate was emitted, False if none, or the error text if the
@@ -60,6 +69,7 @@ def fires(rule: RuleIR, trace: TraceCase, *, operator_exclusion: bool = True) ->
             t0=trace.t0,
             t1=trace.t1,
             operator_exclusion=operator_exclusion,
+            operator_warmup_s=operator_warmup_s,
         )
     except RuleEvaluationError as exc:
         return f"error: {exc}"
@@ -115,7 +125,12 @@ def killed(
 ) -> bool:
     """Whether some trace's outcome under the mutant differs from the unmutated rule's."""
     return any(
-        fires(mutant.rule, trace, operator_exclusion=mutant.operator_exclusion)
+        fires(
+            mutant.rule,
+            trace,
+            operator_exclusion=mutant.operator_exclusion,
+            operator_warmup_s=mutant.operator_warmup_s,
+        )
         != baseline[trace.name]
         for trace in traces
     )

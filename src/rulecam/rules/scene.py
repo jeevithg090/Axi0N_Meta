@@ -26,7 +26,12 @@ from rulecam.rules.geometry import (
     project,
 )
 from rulecam.rules.ir import HANDS_CONCEPT
-from rulecam.rules.operators import is_person_like, is_vehicle_like, operator_mask
+from rulecam.rules.operators import (
+    OPERATOR_WARMUP_S,
+    is_person_like,
+    is_vehicle_like,
+    operator_mask,
+)
 from rulecam.rules.pose import PoseFeatures
 from rulecam.rules.timeline import SampledTrack, Timeline
 
@@ -72,6 +77,7 @@ class Scene:
     tracks: tuple[SampledTrack, ...]
     pose: PoseFeatures | None = None
     operator_exclusion: bool = True
+    operator_warmup_s: float = OPERATOR_WARMUP_S
     _by_concept: dict[str, tuple[SampledTrack, ...]] = field(default_factory=dict)
     _ignored: dict[tuple[str, str], BoolArray | None] = field(default_factory=dict)
 
@@ -117,10 +123,10 @@ class Scene:
             return None
         hz, horizon = self.timeline.hz, self.timeline.n
         if self._person_like(subject) and self._vehicle_like(other):
-            mask = operator_mask(subject, other, hz, horizon)
+            mask = operator_mask(subject, other, hz, horizon, warmup_s=self.operator_warmup_s)
             return mask if mask.any() else None
         if self._vehicle_like(subject) and self._person_like(other):
-            mask = operator_mask(other, subject, hz, horizon)
+            mask = operator_mask(other, subject, hz, horizon, warmup_s=self.operator_warmup_s)
             if not mask.any():
                 return None
             out = np.zeros(len(subject.present), dtype=np.bool_)

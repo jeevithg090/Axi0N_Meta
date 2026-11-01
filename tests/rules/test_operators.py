@@ -19,12 +19,16 @@ from typing import Any
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
+from rulecam.config import Settings
 from rulecam.contracts import Calibration, CandidateEvent, RuleIR, Track, TrackPoint
 from rulecam.rules import OperatorExclusion, evaluate
 from rulecam.rules.backtest import DecisionContext
 from rulecam.rules.geometry import norm
 from rulecam.rules.operators import (
+    MAX_OPERATOR_WARMUP_S,
+    OPERATOR_WARMUP_S,
     STILL_HEIGHTS_PER_S,
     has_operator_pair,
     image_velocity,
@@ -467,3 +471,175 @@ def test_the_live_fixture_reproduces_the_three_glimmer_candidates_without_exclus
         assert trace["subject"] == candidate["subject"]
         assert trace["all.0.distance_m.value"] == pytest.approx(candidate["distance_m"], abs=1e-5)
         assert trace["all.1.moving.value"] == pytest.approx(candidate["moving_mps"], abs=1e-5)
+
+
+# --- the warm-up: a person first seen on board (P1-07, golden run warehouse_driver) -------------
+
+
+def born_driver(start_s: float, steps: int = STEPS) -> Track:
+    """The driver, but their track is born `start_s` into the window, already on board."""
+    first = round(start_s * 10)
+    path = [(2.0 + SPEED * i / 10, 4.5) for i in range(first, steps)]
+    return walk_track("cam1:person:1", path, size_px=PERSON_PX, start_s=start_s)
+
+
+def forklift_span(track_id: str, first: int, stop: int) -> Track:
+    path = [(2.0 + SPEED * i / 10, 5.0) for i in range(first, stop)]
+    return walk_track(track_id, path, concept="forklift", size_px=FORKLIFT_PX, start_s=first / 10)
+
+
+def born_standing(start_s: float, steps: int = STEPS) -> Track:
+    """A pedestrian first seen inside the passing forklift's box, standing still.
+
+    Born 0.7 m ahead of its centre, so the box's back edge passes them about 1.7 s later.
+    """
+    x = 2.0 + SPEED * start_s + 0.7
+    first = round(start_s * 10)
+    return walk_track(
+        "cam1:person:3", [(x, 5.0)] * (steps - first), size_px=PERSON_PX, start_s=start_s
+    )
+
+
+def fired_by(
+    rule: RuleIR, tracks: list[Track], end_s: float, **kwargs: Any
+) -> list[CandidateEvent]:
+    """Candidates of the runtime's sliding window that ends at `end_s`."""
+    return evaluate(rule, tracks, calibration=CAL, zones={}, t0=at(0), t1=at(end_s), **kwargs)
+
+
+def test_a_driver_first_seen_on_board_through_a_re_identification_is_held() -> None:
+    """Born at 1 s inside the forklift's box; the tracker re-identifies the forklift 0.7 s later."""
+    tracks = [forklift_span("cam1:forklift:1", 0, 17), forklift_span("cam1:forklift:2", 17, STEPS)]
+    driver_track = born_driver(1.0)
+    assert run(DISTANCE_ONLY, [*tracks, driver_track]) == []
+    assert len(run(DISTANCE_ONLY, [*tracks, driver_track], operator_warmup_s=0.0)) == 1
+    for end in range(11, STEPS + 1):  # every sliding window the runtime evaluates
+        assert fired_by(DISTANCE_ONLY, [*tracks, driver_track], end / 10) == []
+
+
+def test_a_pedestrian_first_seen_inside_the_box_fires_once_the_warm_up_runs_out() -> None:
+    """Held while the window ends inside the warm-up, then reported from their first sample."""
+    tracks = [forklift(), born_standing(1.0)]
+    first_firing = next(end for end in range(11, STEPS + 1) if fired_by(RULE, tracks, end / 10))
+    assert first_firing / 10 <= 1.0 + 1.5 + 0.1  # bounded latency: the warm-up, then at once
+    assert fired_by(RULE, tracks, 2.4) == []  # still inside the warm-up: operator pending
+    (event,) = run(RULE, tracks)
+    assert event.ts_start == at(1.0)  # resolved as a pedestrian: the whole boarding counts
+    (early,) = run(RULE, tracks, operator_warmup_s=0.0)
+    assert early.ts_start == event.ts_start
+
+
+def test_a_driver_first_seen_on_board_who_steps_off_fires_once_off_board() -> None:
+    """Off the box they are a pedestrian at once: no hold outside the vehicle's box."""
+    off = 15
+    path = [(2.0 + SPEED * i / 10, 4.5) for i in range(10, off)]
+    path += [(2.0 + SPEED * off / 10 + 1.5, 5.5)] * (STEPS - off)
+    person = walk_track("cam1:person:1", path, size_px=PERSON_PX, start_s=1.0)
+    (event,) = run(RULE, [forklift(), person])
+    assert event.ts_end > at(off / 10)
+    assert fired_by(RULE, [forklift(), person], (off + 1) / 10) != []  # inside the warm-up
+
+
+def test_a_pedestrian_seen_approaching_from_outside_fires_without_waiting() -> None:
+    """The warm-up is only for people first seen on board: no hold for this one."""
+    walk = [(4.0, 6.5 - 0.1 * i) for i in range(10)] + [(4.0, 5.5)] * (STEPS - 10)
+    pedestrian = walk_track("cam1:person:3", walk, size_px=PERSON_PX)
+    entered = next(
+        e
+        for e in range(1, STEPS + 1)
+        if fired_by(DISTANCE_ONLY, [slow_forklift(), pedestrian], e / 10)
+    )
+    with_hold = fired_by(DISTANCE_ONLY, [slow_forklift(), pedestrian], entered / 10)
+    without = fired_by(
+        DISTANCE_ONLY, [slow_forklift(), pedestrian], entered / 10, operator_warmup_s=0.0
+    )
+    assert with_hold == without != []
+
+
+def test_the_warm_up_is_bounded_by_the_persons_first_sample() -> None:
+    """A forklift track born around a standing person long after their birth is never held."""
+    late = walk_track(
+        "cam1:forklift:1",
+        [(5.0 + SPEED * i / 10, 5.0) for i in range(20)],
+        concept="forklift",
+        size_px=FORKLIFT_PX,
+        start_s=3.0,
+    )
+    standing = walk_track("cam1:person:3", [(5.0, 4.5)] * STEPS, size_px=PERSON_PX)
+    assert fired_by(DISTANCE_ONLY, [late, standing], 3.3) != []
+
+
+def test_a_held_tail_is_never_judged() -> None:
+    """A track that ended is held for 0.5 s at its last point; that is not a stopped vehicle."""
+    timeline = Timeline.build(at(0), at(STEPS / 10), HZ)
+    ended = resample(forklift_span("cam1:forklift:1", 0, 17), timeline, CAL)
+    assert (ended.seen_stop, ended.stop) == (17, 22)
+
+
+def test_the_warm_up_is_configured_bounded_and_recorded() -> None:
+    config = OperatorExclusion.from_csv("forklift-proximity", warmup_s=1.0)
+    assert config.warmup_s == 1.0
+    assert OperatorExclusion().warmup_s == OPERATOR_WARMUP_S == MAX_OPERATOR_WARMUP_S
+    with pytest.raises(ValidationError):
+        OperatorExclusion(warmup_s=MAX_OPERATOR_WARMUP_S + 0.1)
+    with pytest.raises(ValidationError):
+        DecisionContext(rule=RULE, t0=at(0), t1=at(1), operator_warmup_s=-0.1)
+    context = DecisionContext(
+        rule=DISTANCE_ONLY, calibration=CAL, t0=at(0), t1=at(STEPS / 10), operator_warmup_s=0.0
+    )
+    assert DecisionContext.model_validate_json(context.model_dump_json()) == context
+    tracks = [forklift_span("cam1:forklift:1", 0, 17), forklift_span("cam1:forklift:2", 17, STEPS)]
+    assert len(context.evaluate([*tracks, born_driver(1.0)])) == 1
+    on = context.model_copy(update={"operator_warmup_s": OPERATOR_WARMUP_S})
+    assert on.evaluate([*tracks, born_driver(1.0)]) == []
+    assert Settings(rulecam_operator_warmup_s=1.0).rulecam_operator_warmup_s == 1.0
+    with pytest.raises(ValidationError):
+        Settings(rulecam_operator_warmup_s=2.0)
+
+
+GOLDEN = Path(__file__).resolve().parents[1] / "fixtures" / "rules" / "golden_warehouse_driver.json"
+
+
+def _golden() -> tuple[DecisionContext, list[Track], dict[str, Any]]:
+    doc: dict[str, Any] = json.loads(GOLDEN.read_text("utf-8"))
+    tracks = [
+        Track(
+            track_id=raw["track_id"],
+            camera_id=raw["camera_id"],
+            concept=raw["concept"],
+            points=tuple(
+                TrackPoint(
+                    ts=datetime.fromisoformat(ts),
+                    frame_idx=frame,
+                    box_xyxy=(x1, y1, x2, y2),
+                    foot_px=(fx, fy),
+                )
+                for ts, frame, x1, y1, x2, y2, fx, fy in raw["points"]
+            ),
+        )
+        for raw in doc["tracks"]
+    ]
+    t0, t1 = (datetime.fromisoformat(t) for t in doc["window"])
+    context = DecisionContext.model_validate({**doc["context"], "t0": t0, "t1": t1})
+    return context, tracks, doc
+
+
+def test_the_golden_driver_window_has_no_candidates() -> None:
+    """Every 30 s window ending 0-3 s after the driver's track was born: nothing fires."""
+    context, tracks, _ = _golden()
+    for back in range(31):
+        t1 = context.t1 - timedelta(seconds=back / 10)
+        window = context.model_copy(update={"t0": t1 - timedelta(seconds=30), "t1": t1})
+        assert window.evaluate(tracks) == [], t1
+
+
+def test_the_golden_fixture_reproduces_the_live_candidate_without_the_warm_up() -> None:
+    context, tracks, doc = _golden()
+    (event,) = context.model_copy(update={"operator_warmup_s": 0.0}).evaluate(tracks)
+    live = doc["candidate"]
+    assert event.ts_start == datetime.fromisoformat(live["ts_start"])
+    assert event.ts_end == datetime.fromisoformat(live["ts_end"])
+    assert event.predicate_trace["subject"] == live["subject"]
+    assert event.predicate_trace["all.0.distance_m.value"] == pytest.approx(
+        live["distance_m"], abs=1e-3
+    )

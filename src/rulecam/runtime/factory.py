@@ -368,7 +368,9 @@ def build_runtime(
         pipeline_depth=settings.rulecam_runtime_pipeline_depth,
         timings=timings,
         verify_workers=settings.rulecam_runtime_verify_workers,
-        operators=OperatorExclusion.from_csv(settings.rulecam_operator_exclusion_off),
+        operators=OperatorExclusion.from_csv(
+            settings.rulecam_operator_exclusion_off, warmup_s=settings.rulecam_operator_warmup_s
+        ),
         over_budget=cost.over_budget if cost is not None else None,
         bill_estimate=picked.bill_estimate,
     )

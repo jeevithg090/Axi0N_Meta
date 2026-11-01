@@ -8,6 +8,7 @@ from typing import Final, Literal
 from rulecam.contracts.core import Calibration, Frozen, Track
 from rulecam.contracts.rule_ir import RuleIR
 from rulecam.rule_ci.red_team import RedTeamReport
+from rulecam.rules.operators import OPERATOR_WARMUP_S
 
 REQUIRED_KILL_RATIO: Final = 0.90
 
@@ -62,6 +63,8 @@ class MutationCase(Frozen):
         description: What changed.
         operator_exclusion: Whether the engine runs the mutant with operator exclusion
             (`rules.operators`); `drop_operator_exclusion` turns it off.
+        operator_warmup_s: The engine's operator warm-up for the mutant (`rules.operators` rule
+            7); `drop_operator_warmup` sets it to 0.
     """
 
     name: str
@@ -69,6 +72,7 @@ class MutationCase(Frozen):
     rule: RuleIR
     description: str
     operator_exclusion: bool = True
+    operator_warmup_s: float = OPERATOR_WARMUP_S
 
 
 class RuleCIReport(Frozen):

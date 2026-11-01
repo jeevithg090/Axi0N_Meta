@@ -74,13 +74,14 @@ def test_the_live_buffer_rule_passes_rule_ci_with_its_calibration() -> None:
     assert report.ci_green, report.failures
     assert report.nonvacuous
     assert report.failures == ()
-    assert report.summary() == "boundary 17/17, mutations 5/5"  # + kinematic and operator
+    assert report.summary() == "boundary 19/19, mutations 6/6"  # + kinematic and operator
     assert [m.name for m in generate_mutations(rule)] == [
         "scale_threshold_0.1",
         "scale_threshold_10",
         "swap_all_any",
         "widen_zone:forklift_buffer",
         "drop_operator_exclusion",
+        "drop_operator_warmup",
     ]
     traces = {t.name: t for t in generate_rule_traces(rule)}
     assert {name: t.expected_violation for name, t in traces.items()} == {
@@ -104,6 +105,9 @@ def test_the_live_buffer_rule_passes_rule_ci_with_its_calibration() -> None:
         # slow close-up vehicle (live P1-07, phone-23)
         "operator_riding_slow_0.5m": False,
         "pedestrian_slow_approach_0.5m": True,
+        # first seen on board: the warm-up (P1-07, golden run warehouse_driver)
+        "operator_born_riding_0.5m": False,
+        "pedestrian_born_inside_0.5m": True,
     }
     assert {t.kind for t in traces.values()} >= {"zone_edge", "boundary", "interruption", "id_swap"}
     assert len({t.tracks[0].track_id for t in traces.values()}) == 1
@@ -137,7 +141,7 @@ def test_without_calibration_it_fails_with_the_reason() -> None:
 
     assert not report.ci_green
     assert not report.nonvacuous
-    assert (report.traces_total, report.mutants_killed, report.mutants_total) == (0, 0, 5)
+    assert (report.traces_total, report.mutants_killed, report.mutants_total) == (0, 0, 6)
     assert report.failures[0].startswith("no boundary traces: buffer zone needs calibration")
     assert "camera 'cam1'" in report.failures[0]
     assert "no boundary-trace generator" not in " ".join(report.failures)

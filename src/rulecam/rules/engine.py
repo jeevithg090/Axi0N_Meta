@@ -25,6 +25,7 @@ from rulecam.rules.ir import (
     walk,
 )
 from rulecam.rules.near_miss import near_miss_trace
+from rulecam.rules.operators import OPERATOR_WARMUP_S
 from rulecam.rules.pose import PoseFeatures
 from rulecam.rules.predicates.pose import pose as pose_state
 from rulecam.rules.predicates.presence import count, state
@@ -86,6 +87,7 @@ def evaluate(
     plan_version_hash: str = "",
     pose: PoseFeatures | None = None,
     operator_exclusion: bool = True,
+    operator_warmup_s: float = OPERATOR_WARMUP_S,
 ) -> list[CandidateEvent]:
     """Evaluate a rule over a window of tracks and return one candidate per episode.
 
@@ -107,6 +109,8 @@ def evaluate(
         operator_exclusion: Ignore the vehicle a person rides as its operator in person-vehicle
             `distance_m`, buffer-zone `inside` and near-miss metrics (`rules.operators`). On by
             default; `OperatorExclusion.enabled_for(rule.id)` gives the owner's per-rule choice.
+        operator_warmup_s: How long a person first seen on board a vehicle is held as its
+            operator pending (`rules.operators`, rule 7); 0 turns the warm-up off.
 
     Returns:
         Candidates sorted by `(ts_start, camera_id, event_id)`.
@@ -137,6 +141,7 @@ def evaluate(
             tracks=tuple(resample(t, timeline, cal) for t in own),
             pose=pose,
             operator_exclusion=operator_exclusion,
+            operator_warmup_s=operator_warmup_s,
         )
         window_hash = track_window_hash(camera_id, t0, t1, hz, own)
         events.extend(_evaluate_camera(settings, scene, window_hash))

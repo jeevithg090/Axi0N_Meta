@@ -973,6 +973,7 @@ class RuntimeLoop:
             t1=t1,
             plan_version_hash=plan.plan_version_hash,
             operator_exclusion=self._operators.enabled_for(rule.id),
+            operator_warmup_s=self._operators.warmup_s,
         )
         tracks = self._store.window(chunk.camera_id, t0, t1)
         return [(c, context) for c in context.evaluate(tracks) if self._is_new(c)]

@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     # YuNet face-detector ONNX (opencv_zoo) for blurring faces in evidence strips; without it
     # only the head regions of tracked people are blurred (runtime.strips).
     rulecam_face_model: Path | None = None
+    # Record actions as `dry-run: would …` and execute none of them (no power cut, light,
+    # speaker or notification) until the owner turns this off (docs/deploy.md "Actions").
+    rulecam_actions_dry_run: bool = True
+    # Where confirmed false alarms become permanent Rule CI lookalike regressions (P2-09,
+    # `rule_ci.hard_negatives`); default `<data dir>/rule_ci/regressions`.
+    rulecam_regressions_dir: Path | None = None
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None
@@ -79,6 +85,11 @@ class Settings(BaseSettings):
     def replay_dir(self) -> Path:
         """Directory of the replay cache (overridable for tests)."""
         return self.rulecam_replay_dir or self.rulecam_data_dir / "replay"
+
+    @property
+    def regressions_dir(self) -> Path:
+        """Directory of the site's permanent lookalike regressions."""
+        return self.rulecam_regressions_dir or self.rulecam_data_dir / "rule_ci" / "regressions"
 
 
 @lru_cache(maxsize=1)

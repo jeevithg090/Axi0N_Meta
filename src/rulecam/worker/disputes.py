@@ -4,7 +4,8 @@ A dispute is chained as `pending` before anything else can fail, then re-reviewe
 (`review_dispute`, P3-04; the policy sends every dispute to Tier 2, P3-05), and the outcome is
 chained as a second `dispute` record with the same `dispute_id`. A review that cannot run leaves
 it `pending` for a person: it is never dropped and never upheld by default. An upheld dispute
-also chains a `false_alarm` rule-health `label`.
+also chains a `false_alarm` rule-health `label` and, with `hard_negatives`, becomes a permanent
+Rule CI lookalike regression (WS1f, `rule_ci.hard_negatives`).
 
 **No identity is stored.** The rate limit keys an HMAC of the client address with a random salt
 that is replaced, together with every counter, at each UTC day boundary; the salt is never
@@ -64,6 +65,14 @@ class DisputeReviewer(Protocol):
         tier1: VerifierVerdict | None = None,
     ) -> Dispute:
         """Re-review a disputed alert."""
+        ...
+
+
+class FalseAlarmSink(Protocol):
+    """Remembers a confirmed false alarm (`rule_ci.hard_negatives.HardNegatives`)."""
+
+    def from_dispute(self, candidate: CandidateEvent, rule: RuleIR, dispute: Dispute) -> object:
+        """Record an upheld dispute."""
         ...
 
 
@@ -149,6 +158,7 @@ class DisputeService:
         *,
         clock: Clock,
         limiter: DailyLimiter | None = None,
+        hard_negatives: FalseAlarmSink | None = None,
     ) -> None:
         """Create the service.
 
@@ -157,11 +167,13 @@ class DisputeService:
             reviewer: Tier 2.
             clock: Time source.
             limiter: The abuse bounds (defaults to `DailyLimiter(clock)`).
+            hard_negatives: Turns upheld disputes into permanent Rule CI regressions.
         """
         self._chain = chain
         self._reviewer = reviewer
         self._clock = clock
         self._limiter = limiter or DailyLimiter(clock)
+        self._hard_negatives = hard_negatives
 
     def submit(self, request: DisputeRequest, client: str) -> DisputeResult:
         """Record, re-review and chain one dispute.
@@ -194,7 +206,7 @@ class DisputeService:
         reviewed = self._review(event, dispute)
         self._chain.append("dispute", dispute_payload(dispute_id, event, reviewed))
         if reviewed.outcome == "upheld":
-            self._chain.append("label", _label(event, dispute_id))
+            self._upheld(event, dispute_id, reviewed)
         _log.info(
             "worker_dispute",
             event_id=event.candidate.event_id,
@@ -246,7 +258,7 @@ class DisputeService:
         reviewed = self._review(event, dispute)
         self._chain.append("dispute", dispute_payload(dispute_id, event, reviewed))
         if reviewed.outcome == "upheld":
-            self._chain.append("label", _label(event, dispute_id))
+            self._upheld(event, dispute_id, reviewed)
         _log.info(
             "worker_voice_dispute",
             event_id=event.candidate.event_id,
@@ -255,6 +267,12 @@ class DisputeService:
         )
         after = read_site_log(self._chain, self._clock.now().date(), DISPUTE_WINDOW_DAYS)
         return _result(event_code, event, reviewed, after)
+
+    def _upheld(self, event: LoggedEvent, dispute_id: str, reviewed: Dispute) -> None:
+        """Label the false alarm for rule health and remember it as a regression."""
+        self._chain.append("label", _label(event, dispute_id))
+        if self._hard_negatives is not None:
+            self._hard_negatives.from_dispute(event.candidate, event.rule, reviewed)
 
     def _review(self, event: LoggedEvent, dispute: Dispute) -> Dispute:
         """Tier 2 re-review; anything that stops it leaves the dispute pending for a person."""

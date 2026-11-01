@@ -4,8 +4,17 @@ Muse Spark 1.3 plans the steps (`ask.agent`): SQL over the SAM 3.1 tracks (`ask.
 counts and Muse Glimmer looks on the recorded frames (`ask.vision`). Served at `POST /ask`.
 """
 
-from rulecam.ask.agent import AskAction, AskAgent, AskAnswer, AskStep, open_tables
+from rulecam.ask.agent import (
+    AskAction,
+    AskAgent,
+    AskAnswer,
+    AskStep,
+    camera_names,
+    open_tables,
+    planner_profiles,
+)
 from rulecam.ask.data import QueryResult, SqlError, TrackTables
+from rulecam.ask.memory import CaptionMemory
 from rulecam.ask.vision import FrameGrabber
 
 __all__ = [
@@ -13,9 +22,12 @@ __all__ = [
     "AskAgent",
     "AskAnswer",
     "AskStep",
+    "CaptionMemory",
     "FrameGrabber",
     "QueryResult",
     "SqlError",
     "TrackTables",
+    "camera_names",
     "open_tables",
+    "planner_profiles",
 ]

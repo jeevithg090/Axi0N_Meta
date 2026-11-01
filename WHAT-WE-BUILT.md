@@ -96,6 +96,7 @@ adds a row here with its licence.
 | `docs/sets.md`, `docs/social.md`, `docs/standups.md` | Physical sets (S-01), X posts plan (S-08), standups and gate ledger (S-10) | #64, #67, #69, #74 |
 | `src/rulecam/pose/` | COCO-17 pose features (`is_down`, `hands_above_shoulder`, `ladder_three_point_lost`, `bent_back_lift`), the `PoseStates` adapter for the rule engine, the RTMPose ONNX estimator and keypoint interpolation (P4-04) | #77 |
 | `scripts/arrivals.py`, `eval/advisor/README.md` | Seeded truck-arrival script and seal protocol for Site Advisor sessions (P4-08a) | #76 |
+| `eval/manifests.py`, `eval/runners/e1.py`, `eval/report.py`, `rulecam eval label` | E1 evaluation harness: consent-gated clip manifests, 5 runs per arm, three ablations and two baselines, Wilson 95% intervals per rule / use case / stager, RESULTS.md section. **Not run:** needs the recordings (S-03) and signed consent forms (P4-06) | #TBD |
 | `docs/consent.md` | Consent template and collection checklist for raw footage (S-02) | #75 |
 | `HANDOFF.md`, `docs/SESSION_HANDOVER_P2.md` | Project handoff and P2 session state notes | #84 |
 | `src/rulecam/runtime/strips.py`, `strip_draw.py` | Runtime evidence strips for Glimmer: keyframes across the episode (one in-memory ffmpeg decode per chunk), rule boxes, zones and a calibrated distance ruler, privacy modes (standard face blur via YuNet; anonymous/strict plate + skeletons, no person pixels) (P4-05) | #98 |

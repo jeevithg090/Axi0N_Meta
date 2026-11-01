@@ -63,6 +63,44 @@ replays to: 10 candidates, 0 verified alerts, Glimmer decisive on 0 of 10 (every
 `unsure`: the strip renderer is a placeholder, PLAN-9.5 §1 root cause 1). CI re-scores it on
 every push (`make eval-replay`).
 
+## E1: consent-gated manifests, ablations and baselines (P4-06)
+
+E1 is the detection-accuracy evaluation. It sits on top of the clip set above and adds the three
+things the clip set does not carry: permission, arms and intervals.
+
+```
+eval/
+  manifests.py            the E1 manifest: permission and provenance per clip
+  e1/manifest.example.yaml  a worked example (every entry unconsented, so it is refused)
+  runners/e1.py           5 runs per arm, Wilson intervals, the slices
+  report.py               renders the E1 section of RESULTS.md between its markers
+```
+
+```bash
+uv run rulecam eval label eval/e1/manifest.yaml                  # consent gate + what to label
+uv run rulecam eval label eval/e1/manifest.yaml --check-hashes   # also re-hash every clip file
+```
+
+**Consent is a gate, not a warning.** `clip.yaml` says what a clip contains; a manifest entry
+says we are allowed to measure it. An entry whose `consent` is false or missing makes
+`load_manifest` raise, so a clip without a signed form can never reach a measured run. The forms
+themselves are never committed (`docs/consent.md`); the manifest records the form id, so an
+auditor can ask for that form by name. Entries pin the clip's `sha256`, and `--check-hashes`
+refuses a clip whose bytes have changed, because a re-recording needs its own permission.
+
+**Arms.** Three ablations (`predicates`, `glimmer`, `spark_open`) and two baselines
+(`yolov8_ppe`, `frame_vlm`, the model asked the rule every 5 s on single frames). YOLOv8
+(ultralytics) is AGPL-3.0 and lives in the `eval` extra only: no runtime code imports it, and the
+runner only ever receives its outputs.
+
+**What the numbers mean.** Intervals are Wilson 95% over labelled episodes, so they account for
+how few clips there are and for nothing else: not for the clips being ours, not for staging, not
+for one site. Each arm runs the set five times, and that spread is **stability, not accuracy** —
+repeats of the same clip say whether the pipeline is deterministic, so counts come from the first
+scored run of each clip and are never summed over repeats. Clips staged by an **outsider** are
+reported as their own slice and never pooled with ours, because they are the only honest
+generalisation evidence. A slice with no trials prints `n/a`, not `0`.
+
 ## How the metrics are computed
 
 - **Alert**: a candidate whose chained decision says `alert`, or whose last verifier verdict

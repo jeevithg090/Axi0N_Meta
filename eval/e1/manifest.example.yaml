@@ -1,0 +1,53 @@
+# An E1 manifest (task P4-06). Copy this to `manifest.yaml` and fill it in once the clips of
+# Section 11 are recorded and every person in them has signed a consent form.
+#
+#   uv run rulecam eval label eval/e1/manifest.yaml
+#
+# The command refuses the whole manifest if any entry has no consent, and names the clips that
+# need a form. `--check-hashes` also re-hashes every clip file, so a re-recording cannot be
+# measured under an old permission.
+#
+# The signed forms are never committed. `consent_form` is the id the form is filed under
+# (outside the repository, see docs/consent.md), so an auditor can ask for it by name.
+name: e1-example
+description: >
+  Example only: `consent: false` everywhere, so `rulecam eval label` refuses this file by design.
+  That refusal is the point of the example.
+
+entries:
+  - path: eval/clips/owner_fl_pos_1m/clip.mp4
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    use_case: uc1
+    rule_id: forklift_2m
+    label: positive
+    staged_by: team
+    provenance: recorded
+    consent: false
+    consent_form: ""
+    notes: A pedestrian walks past a moving forklift at about 1 m. Replace the sha256.
+
+  - path: eval/clips/owner_fl_neg_parked/clip.mp4
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    use_case: uc1
+    rule_id: forklift_2m
+    label: negative
+    staged_by: team
+    provenance: recorded
+    consent: false
+    consent_form: ""
+    notes: >
+      A parked forklift with someone walking past. The rule must not fire. Negative clips carry
+      the false-alerts-per-hour figure, so their duration matters.
+
+  # An outsider clip is the only honest generalisation evidence: whoever staged it has not seen
+  # the rules. The report counts these separately and never pools them with our own clips.
+  - path: eval/clips/outsider_hw_pos_10s/clip.mp4
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    use_case: uc3
+    rule_id: helmet_required
+    label: positive
+    staged_by: outsider
+    provenance: recorded
+    consent: false
+    consent_form: ""
+    notes: Staged by someone outside the team, who was told the use case but not the rule.

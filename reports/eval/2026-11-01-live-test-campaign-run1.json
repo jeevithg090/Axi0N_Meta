@@ -1,0 +1,2121 @@
+[
+    {
+        "id": "T01",
+        "clip": "worker_passes",
+        "request": "Keep people at least 2 metres away from a moving forklift.",
+        "report_row": "| worker_passes | t01 | unlabelled | activated | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | 0.0 s | $0.000 |",
+        "camera_id": "phone-39",
+        "plan_id": "plan-daf613cf808c",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T19:55:01.796573Z",
+        "finished_at": "2026-11-01T20:00:20.043682Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 38.3,
+                "detail": "20 things seen; phone-39 calibrated from person_height_1.7m (0.26 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 185.6,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 4.8,
+                "detail": "1 caveat"
+            },
+            "ask": {
+                "status": "done",
+                "s": 3.7,
+                "detail": "3 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 7.5,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "5/7 checks passed after 0 repair round(s), 1 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 9.4,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.1,
+                "detail": "Rule CI green for 1/1 rules"
+            }
+        },
+        "plan_s": 249.5,
+        "concerns": [
+            "Keep people at least 2 metres away from a moving forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "caveat",
+                "says": "I can see the forklift on phone-39, but not reliably enough yet (lower bound 0.69), so I can check Keep people at least 2 metres away from a moving forklift. with a caveat.",
+                "evidence": [
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "forklift",
+                        "detect_rate": 0.8947,
+                        "detect_lb": 0.6861,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "concrete warehouse floor",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Keep people at least 2 metres away from a moving forklift.",
+                "rule_id": "keep-people-2m-from-moving-forklift",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "keep-people-2m-from-moving-forklift",
+                "concepts": {
+                    "forklift": {
+                        "prompt": "forklift",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "distance_m",
+                            "a": "person",
+                            "b": "forklift",
+                            "lt": 2.0,
+                            "gt": null
+                        },
+                        {
+                            "op": "moving",
+                            "object": "forklift",
+                            "speed_mps_gt": 0.2
+                        }
+                    ]
+                },
+                "severity": "high",
+                "calibration": "ground-plane@phone-39",
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- keep-people-2m-from-moving-forklift: Watches for 'person' and 'forklift' objects with calibration ground-plane@phone-39. Triggers when a person is within <2.0 m of a forklift AND the forklift is moving with speed >0.2 m/s. Severity is high. Action is speak by role supervisor in en. Verification tier1 glimmer, tier2 spark-open-on-disagree, min_confidence 0.7.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'keep-people-2m-from-moving-forklift'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": false,
+                "detail": "concept 'forklift' detect_lb=0.69 < 0.8 on 'phone-39'"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": false,
+                "detail": "camera 'phone-39' calibration error 0.26 m > 0.10 m"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": true,
+                "detail": "boundary 16/16, mutations 6/6"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": true,
+                "detail": "fires on its positive boundary trace and not on its negative one"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": [],
+        "metrics": {
+            "chunks_processed": 10,
+            "sam_calls": 10,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 3.716,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T02",
+        "clip": "worker_passes",
+        "request": "Keep people at least 4 metres away from a moving forklift.",
+        "report_row": "| worker_passes | t02 | unlabelled | activated | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | 0.0 s | $0.000 |",
+        "camera_id": "phone-40",
+        "plan_id": "plan-d257908db5de",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T20:01:33.944108Z",
+        "finished_at": "2026-11-01T20:04:50.201359Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 29.5,
+                "detail": "16 things seen"
+            },
+            "probe": {
+                "status": "done",
+                "s": 65.3,
+                "detail": "3 probes; references on phone-40: wooden pallet (5 found in 3 frames), 1 m floor square (0 found in 3 frames); no calibration"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 1.9,
+                "detail": "1 observable"
+            },
+            "ask": {
+                "status": "done",
+                "s": 4.5,
+                "detail": "3 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 7.2,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 16.5,
+                "detail": "6/7 checks passed after 0 repair round(s), 1 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 6.5,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.1,
+                "detail": "Rule CI green for 1/1 rules"
+            }
+        },
+        "plan_s": 131.5,
+        "concerns": [
+            "Keep people at least 4 metres away from a moving forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "observable",
+                "says": "I can see the orange forklift, walking worker, concrete warehouse floor on phone-40, so I can check Keep people at least 4 metres away from a moving forklift..",
+                "evidence": [
+                    {
+                        "concept": "orange forklift",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "walking worker",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "concrete warehouse floor",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Keep people at least 4 metres away from a moving forklift.",
+                "rule_id": "keep-people-4m-from-moving-forklift",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "keep-people-4m-from-moving-forklift",
+                "concepts": {
+                    "orange_forklift": {
+                        "prompt": "orange forklift",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "distance_m",
+                            "a": "person",
+                            "b": "orange_forklift",
+                            "lt": 4.0,
+                            "gt": null
+                        },
+                        {
+                            "op": "moving",
+                            "object": "orange_forklift",
+                            "speed_mps_gt": 0.2
+                        }
+                    ]
+                },
+                "severity": "high",
+                "calibration": null,
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- keep-people-4m-from-moving-forklift: Watches for person and orange forklift. Triggers with high severity when a person is within 4.0 m of an orange forklift that is moving faster than 0.2 m/s. Action: notify supervisor immediately after 0.0 s.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'keep-people-4m-from-moving-forklift'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": true,
+                "detail": "lowest detect_lb 0.83 (orange_forklift)"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": false,
+                "detail": "camera 'phone-40' has no ground calibration, so metres cannot be measured"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": true,
+                "detail": "boundary 16/16, mutations 6/6"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": true,
+                "detail": "fires on its positive boundary trace and not on its negative one"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": [],
+        "metrics": {
+            "chunks_processed": 15,
+            "sam_calls": 15,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 3.716,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T03",
+        "clip": "worker_passes",
+        "request": "Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento.",
+        "report_row": "| worker_passes | t03 | unlabelled | activated | 1x | 1 | 1 | 0 | 0/1/0 | 1/1 | 0.0 s | $0.000 |",
+        "camera_id": "phone-41",
+        "plan_id": "plan-603a33a03206",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T20:06:03.931581Z",
+        "finished_at": "2026-11-01T20:09:11.180379Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 36.4,
+                "detail": "18 things seen; phone-41 calibrated from person_height_1.7m (0.26 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 63.4,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 6.0,
+                "detail": "1 caveat"
+            },
+            "ask": {
+                "status": "done",
+                "s": 4.0,
+                "detail": "3 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 7.1,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "5/7 checks passed after 0 repair round(s), 1 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 9.9,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.1,
+                "detail": "Rule CI green for 1/1 rules"
+            }
+        },
+        "plan_s": 127.0,
+        "concerns": [
+            "Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "caveat",
+                "says": "I can see the forklift on phone-41, but not reliably enough yet (lower bound 0.69), so I can check Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento. with a caveat.",
+                "evidence": [
+                    {
+                        "concept": "forklift",
+                        "detect_rate": 0.8947,
+                        "detect_lb": 0.6861,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "concrete floor",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento.",
+                "rule_id": "keep-people-4m-from-moving-forklift",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "keep-people-4m-from-moving-forklift",
+                "concepts": {
+                    "forklift": {
+                        "prompt": "forklift",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "distance_m",
+                            "a": "person",
+                            "b": "forklift",
+                            "lt": 4.0,
+                            "gt": null
+                        },
+                        {
+                            "op": "moving",
+                            "object": "forklift",
+                            "speed_mps_gt": 0.2
+                        }
+                    ]
+                },
+                "severity": "high",
+                "calibration": "ground-plane@phone-41",
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- keep-people-4m-from-moving-forklift: Watches for a moving forklift and a person. Triggers when the distance between person and forklift is < 4.0 m AND the forklift is moving with speed > 0.2 m/s. No zone is defined. Calibration is ground-plane@phone-41. Severity is high. Action is speak to role operator in lang es. Verify tier1 glimmer, tier2 spark-open-on-disagree, min_confidence 0.7.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'keep-people-4m-from-moving-forklift'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": false,
+                "detail": "concept 'forklift' detect_lb=0.69 < 0.8 on 'phone-41'"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": false,
+                "detail": "camera 'phone-41' calibration error 0.26 m > 0.10 m"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": true,
+                "detail": "boundary 16/16, mutations 6/6"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": true,
+                "detail": "fires on its positive boundary trace and not on its negative one"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [
+            {
+                "event_id": "ev-731d8f032f6cebd213183c7f",
+                "rule_id": "keep-people-4m-from-moving-forklift",
+                "ts_start": "2026-11-01T20:08:38.353903Z",
+                "ts_end": "2026-11-01T20:08:40.253903Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "m",
+                    "value": 2.900231
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.distance_m": true,
+                    "all.0.distance_m.value": 2.900231,
+                    "all.1.moving": true,
+                    "all.1.moving.value": 0.352039,
+                    "all.value": 2.900231,
+                    "episode_s": 2,
+                    "subject": "phone-41:person:7eeb3f98"
+                },
+                "chained_at": "2026-11-01T20:08:43.262409Z",
+                "calibration": "person_height_1.7m",
+                "cal_err": 0.2630004804851004,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.98,
+                    "reason": "A person in a red box is shown about 2.9 m from an orange forklift that is moving in the warehouse, well under the required 4 m separation.",
+                    "latency_ms": 11541,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T20:08:55.993109Z"
+                },
+                "decision": {
+                    "act_first": true,
+                    "alert": true,
+                    "reason": "acted first; verified",
+                    "route": "auto",
+                    "at": "2026-11-01T20:08:56.060804Z"
+                },
+                "event_to_decision_s": 17.7,
+                "event_to_candidate_s": 4.9
+            }
+        ],
+        "actions": [
+            "dry-run: would play the warning (es)"
+        ],
+        "metrics": {
+            "chunks_processed": 20,
+            "sam_calls": 20,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 1.842,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T04",
+        "clip": "driver_only_bay",
+        "request": "Keep people at least 4 metres away from a moving forklift.",
+        "report_row": "| driver_only_bay | t04 | unlabelled | activated | 1x | 1 | 1 | 0 | 0/1/0 | 1/1 | 0.0 s | $0.000 |",
+        "camera_id": "phone-42",
+        "plan_id": "plan-df2a2af8e61c",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T20:10:25.684968Z",
+        "finished_at": "2026-11-01T20:14:26.975500Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 52.1,
+                "detail": "22 things seen; phone-42 calibrated from pallet_48x40in (0.06 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 88.9,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 4.7,
+                "detail": "1 caveat"
+            },
+            "ask": {
+                "status": "done",
+                "s": 4.9,
+                "detail": "4 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 8.9,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "6/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 10.5,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.1,
+                "detail": "Rule CI green for 1/1 rules"
+            }
+        },
+        "plan_s": 170.1,
+        "concerns": [
+            "Keep people at least 4 metres away from a moving forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "caveat",
+                "says": "I can see the forklift on phone-42, but not reliably enough yet (lower bound 0.62), so I can check Keep people at least 4 metres away from a moving forklift. with a caveat.",
+                "evidence": [
+                    {
+                        "concept": "forklift",
+                        "detect_rate": 0.8421,
+                        "detect_lb": 0.6243,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "person",
+                        "detect_rate": 0.8947,
+                        "detect_lb": 0.6861,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "concrete floor",
+                        "detect_rate": 0.8947,
+                        "detect_lb": 0.6861,
+                        "n_frames": 19
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Keep people at least 4 metres away from a moving forklift.",
+                "rule_id": "keep-people-4m-from-moving-forklift",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "keep-people-4m-from-moving-forklift",
+                "concepts": {
+                    "forklift": {
+                        "prompt": "forklift",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "distance_m",
+                            "a": "person",
+                            "b": "forklift",
+                            "lt": 4.0,
+                            "gt": null
+                        },
+                        {
+                            "op": "moving",
+                            "object": "forklift",
+                            "speed_mps_gt": 0.2
+                        }
+                    ]
+                },
+                "severity": "high",
+                "calibration": "ground-plane@phone-42",
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- keep-people-4m-from-moving-forklift: Watches for person and forklift objects with ground-plane calibration ground-plane@phone-42. Triggers when a person is within 4.0 m of a forklift AND the forklift is moving faster than 0.2 m/s. Severity is high. Action: speak to role operator in en after 0.0 s.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'keep-people-4m-from-moving-forklift'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": false,
+                "detail": "concept 'forklift' detect_lb=0.62 < 0.8 on 'phone-42'; concept 'person' detect_lb=0.69 < 0.8 on 'phone-42'"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": true,
+                "detail": "calibrated within 0.10 m"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": true,
+                "detail": "boundary 16/16, mutations 6/6"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": true,
+                "detail": "fires on its positive boundary trace and not on its negative one"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [
+            {
+                "event_id": "ev-2423d009adc88fd5c120f615",
+                "rule_id": "keep-people-4m-from-moving-forklift",
+                "ts_start": "2026-11-01T20:13:49.271028Z",
+                "ts_end": "2026-11-01T20:13:50.171028Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "m",
+                    "value": 0.013308
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.distance_m": true,
+                    "all.0.distance_m.closest_in_s": 0.248383,
+                    "all.0.distance_m.closest_m": 0,
+                    "all.0.distance_m.separation_m": 0.013308,
+                    "all.0.distance_m.ttc_s": 0,
+                    "all.0.distance_m.value": 0.013308,
+                    "all.1.moving": true,
+                    "all.1.moving.value": 0.713782,
+                    "all.value": 0.013308,
+                    "episode_s": 1,
+                    "subject": "phone-42:person:3814e46a"
+                },
+                "chained_at": "2026-11-01T20:13:53.180704Z",
+                "calibration": "pallet_48x40in",
+                "cal_err": 0.05791426547749132,
+                "verdict": {
+                    "verdict": "no_violation",
+                    "score": 0.08,
+                    "reason": "The frames show a single person seated in the operator\u2019s cab of a forklift and operating it; there is no separate bystander person near a moving forklift, so the 4 m separation rule for other people is not meaningfully violated.",
+                    "latency_ms": 16056,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T20:14:11.170294Z"
+                },
+                "decision": {
+                    "act_first": true,
+                    "alert": true,
+                    "reason": "acted first; verifier did not confirm, so a person reviews it",
+                    "route": "human_queue",
+                    "at": "2026-11-01T20:14:11.237971Z"
+                },
+                "event_to_decision_s": 22.0,
+                "event_to_candidate_s": 3.9
+            }
+        ],
+        "actions": [
+            "dry-run: would play the warning (en)",
+            "dry-run: would notify site_lead (needs review)"
+        ],
+        "metrics": {
+            "chunks_processed": 24,
+            "sam_calls": 24,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 1.858,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T05",
+        "clip": "aisle_driver",
+        "request": "Keep people at least 2 metres away from a moving forklift.",
+        "report_row": "| aisle_driver | t05 | unlabelled | activated | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | 0.0 s | $0.000 |",
+        "camera_id": "phone-43",
+        "plan_id": "plan-1f71be0a6525",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T20:15:41.655234Z",
+        "finished_at": "2026-11-01T20:20:45.083287Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 54.3,
+                "detail": "13 things seen; phone-43 calibrated from pallet_48x40in (0.08 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 158.6,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 2.9,
+                "detail": "1 observable"
+            },
+            "ask": {
+                "status": "done",
+                "s": 5.4,
+                "detail": "3 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 7.2,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "7/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 6.5,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.1,
+                "detail": "Rule CI green for 1/1 rules"
+            }
+        },
+        "plan_s": 235.1,
+        "concerns": [
+            "Keep people at least 2 metres away from a moving forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "observable",
+                "says": "I can see the person, forklift, concrete warehouse floor on phone-43, so I can check Keep people at least 2 metres away from a moving forklift..",
+                "evidence": [
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8454,
+                        "n_frames": 21
+                    },
+                    {
+                        "concept": "forklift",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8454,
+                        "n_frames": 21
+                    },
+                    {
+                        "concept": "concrete warehouse floor",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8454,
+                        "n_frames": 21
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Keep people at least 2 metres away from a moving forklift.",
+                "rule_id": "keep-people-2m-from-moving-forklift",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "keep-people-2m-from-moving-forklift",
+                "concepts": {
+                    "forklift": {
+                        "prompt": "forklift",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "distance_m",
+                            "a": "person",
+                            "b": "forklift",
+                            "lt": 2.0,
+                            "gt": null
+                        },
+                        {
+                            "op": "moving",
+                            "object": "forklift",
+                            "speed_mps_gt": 0.2
+                        }
+                    ]
+                },
+                "severity": "high",
+                "calibration": "ground-plane@phone-43",
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": [
+                    "person within 2 m of a moving forklift"
+                ]
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- keep-people-2m-from-moving-forklift: Monitors forklift and person objects on ground-plane@phone-43. Triggers with high severity when a person is less than 2.0 m from a forklift that is moving faster than 0.2 m/s. Action: notify supervisor in English.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'keep-people-2m-from-moving-forklift'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": true,
+                "detail": "lowest detect_lb 0.85 (forklift)"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": true,
+                "detail": "calibrated within 0.10 m"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": true,
+                "detail": "boundary 16/16, mutations 6/6"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": true,
+                "detail": "fires on its positive boundary trace and not on its negative one"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": [],
+        "metrics": {
+            "chunks_processed": 32,
+            "sam_calls": 32,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 1.921,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T06",
+        "clip": "worker_passes",
+        "request": "Everyone on the warehouse floor must wear a hard hat.",
+        "report_row": "| worker_passes | t06 | unlabelled | refused: no rule of plan 'plan-21c372db1bdb' passes the activation gate (hard-hat-require | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | n/a | n/a |",
+        "camera_id": "phone-44",
+        "plan_id": "plan-21c372db1bdb",
+        "refused": "no rule of plan 'plan-21c372db1bdb' passes the activation gate (hard-hat-required: ci_green failed (boundary 0/0, mutations 0/0; no boundary traces: no boundary-trace generator for without), nonvacuous failed (no boundary pair where it fires on the positive and not the negative trace))",
+        "error": null,
+        "started_at": "2026-11-01T20:21:58.713890Z",
+        "finished_at": "2026-11-01T20:24:21.291820Z",
+        "activated": false,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 29.3,
+                "detail": "15 things seen; phone-44 calibrated from person_height_1.7m (0.26 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 63.1,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 2.3,
+                "detail": "1 observable"
+            },
+            "ask": {
+                "status": "done",
+                "s": 3.5,
+                "detail": "3 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 7.7,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "7/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 9.2,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "Rule CI green for 0/1 rules"
+            }
+        },
+        "plan_s": 115.0,
+        "concerns": [
+            "Everyone on the warehouse floor must wear a hard hat."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "observable",
+                "says": "I can see the person, red hard hat, concrete floor on phone-44, so I can check Everyone on the warehouse floor must wear a hard hat..",
+                "evidence": [
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "red hard hat",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "concrete floor",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Everyone on the warehouse floor must wear a hard hat.",
+                "rule_id": "hard-hat-required",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "hard-hat-required",
+                "concepts": {
+                    "hard_hat": {
+                        "prompt": "red hard hat",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "without",
+                    "subject": "person",
+                    "item": "hard_hat",
+                    "region": "top_25pct"
+                },
+                "severity": "high",
+                "calibration": null,
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": [
+                    "person wearing a hard hat on warehouse floor complies",
+                    "person on warehouse floor without a hard hat violates"
+                ]
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- hard-hat-required: Monitors for a person without a red hard hat in the top 25% of the frame. When detected with severity high, it notifies the supervisor in English.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'hard-hat-required'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": true,
+                "detail": "lowest detect_lb 0.83 (hard_hat)"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": true,
+                "detail": "the rule measures no distance"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": false,
+                "detail": "boundary 0/0, mutations 0/0; no boundary traces: no boundary-trace generator for without"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": false,
+                "detail": "no boundary pair where it fires on the positive and not the negative trace"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": []
+    },
+    {
+        "id": "T07",
+        "clip": "kitchen",
+        "request": "Kitchen staff must wear a hair net or a hat while preparing food.",
+        "report_row": "| kitchen | t07 | unlabelled | refused: no rule of plan 'plan-d7ddf87ecdc9' passes the activation gate (hairnet-or-hat-w | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | n/a | n/a |",
+        "camera_id": "phone-45",
+        "plan_id": "plan-d7ddf87ecdc9",
+        "refused": "no rule of plan 'plan-d7ddf87ecdc9' passes the activation gate (hairnet-or-hat-while-preparing: ci_green failed (boundary 0/0, mutations 0/1; no boundary traces: no boundary-trace generator for all(without,without); 1 mutants not run: no traces), nonvacuous failed (no boundary pair where it fires on the positive and not the negative trace), detect_lb>=0.8 failed (concept 'black_cap' detect_lb=0.55 < 0.8 on 'phone-45'))",
+        "error": null,
+        "started_at": "2026-11-01T20:25:34.492942Z",
+        "finished_at": "2026-11-01T20:28:20.882889Z",
+        "activated": false,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 44.1,
+                "detail": "18 things seen; phone-45 calibrated from person_height_1.7m (0.36 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 63.6,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 5.7,
+                "detail": "1 caveat"
+            },
+            "ask": {
+                "status": "done",
+                "s": 3.7,
+                "detail": "4 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 9.4,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "6/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 10.8,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "Rule CI green for 0/1 rules"
+            }
+        },
+        "plan_s": 137.4,
+        "concerns": [
+            "Kitchen staff must wear a hair net or a hat while preparing food."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "caveat",
+                "says": "I can see the black cap on phone-45, but not reliably enough yet (lower bound 0.55), so I can check Kitchen staff must wear a hair net or a hat while preparing food. with a caveat.",
+                "evidence": [
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8241,
+                        "n_frames": 18
+                    },
+                    {
+                        "concept": "hairnet",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8241,
+                        "n_frames": 18
+                    },
+                    {
+                        "concept": "black cap",
+                        "detect_rate": 0.7778,
+                        "detect_lb": 0.5479,
+                        "n_frames": 18
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Kitchen staff must wear a hair net or a hat while preparing food.",
+                "rule_id": "hairnet-or-hat-while-preparing",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "hairnet-or-hat-while-preparing",
+                "concepts": {
+                    "black_cap": {
+                        "prompt": "black cap",
+                        "static": false
+                    },
+                    "hairnet": {
+                        "prompt": "hairnet",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "without",
+                            "subject": "person",
+                            "item": "hairnet",
+                            "region": "top_25pct"
+                        },
+                        {
+                            "op": "without",
+                            "subject": "person",
+                            "item": "black_cap",
+                            "region": "top_25pct"
+                        }
+                    ]
+                },
+                "severity": "medium",
+                "calibration": null,
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": [
+                    "staff handling food wearing neither hairnet nor cap triggers",
+                    "staff wearing hairnet passes",
+                    "staff wearing black cap passes"
+                ]
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- hairnet-or-hat-while-preparing: Monitors for a person in the scene. Triggers when the person is without a hairnet in the top 25% of the frame AND without a black cap in the top 25% of the frame. Severity is medium. Action is a staff speech in English.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'hairnet-or-hat-while-preparing'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": false,
+                "detail": "concept 'black_cap' detect_lb=0.55 < 0.8 on 'phone-45'"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": true,
+                "detail": "the rule measures no distance"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": false,
+                "detail": "boundary 0/0, mutations 0/1; no boundary traces: no boundary-trace generator for all(without,without); 1 mutants not run: no traces"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": false,
+                "detail": "no boundary pair where it fires on the positive and not the negative trace"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": []
+    },
+    {
+        "id": "T08",
+        "clip": "kitchen",
+        "request": "Keep people at least 2 metres away from a moving forklift.",
+        "report_row": "| kitchen | t08 | unlabelled | refused: plan 'plan-f5899a6dd3c8' has no rules to activate | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | n/a | n/a |",
+        "camera_id": "phone-46",
+        "plan_id": "plan-f5899a6dd3c8",
+        "refused": "plan 'plan-f5899a6dd3c8' has no rules to activate",
+        "error": null,
+        "started_at": "2026-11-01T20:29:34.071692Z",
+        "finished_at": "2026-11-01T20:31:44.510429Z",
+        "activated": false,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 38.2,
+                "detail": "15 things seen; phone-46 calibrated from person_height_1.7m (0.36 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 50.3,
+                "detail": "2 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 1.5,
+                "detail": "1 not_observable"
+            },
+            "ask": {
+                "status": "done",
+                "s": 5.3,
+                "detail": "4 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "0 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "0/0 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 0.4,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "Rule CI green for 0/0 rules"
+            }
+        },
+        "plan_s": 95.7,
+        "concerns": [
+            "Keep people at least 2 metres away from a moving forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "not_observable",
+                "says": "I can't see the forklift reliably (lower bound 0.00), so I can't check Keep people at least 2 metres away from a moving forklift..",
+                "evidence": [
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8241,
+                        "n_frames": 18
+                    },
+                    {
+                        "concept": "forklift",
+                        "detect_rate": 0.0,
+                        "detect_lb": 0.0,
+                        "n_frames": 18
+                    }
+                ]
+            }
+        ],
+        "compiled": [],
+        "rules": [],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- (no rules)",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": []
+    },
+    {
+        "id": "T09",
+        "clip": "kitchen",
+        "request": "Alert me if a cook looks sick or has a fever.",
+        "report_row": "| kitchen | t09 | unlabelled | refused: plan 'plan-098f82f27a06' has no rules to activate | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | n/a | n/a |",
+        "camera_id": "phone-47",
+        "plan_id": "plan-098f82f27a06",
+        "refused": "plan 'plan-098f82f27a06' has no rules to activate",
+        "error": null,
+        "started_at": "2026-11-01T20:32:57.725757Z",
+        "finished_at": "2026-11-01T20:35:41.132005Z",
+        "activated": false,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 44.1,
+                "detail": "22 things seen; phone-47 calibrated from person_height_1.7m (0.36 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 77.4,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 declined"
+            },
+            "ask": {
+                "status": "done",
+                "s": 5.6,
+                "detail": "4 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "0 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "0/0 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 0.7,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "Rule CI green for 0/0 rules"
+            }
+        },
+        "plan_s": 127.8,
+        "concerns": [
+            "Alert me if a cook looks sick or has a fever."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "declined",
+                "says": "I cannot accept this request: Clinical, medical, illness, or emotional state inferences are strictly prohibited.",
+                "evidence": []
+            }
+        ],
+        "compiled": [],
+        "rules": [],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- (no rules)",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": []
+    },
+    {
+        "id": "T10",
+        "clip": "worker_passes",
+        "request": "Tell me the name of every worker who walks past the forklift.",
+        "report_row": "| worker_passes | t10 | unlabelled | refused: plan 'plan-aa2ac4288718' has no rules to activate | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | n/a | n/a |",
+        "camera_id": "phone-48",
+        "plan_id": "plan-aa2ac4288718",
+        "refused": "plan 'plan-aa2ac4288718' has no rules to activate",
+        "error": null,
+        "started_at": "2026-11-01T20:36:54.880078Z",
+        "finished_at": "2026-11-01T20:38:53.214749Z",
+        "activated": false,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 38.5,
+                "detail": "18 things seen"
+            },
+            "probe": {
+                "status": "done",
+                "s": 41.9,
+                "detail": "2 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 1.9,
+                "detail": "1 declined"
+            },
+            "ask": {
+                "status": "done",
+                "s": 4.4,
+                "detail": "0 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "0 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "0/0 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 0.6,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "Rule CI green for 0/0 rules"
+            }
+        },
+        "plan_s": 87.3,
+        "concerns": [
+            "Tell me the name of every worker who walks past the forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "declined",
+                "says": "I cannot accept this request: I can't identify workers by name as that would require facial recognition, which Rulecam does not allow.",
+                "evidence": []
+            }
+        ],
+        "compiled": [],
+        "rules": [],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- (no rules)",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": []
+    }
+]

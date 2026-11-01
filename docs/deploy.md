@@ -113,7 +113,9 @@ person or track). Families: `rulecam_runtime_lag_seconds`, `_keyframe_mode`, `_i
 `_segment_latency_seconds{quantile}`, `_chunks_total{outcome}`, `_billed_frames_total`,
 `_billed_frames_per_minute{camera}`, `_hosted_sam_usd_per_hour`, `_budget_*`;
 `rulecam_perception_sam_calls_total{backend}`, `_sam_fallbacks_total`, `_gpu_seconds_total`,
-`_usd_per_camera_hour{basis}`; `rulecam_verdicts_total{tier,verdict}`;
+`_usd_per_camera_hour{basis}`; `rulecam_cost_budget_alarm`, `_budget_usd_per_camera_hour`,
+`_usd_total`, `_usd_per_camera_hour`, `_usd_per_hour{camera}`, `_gpu_idle_stopped` (WS3);
+`rulecam_verdicts_total{tier,verdict}`;
 `rulecam_dependency_up{service="glimmer"|"sam"}` (their open `/health`, cached 10 s) and the SAM
 pod's `rulecam_sam_gpu_memory_bytes{kind}` / `rulecam_sam_memory_guard_trips_total`.
 
@@ -130,6 +132,7 @@ is AGPL-3.0: run it for yourself, don't host it for others. Alert rules (`alerts
 | RulecamKeyframeMode | keyframe mode for 1 min | warning |
 | RulecamSamFallback | any self-hosted SAM outage in 10 min | warning |
 | RulecamHostedSpendHigh | hosted SAM above $1.20/h for 5 min | warning |
+| RulecamBudgetAlarm | a camera over its dollar budget for 2 min | warning |
 | RulecamSamMemoryGuard | more than 2 guard trips in 15 min | warning |
 
 Without Prometheus, `runpod_status.sh` (exit 1 unless every pod runs and is healthy) works from
@@ -338,10 +341,18 @@ matter:
    "Something happens" means a candidate opened, a dynamic concept was tracked, or, on a camera
    with a HIGH rule, the motion gate saw motion. Then every chunk is segmented until
    `RULECAM_IDLE_HOLDOFF_S` (30 s) after the last activity.
-5. **Budget.** When a camera's billed frames over the last minute reach
-   `RULECAM_SAM_BUDGET_FRAMES_PER_MIN` (default 1,000; 0 turns it off), it degrades to one chunk
-   in `RULECAM_SAM_BUDGET_STRIDE` (3), logged `budget_exceeded`, instead of falling behind. It
-   recovers by itself when the minute drains (`budget_recovered`).
+5. **Budget (dollars).** Each camera has an hourly dollar budget,
+   `RULECAM_BUDGET_USD_PER_CAMERA_HOUR` (default 12, the former 1,000 hosted frames/min; 0 turns
+   it off). Its spend rate is the hosted SAM bill of the last minute (billed video frames at
+   $0.20/1,000 and single images at $2.50/1,000, `clients/meta_hosted/sam_cost.py`, counting only
+   calls hosted SAM really served, fallbacks included), scaled to an hour, plus its share of the
+   GPU pods (`RULECAM_GPU_USD_PER_HOUR`, split over the active cameras). At or above the budget
+   the alarm goes up (`cost_budget_exceeded`; `/runtime/metrics` → `cost.alarm`; a red
+   **BUDGET** badge in the UI header) and, if hosted spend is part of the rate, the camera
+   degrades to one chunk in `RULECAM_SAM_BUDGET_STRIDE` (3) instead of falling behind. GPU time
+   alone only raises the alarm: segmenting less would not lower it. It recovers by itself when the
+   minute drains (`cost_budget_recovered`). `RULECAM_SAM_BUDGET_FRAMES_PER_MIN` (default 0, off)
+   remains as an optional extra cap in billed frames.
 6. **Pipelined chunks.** Hosted SAM takes 6 to 17 s per request and a camera delivers a chunk
    every 3 s, so a loop that segments one chunk at a time cannot keep up. Measured on `main`
    096a438 (one HIGH forklift rule, one camera, idle stride 2): lag 123 to 142 s, the loop stuck
@@ -414,6 +425,31 @@ per camera, `chunks_skipped_no_rule`, `chunks_skipped_idle`, `chunks_skipped_sti
 `chunks_skipped_budget`, `budget_exceeded`, `budget_degraded`, and for the pipeline `in_flight`,
 `pipeline_depth`, `segment_latency_p50_s` and `segment_latency_p95_s` (last 200 segmentations),
 next to the existing lag and keyframe fields (`lag_s` is the most-behind camera's).
+
+**Cost per camera-hour.** `/runtime/metrics` → `cost` (also in the UI header and `GET /metrics` as
+`rulecam_cost_*`): the budget, `alarm` and `over_budget`, everything spent so far (`usd`: hosted
+SAM, GPU shares and `gpu_idle_usd`, the GPU time while no camera was active), the camera time it
+covered, and `usd_per_camera_hour` overall and per camera with each camera's current
+`usd_per_hour`. Set `RULECAM_GPU_USD_PER_HOUR` to the GPU pods' combined price
+(`scripts/deploy/runpod_status.sh` prints each pod's $/h), or the GPU part is not counted.
+
+**Idle GPU stop (optional, off by default).** `RULECAM_IDLE_STOP_GPU_AFTER_S=1800` stops the GPU
+pods (`RULECAM_IDLE_STOP_GPU_PODS`, default `rulecam-glimmer,rulecam-sam`, names or ids) through
+the RunPod REST API after 30 minutes in which no camera had a rule of the active plan and a
+recent chunk; once per idle period, retried every 5 minutes if RunPod refuses. It needs a RunPod
+API key in a file on the volume:
+
+```bash
+# on the API pod (the key is never printed, logged or put in an error)
+umask 077; cat > /workspace/rulecam/.runpod_api_key   # paste, then Ctrl-D
+echo 'RULECAM_RUNPOD_API_KEY_FILE=/workspace/rulecam/.runpod_api_key' >> /workspace/rulecam/.env
+echo 'RULECAM_IDLE_STOP_GPU_AFTER_S=1800' >> /workspace/rulecam/.env
+```
+
+Its state is in `cost.idle_stop` (`idle_s`, `stopped`, `last_error`). Nothing starts the pods
+again automatically: run `scripts/deploy/runpod_up.sh` before the next session. While they are
+stopped the runtime falls back to hosted SAM (and its bill, which the dollar budget then limits)
+and the planner skips its Glimmer audit.
 
 ## Evidence strips (what Glimmer sees)
 

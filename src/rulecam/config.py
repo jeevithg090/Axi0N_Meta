@@ -26,8 +26,18 @@ class Settings(BaseSettings):
     rulecam_idle_stride_medium: int = Field(default=3, ge=1)
     rulecam_idle_stride_high: int = Field(default=2, ge=1, le=2)  # HIGH: every 2nd chunk at most
     rulecam_idle_holdoff_s: float = Field(default=30.0, ge=0)  # every chunk for 30 s after activity
-    rulecam_sam_budget_frames_per_min: int = Field(default=1000, ge=0)  # per camera; 0 = no budget
+    # Per-camera dollar budget (runtime.cost): hosted SAM spend over the last minute as $/h, plus
+    # the camera's share of the GPU pods. At or above it: alarm, and with hosted spend, degrade
+    # to one chunk in RULECAM_SAM_BUDGET_STRIDE. 12 $/h = the former 1,000 hosted frames/min.
+    rulecam_budget_usd_per_camera_hour: float = Field(default=12.0, ge=0)  # 0 = no budget
+    rulecam_gpu_usd_per_hour: float = Field(default=0.0, ge=0)  # GPU pods' combined $/h
+    rulecam_sam_budget_frames_per_min: int = Field(default=0, ge=0)  # optional frame cap; 0 = off
     rulecam_sam_budget_stride: int = Field(default=3, ge=1)  # over budget: one chunk in N
+    # Stop the GPU pods after this many seconds with no camera on an active plan
+    # (runtime.idle_stop); 0 = never. Needs the RunPod key in RULECAM_RUNPOD_API_KEY_FILE.
+    rulecam_idle_stop_gpu_after_s: float = Field(default=0.0, ge=0)
+    rulecam_idle_stop_gpu_pods: str = "rulecam-glimmer,rulecam-sam"  # pod names or ids
+    rulecam_runpod_api_key_file: Path | None = None
     rulecam_runtime_concept_workers: int = Field(default=4, ge=1)  # concepts segmented at once
     rulecam_runtime_pipeline_depth: int = Field(default=4, ge=1)  # chunks per camera in flight
     # Runtime SAM calls open at once, across cameras (docs/deploy.md "Stage timings").

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from rulecam.contracts import Dispute
+from rulecam.perception.correction import CorrectionRequest
 from rulecam.rule_ci.hard_negatives import (
     HardNegatives,
     concept_key,
@@ -106,8 +107,6 @@ def test_owner_correction_path_appends_a_regression(tmp_path: Path) -> None:
     harness = build_correction(hard_negatives=negatives)
     event = harness.record.payload["candidate"]
     assert isinstance(event, dict)
-    from rulecam.perception.correction import CorrectionRequest  # noqa: PLC0415
-
     harness.service.correct(
         CorrectionRequest(
             event_id=str(event["event_id"]), frame_idx=59, x=STRAP_CENTRE[0], y=STRAP_CENTRE[1]

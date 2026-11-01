@@ -64,6 +64,21 @@ export interface Answer {
   calibration?: { image_px: Point[]; ground_m: Point[] };
 }
 
+/** `GET /runtime/metrics` → `cost` (WS3): the per-camera dollar budget and spend. */
+export interface CostReport {
+  budget_usd_per_camera_hour: number;
+  gpu_usd_per_hour: number;
+  alarm: boolean;
+  over_budget: string[];
+  usd: number;
+  usd_per_camera_hour: number | null;
+}
+
+/** The parts of `GET /runtime/metrics` the UI reads. */
+export interface RuntimeMetrics {
+  cost?: CostReport | null;
+}
+
 export const CSRF_HEADER = "X-CSRF-Token";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 let csrfToken: string | null = null;
@@ -133,6 +148,7 @@ export const api = {
     return call<UploadResult>("/plans/uploads", { method: "POST", body: form });
   },
   cameras: () => call<CameraInfo[]>("/cameras"),
+  runtimeMetrics: () => call<RuntimeMetrics>("/runtime/metrics"),
   workerPage: (planId: string, camera: string, lang?: string | null) =>
     call<WorkerPage>(
       `/worker/${encodeURIComponent(planId)}/${encodeURIComponent(camera)}` +

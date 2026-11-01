@@ -243,3 +243,14 @@ def test_split_clip_cuts_three_second_chunks(tmp_path: Path) -> None:
     assert sum(c.duration_s for c in chunks) == pytest.approx(7.0, abs=0.2)
     with pytest.raises(EvalRunError):
         split_clip(tmp_path / "missing.mp4", tmp_path / "none")
+
+
+def test_drain_waits_for_pending_verdicts(tmp_path: Path) -> None:
+    sim = SimClock()
+    # Nothing in flight, but Tier 1 verdicts still pending for the first samples (#103 runs
+    # verification off the ordered stage, ~20-30 s per candidate on the live pod).
+    api = FakeApi(clock=sim, in_flight=[0], verify_pending=[2, 2, 1, 1, 0])
+    record = runner(api, sim).run(CLIP, CLIP.rules[0], tmp_path / "clip.mp4", tmp_path)
+    pending = [s.verify_pending for s in record.metrics]
+    assert pending[-1] == 0
+    assert 2 in pending  # it kept sampling while verdicts were pending

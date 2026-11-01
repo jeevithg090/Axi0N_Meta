@@ -188,6 +188,7 @@ class FakeApi:
     plan_ready_after_polls: int = 1
     refuse: str | None = None
     in_flight: list[int] = field(default_factory=lambda: [2, 1, 0])
+    verify_pending: list[int] = field(default_factory=lambda: [0])
     chain_for: Callable[[FakeApi], list[dict[str, object]]] = lambda api: []
     uploads: list[tuple[str, datetime]] = field(default_factory=list)
     requests: list[str] = field(default_factory=list)
@@ -221,11 +222,15 @@ class FakeApi:
 
     def runtime_metrics(self) -> dict[str, object]:
         flight = self.in_flight.pop(0) if len(self.in_flight) > 1 else self.in_flight[0]
+        pending = (
+            self.verify_pending.pop(0) if len(self.verify_pending) > 1 else self.verify_pending[0]
+        )
         return {
             "lag_s": 2.0,
             "keyframe_mode": False,
             "billed_frames": self.billed,
             "in_flight": flight,
+            "verify_pending": pending,
         }
 
     def chain(self, day: date) -> list[dict[str, object]]:

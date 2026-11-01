@@ -41,6 +41,7 @@ class MetricsSample(Frozen):
     billed_frames: int = 0
     sam_calls: int = 0
     in_flight: int = 0
+    verify_pending: int = 0
     chunks_processed: int = 0
     segment_latency_p95_s: float = 0.0
 

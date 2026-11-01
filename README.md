@@ -18,9 +18,9 @@ Built for the Meta Global AI Developer Hackathon (build window Oct 26 – Nov 4 
    Rule IR and shows the plan, the diff against the last approved plan, and the acceptance trace.
 3. **Prove it.** Rule CI runs every rule against generated boundary scenes and mutants before the
    owner can approve it. A rule that fails Rule CI cannot go live.
-4. **Trust it.** Every candidate alert is checked twice: Muse Glimmer (Tier 1, on the site laptop)
-   and Muse Spark Open (Tier 2) for safety-critical or disputed cases, behind a Llama Prompt
-   Guard 2 firewall so text in the scene can never instruct the verifier. Every event, verdict,
+4. **Trust it.** Every candidate alert is verified by Muse Glimmer (Tier 1, on the site laptop),
+   and safety-critical or disputed cases get a second check by Muse Spark Open (Tier 2). Text in
+   the scene is screened by a Llama Prompt Guard 2 firewall before it reaches the verifier. Every event, verdict,
    action and acknowledgement goes into a hash-chained, Merkle-rooted log that anyone can check in
    the browser with no server.
 

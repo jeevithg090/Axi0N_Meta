@@ -12,9 +12,14 @@ reason, rather than left running until someone notices.
 * a `label` record with `label: confirmed` — a true positive. Nothing writes this yet; the
   vocabulary is here so the acknowledgement path can start writing it (see "Known gaps" in
   `README.md`);
-* an **upheld** dispute (`worker/log.py`) — a reviewer agreed with the worker, so a false
+* an **upheld** dispute (`worker/log.py`) — the reviewer agreed with the worker, so a false
   positive;
-* a **rejected** dispute — a reviewer looked and kept the alert, so a true positive.
+* a **rejected** dispute — the reviewer looked and kept the alert, so a true positive.
+
+A dispute is reviewed by the Tier 2 model (Spark Open, `worker/disputes.py`), not by a person,
+and an upheld dispute also writes a `label` with `source: worker_dispute`. Those judgements are
+counted, but they are marked `decided_by="model"` and reported as `model_decided` so nobody
+mistakes them for a person's call. A label with no rule is logged and skipped.
 
 An alert nobody labelled is **not** evidence and is not counted. Counting unlabelled alerts as
 correct is the obvious way to make precision look good, and it is the one thing this module must
@@ -38,6 +43,17 @@ below (unhealthy, **pause**). Between them the test keeps going and nothing happ
 whole point is that it does not decide early, so a rule with three labels is left alone. That is
 also its cost — a rule that is quietly bad keeps running until enough labels arrive.
 
+**Restarts.** One SPRT stops at its first boundary, so on its own an early "healthy" would hide
+everything after it. So the test restarts from the next label each time it calls a rule healthy
+(`sequential_sprt`), and it starts again from the moment a person resumes a rule. Each run keeps
+Wald's error rates; over many runs the chance of some false pause grows, which is the price of
+still looking.
+
+**HIGH severity is never switched off.** A HIGH rule acts first (`Severity`), so pausing it on a
+few "False alarm" taps would quietly remove a safety rule from every camera. When its test says
+"pause", the rule is marked `needs_review` instead: it keeps running, one `rule_change` record
+says why, and a person decides. LOW and MEDIUM rules are paused.
+
 The SPRT assumes each labelled alert is an independent draw at a fixed precision. Neither holds
 exactly: alerts cluster (one confusing scene makes several), and precision changes when the site
 changes. So treat a pause as "look at this rule now", not as a measurement.
@@ -53,9 +69,11 @@ from typing import Final, Literal, Self
 
 from pydantic import Field, model_validator
 
-from rulecam.contracts.core import Frozen
+from rulecam.clock import SystemClock
+from rulecam.contracts.core import Frozen, Severity
 from rulecam.contracts.events import Dispute, EventRecord
-from rulecam.evidence.chain import EventChain
+from rulecam.contracts.protocols import Clock
+from rulecam.evidence.chain import EventChain, utc_iso
 from rulecam.log import get_logger
 from rulecam.stats.intervals import wilson_interval
 
@@ -68,6 +86,9 @@ CONFIRMED: Final = "confirmed"
 Outcome = Literal["true_positive", "false_positive"]
 Decision = Literal["healthy", "unhealthy", "continue"]
 LabelSource = Literal["label", "dispute"]
+DecidedBy = Literal["person", "model"]
+HealthStatus = Literal["running", "paused", "needs_review"]
+DISPUTE_LABEL_SOURCE: Final = "worker_dispute"
 
 
 class AlertLabel(Frozen):
@@ -79,6 +100,7 @@ class AlertLabel(Frozen):
         outcome: What the human said.
         source: Whether it came from a label record or a dispute review.
         ts: When the judgement was recorded, so labels can be read in order.
+        decided_by: `model` when the Tier 2 dispute reviewer made the call, not a person.
     """
 
     rule_id: str
@@ -86,6 +108,7 @@ class AlertLabel(Frozen):
     outcome: Outcome
     source: LabelSource
     ts: datetime
+    decided_by: DecidedBy = "person"
 
 
 class RulePrecision(Frozen):
@@ -93,12 +116,14 @@ class RulePrecision(Frozen):
 
     `unlabelled` is the number of that rule's alerts nobody judged. It is not part of the
     estimate; it is reported so nobody reads a precision off two labels as if it were settled.
+    `model_decided` is how many of the judged alerts the Tier 2 dispute reviewer decided.
     """
 
     rule_id: str
     true_positives: int = Field(ge=0)
     false_positives: int = Field(ge=0)
     unlabelled: int = Field(default=0, ge=0)
+    model_decided: int = Field(default=0, ge=0)
     precision: float | None = None
     lo: float = 0.0
     hi: float = 1.0
@@ -149,7 +174,12 @@ class SprtConfig(Frozen):
 
 
 class SprtResult(Frozen):
-    """Where the SPRT stands after a sequence of labels."""
+    """Where the SPRT stands after a sequence of labels.
+
+    `crossed_at` is the 1-based label of the latest boundary crossing and `started_at` the
+    number of labels that belonged to earlier, finished runs (`sequential_sprt`); both count
+    from the start of the sequence given.
+    """
 
     llr: float
     upper: float
@@ -157,6 +187,7 @@ class SprtResult(Frozen):
     decision: Decision
     n: int = Field(ge=0)
     crossed_at: int | None = None
+    started_at: int = Field(default=0, ge=0)
 
     @property
     def should_pause(self) -> bool:
@@ -165,11 +196,23 @@ class SprtResult(Frozen):
 
 
 class RuleHealth(Frozen):
-    """One rule's precision, its SPRT and whether it is paused."""
+    """One rule's precision, its SPRT and what was done about it.
+
+    Attributes:
+        rule_id: The rule.
+        precision: Measured precision over every label of the rule.
+        sprt: The test over the labels since the rule was last resumed.
+        severity: The rule's severity; HIGH is never paused.
+        status: `running`, `paused` (LOW/MEDIUM) or `needs_review` (HIGH, still running).
+        paused: Whether the rule is paused and must not be evaluated.
+        reason: Why it is paused or needs review, for a person to read; empty when running.
+    """
 
     rule_id: str
     precision: RulePrecision
     sprt: SprtResult
+    severity: Severity
+    status: HealthStatus = "running"
     paused: bool = False
     reason: str = ""
 
@@ -226,12 +269,49 @@ def sprt(outcomes: Sequence[Outcome], config: SprtConfig | None = None) -> SprtR
     )
 
 
+def sequential_sprt(outcomes: Sequence[Outcome], config: SprtConfig | None = None) -> SprtResult:
+    """Run the SPRT again from the next label each time it calls the rule healthy.
+
+    A single SPRT stops at its first boundary, so an early run of correct alerts would call a
+    rule healthy for good and every wrong alert after it would go unread. Restarting after each
+    "healthy" keeps reading. An "unhealthy" result ends the sequence: the rule is paused (or sent
+    for review) until a person resumes it, and a resume starts a new sequence.
+
+    Args:
+        outcomes: Labelled outcomes, oldest first.
+        config: Hypotheses and error rates; the defaults are p0 0.80 against p1 0.50.
+
+    Returns:
+        The current run's statistic and decision, with `n`, `crossed_at` and `started_at`
+        counted from the start of `outcomes`.
+    """
+    config = config or SprtConfig()
+    start = 0
+    last_crossed: int | None = None
+    while True:
+        result = sprt(outcomes[start:], config)
+        if result.crossed_at is not None:
+            last_crossed = start + result.crossed_at
+        if result.decision == "unhealthy" or (
+            result.decision == "healthy" and last_crossed == len(outcomes)
+        ):
+            return result.model_copy(
+                update={"n": last_crossed, "crossed_at": last_crossed, "started_at": start}
+            )
+        if result.decision == "continue":
+            return result.model_copy(
+                update={"n": len(outcomes), "crossed_at": last_crossed, "started_at": start}
+            )
+        start = start + result.n
+
+
 def read_labels(records: Iterable[EventRecord]) -> tuple[AlertLabel, ...]:
     """Read every human judgement of an alert out of a run of chain records.
 
-    Drill labels are rehearsals and are skipped. A record that cannot be read is logged and
-    skipped rather than failing the whole read, because rule health must not be the reason the
-    runtime stops.
+    Drill labels are rehearsals and are skipped. A label with no rule says nothing about any
+    rule's health and is logged and skipped. A record that cannot be read is logged and skipped
+    rather than failing the whole read, because rule health must not be the reason the runtime
+    stops.
 
     Args:
         records: Chain records, in chain order.
@@ -251,34 +331,60 @@ def read_labels(records: Iterable[EventRecord]) -> tuple[AlertLabel, ...]:
     return tuple(found)
 
 
+def _rule_of(record: EventRecord) -> str | None:
+    """The record's rule id, or `None` (logged) when it names no rule."""
+    rule_id = record.payload.get("rule_id")
+    if rule_id is None or rule_id == "":
+        _log.warning("rule_health_label_without_rule", seq=record.seq, kind=record.kind)
+        return None
+    return str(rule_id)
+
+
 def _label_of(record: EventRecord) -> AlertLabel | None:
-    payload = record.payload
     if record.kind == "label":
-        if payload.get("drill") is True:
-            return None
-        verdict = payload.get("label")
-        outcome = _outcome_of_label(verdict)
-        if outcome is None or "rule_id" not in payload:
-            return None
-        return AlertLabel(
-            rule_id=str(payload["rule_id"]),
-            event_id=str(payload["event_id"]),
-            outcome=outcome,
-            source="label",
-            ts=record.ts,
-        )
+        return _from_label(record)
     if record.kind == "dispute":
-        dispute = Dispute.model_validate(payload["dispute"])
-        if dispute.outcome == "pending":
-            return None  # nobody has reviewed it, so it says nothing either way
-        return AlertLabel(
-            rule_id=str(payload["rule_id"]),
-            event_id=str(payload["event_id"]),
-            outcome="false_positive" if dispute.outcome == "upheld" else "true_positive",
-            source="dispute",
-            ts=record.ts,
-        )
+        return _from_dispute(record)
     return None
+
+
+def _from_label(record: EventRecord) -> AlertLabel | None:
+    """A `label` record's judgement; an upheld dispute's label is marked model-decided."""
+    payload = record.payload
+    if payload.get("drill") is True:
+        return None
+    outcome = _outcome_of_label(payload.get("label"))
+    rule_id = None if outcome is None else _rule_of(record)
+    if outcome is None or rule_id is None:
+        return None
+    from_dispute = payload.get("source") == DISPUTE_LABEL_SOURCE
+    return AlertLabel(
+        rule_id=rule_id,
+        event_id=str(payload["event_id"]),
+        outcome=outcome,
+        source="label",
+        ts=record.ts,
+        decided_by="model" if from_dispute else "person",
+    )
+
+
+def _from_dispute(record: EventRecord) -> AlertLabel | None:
+    """A reviewed dispute's judgement, which the Tier 2 model made (`worker/disputes.py`)."""
+    payload = record.payload
+    dispute = Dispute.model_validate(payload["dispute"])
+    if dispute.outcome == "pending":
+        return None  # nobody has reviewed it, so it says nothing either way
+    rule_id = _rule_of(record)
+    if rule_id is None:
+        return None
+    return AlertLabel(
+        rule_id=rule_id,
+        event_id=str(payload["event_id"]),
+        outcome="false_positive" if dispute.outcome == "upheld" else "true_positive",
+        source="dispute",
+        ts=record.ts,
+        decided_by="model",
+    )
 
 
 def _outcome_of_label(verdict: object) -> Outcome | None:
@@ -287,6 +393,17 @@ def _outcome_of_label(verdict: object) -> Outcome | None:
     if verdict == CONFIRMED:
         return "true_positive"
     return None
+
+
+def _latest_per_alert(
+    rule_id: str, labels: Iterable[AlertLabel], since: datetime | None = None
+) -> list[AlertLabel]:
+    """This rule's labels after `since`, the latest per alert, oldest first."""
+    latest: dict[str, AlertLabel] = {}
+    for label in sorted((x for x in labels if x.rule_id == rule_id), key=lambda x: x.ts):
+        if since is None or label.ts > since:
+            latest[label.event_id] = label
+    return sorted(latest.values(), key=lambda x: x.ts)
 
 
 def precision_of(
@@ -306,17 +423,16 @@ def precision_of(
     Returns:
         The counts, the estimate and its Wilson interval.
     """
-    latest: dict[str, AlertLabel] = {}
-    for label in sorted((x for x in labels if x.rule_id == rule_id), key=lambda x: x.ts):
-        latest[label.event_id] = label
-    tp = sum(x.outcome == "true_positive" for x in latest.values())
-    fp = sum(x.outcome == "false_positive" for x in latest.values())
+    latest = _latest_per_alert(rule_id, labels)
+    tp = sum(x.outcome == "true_positive" for x in latest)
+    fp = sum(x.outcome == "false_positive" for x in latest)
     lo, hi = wilson_interval(tp, tp + fp, confidence)
     return RulePrecision(
         rule_id=rule_id,
         true_positives=tp,
         false_positives=fp,
         unlabelled=max(alerts - len(latest), 0),
+        model_decided=sum(x.decided_by == "model" for x in latest),
         precision=None if tp + fp == 0 else tp / (tp + fp),
         lo=lo,
         hi=hi,
@@ -327,71 +443,102 @@ def assess(
     rule_id: str,
     labels: Sequence[AlertLabel],
     *,
+    severity: Severity,
     alerts: int = 0,
     config: SprtConfig | None = None,
+    since: datetime | None = None,
 ) -> RuleHealth:
-    """Measure a rule and decide whether it should be paused.
+    """Measure a rule and decide whether it should be paused or sent for review.
 
     Args:
         rule_id: The rule to assess.
         labels: Labels of any rule; only this rule's are used.
+        severity: The rule's severity. A HIGH rule is never paused: a failing test marks it
+            `needs_review` and it keeps running.
         alerts: How many alerts this rule raised, for the unlabelled count.
         config: SPRT hypotheses and error rates.
+        since: Only labels recorded after this moment enter the test (the last resume).
+            Precision is still measured over every label.
 
     Returns:
-        The precision, the SPRT and the pause decision with its reason.
+        The precision, the SPRT and the status with its reason.
     """
     config = config or SprtConfig()
-    mine = sorted((x for x in labels if x.rule_id == rule_id), key=lambda x: x.ts)
-    seen: dict[str, AlertLabel] = {}
-    for label in mine:
-        seen[label.event_id] = label
-    ordered = sorted(seen.values(), key=lambda x: x.ts)
-    result = sprt([x.outcome for x in ordered], config)
+    ordered = _latest_per_alert(rule_id, labels, since)
+    result = sequential_sprt([x.outcome for x in ordered], config)
     measured = precision_of(rule_id, labels, alerts=alerts)
-    reason = ""
-    if result.should_pause:
-        shown = "n/a" if measured.precision is None else f"{measured.precision:.0%}"
-        reason = (
-            f"Paused automatically: of {measured.labelled} alerts a person judged, "
-            f"{measured.false_positives} were wrong (precision {shown}, "
-            f"95% interval {measured.lo:.0%}-{measured.hi:.0%}). A sequential test "
-            f"(p0={config.p0:.2f} against p1={config.p1:.2f}, alpha={config.alpha}, "
-            f"beta={config.beta}) crossed its lower boundary at judgement "
-            f"{result.crossed_at}. The rule stops producing alerts until someone fixes it "
-            "and resumes it."
-        )
+    if not result.should_pause:
+        return RuleHealth(rule_id=rule_id, precision=measured, sprt=result, severity=severity)
+    high = severity is Severity.HIGH
     return RuleHealth(
         rule_id=rule_id,
         precision=measured,
         sprt=result,
-        paused=result.should_pause,
-        reason=reason,
+        severity=severity,
+        status="needs_review" if high else "paused",
+        paused=not high,
+        reason=_reason(measured, result, config, high=high),
+    )
+
+
+def _reason(measured: RulePrecision, result: SprtResult, config: SprtConfig, *, high: bool) -> str:
+    """The sentence a person reads about why a rule was paused or needs review."""
+    shown = "n/a" if measured.precision is None else f"{measured.precision:.0%}"
+    head = "Needs review" if high else "Paused automatically"
+    model = (
+        f" ({measured.model_decided} of them decided by the dispute reviewer model, not a person)"
+        if measured.model_decided
+        else ""
+    )
+    tail = (
+        "This is a HIGH-severity rule, so it keeps running; a person decides whether to fix, "
+        "pause or keep it."
+        if high
+        else "The rule stops producing alerts until someone fixes it and resumes it."
+    )
+    return (
+        f"{head}: of {measured.labelled} alerts judged{model}, "
+        f"{measured.false_positives} were wrong (precision {shown}, "
+        f"95% interval {measured.lo:.0%}-{measured.hi:.0%}). A sequential test "
+        f"(p0={config.p0:.2f} against p1={config.p1:.2f}, alpha={config.alpha}, "
+        f"beta={config.beta}) crossed its lower boundary at judgement "
+        f"{result.crossed_at} since the rule was last started. {tail}"
     )
 
 
 class RuleHealthMonitor:
-    """Tracks every rule's health and holds the set of paused rules.
+    """Tracks every rule's health and holds the paused and needs-review sets.
 
-    A rule is paused once: the first assessment that crosses the boundary publishes one
-    `rule_change` record on the evidence chain, and later assessments do not publish again.
-    Resuming is a person's decision (`resume`), never automatic, because whatever made the rule
-    wrong is still there until someone changes it.
+    A LOW or MEDIUM rule is paused once: the first assessment whose test fails publishes one
+    `rule_change` record (`change: paused`), and later assessments do not publish again. A HIGH
+    rule is never paused; it is flagged once (`change: needs_review`) and keeps running.
+    Resuming, or clearing a review flag, is a person's decision (`resume`), never automatic. The
+    test then starts again from labels recorded after the resume, so the evidence that caused
+    the pause cannot cause it again.
 
     The monitor is safe to call from several threads; the runtime reads `is_paused` per chunk.
     """
 
-    def __init__(self, chain: EventChain | None = None, config: SprtConfig | None = None) -> None:
+    def __init__(
+        self,
+        chain: EventChain | None = None,
+        config: SprtConfig | None = None,
+        clock: Clock | None = None,
+    ) -> None:
         """Build a monitor.
 
         Args:
             chain: Evidence chain for `rule_change` records. Without one nothing is published,
                 which is what the unit tests use.
             config: SPRT hypotheses and error rates.
+            clock: Time source for the resume point; the system clock by default.
         """
         self._chain = chain
         self._config = config or SprtConfig()
+        self._clock: Clock = clock or SystemClock()
         self._paused: dict[str, str] = {}
+        self._review: dict[str, str] = {}
+        self._since: dict[str, datetime] = {}
         self._health: dict[str, RuleHealth] = {}
         self._lock = threading.Lock()
 
@@ -410,36 +557,70 @@ class RuleHealthMonitor:
         with self._lock:
             return frozenset(self._paused)
 
-    def reason(self, rule_id: str) -> str:
-        """Why this rule was paused, or an empty string if it is running."""
+    def needs_review(self, rule_id: str) -> bool:
+        """Whether this HIGH rule failed its test and is waiting for a person (still running)."""
         with self._lock:
-            return self._paused.get(rule_id, "")
+            return rule_id in self._review
+
+    def review_rules(self) -> frozenset[str]:
+        """The rule ids waiting for a person's review."""
+        with self._lock:
+            return frozenset(self._review)
+
+    def status(self, rule_id: str) -> HealthStatus:
+        """`paused`, `needs_review` or `running`."""
+        with self._lock:
+            return self._status(rule_id)
+
+    def reason(self, rule_id: str) -> str:
+        """Why this rule is paused or needs review, or an empty string if it is running."""
+        with self._lock:
+            return self._paused.get(rule_id) or self._review.get(rule_id, "")
 
     def health(self, rule_id: str) -> RuleHealth | None:
         """The last assessment of this rule, if it has been assessed."""
         with self._lock:
             return self._health.get(rule_id)
 
-    def assess(self, rule_id: str, labels: Sequence[AlertLabel], *, alerts: int = 0) -> RuleHealth:
-        """Assess one rule, pausing it and publishing a `rule_change` if the test says so.
+    def assess(
+        self,
+        rule_id: str,
+        labels: Sequence[AlertLabel],
+        *,
+        severity: Severity,
+        alerts: int = 0,
+    ) -> RuleHealth:
+        """Assess one rule, pausing or flagging it and publishing a `rule_change` if needed.
 
         Args:
             rule_id: The rule to assess.
             labels: Labels of any rule; only this rule's are used.
+            severity: The rule's severity; HIGH is flagged for review, never paused.
             alerts: How many alerts the rule raised, for the unlabelled count.
 
         Returns:
-            The assessment. `paused` is true if the rule is paused, whether this call paused it
-            or an earlier one did.
+            The assessment, with the rule's standing status: a rule paused or flagged by an
+            earlier call stays so until `resume`.
         """
-        found = assess(rule_id, labels, alerts=alerts, config=self._config)
         with self._lock:
-            already = rule_id in self._paused
-            if found.paused and not already:
-                self._paused[rule_id] = found.reason
-            self._health[rule_id] = found.model_copy(update={"paused": found.paused or already})
-            publish = found.paused and not already
-            stored = self._health[rule_id]
+            since = self._since.get(rule_id)
+        found = assess(
+            rule_id, labels, severity=severity, alerts=alerts, config=self._config, since=since
+        )
+        with self._lock:
+            held = self._paused if found.status == "paused" else self._review
+            publish = found.status != "running" and rule_id not in held
+            if publish:
+                held[rule_id] = found.reason
+            status = self._status(rule_id)
+            stored = found.model_copy(
+                update={
+                    "status": status,
+                    "paused": status == "paused",
+                    "reason": self._paused.get(rule_id) or self._review.get(rule_id, ""),
+                }
+            )
+            self._health[rule_id] = stored
         if publish:
             self._publish(stored)
         return stored
@@ -448,6 +629,7 @@ class RuleHealthMonitor:
         self,
         labels: Sequence[AlertLabel],
         *,
+        severities: Mapping[str, Severity],
         alerts: Mapping[str, int] | None = None,
         rule_ids: Iterable[str] | None = None,
     ) -> tuple[RuleHealth, ...]:
@@ -455,6 +637,8 @@ class RuleHealthMonitor:
 
         Args:
             labels: Labels of any rule.
+            severities: Each rule's severity. A rule missing from it is treated as HIGH, so a
+                missing value can never switch a rule off.
             alerts: Alerts raised per rule, for the unlabelled counts.
             rule_ids: Rules to assess; the default is every rule that has a label.
 
@@ -463,10 +647,18 @@ class RuleHealthMonitor:
         """
         counts = dict(alerts or {})
         ids = sorted(set(rule_ids) if rule_ids is not None else {x.rule_id for x in labels})
-        return tuple(self.assess(i, labels, alerts=counts.get(i, 0)) for i in ids)
+        return tuple(
+            self.assess(
+                i, labels, severity=severities.get(i, Severity.HIGH), alerts=counts.get(i, 0)
+            )
+            for i in ids
+        )
 
     def resume(self, rule_id: str, *, role: str, note: str = "") -> bool:
-        """Resume a paused rule, by a person's decision, and publish the change.
+        """Resume a paused rule, or clear a review flag, by a person's decision.
+
+        The test restarts from labels recorded after this moment, which is written on the
+        `rule_change` record as `resumed_at`, so the old evidence cannot pause the rule again.
 
         Args:
             rule_id: The rule to resume.
@@ -474,28 +666,44 @@ class RuleHealthMonitor:
             note: What they changed or checked.
 
         Returns:
-            True if the rule was paused and is now running; False if it was not paused.
+            True if the rule was paused or flagged and is now running clear; False otherwise.
         """
+        resumed_at = self._clock.now()
         with self._lock:
-            if rule_id not in self._paused:
+            was = self._status(rule_id)
+            if was == "running":
                 return False
-            del self._paused[rule_id]
+            self._paused.pop(rule_id, None)
+            self._review.pop(rule_id, None)
+            self._since[rule_id] = resumed_at
             found = self._health.get(rule_id)
             if found is not None:
-                self._health[rule_id] = found.model_copy(update={"paused": False, "reason": ""})
+                self._health[rule_id] = found.model_copy(
+                    update={"status": "running", "paused": False, "reason": ""}
+                )
         if self._chain is not None:
             self._chain.append(
                 "rule_change",
                 {
                     "rule_id": rule_id,
                     "change": "resumed",
+                    "was": was,
                     "by": role,
                     "note": note,
                     "automatic": False,
+                    "resumed_at": utc_iso(resumed_at),
                 },
             )
-        _log.info("rule_resumed", rule_id=rule_id, role=role)
+        _log.info("rule_resumed", rule_id=rule_id, role=role, was=was)
         return True
+
+    def _status(self, rule_id: str) -> HealthStatus:
+        """The standing status; call with the lock held."""
+        if rule_id in self._paused:
+            return "paused"
+        if rule_id in self._review:
+            return "needs_review"
+        return "running"
 
     def _publish(self, found: RuleHealth) -> None:
         if self._chain is not None:
@@ -503,14 +711,16 @@ class RuleHealthMonitor:
                 "rule_change",
                 {
                     "rule_id": found.rule_id,
-                    "change": "paused",
+                    "change": found.status,
                     "automatic": True,
+                    "severity": found.severity.value,
                     "reason": found.reason,
                     "precision": found.precision.precision,
                     "precision_lo": found.precision.lo,
                     "precision_hi": found.precision.hi,
                     "labelled": found.precision.labelled,
                     "false_positives": found.precision.false_positives,
+                    "model_decided": found.precision.model_decided,
                     "unlabelled": found.precision.unlabelled,
                     "llr": found.sprt.llr,
                     "lower_boundary": found.sprt.lower,
@@ -522,8 +732,9 @@ class RuleHealthMonitor:
                 },
             )
         _log.warning(
-            "rule_auto_paused",
+            "rule_auto_paused" if found.paused else "rule_needs_review",
             rule_id=found.rule_id,
+            severity=found.severity.value,
             precision=found.precision.precision,
             labelled=found.precision.labelled,
             crossed_at=found.sprt.crossed_at,

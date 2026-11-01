@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import timedelta
 from pathlib import Path
 
+from rulecam.contracts.core import Severity
 from rulecam.evidence.chain import read_chain
 from rulecam.runtime.loop import chunk_end
 from rulecam.verify.health import AlertLabel, RuleHealthMonitor
@@ -57,7 +58,7 @@ def test_a_paused_rule_produces_no_candidate(tmp_path: Path) -> None:
     loop, _, chain, _ = make_loop(tmp_path, clock)
 
     monitor = RuleHealthMonitor()
-    assert monitor.assess(RULE, wrong_alerts(4)).paused
+    assert monitor.assess(RULE, wrong_alerts(4), severity=Severity.MEDIUM).paused
 
     loop.set_plan(sink_plan().with_paused(monitor.paused_rules()))
     assert loop.handle_chunk(make_chunk(index=0)) == []
@@ -69,7 +70,7 @@ def test_resuming_the_rule_lets_it_alert_again(tmp_path: Path) -> None:
     clock = at_end_of(FakeClock(), 0)
     loop, _, _, _ = make_loop(tmp_path, clock)
     monitor = RuleHealthMonitor()
-    monitor.assess(RULE, wrong_alerts(4))
+    monitor.assess(RULE, wrong_alerts(4), severity=Severity.MEDIUM)
 
     loop.set_plan(sink_plan().with_paused(monitor.paused_rules()))
     assert loop.handle_chunk(make_chunk(index=0)) == []
@@ -85,7 +86,7 @@ def test_pausing_one_rule_leaves_the_others_running(tmp_path: Path) -> None:
     clock = at_end_of(FakeClock(), 0)
     loop, _, _, _ = make_loop(tmp_path, clock)
     monitor = RuleHealthMonitor()
-    monitor.assess("some_other_rule", wrong_alerts(4, "some_other_rule"))
+    monitor.assess("some_other_rule", wrong_alerts(4, "some_other_rule"), severity=Severity.MEDIUM)
 
     loop.set_plan(sink_plan().with_paused(monitor.paused_rules()))
     assert len(loop.handle_chunk(make_chunk(index=0))) == 1
@@ -102,3 +103,26 @@ def test_an_unpaused_plan_runs_every_rule(tmp_path: Path) -> None:
     plan = sink_plan()
     assert plan.paused == frozenset()
     assert len(plan.rules_on("cam1")) == 1
+
+
+def test_a_high_rule_that_fails_its_test_keeps_alerting(tmp_path: Path) -> None:
+    """A HIGH safety rule is flagged for a person, never switched off by four taps."""
+    clock = at_end_of(FakeClock(), 0)
+    loop, _, _, _ = make_loop(tmp_path, clock)
+    monitor = RuleHealthMonitor()
+    found = monitor.assess(RULE, wrong_alerts(4), severity=Severity.HIGH)
+    assert found.status == "needs_review"
+    assert monitor.needs_review(RULE)
+
+    loop.set_plan(sink_plan().with_paused(monitor.paused_rules()))
+    assert len(loop.handle_chunk(make_chunk(index=0))) == 1
+
+
+def test_a_medium_rule_that_fails_its_test_is_paused(tmp_path: Path) -> None:
+    clock = at_end_of(FakeClock(), 0)
+    loop, _, _, _ = make_loop(tmp_path, clock)
+    monitor = RuleHealthMonitor()
+    assert monitor.assess(RULE, wrong_alerts(4), severity=Severity.MEDIUM).status == "paused"
+
+    loop.set_plan(sink_plan().with_paused(monitor.paused_rules()))
+    assert loop.handle_chunk(make_chunk(index=0)) == []

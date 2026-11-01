@@ -16,6 +16,7 @@ const LINKS = [
   { href: "/planner", label: "Planner" },
   { href: "/plans", label: "Plans" },
   { href: "/monitor", label: "Live monitor" },
+  { href: "/advice", label: "Advice" },
 ];
 
 /** Owner state in the header: a login link for visitors, log out for a session. */

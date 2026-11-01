@@ -32,7 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-from fastapi import APIRouter
+from fastapi import APIRouter, params
 
 from rulecam.act import ActionExecutor, EscalationManager, Interlock, LanNotifier, alerts_router
 from rulecam.act.devices import Connectable, KasaPlug, Light, StrobeLight
@@ -153,14 +153,20 @@ class Response:
             verify_token=verify_token,
         )
 
-    def router(self, roles: Collection[str] | None = None) -> APIRouter:
-        """`/alerts`, `/ack` and `/interlock/{device}/resume` (P3-06)."""
+    def router(
+        self,
+        roles: Collection[str] | None = None,
+        *,
+        dependencies: Sequence[params.Depends],
+    ) -> APIRouter:
+        """`/alerts`, `/ack` and `/interlock/{device}/resume` (P3-06), behind `dependencies`."""
         return alerts_router(
             notifier=self.notifier,
             escalation=self.escalation,
             chain=self.chain,
             interlock=self.interlock,
             roles=roles,
+            dependencies=dependencies,
         )
 
 

@@ -105,6 +105,9 @@ class Settings(BaseSettings):
     session_ttl_s: int = Field(default=12 * 3600, ge=300, le=7 * 24 * 3600)
     # Shared with the UI's middleware, which then forwards the browser's IP (per-client limits).
     ui_proxy_secret: SecretStr | None = None
+    # Demo sites only: let non-owners watch the live feed and read plans. Never on a real site,
+    # where those reads stay owner-only (W-01).
+    public_demo: bool = False
     planner_survey_window_s: float = (
         60.0  # seconds of recent chunks the planner samples frames from
     )

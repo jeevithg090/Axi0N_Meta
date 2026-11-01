@@ -648,3 +648,14 @@ def test_one_gpu_command_line(
     assert rp.main([*argv, "--secrets-dir", str(secrets_dir)]) == 0
     assert account.writes() == []
     assert rp.main(["up", "--one-gpu", "--no-sam", "--dry-run", "--config", str(config)]) == 1
+
+
+def test_public_demo_is_opt_in(secrets_dir: Path) -> None:
+    secrets = rp.SecretRefs()
+    plain = rp.api_env(opts(secrets_dir), secrets, glimmer_url=None, sam_url=None)
+    assert "PUBLIC_DEMO" not in plain  # a hand-set value in the pod's .env still applies
+    args = rp.parser().parse_args(["up", "--public-demo"])
+    assert rp.options(args).public_demo
+    assert not rp.options(rp.parser().parse_args(["up"])).public_demo
+    demo = rp.api_env(rp.options(args), secrets, glimmer_url=None, sam_url=None)
+    assert demo["PUBLIC_DEMO"] == "true"

@@ -14,10 +14,10 @@ role is refused with 403. A plug that does not respond on resume returns 502.
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, params
 from pydantic import BaseModel, Field
 
 from rulecam.act.actions import Interlock
@@ -131,8 +131,13 @@ def alerts_router(
     chain: EventChain,
     interlock: Interlock | None = None,
     roles: Collection[str] | None = None,
+    dependencies: Sequence[params.Depends],
 ) -> APIRouter:
     """Build the router.
+
+    Role strings are self-asserted, so these routes are only as safe as `dependencies`. There is
+    no safe default: responders tap from their own phones, so the app must pass real
+    authentication (not the loopback owner check) before mounting this on a public app.
 
     Args:
         notifier: The LAN alert store.
@@ -140,11 +145,12 @@ def alerts_router(
         chain: Evidence chain for false-alarm labels.
         interlock: The interlock, if this site has one.
         roles: The site's roles (from the plan); when given, other roles are refused.
+        dependencies: Authentication applied to every route.
 
     Returns:
         The router.
     """
-    router = APIRouter(tags=["alerts"])
+    router = APIRouter(tags=["alerts"], dependencies=list(dependencies))
     known = frozenset(roles) if roles is not None else None
 
     def check_role(role: str) -> None:

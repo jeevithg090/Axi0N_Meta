@@ -203,3 +203,41 @@ then fill in its `clip.yaml` (source, duration, `placeholder: false`, status, ev
 
 Extra negatives from stock footage (Mixkit, Pexels) are welcome where the licence allows: add
 them with a URL + sha256 like `warehouse_45848` and `kitchen_15875`.
+
+## Runners E3-E11 (P4-07)
+
+Each runner answers one question, writes `eval/results/<id>.json`, and renders one table into
+`eval/RESULTS.md` between its own markers. `eval/runners/common.py` holds the shared result
+record, the JSON writer, the table renderer and the splice.
+
+| Runner | Question | Needs |
+|---|---|---|
+| E1 | How often does a rule fire when it should? | Recordings, consented manifest |
+| E3 | Does the Planner handle held-out requests? | **Simulated** today: it does not call the Planner (W-00) |
+| E4 | Does Rule CI catch bugs and attacks? | Rule CI reports for the approved rules |
+| E5-lite | What does Anonymous Mode cost in accuracy? | The same clips scored raw and as skeletons |
+| E7 | What does it cost, and how fast is it? | A real-time run's `LoopMetrics` and its camera-hours |
+| E8 | Person-down on a dataset we did not make | UR Fall Detection, downloaded by hand under its terms |
+| E9 | Does the evidence chain re-derive? | `rulecam audit` over a day's chain |
+| E11 | Did the Site Advisor find the sealed cause? | A sealed session **and** a null session |
+
+Two rules every runner follows:
+
+- **A result that did not come from the real system is marked `simulated` and says why**, and
+  the rendered table says so in bold. E3 is marked this way today, and E7 marks itself when the
+  run was not fed at real time, because latency from a sped-up run is not latency.
+- **"Not measured" is a result.** A runner with no input writes a result with no rows and a
+  caveat naming what is missing, so `RESULTS.md` says what was not measured instead of staying
+  quiet about it. Every runner but E3 is in that state right now.
+
+Three of them refuse to produce figures rather than produce weak ones:
+
+- **E8** reports nothing until the dataset manifest records that a person read and accepted the
+  dataset's terms, and names the sequences used. It never downloads anything: accepting terms is
+  a person's decision, not a script's. It also scores **per sequence, not per frame**, because a
+  fall is one event and frame scoring would turn it into hundreds of correlated trials.
+- **E11** treats a session with no recorded seal hash as unsealed, and says plainly when the
+  **null session is missing** — without that control, "found the sealed cause" cannot be told
+  apart from "reports something confident every time".
+- **E5-lite** compares only clip/rule pairs that *both* arms scored, so the difference is
+  paired; an arm that could not score a clip is reported as unpaired, not as a wrong answer.

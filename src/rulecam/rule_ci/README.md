@@ -16,6 +16,7 @@ forecast. Owner: P2.
 | `RedTeam(...)(rule) -> RedTeamReport` | Part 2 for one rule on its real camera frame: scenes, lookalikes, injection signs, forecast; a stage that cannot run is listed in `skipped` with why |
 | `run_detectability_scenes`, `run_lookalike_red_team`, `run_injection_red_team`, `forecast_alerts` | The four stages on their own |
 | `append_regression(rule_id, item)` | Adds a confirmed real false alarm to `regressions/<rule_id>.jsonl`, a permanent lookalike test |
+| `HardNegatives(directory).from_dispute(...)` / `.from_correction(...)` | WS1f: an upheld dispute or an owner correction becomes one `append_regression` line (fixed wording only, never the worker's text; once per event; failures logged, never raised). Wired by the API into `DisputeService` and `CorrectionService` |
 | `RuleCIReport` | `{rule_id, traces_passed, traces_total, mutants_killed, mutants_total, failures, nonvacuous, justification}`; `ci_green`, `mutation_score`, `summary()` ("boundary 13/13, mutations 5/5") |
 
 ## Traces

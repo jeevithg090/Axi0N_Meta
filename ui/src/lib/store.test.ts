@@ -70,7 +70,7 @@ describe("store reducer (event → state)", () => {
   });
 
   it("ignores unknown topics", () => {
-    expect(fold([{ topic: "ci.result", payload: {} }])).toEqual(initialState);
+    expect(fold([{ topic: "advice.new", payload: {} }])).toEqual(initialState);
   });
 
   it("builds one card per rule and camera, greyed when that camera is BLIND", () => {

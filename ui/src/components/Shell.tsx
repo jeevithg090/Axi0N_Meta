@@ -16,6 +16,10 @@ const LINKS = [
   { href: "/planner", label: "Planner" },
   { href: "/plans", label: "Plans" },
   { href: "/monitor", label: "Live monitor" },
+  { href: "/alerts", label: "Alerts" },
+  { href: "/ci", label: "Rule CI" },
+  { href: "/cards", label: "Cards" },
+  { href: "/surprise", label: "Surprise" },
   { href: "/advice", label: "Advice" },
 ];
 

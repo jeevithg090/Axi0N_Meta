@@ -38,3 +38,19 @@ npm run lint && npm run typecheck && npm test -- --run
   - Approve, and a **diff** against the last approved version (rules added, removed or changed,
     plus settings) with *Approve vN* / *Keep vN-1*.
 - `?demo=1` works on every screen: recorded UC1 frames plus a v1 (approved) and v2 (proposed) plan.
+- **Alerts PWA** (`/alerts`, phone-first): your role is remembered on the device; each alert has big
+  *On my way* / *False alarm* / *Escalate* buttons (`POST /alerts/{id}/respond`) and its escalation
+  timeline from `action.done`.
+- **Station display** (`/station/<camera>`, the sink tablet): a huge countdown driven by
+  `station.progress` ("12 / 20 s"), frozen red at "8 / 20 s · Too short" on a failed wash, plus the
+  coaching line from `station.coach`.
+- **Rule CI** (`/ci`): per rule, from `ci.result` (`CIResult{rule_id, report, ci_green, summary}`)
+  — green/red and the summary exactly as the backend computed them, then boundary traces,
+  mutations and `report.red_team`: scenes, lookalikes (and what fooled it, with the fix), injection
+  signs, the alert forecast against the budget. Demo payloads (`src/fixtures/ci-results.json`) are
+  real serialised `CIResult`s, checked by `tests/rule_ci/test_ui_fixture.py`.
+- **Card gallery** (`/cards`): rule cards with their CI verdict and summary, and declined cards that show the
+  reason and alternative but **never the request text**.
+- **Surprise Lens** (`/surprise`): the z-score curve with its alert line, the SAM labels at the hot
+  spot, and *Draft a rule from this*, which only the demo offers: no backend route drafts a rule
+  from a surprise yet, so live it is disabled and says so. Surprise never cuts power.

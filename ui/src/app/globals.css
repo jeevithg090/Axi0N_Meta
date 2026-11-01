@@ -781,6 +781,204 @@ button:disabled {
   border-style: dashed;
 }
 
+/* --- P3-09c: alerts, station, Rule CI, cards, surprise ------------------------------------- */
+.nav {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+button.big {
+  font-size: 18px;
+  padding: 12px 16px;
+  min-height: 48px;
+  flex: 1 1 140px;
+}
+.alerts-page {
+  display: grid;
+  gap: 12px;
+  max-width: 560px;
+}
+.role-field input {
+  font: inherit;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+.alert {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--high);
+  border-radius: 10px;
+  padding: 12px;
+}
+.alert-acknowledged {
+  border-left-color: var(--live);
+}
+.alert-false_alarm {
+  border-left-color: var(--blind);
+}
+.alert header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.alert h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.alert-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.timeline {
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.station {
+  display: grid;
+  place-items: center;
+  min-height: 70vh;
+  text-align: center;
+  gap: 16px;
+}
+.countdown {
+  display: grid;
+  gap: 8px;
+}
+.countdown-number {
+  font-size: clamp(64px, 22vw, 200px);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.countdown-label {
+  font-size: clamp(20px, 6vw, 44px);
+  font-weight: 700;
+}
+.countdown-failed {
+  color: var(--high);
+}
+.countdown-passed,
+.countdown-idle {
+  color: var(--live);
+}
+.countdown-counting {
+  color: var(--replay);
+}
+.station-coach {
+  font-size: clamp(18px, 5vw, 32px);
+}
+
+.ci {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--live);
+  border-radius: 10px;
+  padding: 12px;
+}
+.ci-red {
+  border-left-color: var(--high);
+}
+.ci header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.ci h3 {
+  margin: 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.ci-lines,
+.fooled {
+  padding-left: 18px;
+  font-size: 13px;
+  margin: 6px 0;
+}
+.ci-lines .over {
+  color: var(--high);
+  font-weight: 600;
+}
+.fooled {
+  color: var(--replay);
+}
+
+.gallery {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.gallery-card {
+  aspect-ratio: 4 / 5;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.gallery-card h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.gallery-kind {
+  margin: 0;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 700;
+}
+.gallery-ci {
+  margin-top: auto;
+  font-weight: 600;
+}
+.gallery-declined {
+  border-style: dashed;
+}
+
+.surprise {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  max-width: 640px;
+}
+.surprise h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.surprise-curve {
+  width: 100%;
+  height: auto;
+  background: var(--bg);
+  border-radius: 6px;
+}
+.surprise-line {
+  stroke: var(--chip);
+  stroke-width: 2;
+}
+.surprise-threshold {
+  stroke: var(--high);
+  stroke-dasharray: 4 4;
+  stroke-width: 1;
+}
+.surprise-heatmap {
+  max-width: 100%;
+  border-radius: 6px;
+}
+.surprise .hud-chip {
+  margin-right: 4px;
+}
 /* --- P3-10: Site Advisor card ---------------------------------------------------------------- */
 .advice-page {
   display: grid;

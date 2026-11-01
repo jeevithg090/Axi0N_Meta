@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { useDemo, useStream } from "@/lib/stream";
 
+import { CostBadge, useCost } from "./CostBadge";
 import { ModeBadge } from "./ModeBadge";
 import { RelayHud } from "./RelayHud";
 
@@ -39,6 +40,7 @@ export function OwnerControl() {
 /** Every screen sits in this shell: title, LIVE/REPLAY badge and the relay HUD strip (§5.7). */
 export function Shell({ children }: { children: ReactNode }) {
   const state = useStream();
+  const cost = useCost();
   const query = useDemo() ? "?demo=1" : "";
   return (
     <>
@@ -54,6 +56,7 @@ export function Shell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <OwnerControl />
+        <CostBadge cost={cost} />
         <ModeBadge state={state} />
       </header>
       <RelayHud relay={state.relay} />

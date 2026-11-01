@@ -75,6 +75,7 @@ from rulecam.perception.tracking import Tracker
 from rulecam.replay.cache import ReplayCache
 from rulecam.rules.operators import OperatorExclusion
 from rulecam.rules.store import ParquetTrackStore
+from rulecam.runtime.cost import CostMeter
 from rulecam.runtime.loop import (
     BillEstimate,
     ChunkTracker,
@@ -285,6 +286,7 @@ def build_runtime(
     bus: Bus,
     chain: EventChain,
     response: Response | None = None,
+    cost: CostMeter | None = None,
 ) -> RuntimeLoop:
     """Build the real runtime loop: router segmenter → `Tracker` → Parquet store → Glimmer.
 
@@ -296,6 +298,7 @@ def build_runtime(
         bus: The event bus.
         chain: The evidence chain.
         response: Policy, actions and Tier 1 (default: `build_tier1` + `build_response`).
+        cost: The dollar budget; a camera it marks over budget degrades (`runtime.cost`).
 
     Returns:
         The loop.
@@ -341,6 +344,7 @@ def build_runtime(
         timings=timings,
         verify_workers=settings.rulecam_runtime_verify_workers,
         operators=OperatorExclusion.from_csv(settings.rulecam_operator_exclusion_off),
+        over_budget=cost.over_budget if cost is not None else None,
         bill_estimate=picked.bill_estimate,
     )
 

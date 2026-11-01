@@ -93,3 +93,4 @@ def test_image_calls_price_hosted_images_and_self_hosted_gpu_time() -> None:
     assert summary.hosted_equivalent_usd_per_camera_hour == pytest.approx(13 * 0.0025)
     assert summary.actual_usd_per_camera_hour == pytest.approx(0.0025 + 2.0 * 0.001)
     assert summary.gpu_seconds == 2.0
+    assert metrics.hosted_usage()["cam1"].images == 1  # the dollar budget sees hosted images only

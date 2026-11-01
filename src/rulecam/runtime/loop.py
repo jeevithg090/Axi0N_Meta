@@ -450,6 +450,7 @@ class RuntimeLoop:
         verify_workers: int = DEFAULT_VERIFY_WORKERS,
         operators: OperatorExclusion | None = None,
         bill_estimate: BillEstimate = video_bill_estimate,
+        over_budget: Callable[[str], bool] | None = None,
     ) -> None:
         """Create the loop; it does nothing until a plan is set.
 
@@ -482,6 +483,8 @@ class RuntimeLoop:
             operators: Per-rule operator exclusion (`rules.operators`); default on for all.
             bill_estimate: What a chunk about to be segmented reserves against the budget
                 (default: hosted video; image mode passes `KeyframeTracker.estimate`).
+            over_budget: Whether a camera is over its dollar budget (`runtime.cost`); such a
+                camera degrades like one over the frame budget.
         """
         self._bus = bus
         self._clock = clock
@@ -495,7 +498,7 @@ class RuntimeLoop:
         self._window = timedelta(seconds=window_s)
         self._max_lag_s = max_lag_s
         self._stride = max(1, keyframe_stride)
-        self._sampler = CameraSampler(sampling)
+        self._sampler = CameraSampler(sampling, over_budget=over_budget)
         self._gate = motion_gate
         self._usage = usage
         self._static_sink = static_sink

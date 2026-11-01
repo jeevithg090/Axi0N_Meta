@@ -15,7 +15,7 @@
 
 ## 1. Executive Summary of Achievements
 
-All P2 tasks across every priority tier (**Must**, **Should**, **Shared Duties**, and **Stretch Goals**) are **100% completed, verified, and merged into `main`**. All team integration gates (**G0, G1, G2, G3**) have officially passed.
+All P2 tasks across every priority tier (**Must**, **Should**, **Shared Duties**, and **Stretch Goals**) are **100% completed, verified, and merged into `main`**. Gate status: see `docs/standups.md`, corrected on Oct 31 (G0 passed, G1 unverified, G2 partial, G3 not met).
 
 The \$150 Meta Model API hackathon credit claim has been filled and submitted via the official Cerebral Valley Google Form.
 
@@ -50,9 +50,9 @@ The \$150 Meta Model API hackathon credit claim has been filled and submitted vi
 | Duty | Description | File / PR | Status |
 | :--- | :--- | :--- | :--- |
 | **S-01** | Sets, props, and camera layout specifications for UC1 (kitchen), UC2 (yard), UC3 (corridor), and UC4 (warehouse). | `docs/sets.md` (PR #64) | Merged |
-| **S-04** | 20 held-out requests dataset across 5 industry domains (`eval/heldout/requests.jsonl`), evaluation runner `eval/runners/e3.py` (60 runs committed to `plans/heldout/`), achieving **100.0% valid-or-honest rate** (target $\ge 80\%$). | `eval/runners/e3.py` (PR #63) | Merged |
+| **S-04** | 20 held-out requests dataset across 5 industry domains (`eval/heldout/requests.jsonl`), evaluation runner `eval/runners/e3.py`. *Corrected Oct 31:* the runner is a simulated harness that does not call the Planner and the requests are team-written personas, so its 100.0% figure and the 60 plans in `plans/heldout/` were withdrawn (see `eval/RESULTS.md`). | `eval/runners/e3.py` (PR #63) | Merged |
 | **S-08** | Social launch and outreach pack: 3-stage X post copy (Nov 2, Nov 4, Nov 6), video cue markers, and reply protocol using generated rule cards. | `docs/social.md` (PR #67) | Merged |
-| **S-10** | Team standup ledger & pre-freeze readiness checklist (G0–G3 passed, pre-freeze checklist updated). | `docs/standups.md` (PR #69, #74) | Merged |
+| **S-10** | Team standup ledger & pre-freeze readiness checklist (gate statuses corrected Oct 31, pre-freeze checklist updated). | `docs/standups.md` (PR #69, #74) | Merged |
 
 ### D. P2 Stretch Goal — Merged
 - **Boundary-Pair Muse Image Edits with `previous_response_id` (PR #71)**:
@@ -73,7 +73,7 @@ The \$150 Meta Model API hackathon credit claim has been filled and submitted vi
 - **Status**: **SUBMITTED**
 - **Details Submitted**:
   - **Full Name**: `Navadarshanth Shanmugasundaram`
-  - **Email**: `nav6.aus@gmail.com`
+  - **Email**: `nav6aus@gmail.com` (no dot, per Google Form credit claim requirement)
   - **Meta Model API Team ID**: `1097704756498249`
   - **Terms & Credit Policy**: Agreed & Checked
 - **Confirmation Message**: *"Credits will show up under 'free credits' section under 'Billing'"*
@@ -109,7 +109,7 @@ The \$150 Meta Model API hackathon credit claim has been filled and submitted vi
 | :--- | :--- | :--- | :--- |
 | **Feature Freeze** | **Mon Nov 2, 12:00 ET** | No new feature PRs; only `fix-after-freeze` PRs permitted. | All |
 | **Video Shoot** | **Mon Nov 2 – Tue Nov 3** | Film the 3-minute demo video following `docs/sets.md` and `docs/social.md`. | P4 Lead / Team |
-| **Public Docs Polish** | **Pre-Freeze** | Update `README.md` and `WHAT-WE-BUILT.md` with final architecture, model map, and E3 results. | Team / P2 |
+| **Public Docs Polish** | **Pre-Freeze** | Update `README.md` and `WHAT-WE-BUILT.md` with final architecture, model map, and real E3 results once the runner calls the Planner on outsider requests. | Team / P2 |
 | **Final Submission** | **Wed Nov 4, 12:00 ET** | Submit GitHub repo, 3-min video URL, and write-up on Devpost. | P1 / Team |
 
 ---

@@ -74,6 +74,7 @@ sam.segment(chunk, "hard hat")  # concept prompt
 sam.segment(chunk, "person", box_prompts={1: (x1, y1, x2, y2)})  # re-prompt; >16 are split
 await sam.segment_concepts(chunk, ["person", "forklift"])  # one request per concept
 sam.segment_image(Path("frame.jpg"), "sink", camera_id="cam1")  # single-frame probe
+sam.runtime_view().segment_image_bytes(jpeg, "person", camera_id="cam1", ts=ts)  # a keyframe
 sam.costs.snapshot()  # per-camera cost panel
 ```
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+import time
 from collections.abc import Callable, Mapping
 from datetime import timedelta
 from pathlib import Path
@@ -357,6 +359,26 @@ def test_segment_image_rejects_unknown_types(make_client: Factory, tmp_path: Pat
 
     with pytest.raises(ValueError, match="JPEG or PNG"):
         client.segment_image(tmp_path / "frame.gif", "sink")
+    with pytest.raises(ValueError, match="JPEG or PNG"):
+        client.segment_image_bytes(b"GIF89a", "sink", content_type="image/gif")
+
+
+def test_segment_image_bytes_bills_one_image_per_keyframe(make_client: Factory) -> None:
+    """Runtime keyframes (image mode): in-memory JPEG bytes, the keyframe's own timestamp."""
+    client, transport, bus = make_client(load_reply("image_one"), load_reply("image_one"))
+    stamp = EPOCH + timedelta(seconds=2.5)
+    runtime = client.runtime_view()
+
+    detections = runtime.segment_image_bytes(b"\xff\xd8jpeg", "sink", camera_id="cam1", ts=stamp)
+    runtime.segment_image_bytes(b"\xff\xd8jpeg", "sink", camera_id="cam1", ts=stamp)
+
+    assert [(d.ts, d.frame_idx, d.camera_id) for d in detections] == [(stamp, 0, "cam1")]
+    assert detections[0].mask.rle == NO_MASK  # the runtime view decodes no masks
+    content = transport.bodies()[0]["input"][0]["content"]
+    assert content[1]["image_url"].startswith("data:image/jpeg;base64,")
+    assert client.costs.snapshot()["cam1"].images == 2  # the view shares the ledger
+    assert client.costs.snapshot()["cam1"].usd == pytest.approx(0.005)
+    assert len([t for t, _ in bus.published if t is Topic.RELAY_MODEL_USED]) == 2
 
 
 def test_upload_without_id_is_a_response_error(chunk: Chunk) -> None:
@@ -389,3 +411,111 @@ def test_rle_round_trips_random_masks() -> None:
     for shape in [(1, 1), (7, 5), (80, 64)]:
         mask = (rng.random(shape) > 0.6).astype(np.uint8)
         assert (decode_rle(encode_rle(mask)) == mask).all()
+
+
+def _gated_upload_transport(
+    started: list[str], release: threading.Event
+) -> Callable[[Mapping[str, object]], Mapping[str, object]]:
+    """Uploads block until released; everything else returns an empty video reply."""
+    empty = load_reply("video_empty")
+
+    def transport(request: Mapping[str, object]) -> Mapping[str, object]:
+        if request.get("path") == "/files":
+            file = request["file"]
+            assert isinstance(file, Mapping)
+            started.append(str(file["filename"]))
+            assert release.wait(5)
+            return {"status": 200, "headers": {}, "json": {"id": f"file-{file['filename']}"}}
+        return empty
+
+    return transport
+
+
+def _chunk_at(tmp_path: Path, name: str, content: bytes) -> Chunk:
+    path = tmp_path / f"{name}.mp4"
+    path.write_bytes(content)
+    return Chunk(
+        chunk_id=name,
+        camera_id="cam1",
+        path=str(path),
+        start_ts=EPOCH,
+        fps=10,
+        n_frames=30,
+        width=64,
+        height=48,
+    )
+
+
+def test_different_chunks_upload_in_parallel(tmp_path: Path) -> None:
+    started: list[str] = []
+    release = threading.Event()
+    client = HostedSam31(_gated_upload_transport(started, release), clock=FakeClock())
+    chunks = [_chunk_at(tmp_path, f"c{i}", f"video-{i}".encode()) for i in range(3)]
+    threads = [threading.Thread(target=client.segment, args=(c, "person")) for c in chunks]
+    for thread in threads:
+        thread.start()
+    deadline = time.monotonic() + 5
+    while len(started) < 3 and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert sorted(started) == ["c0.mp4", "c1.mp4", "c2.mp4"]  # all three in flight at once
+    release.set()
+    for thread in threads:
+        thread.join(5)
+
+
+def test_same_chunk_concurrent_concepts_share_one_upload(tmp_path: Path) -> None:
+    started: list[str] = []
+    release = threading.Event()
+    client = HostedSam31(_gated_upload_transport(started, release), clock=FakeClock())
+    chunk = _chunk_at(tmp_path, "c0", b"same-video")
+    threads = [
+        threading.Thread(target=client.segment, args=(chunk, concept))
+        for concept in ("person", "forklift", "pallet")
+    ]
+    for thread in threads:
+        thread.start()
+    time.sleep(0.2)
+    release.set()
+    for thread in threads:
+        thread.join(5)
+    assert started == ["c0.mp4"]
+
+
+def test_runtime_view_returns_boxes_without_decoding_and_shares_caches(chunk: Chunk) -> None:
+    decoded: list[object] = []
+
+    def counting_decoder(mask: object) -> np.ndarray:
+        decoded.append(mask)
+        return ones_decoder(mask)  # type: ignore[arg-type]
+
+    transport = ScriptedTransport(load_reply("video_masks"), load_reply("video_masks"))
+    client = HostedSam31(transport, clock=FakeClock(), mask_decoder=counting_decoder)
+    runtime = client.runtime_view()
+    stages: list[tuple[str, str, str]] = []
+    runtime.set_stage_sink(
+        lambda stage, camera, chunk_id, s: stages.append((stage, camera, chunk_id))
+    )
+
+    boxes = runtime.segment(chunk, "person")
+    full = client.segment(chunk, "person")
+
+    assert {d.mask.rle for d in boxes} == {NO_MASK}
+    assert [d.mask.box_xyxy for d in boxes] == [d.mask.box_xyxy for d in full]
+    assert len(decoded) == len(full)  # only the full client decoded
+    assert len(transport.uploads) == 1  # one upload shared by both
+    assert client.costs is runtime.costs
+    # Only the runtime view reports stages: its upload and its one request.
+    assert stages == [("upload", "cam1", "cam1_000000"), ("sam_request", "cam1", "cam1_000000")]
+
+
+def test_runtime_view_can_keep_masks_and_the_sink_can_be_removed(chunk: Chunk) -> None:
+    transport = ScriptedTransport(load_reply("video_masks"))
+    runtime = HostedSam31(transport, clock=FakeClock(), mask_decoder=ones_decoder).runtime_view(
+        masks=True
+    )
+    stages: list[str] = []
+    runtime.set_stage_sink(lambda stage, *_: stages.append(stage))
+    runtime.set_stage_sink(None)
+    detections = runtime.segment(chunk, "person")
+    assert NO_MASK not in {d.mask.rle for d in detections}
+    assert stages == []

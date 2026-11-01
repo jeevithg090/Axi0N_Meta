@@ -42,9 +42,9 @@ All Must-tier, Should-tier, Shared Duties, and Stretch goals assigned to P2 have
 
 ### C. Shared Duties (Section 11)
 - **S-01** ([PR #64](https://github.com/jeevithg090/Axi0N_Meta/pull/64)): Physical floor plans, props, and camera layout in [`docs/sets.md`](docs/sets.md).
-- **S-04** ([PR #63](https://github.com/jeevithg090/Axi0N_Meta/pull/63)): 20 held-out outsider requests in `eval/heldout/requests.jsonl` + E3 evaluation runner (`eval/runners/e3.py`). Achieved **100.0% valid-or-honest rate** (60/60 runs) across 5 industry domains, generating all 60 plans in `plans/heldout/`.
+- **S-04** ([PR #63](https://github.com/jeevithg090/Axi0N_Meta/pull/63)): 20 held-out requests in `eval/heldout/requests.jsonl` + E3 evaluation runner (`eval/runners/e3.py`). *Corrected Oct 31:* the runner is a simulated harness that does not call the Planner and the requests are team-written personas, so its 100.0% figure (60/60) and the 60 plans in `plans/heldout/` were withdrawn (see `eval/RESULTS.md`).
 - **S-08** ([PR #67](https://github.com/jeevithg090/Axi0N_Meta/pull/67)): 3-stage social launch copy and reply protocol in [`docs/social.md`](docs/social.md).
-- **S-10** ([PR #69](https://github.com/jeevithg090/Axi0N_Meta/pull/69), [PR #74](https://github.com/jeevithg090/Axi0N_Meta/pull/74)): Daily standup logs, gate readiness ledger (G0–G3 passed), and pre-freeze checklist in [`docs/standups.md`](docs/standups.md).
+- **S-10** ([PR #69](https://github.com/jeevithg090/Axi0N_Meta/pull/69), [PR #74](https://github.com/jeevithg090/Axi0N_Meta/pull/74)): Daily standup logs, gate readiness ledger (gate statuses corrected Oct 31), and pre-freeze checklist in [`docs/standups.md`](docs/standups.md).
 
 ### D. P2 Stretch Goal
 - **Boundary-Pair Muse Image Edits** ([PR #71](https://github.com/jeevithg090/Axi0N_Meta/pull/71)): Chained turn-2 edits with `previous_response_id` preserving background confounders, planar homography ground metric projection (`project_pixel_to_ground`), and automated pass/fail suite runner (`src/rulecam/rule_ci/boundary_pairs.py`).
@@ -59,7 +59,7 @@ All Must-tier, Should-tier, Shared Duties, and Stretch goals assigned to P2 have
 
 - **Status**: **SUBMITTED & CONFIRMED** on Nov 1, 2026.
 - **Full Name**: Navadarshanth Shanmugasundaram
-- **Email**: `nav6.aus@gmail.com`
+- **Email**: `nav6aus@gmail.com` (no dot, per Google Form credit claim requirement)
 - **Team ID**: `1097704756498249`
 - **Meta Billing URL**: [https://dev.meta.ai/billing?team_id=1097704756498249](https://dev.meta.ai/billing?team_id=1097704756498249)
 - **ETA**: 1 to 2 business days (distributed in batches; expect Mon Nov 2 or Tue Nov 3).
@@ -109,7 +109,7 @@ When you open a new session, follow these steps:
    ```
 3. **Recommended Next High-Impact Tasks**:
    - **Task 1: Update `README.md` & `WHAT-WE-BUILT.md`**:
-     Upgrade the public README from day-1 scaffold text to showcase the full, integrated system, model map, and 100% E3 evaluation results for the judges.
+     Upgrade the public README from day-1 scaffold text to showcase the full, integrated system, model map, and real E3 results (once the runner calls the Planner on outsider requests) for the judges.
    - **Task 2: Golden Runs & Evidence (S-05, Lead: P3)**:
      Assist P3 with recording golden runs (`scenarios/*.expected.json`) and Glimmer verification traces if needed.
    - **Task 3: Video Shoot Coordination (S-07, Lead: P4)**:

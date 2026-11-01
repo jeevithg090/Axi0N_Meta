@@ -10,17 +10,28 @@
 Runtime calls served by hosted SAM are recorded in `PerceptionMetrics`; self-hosted calls are
 recorded by `ModalSam31` itself, together with their GPU-seconds. `CallMeter` counts the runtime
 loop's own calls and billed frames per camera and per chunk (hosted pricing: `max(50, frames)`
-per request), which the loop's SAM budget and `/runtime/metrics` read.
+per request), which the loop's SAM budget and `/runtime/metrics` read. `LimitedSegmenter` caps
+how many runtime SAM calls are open at once, across cameras and chunks, and reports how long a
+call queued for a slot (`sam_queue`) and how long it then took (`sam`).
+
+The runtime path may use its own hosted segmenter (`runtime_hosted`, e.g. the box-only
+`HostedSam31.runtime_view()`), while probes and Rule CI keep the full one.
+
+Image mode (`RULECAM_RUNTIME_SAM_MODE=image`, `perception.keyframes`) has its own chain,
+`keyframe_chain`: self-hosted keyframes (`POST /segment_image` on our GPU pod) first, hosted
+image requests while it fails (`KeyframeFallback`), counted the same way. Video mode keeps the
+`Segmenter` chain above, and probes, Rule CI and evidence re-checks always use hosted video.
 """
 
 from __future__ import annotations
 
 import math
 import threading
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, Protocol
 
 from pydantic import Field
 
@@ -28,6 +39,7 @@ from rulecam.contracts.core import Chunk, Detection, Frozen
 from rulecam.contracts.protocols import Clock, Segmenter
 from rulecam.log import get_logger
 from rulecam.perception.errors import SamRuntimeError
+from rulecam.perception.keyframes import Keyframe, KeyframeBatch, KeyframeSegmenter
 from rulecam.perception.metrics import Backend, PerceptionMetrics, hosted_billed_frames
 from rulecam.perception.sam_runtime import MAX_PROMPTED_OBJECTS
 
@@ -174,6 +186,111 @@ class CallMeter:
         return detections
 
 
+class StageRecorder(Protocol):
+    """Receives SAM stage durations (`runtime.timings.StageTimings`)."""
+
+    def record(self, stage: str, camera_id: str, chunk_id: str, seconds: float) -> None:
+        """Record one duration of `stage` for a chunk."""
+        ...
+
+    def record_sam(self, camera_id: str, chunk_id: str, concept: str, seconds: float) -> None:
+        """Record one concept's segmentation of a chunk."""
+        ...
+
+
+class LimitedSegmenter:
+    """Caps the SAM calls open at once and times each call's queueing and its work.
+
+    A hosted request's latency grows with the number of requests the team has open, so beyond
+    some concurrency more requests only make each one slower. The cap holds the extra calls in
+    a queue, measured as the `sam_queue` stage, instead.
+    """
+
+    def __init__(
+        self,
+        inner: Segmenter,
+        max_concurrent: int,
+        *,
+        timings: StageRecorder | None = None,
+        monotonic: Callable[[], float] = time.monotonic,
+    ) -> None:
+        """Wrap a segmenter.
+
+        Args:
+            inner: The segmenter to limit.
+            max_concurrent: Calls allowed at once (at least 1).
+            timings: Receives `sam_queue` and `sam` (per concept) durations.
+            monotonic: Seconds on a monotonic clock (injected in tests).
+        """
+        self._inner = inner
+        self._slots = threading.BoundedSemaphore(max(1, max_concurrent))
+        self._timings = timings
+        self._monotonic = monotonic
+        self.max_concurrent = max(1, max_concurrent)
+
+    def segment(
+        self,
+        chunk: Chunk,
+        concept: str,
+        *,
+        box_prompts: dict[int, tuple[float, float, float, float]] | None = None,
+        negative_points: list[tuple[int, float, float]] | None = None,
+        direction: Literal["forward", "backward"] = "forward",
+        include_confidence: bool = True,
+    ) -> list[Detection]:
+        """Wait for a slot, then delegate."""
+        asked = self._monotonic()
+        with self._slots:
+            started = self._monotonic()
+            try:
+                return self._inner.segment(
+                    chunk,
+                    concept,
+                    box_prompts=box_prompts,
+                    negative_points=negative_points,
+                    direction=direction,
+                    include_confidence=include_confidence,
+                )
+            finally:
+                if self._timings is not None:
+                    camera, chunk_id = chunk.camera_id, chunk.chunk_id
+                    self._timings.record("sam_queue", camera, chunk_id, started - asked)
+                    self._timings.record_sam(camera, chunk_id, concept, self._monotonic() - started)
+
+
+class _Outage:
+    """Remembers that self-hosted SAM failed: try it again `retry_after_s` later, alert once."""
+
+    def __init__(
+        self, clock: Clock, retry_after_s: float, on_fallback: FallbackAlert | None
+    ) -> None:
+        self._clock = clock
+        self._retry_after = timedelta(seconds=retry_after_s)
+        self._on_fallback = on_fallback
+        self._down_until: datetime | None = None
+
+    @property
+    def degraded(self) -> bool:
+        return self._down_until is not None
+
+    def primary_due(self) -> bool:
+        return self._down_until is None or self._clock.now() >= self._down_until
+
+    def down(self, camera_id: str, error: SamRuntimeError) -> None:
+        first_failure = self._down_until is None
+        self._down_until = self._clock.now() + self._retry_after
+        if not first_failure:
+            return
+        _log.warning("sam_fallback_to_hosted", camera_id=camera_id, error=str(error))
+        if self._on_fallback is not None:
+            self._on_fallback(camera_id, error)
+
+    def up(self, camera_id: str) -> None:
+        if self._down_until is not None:
+            _log.info("sam_self_hosted_recovered", camera_id=camera_id)
+        self._down_until = None
+
+
 class FallbackSegmenter:
     """Runtime segmenter: self-hosted first, hosted while self-hosted is failing."""
 
@@ -197,15 +314,12 @@ class FallbackSegmenter:
         """
         self._primary = primary
         self._fallback = fallback
-        self._clock = clock
-        self._retry_after = timedelta(seconds=retry_after_s)
-        self._on_fallback = on_fallback
-        self._down_until: datetime | None = None
+        self._outage = _Outage(clock, retry_after_s, on_fallback)
 
     @property
     def degraded(self) -> bool:
         """True while runtime calls are being served by the fallback."""
-        return self._down_until is not None
+        return self._outage.degraded
 
     def segment(
         self,
@@ -222,7 +336,7 @@ class FallbackSegmenter:
         Raises:
             ValueError: If the prompts are invalid (never falls back).
         """
-        if self._down_until is None or self._clock.now() >= self._down_until:
+        if self._outage.primary_due():
             try:
                 detections = self._primary.segment(
                     chunk,
@@ -233,9 +347,9 @@ class FallbackSegmenter:
                     include_confidence=include_confidence,
                 )
             except SamRuntimeError as exc:
-                self._mark_down(chunk.camera_id, exc)
+                self._outage.down(chunk.camera_id, exc)
             else:
-                self._mark_up(chunk.camera_id)
+                self._outage.up(chunk.camera_id)
                 return detections
         return self._fallback.segment(
             chunk,
@@ -246,19 +360,96 @@ class FallbackSegmenter:
             include_confidence=include_confidence,
         )
 
-    def _mark_down(self, camera_id: str, error: SamRuntimeError) -> None:
-        first_failure = self._down_until is None
-        self._down_until = self._clock.now() + self._retry_after
-        if not first_failure:
-            return
-        _log.warning("sam_fallback_to_hosted", camera_id=camera_id, error=str(error))
-        if self._on_fallback is not None:
-            self._on_fallback(camera_id, error)
 
-    def _mark_up(self, camera_id: str) -> None:
-        if self._down_until is not None:
-            _log.info("sam_self_hosted_recovered", camera_id=camera_id)
-        self._down_until = None
+class KeyframeFallback:
+    """Image-mode runtime chain: self-hosted keyframes first, hosted while self-hosted fails.
+
+    The same outage rules as `FallbackSegmenter`: the first failure of an outage logs
+    `sam_fallback_to_hosted` and calls the alert hook (counted in `sam_fallbacks`); for
+    `retry_after_s` every chunk goes straight to hosted, then self-hosted is tried again.
+    """
+
+    def __init__(
+        self,
+        primary: KeyframeSegmenter,
+        fallback: KeyframeSegmenter,
+        *,
+        clock: Clock,
+        retry_after_s: float = 60.0,
+        on_fallback: FallbackAlert | None = None,
+    ) -> None:
+        """Create the chain.
+
+        Args:
+            primary: Self-hosted keyframes (`SelfHostedKeyframes`).
+            fallback: Hosted keyframes (`HostedKeyframes`).
+            clock: Decides when to retry the primary.
+            retry_after_s: How long to stay on the fallback after a failure.
+            on_fallback: Alert hook, called once per outage.
+        """
+        self._primary = primary
+        self._fallback = fallback
+        self._outage = _Outage(clock, retry_after_s, on_fallback)
+
+    @property
+    def degraded(self) -> bool:
+        """True while keyframes are being served by the fallback."""
+        return self._outage.degraded
+
+    @property
+    def billed(self) -> bool:
+        """Whether the next chunk is expected to be billed (the fallback is serving)."""
+        return self._fallback.billed if self._outage.degraded else self._primary.billed
+
+    def segment_keyframes(
+        self, chunk: Chunk, frames: Sequence[Keyframe], concepts: Sequence[str]
+    ) -> KeyframeBatch:
+        """Segment with the primary, or with the fallback while the primary is down.
+
+        Raises:
+            ValueError: If the concepts are invalid (never falls back).
+        """
+        if self._outage.primary_due():
+            try:
+                batch = self._primary.segment_keyframes(chunk, frames, concepts)
+            except SamRuntimeError as exc:
+                self._outage.down(chunk.camera_id, exc)
+            else:
+                self._outage.up(chunk.camera_id)
+                return batch
+        return self._fallback.segment_keyframes(chunk, frames, concepts)
+
+
+def keyframe_chain(
+    hosted: KeyframeSegmenter,
+    self_hosted: KeyframeSegmenter | None,
+    *,
+    policy: RoutingPolicy,
+    clock: Clock,
+    on_fallback: FallbackAlert | None = None,
+) -> KeyframeSegmenter:
+    """The image-mode runtime segmenter for a routing policy.
+
+    Args:
+        hosted: Hosted keyframes.
+        self_hosted: Self-hosted keyframes, or `None` when no GPU pod serves images.
+        policy: The site's routing policy.
+        clock: For the fallback's retry window.
+        on_fallback: Alert hook for runtime fallbacks.
+
+    Returns:
+        Self-hosted with hosted fallback when the policy runs self-hosted and a pod serves
+        images; hosted otherwise.
+    """
+    if self_hosted is None or policy.runtime_backend is not Backend.SELF_HOSTED:
+        return hosted
+    return KeyframeFallback(
+        self_hosted,
+        hosted,
+        clock=clock,
+        retry_after_s=policy.retry_after_s,
+        on_fallback=on_fallback,
+    )
 
 
 class SegmenterRouter:
@@ -273,6 +464,7 @@ class SegmenterRouter:
         policy: RoutingPolicy | None = None,
         metrics: PerceptionMetrics | None = None,
         on_fallback: FallbackAlert | None = None,
+        runtime_hosted: Segmenter | None = None,
     ) -> None:
         """Create the router.
 
@@ -283,10 +475,12 @@ class SegmenterRouter:
             policy: Per-site settings (defaults to `RoutingPolicy()`).
             metrics: Records runtime calls served by hosted SAM.
             on_fallback: Alert hook for runtime fallbacks.
+            runtime_hosted: Hosted SAM for the runtime path (and its fallback); `hosted` when
+                `None`. Probes and Rule CI always get `hosted`.
         """
         self._policy = policy or RoutingPolicy()
         self._hosted = hosted
-        metered_hosted = MeteredSegmenter(hosted, metrics)
+        metered_hosted = MeteredSegmenter(runtime_hosted or hosted, metrics)
         self._runtime: Segmenter
         if self._policy.runtime_backend is Backend.SELF_HOSTED:
             self._runtime = FallbackSegmenter(

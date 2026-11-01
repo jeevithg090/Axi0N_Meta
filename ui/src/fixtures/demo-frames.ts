@@ -1,5 +1,6 @@
-// A recorded-style UC1 sequence for `?demo=1` and screen tests: an 8 s wash fails, Glimmer
-// confirms, coaching plays, then a tray blocks cam 1 and its card goes BLIND. Labelled REPLAY.
+// A recorded-style UC1 sequence for screen tests (`?demo=1` replays the golden runs instead): an
+// 8 s wash fails, Glimmer confirms, coaching plays, then a tray blocks cam 1 and its card goes
+// BLIND. Labelled REPLAY.
 
 import type { Frame } from "@/lib/events";
 

@@ -6,8 +6,14 @@ import pytest
 
 from rulecam.contracts import Track
 from rulecam.rules import evaluate
-from rulecam.rules.near_miss import closest_approach, near_miss_at, time_to_collision
-from tests.rules.helpers import at, make_rule, walk_track
+from rulecam.rules.near_miss import (
+    closest_approach,
+    footprint_kinematics,
+    near_miss_at,
+    point_kinematics,
+    time_to_collision,
+)
+from tests.rules.helpers import CAL, at, make_rule, walk_track
 
 CONTACT = 0.5
 
@@ -102,3 +108,70 @@ def test_unmeasurable_subjects_are_skipped() -> None:
         calibration=None,
     )
     assert metrics == {}
+
+
+# --- footprint geometry (WS1d): the metrics measure what the predicate measures ----------------
+
+
+def test_a_degenerate_footprint_matches_the_point_formulas() -> None:
+    for rel, vel in [((5.0, 0.0), (-2.0, 0.0)), ((5.0, 1.0), (-2.0, 0.0)), ((0.3, 0.0), (2, 0))]:
+        assert footprint_kinematics(rel, rel, vel) == pytest.approx(point_kinematics(rel, vel))
+        assert footprint_kinematics(rel, rel, vel, 5.0)[3] == time_to_collision(rel, vel, CONTACT)
+
+
+def test_head_on_at_a_wide_footprint() -> None:
+    """A 2 m wide bottom edge 5 m ahead, closing at 2 m/s: contact 0.5 m off the edge."""
+    separation, closest, when, ttc = footprint_kinematics((5.0, -1.0), (5.0, 1.0), (-2.0, 0.0))
+    assert separation == pytest.approx(5.0)
+    assert (closest, when) == pytest.approx((3.0, 1.0))
+    assert ttc == pytest.approx((5.0 - CONTACT) / 2.0)
+
+
+def test_sliding_along_a_footprint_reports_the_earliest_closest_time() -> None:
+    """Sliding past a 4 m edge 1 m to the side: 1 m from t = 0.5 s to 2.5 s; report 0.5 s."""
+    _, closest, when, ttc = footprint_kinematics((1.0, 1.0), (5.0, 1.0), (-2.0, 0.0), 3.0)
+    assert closest == pytest.approx(1.0)
+    assert when == pytest.approx(0.5, abs=1e-4)
+    assert ttc is None
+    assert footprint_kinematics((1.0, 1.0), (5.0, 1.0), (0.0, 0.0))[2] == 0.0
+
+
+def test_inside_the_contact_distance_is_a_collision_now() -> None:
+    assert footprint_kinematics((0.2, -1.0), (0.2, 1.0), (1.0, 0.0))[3] == 0.0
+
+
+def test_separation_equals_the_predicate_value_with_a_calibration() -> None:
+    """Live WS1d: traces showed foot-to-foot metrics next to a footprint distance."""
+    rule = make_rule(
+        {"op": "distance_m", "a": "person", "b": "forklift", "lt": 2.0},
+        concepts={"person": "person", "forklift": "forklift"},
+    )
+    steps = 30
+    wide = walk_track(
+        "cam1:forklift:1",
+        [(5.0 - 2.0 * i / 10, 1.5) for i in range(steps)],
+        concept="forklift",
+        size_px=(300.0, 120.0),  # a 3 m wide footprint: its end is nearer than its middle
+    )
+    person = walk_track("cam1:person:1", [(0.0, 0.0)] * steps)
+    (event,) = evaluate(rule, [wide, person], calibration=CAL, zones={}, t0=at(0), t1=at(3))
+    trace = event.predicate_trace
+    assert trace["distance_m.separation_m"] == trace["distance_m.value"]
+    value = trace["distance_m.value"]
+    assert isinstance(value, float)
+    assert value < 2.0
+    closest = trace["distance_m.closest_m"]
+    assert isinstance(closest, float)
+    assert closest <= value
+
+
+def test_an_object_seen_once_counts_as_standing_still() -> None:
+    rule = make_rule(
+        {"op": "distance_m", "a": "person", "b": "forklift", "lt": 2.0},
+        concepts={"person": "person", "forklift": "forklift"},
+    )
+    person = walk_track("cam1:person:1", [(0.0, 0.0)] * 20)
+    flash = walk_track("cam1:forklift:1", [(1.0, 0.0)], concept="forklift", start_s=1.0)
+    (event,) = evaluate(rule, [person, flash], calibration=None, zones={}, t0=at(0), t1=at(2))
+    assert event.predicate_trace["distance_m.separation_m"] == pytest.approx(1.0)
+    assert event.predicate_trace["distance_m.ttc_s"] == "none"

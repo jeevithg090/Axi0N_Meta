@@ -1,0 +1,68 @@
+{
+  "generated_at": "2026-10-31T22:52:57.143651Z",
+  "config": {
+    "iou": 0.3,
+    "merge_gap_s": 3.0,
+    "min_alert_s": 1.0,
+    "gpu_usd_per_hour": 0.0,
+    "cameras_per_gpu": 1.0
+  },
+  "runs": [
+    {
+      "clip": "warehouse_45848",
+      "rule": "forklift_2m",
+      "status": "negative",
+      "expect": "activatable",
+      "outcome": "activated",
+      "refused": null,
+      "error": null,
+      "speed": 1.0,
+      "request": "Keep people at least 2 metres away from a moving forklift.",
+      "rule_hashes": [
+        "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419"
+      ],
+      "candidates": 10,
+      "alerts": 0,
+      "events": 0,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "ious": [],
+      "latencies_s": [],
+      "tier1": [
+        "unsure",
+        "unsure",
+        "unsure",
+        "unsure",
+        "unsure",
+        "unsure",
+        "unsure",
+        "unsure",
+        "unsure",
+        "unsure"
+      ],
+      "decisive": 0,
+      "agree": 0,
+      "lags_s": [],
+      "keyframe_mode": false,
+      "billed_frames": null,
+      "camera_hours": 0.035833333333333335,
+      "usd_per_camera_hour": null,
+      "tracking": []
+    }
+  ],
+  "rules": [
+    {
+      "rule": "forklift_2m",
+      "clips": 1,
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "precision": null,
+      "recall": null,
+      "false_alerts_on_negatives": 0,
+      "negative_clips": 1,
+      "latency_p95_s": null
+    }
+  ]
+}

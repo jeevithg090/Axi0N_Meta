@@ -17,6 +17,8 @@ thins that out without letting a real event through:
   until the minute's spend drops under the budget again. Chunks still being segmented count
   with their `reserve`d estimate until `record` replaces it with what they billed, so a loop
   with several chunks in flight cannot overspend the budget before the bills come in.
+  The main budget is in **dollars** (`runtime.cost.CostMeter`, passed as `over_budget`): a camera
+  it marks over budget degrades the same way. The frame budget is an optional extra cap.
 
 Every chunk that is not segmented is a coverage gap for the loop, never an observed absence.
 """
@@ -24,7 +26,7 @@ Every chunk that is not segmented is a coverage gap for the loop, never an obser
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Literal
@@ -100,13 +102,20 @@ class _Camera:
 class CameraSampler:
     """Per-camera sampling state: idle/hot, the last minute's billed frames, budget degrade."""
 
-    def __init__(self, policy: SamplingPolicy | None = None) -> None:
+    def __init__(
+        self,
+        policy: SamplingPolicy | None = None,
+        *,
+        over_budget: Callable[[str], bool] | None = None,
+    ) -> None:
         """Create the sampler.
 
         Args:
             policy: The settings (defaults to `SamplingPolicy()`, which samples nothing out).
+            over_budget: Whether a camera is over its dollar budget (`CostMeter.over_budget`).
         """
         self._policy = policy or SamplingPolicy()
+        self._over_budget = over_budget
         self._cameras: dict[str, _Camera] = {}
         self.budget_exceeded = 0
         """How many times a camera went over its budget (transitions, not chunks)."""
@@ -194,11 +203,12 @@ class CameraSampler:
         return sorted(cam_id for cam_id, cam in self._cameras.items() if cam.degraded)
 
     def _check_budget(self, camera_id: str, cam: _Camera, now: datetime) -> None:
+        dollars = self._over_budget is not None and self._over_budget(camera_id)
         budget = self._policy.budget_frames_per_min
-        if budget <= 0:
+        if budget <= 0 and self._over_budget is None:
             return
         spent = self.billed_last_minute(camera_id, now) + sum(cam.reserved.values())
-        over = spent >= budget
+        over = dollars or (budget > 0 and spent >= budget)
         if over and not cam.degraded:
             self.budget_exceeded += 1
             _log.warning(
@@ -206,6 +216,7 @@ class CameraSampler:
                 camera_id=camera_id,
                 billed_frames_last_min=spent,
                 budget_frames_per_min=budget,
+                dollar_budget=dollars,
                 stride=self._policy.budget_stride,
             )
         elif cam.degraded and not over:

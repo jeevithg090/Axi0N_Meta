@@ -1,9 +1,11 @@
 """The owner's site configuration for the Site Planner (task P2-06, `RULECAM_SITE_CONFIG`).
 
 A YAML file the owner writes once per site: the site name, privacy mode, evidence retention,
-alert roles, crew languages and, per camera, an optional manual ground calibration (four or more
-clicked floor pixels with their positions in metres) and optional named polygon zones the owner
-drew. `docs/site.example.yaml` is a commented example; `docs/deploy.md` says where it goes.
+alert roles, crew languages, how many cameras share the site's GPU pod (`cameras_per_gpu`, for
+the cost per camera-hour; the planner ignores it) and, per camera, an optional manual ground
+calibration (four or more clicked floor pixels with their positions in metres) and optional
+named polygon zones the owner drew. `docs/site.example.yaml` is a commented example;
+`docs/deploy.md` says where it goes.
 
 Precedence: what the owner writes here always wins over what the planner infers from the scene.
 A camera calibrated here is never re-calibrated from a pallet, and an owner zone replaces a
@@ -32,6 +34,7 @@ from rulecam.planner.errors import PlannerError
 _log = get_logger(__name__)
 
 DEFAULT_SITE_NAME: Final = "demo"
+MAX_CAMERAS_PER_GPU: Final = 64
 NAME_PATTERN: Final = r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$"
 
 
@@ -84,6 +87,9 @@ class SiteConfig(_Strict):
         retention_days: Evidence retention.
         roles: Role -> alert channel, e.g. `dock_lead: web_push`.
         languages: Crew languages (ISO codes), listed before any the planner infers.
+        cameras_per_gpu: Cameras that share the site's one GPU pod (Glimmer + SAM image mode,
+            docs/deploy.md "One GPU per site"); the eval scorecard divides the pod's price by
+            it for the GPU share of the cost per camera-hour. `None`: not stated (1).
         cameras: Camera id -> its calibration and zones.
     """
 
@@ -92,6 +98,7 @@ class SiteConfig(_Strict):
     retention_days: int = Field(default=30, ge=1, le=3650)
     roles: dict[str, str] = Field(default_factory=dict)
     languages: tuple[str, ...] = ()
+    cameras_per_gpu: int | None = Field(default=None, ge=1, le=MAX_CAMERAS_PER_GPU)
     cameras: dict[str, CameraConfig] = Field(default_factory=dict)
 
     @model_validator(mode="after")

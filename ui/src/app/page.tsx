@@ -13,7 +13,12 @@ export default function Home() {
           <Link href="/monitor">Live monitor</Link> rule cards, verifier reasoning, BLIND cameras
         </li>
         <li>
-          <Link href="/monitor?demo=1">Recorded UC1 demo</Link> (REPLAY, no server needed)
+          <Link href="/demo?demo=1">Golden run</Link> a recorded live run, replayed step by step
+          (REPLAY, no server or model needed), with the evidence check in your browser
+        </li>
+        <li>
+          <Link href="/monitor?demo=1">Golden run on the live monitor</Link> the same recording as
+          the monitor shows it
         </li>
       </ul>
     </section>

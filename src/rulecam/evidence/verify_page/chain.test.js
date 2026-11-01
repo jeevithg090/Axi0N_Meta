@@ -3,7 +3,13 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { canonical, compareToCommitted, merkleRoot, verifyChainText } from "./chain.js";
+import {
+  canonical,
+  compareToCommitted,
+  merkleRoot,
+  parseHashList,
+  verifyChainText,
+} from "./chain.js";
 
 const fixtures = fileURLToPath(new URL("../../../../tests/fixtures/evidence/", import.meta.url));
 const chain = readFileSync(fixtures + "chain.jsonl", "utf8");
@@ -56,5 +62,15 @@ describe("verify page chain code", () => {
     expect(await compareToCommitted(hashes, prefix, 4)).toBe("mismatch");
     expect(await compareToCommitted(hashes.slice(0, 2), prefix, 3)).toBe("mismatch");
     expect(await compareToCommitted(hashes, expected.root, "5")).toBe("mismatch");
+  });
+
+  it("checks a public hash list against the committed root", async () => {
+    const hashes = parseHashList({ n: expected.hashes.length, hashes: expected.hashes });
+    expect(await compareToCommitted(hashes, expected.root, expected.n)).toBe("match");
+    const dropped = hashes.slice(1);
+    expect(await compareToCommitted(dropped, expected.root, expected.n)).toBe("mismatch");
+    for (const bad of [null, {}, { n: 2, hashes: ["a"] }, { n: 1, hashes: ["A".repeat(64)] }]) {
+      expect(() => parseHashList(bad)).toThrow("malformed");
+    }
   });
 });

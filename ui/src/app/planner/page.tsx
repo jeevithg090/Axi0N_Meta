@@ -10,7 +10,7 @@ import { RequestComposer } from "@/components/plan/RequestComposer";
 import { StepProgress } from "@/components/plan/StepProgress";
 import { api, type CameraInfo } from "@/lib/api";
 import { useAuth, useOwnerControls } from "@/lib/auth";
-import { useDemo, useStream } from "@/lib/stream";
+import { useDemo, useDemoQuery, useStream } from "@/lib/stream";
 import { usePlans } from "@/lib/usePlans";
 
 export default function PlannerPage() {
@@ -32,7 +32,7 @@ export default function PlannerPage() {
 
   const planId = state.planner.planId;
   const plan = planId ? plans[planId]?.latest : undefined;
-  const query = demo ? "?demo=1" : "";
+  const query = useDemoQuery();
 
   return (
     <div className="planner">

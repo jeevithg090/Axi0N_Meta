@@ -68,6 +68,7 @@ from rulecam.planner.geometry import (
     probe_references,
     scene_calibrations,
     scene_zones,
+    trusted_calibrations,
 )
 from rulecam.planner.lint import CameraViews, LintFinding, lint_plan
 from rulecam.planner.models import Concern, UnderstandResult
@@ -160,6 +161,8 @@ class ProbeResult(Frozen):
 
     `reference_probes` are the reference prompts tried for the metric concerns' cameras and
     `calibrations` what they gave (cameras the owner or the survey calibrated are not probed).
+    `distrusted` are cameras whose survey calibration the people seen by the probe contradict;
+    the plan never uses those calibrations.
     """
 
     needs: dict[str, tuple[str, ...]]
@@ -167,6 +170,7 @@ class ProbeResult(Frozen):
     zones: tuple[Zone, ...] = ()
     reference_probes: tuple[ReferenceProbe, ...] = ()
     calibrations: dict[str, Calibration] = Field(default_factory=dict)
+    distrusted: tuple[str, ...] = ()
 
 
 class GaugeResult(Frozen):
@@ -292,8 +296,13 @@ class PlanStore:
         owner = self.load_input(plan_id).calibrations
         survey = self.load_step(plan_id, "survey", SurveyResult)
         probe = self.load_step(plan_id, "probe", ProbeResult)
+        distrusted = set(probe.distrusted) if probe is not None else set()
         scene = {
-            **(survey.calibrations if survey is not None else {}),
+            **{
+                c: cal
+                for c, cal in (survey.calibrations if survey is not None else {}).items()
+                if c not in distrusted
+            },
             **(probe.calibrations if probe is not None else {}),
         }
         return {**scene, **owner}
@@ -413,6 +422,10 @@ def probe_summary(probe: ProbeResult) -> str:
     it gave (or that none was made).
     """
     parts = [f"{len(probe.probes)} probes"]
+    parts.extend(
+        f"survey calibration on {c} dropped: the people in view disagree with its scale"
+        for c in probe.distrusted
+    )
     if probe.zones:
         parts.append("zones from the scene: " + ", ".join(z.zone_id for z in probe.zones))
     cameras = dict.fromkeys(r.camera_id for r in probe.reference_probes)
@@ -698,13 +711,12 @@ class PlannerPipeline:
             concepts, inputs.camera_frames, segmenter=recorder, seed=inputs.seed
         )
         zones = scene_zones(recorder.sightings, concepts)
+        trusted = trusted_calibrations(survey.calibrations, recorder.sightings)
         seen: dict[str, list[str]] = {}
         for p in probes:
             if p.detect_rate > 0:
                 seen.setdefault(p.camera_id, []).append(p.concept)
-        cameras = metric_cameras(
-            needs, seen, calibrated=[*inputs.calibrations, *survey.calibrations]
-        )
+        cameras = metric_cameras(needs, seen, calibrated=[*inputs.calibrations, *trusted])
         tried = probe_references(
             cameras, inputs.camera_frames, segmenter=recorder, seed=inputs.seed
         )
@@ -719,6 +731,7 @@ class PlannerPipeline:
             zones=zones,
             reference_probes=tried,
             calibrations=calibrations,
+            distrusted=tuple(sorted(set(survey.calibrations) - set(trusted))),
         )
 
     def geometry(
@@ -738,7 +751,10 @@ class PlannerPipeline:
             owner_zones=inputs.zones,
             scene_zones=probe.zones,
             owner_calibrations=inputs.calibrations,
-            scene_calibrations={**survey.calibrations, **probe.calibrations},
+            scene_calibrations={
+                **{c: cal for c, cal in survey.calibrations.items() if c not in probe.distrusted},
+                **probe.calibrations,
+            },
             feasibility=feasibility,
         )
 

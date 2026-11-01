@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     glimmer_model: str = "muse-glimmer-30b"
     glimmer_quant: str = ""
     glimmer_hardware: str = ""
+    # Hosted OpenAI-compatible Glimmer (e.g. Routeway) may honour JSON mode but not a strict
+    # schema: also state the schema in a system message. Off for llama-server (grammar-enforced).
+    glimmer_schema_in_prompt: bool = False
     evidence_dir: Path = Path("./evidence")
     hf_token: SecretStr | None = None
     modal_token_id: SecretStr | None = None

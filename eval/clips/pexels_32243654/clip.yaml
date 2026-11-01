@@ -1,0 +1,18 @@
+# Pexels video 32243654 ("Warehouse operations with forklift and workers"): a forklift drives
+# toward the camera while a worker walks past close beside it. A POSITIVE candidate for the
+# proximity rule; not hand-labelled yet, so it is scored only with --include-unlabelled.
+name: pexels_32243654
+description: Forklift moving through a warehouse while a worker walks close beside it.
+camera_id: warehouse-pexels
+source:
+  url: https://www.pexels.com/download/video/32243654/?w=1280
+  sha256: b97cb9253a07209f666ea3f7e0ae44179106cba88c4ba58dff95a19238bf4ace
+duration_s: 12.16
+license: Pexels License (https://www.pexels.com/license/)
+rules:
+  - id: forklift_2m
+    request: Keep people at least 2 metres away from a moving forklift.
+    status: unlabelled
+  - id: forklift_4m
+    request: Keep people at least 4 metres away from a moving forklift.
+    status: unlabelled

@@ -44,8 +44,30 @@ from rulecam.planner.pipeline import PipelineInput, PlannerPipeline, plan_to_yam
 _log = get_logger(__name__)
 
 TARGET_VALID_OR_HONEST_RATE: Final = 0.80
+TARGET_MEAN_REPAIR_ROUNDS: Final = 1.0
 DEFAULT_RUNS_PER_REQUEST: Final = 3
 REPAIR_STRESS_RUN_IDX: Final = 2
+POSITIVE_OUTSIDE_PREFIXES: Final = ("outside:", "outsider:", "external:")
+BANNED_TEAM_INDICATORS: Final = (
+    "team-written",
+    "team written",
+    "team_written",
+    "team–written",  # noqa: RUF001
+    "team—written",
+    "internal persona",
+    "team persona",
+    "persona:",
+)
+
+
+def is_outside_author(author: str | None) -> bool:
+    """Return True only if an author has a positive outside marker and no team indicators."""
+    if not author or not author.strip():
+        return False
+    cleaned = author.strip().lower()
+    if any(banned in cleaned for banned in BANNED_TEAM_INDICATORS):
+        return False
+    return any(cleaned.startswith(p) for p in POSITIVE_OUTSIDE_PREFIXES) or cleaned.startswith("@")
 
 
 class HeldoutRequest(BaseModel):
@@ -87,8 +109,9 @@ class E3Summary(BaseModel):
     mean_repair_rounds: float
     mean_duration_s: float
     simulated: bool
-    has_outside_requests: bool = True
-    any_team_written: bool = False
+    has_outside_requests: bool = False
+    any_team_written: bool = True
+    team_written_count: int = 0
     gate_passed: bool
     runs: list[RequestRunRecord] = Field(default_factory=list)
 
@@ -447,8 +470,9 @@ def aggregate_e3(
     total_requests: int,
     *,
     simulated: bool,
-    has_outside_requests: bool = True,
-    any_team_written: bool = False,
+    has_outside_requests: bool = False,
+    any_team_written: bool = True,
+    team_written_count: int = 0,
 ) -> E3Summary:
     """Aggregate run records into summary statistics; non-outside runs never pass the gate."""
     total_runs = len(records)
@@ -466,6 +490,7 @@ def aggregate_e3(
             simulated=simulated,
             has_outside_requests=has_outside_requests,
             any_team_written=any_team_written,
+            team_written_count=team_written_count,
             gate_passed=False,
             runs=[],
         )
@@ -497,6 +522,7 @@ def aggregate_e3(
         simulated=simulated,
         has_outside_requests=has_outside_requests,
         any_team_written=any_team_written,
+        team_written_count=team_written_count,
         gate_passed=gate_unblocked,
         runs=list(records),
     )
@@ -516,6 +542,11 @@ def render_e3_markdown_table(summary: E3Summary) -> str:
         title = "### Evaluation E3: Held-Out Requests Generalisation"
         status_str = "PASS (Gate unblocked)" if summary.gate_passed else "FAIL"
 
+    repair_status = (
+        "—"
+        if summary.simulated
+        else ("PASS" if summary.mean_repair_rounds <= TARGET_MEAN_REPAIR_ROUNDS else "FAIL")
+    )
     lines = [
         title,
         "",
@@ -532,7 +563,7 @@ def render_e3_markdown_table(summary: E3Summary) -> str:
         ),
         (
             f"| **Mean Repair Rounds** | $\\le 1.0$ | "
-            f"{summary.mean_repair_rounds:.2f} rounds | {'—' if summary.simulated else 'PASS'} |"
+            f"{summary.mean_repair_rounds:.2f} rounds | {repair_status} |"
         ),
     ]
     if not summary.simulated:
@@ -548,8 +579,12 @@ def render_e3_markdown_table(summary: E3Summary) -> str:
             "These numbers are true by construction and are not evidence of generalisation.*"
         )
     elif summary.any_team_written or not summary.has_outside_requests:
+        if summary.team_written_count in (summary.total_requests, 0):
+            count_desc = f"all {summary.total_requests}"
+        else:
+            count_desc = f"{summary.team_written_count} of {summary.total_requests}"
         footnote = (
-            f"*Team-written: all {summary.total_requests} requests are team-written personas. "
+            f"*Team-written: {count_desc} requests are team-written personas. "
             "Per S-04 and W-10, gate passage requires requests written by people outside the team.*"
         )
     lines.extend(["", footnote])
@@ -589,14 +624,18 @@ def run_e3_evaluation(
             json_file.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
             yaml_file.write_text(plan_to_yaml(plan), encoding="utf-8")
 
-    any_team_written = any("team-written" in req.author.lower() for req in requests)
-    has_outside_requests = not any_team_written and len(requests) > 0
+    outside_mask = [is_outside_author(req.author) for req in requests]
+    has_outside_requests = all(outside_mask) and len(requests) > 0
+    any_team_written = not all(outside_mask)
+    team_written_count = sum(1 for is_out in outside_mask if not is_out)
+
     summary = aggregate_e3(
         records,
         len(requests),
         simulated=(pipeline is None),
         has_outside_requests=has_outside_requests,
         any_team_written=any_team_written,
+        team_written_count=team_written_count,
     )
 
     results_path.write_text(summary.model_dump_json(indent=2), encoding="utf-8")

@@ -82,6 +82,8 @@ class Settings(BaseSettings):
     rulecam_camera_names: str = ""
     # Ask's temporal memory: Glimmer captions each camera every N seconds of video; 0 = off.
     rulecam_ask_caption_every_s: float = Field(default=0.0, ge=0.0)
+    # Ask's identity memory: join track fragments by DINOv2 appearance on the GPU pod's /embed.
+    rulecam_ask_identities: bool = True
     # Evidence strips sent to Glimmer: frames per strip and their width in pixels.
     rulecam_strip_frames: int = Field(default=6, ge=1, le=12)
     rulecam_strip_max_width: int = Field(default=640, ge=320, le=1920)

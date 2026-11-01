@@ -110,6 +110,16 @@ download_checkpoint() {
   ) || die "checkpoint download failed: does the token's account have access to facebook/sam3.1?"
 }
 
+download_appearance_model() {  # DINOv2 ViT-S/14 for /embed (public, Apache-2.0)
+  local fetch="import timm; timm.create_model('vit_small_patch14_dinov2.lvd142m', pretrained=True)"
+  if HF_HUB_OFFLINE=1 "$PY" -c "$fetch" >/dev/null 2>&1; then
+    log "DINOv2 cached in $HF_HOME"
+    return
+  fi
+  log "downloading DINOv2 (vit_small_patch14_dinov2.lvd142m) into $HF_HOME"
+  "$PY" -c "$fetch" >/dev/null || log "WARNING: DINOv2 download failed; /embed will fail"
+}
+
 start_server() {
   local restart="$1"
   if [[ "$restart" == "1" ]]; then
@@ -147,6 +157,7 @@ main() {
   command -v nvidia-smi >/dev/null 2>&1 || die "no NVIDIA GPU visible (nvidia-smi missing)"
   install_venv
   download_checkpoint
+  download_appearance_model
   start_server "$restart"
 }
 

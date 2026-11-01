@@ -548,3 +548,27 @@ def test_http_worker_image_failures_are_unavailable(imaging: Running) -> None:
     worker = HttpSamWorker(HttpxTransport(imaging.url, "wrong"))
     with pytest.raises(SamRuntimeUnavailableError, match="HTTP 401"):
         worker.segment_images(IMAGES, {"concepts": ["person"]})
+
+
+class FakeEmbedder:
+    def embed(self, images: list[bytes]) -> dict[str, Any]:
+        return {"model": "fake-dinov2", "embeddings": [[float(len(i)), 0.0] for i in images]}
+
+
+def test_embed_round_trip_and_limits() -> None:
+    server = Running(FakeEngine(), embedder=FakeEmbedder())
+    try:
+        body = {"images_b64": [base64.b64encode(b"abc").decode(), base64.b64encode(b"z").decode()]}
+        reply = httpx.post(f"{server.url}/embed", json=body, headers=_auth())
+        assert reply.status_code == 200
+        assert reply.json()["embeddings"] == [[3.0, 0.0], [1.0, 0.0]]
+        assert httpx.post(f"{server.url}/embed", json=body).status_code == 401
+        too_many = {"images_b64": [base64.b64encode(b"a").decode()] * 65}
+        assert httpx.post(f"{server.url}/embed", json=too_many, headers=_auth()).status_code == 400
+    finally:
+        server.close()
+
+
+def test_embed_is_404_without_an_embedder(running: Running) -> None:
+    body = {"images_b64": [base64.b64encode(b"abc").decode()]}
+    assert httpx.post(f"{running.url}/embed", json=body, headers=_auth()).status_code == 404

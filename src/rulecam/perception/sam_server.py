@@ -17,6 +17,11 @@ The API pod reaches it through `sam_runtime.HttpSamWorker`. Routes:
   it needs no extra weights and keeps no session state. 404 when the server runs without it
   (`SAM_IMAGE=0`).
 
+- `POST /embed`: DINOv2 appearance embeddings of object crops (`appearance_worker`), same key.
+  The body is `{"images_b64": ["<base64 JPEG>", ...]}` (at most `MAX_EMBED_IMAGES`), the answer
+  `{"model": ..., "embeddings": [[...], ...]}`. The model loads on the first call and shares
+  the GPU with SAM 3.1.
+
 Errors are `{"error": {"message": ...}}` with 400 (malformed body), 401 (missing or wrong key),
 404, 411 (no `Content-Length`), 413 (body over the limit), 500 (the engine failed) or 503 (the
 queue is full; `Retry-After: 1`). One GPU serves one request at a time: other requests wait, up
@@ -59,6 +64,8 @@ IMAGE_ENV = "SAM_IMAGE"
 HEALTH_PATH = "/health"
 SEGMENT_PATH = "/segment"
 SEGMENT_IMAGE_PATH = "/segment_image"
+EMBED_PATH = "/embed"
+MAX_EMBED_IMAGES = 64
 
 _log = logging.getLogger("rulecam.sam_server")
 
@@ -184,6 +191,31 @@ def parse_segment_image_body(body: bytes) -> tuple[list[bytes], dict[str, Any]]:
     return [_b64(item, "images_b64") for item in encoded], request
 
 
+class Embedder(Protocol):
+    """What `/embed` needs (`appearance_worker.DinoEmbedder`)."""
+
+    def embed(self, images: list[bytes]) -> dict[str, Any]:
+        """Embed encoded crops."""
+        ...
+
+
+def parse_embed_body(body: bytes) -> list[bytes]:
+    """Decode a `/embed` body into the crops.
+
+    Raises:
+        BadRequestError: Not JSON, no `images_b64` list, too many images, or bad base64.
+    """
+    data = _json_object(body)
+    images = data.get("images_b64")
+    if not isinstance(images, list) or not images or len(images) > MAX_EMBED_IMAGES:
+        msg = f"images_b64 must be a list of 1 to {MAX_EMBED_IMAGES} base64 images"
+        raise BadRequestError(msg)
+    try:
+        return [base64.b64decode(str(item), validate=True) for item in images]
+    except (binascii.Error, ValueError) as exc:
+        raise BadRequestError("images_b64 holds invalid base64") from exc
+
+
 def _json_object(body: bytes) -> dict[str, Any]:
     try:
         payload = json.loads(body)
@@ -234,6 +266,7 @@ class SamHTTPServer(ThreadingHTTPServer):
         max_waiting: int = DEFAULT_MAX_WAITING,
         image_engine: ImageEngine | None = None,
         image_max_waiting: int = DEFAULT_IMAGE_MAX_WAITING,
+        embedder: Embedder | None = None,
     ) -> None:
         """Bind the server.
 
@@ -245,6 +278,7 @@ class SamHTTPServer(ThreadingHTTPServer):
             max_waiting: Video calls allowed to wait for the GPU.
             image_engine: Serves `/segment_image` (runtime keyframes); `None` answers 404 there.
             image_max_waiting: Image calls allowed to wait for the GPU.
+            embedder: Serves `/embed` (appearance re-identification); `None` answers 404 there.
 
         Raises:
             ValueError: If `api_key` is empty.
@@ -260,6 +294,8 @@ class SamHTTPServer(ThreadingHTTPServer):
         self.slot = GpuSlot(max_waiting, gpu)
         self.image_engine = image_engine
         self.image_slot = GpuSlot(image_max_waiting, gpu)
+        self.embedder = embedder
+        self.embed_slot = GpuSlot(image_max_waiting, gpu)
 
     def handle_error(self, request: Any, client_address: Any) -> None:  # noqa: ARG002
         """Log a failed connection instead of printing a traceback to stderr.
@@ -304,6 +340,9 @@ class SamRequestHandler(BaseHTTPRequestHandler):
         if self.path == SEGMENT_IMAGE_PATH and self.server.image_engine is not None:
             self._segment_images(self.server.image_engine)
             return
+        if self.path == EMBED_PATH and self.server.embedder is not None:
+            self._embed(self.server.embedder)
+            return
         if self.path != SEGMENT_PATH:
             self._error(HTTPStatus.NOT_FOUND, "not found")
             return
@@ -331,6 +370,17 @@ class SamRequestHandler(BaseHTTPRequestHandler):
             self.server.image_slot, lambda: engine.segment_images(images, request), "sam_images"
         )
 
+    def _embed(self, embedder: Embedder) -> None:
+        body = self._read_body()
+        if body is None:
+            return
+        try:
+            images = parse_embed_body(body)
+        except BadRequestError as exc:
+            self._error(HTTPStatus.BAD_REQUEST, str(exc))
+            return
+        self._run(self.server.embed_slot, lambda: embedder.embed(images), "embed")
+
     def _run(self, slot: GpuSlot, work: Callable[[], dict[str, Any]], name: str) -> None:
         if not slot.try_admit():
             self._error(HTTPStatus.SERVICE_UNAVAILABLE, "GPU queue is full", retry_after=True)
@@ -347,7 +397,7 @@ class SamRequestHandler(BaseHTTPRequestHandler):
         _log.info(
             "%s objects=%d ms=%d",
             name,
-            len(response.get("objects", ())),
+            len(response.get("objects", response.get("embeddings", ()))),
             round((time.perf_counter() - started) * 1000),
         )
         self._send(HTTPStatus.OK, response)
@@ -409,6 +459,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
     Args:
         argv: Command-line arguments (defaults to `sys.argv[1:]`).
     """
+    from rulecam.perception.appearance_worker import DinoEmbedder  # noqa: PLC0415
     from rulecam.perception.sam_worker import Sam31Engine, Sam31ImageEngine  # noqa: PLC0415
 
     parser = argparse.ArgumentParser(description="Serve self-hosted SAM 3.1 over HTTP.")
@@ -431,6 +482,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
         max_waiting=int(os.environ.get(MAX_WAITING_ENV, DEFAULT_MAX_WAITING)),
         image_engine=Sam31ImageEngine.from_video_engine(engine) if image_on else None,
         image_max_waiting=int(os.environ.get(IMAGE_MAX_WAITING_ENV, DEFAULT_IMAGE_MAX_WAITING)),
+        embedder=DinoEmbedder(),
     )
     _log.info("sam_serving port=%d", args.port)
     server.serve_forever()

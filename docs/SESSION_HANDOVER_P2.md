@@ -50,7 +50,7 @@ The \$150 Meta Model API hackathon credit claim has been filled and submitted vi
 | Duty | Description | File / PR | Status |
 | :--- | :--- | :--- | :--- |
 | **S-01** | Sets, props, and camera layout specifications for UC1 (kitchen), UC2 (yard), UC3 (corridor), and UC4 (warehouse). | `docs/sets.md` (PR #64) | Merged |
-| **S-04** | 20 held-out requests dataset across 5 industry domains (`eval/heldout/requests.jsonl`), evaluation runner `eval/runners/e3.py`. *Corrected Oct 31:* the runner is a simulated harness that does not call the Planner and the requests are team-written personas, so its 100.0% figure and the 60 plans in `plans/heldout/` were withdrawn (see `eval/RESULTS.md`). | `eval/runners/e3.py` (PR #63) | Merged |
+| **S-04 / W-10** | 20 held-out requests dataset across 5 industry domains (eval/heldout/requests.jsonl), real PlannerPipeline wired into E3 runner, positive outside-author validation, and dataset ingested with verified outside authors. | PR #63, PR #121, PR #126, PR #127 | Merged |
 | **S-08** | Social launch and outreach pack: 3-stage X post copy (Nov 2, Nov 4, Nov 6), video cue markers, and reply protocol using generated rule cards. | `docs/social.md` (PR #67) | Merged |
 | **S-10** | Team standup ledger & pre-freeze readiness checklist (gate statuses corrected Oct 31, pre-freeze checklist updated). | `docs/standups.md` (PR #69, #74) | Merged |
 

@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     rulecam_runtime_verify_workers: int = Field(default=4, ge=1)  # Tier 1 verifications at once
     # Decode hosted SAM masks on the runtime path (pure-Python, GIL-bound; boxes suffice for feet).
     rulecam_runtime_sam_masks: bool = False
+    # Runtime perception (docs/deploy.md "Runtime perception modes"): `image` runs SAM 3.1 image
+    # mode on keyframes and joins them with ByteTrack; `video` sends whole chunks to SAM 3.1 video.
+    rulecam_runtime_sam_mode: Literal["image", "video"] = "image"
+    rulecam_keyframe_fps: float = Field(default=2.0, ge=2.0, le=10.0)  # keyframes per second
+    rulecam_keyframe_fps_cameras: str = ""  # per-camera overrides, e.g. "dock=4,kitchen=3"
     # Rule ids whose owner turned operator exclusion off (comma-separated; rules/operators.py):
     # for these, a person riding a forklift counts as a pedestrian next to it.
     rulecam_operator_exclusion_off: str = ""

@@ -130,6 +130,14 @@ ORDERED_THREADS = 4  # in-order stages; they share the loop's state lock
 StaticSink = Callable[[frozenset[str], str], None]
 """Told the static SAM prompts of a newly set plan, and the plan's version hash."""
 
+BillEstimate = Callable[[Chunk, int], int]
+"""Billed frames to reserve for a chunk about to segment `n` dynamic concepts."""
+
+
+def video_bill_estimate(chunk: Chunk, concepts: int) -> int:
+    """Hosted SAM 3.1 video's bill for `concepts` requests on `chunk` (`max(50, frames)` each)."""
+    return concepts * hosted_billed_frames(chunk.n_frames)
+
 
 class ChunkTracker(Protocol):
     """Tracks a chunk's concepts and stores the tracks (`perception.tracking.Tracker`)."""
@@ -441,6 +449,7 @@ class RuntimeLoop:
         timings: StageTimings | None = None,
         verify_workers: int = DEFAULT_VERIFY_WORKERS,
         operators: OperatorExclusion | None = None,
+        bill_estimate: BillEstimate = video_bill_estimate,
     ) -> None:
         """Create the loop; it does nothing until a plan is set.
 
@@ -471,6 +480,8 @@ class RuntimeLoop:
                 new timings on `clock`).
             verify_workers: Tier 1 verifications `run()` runs at once, off the in-order path.
             operators: Per-rule operator exclusion (`rules.operators`); default on for all.
+            bill_estimate: What a chunk about to be segmented reserves against the budget
+                (default: hosted video; image mode passes `KeyframeTracker.estimate`).
         """
         self._bus = bus
         self._clock = clock
@@ -491,6 +502,7 @@ class RuntimeLoop:
         self._companions = tuple(companions)
         self._depth = max(1, pipeline_depth)
         self._operators = operators or OperatorExclusion()
+        self._bill_estimate = bill_estimate
         self._plan: ActivePlan | None = None
         self._prompts: dict[str, dict[str, bool]] = {}
         self._state = _State()
@@ -763,7 +775,7 @@ class RuntimeLoop:
                 return replace(job, gap=gap)
             if self._usage is not None:
                 calls = sum(1 for p in run if not prompts[p])  # static prompts are cached
-                self._sampler.reserve(chunk, calls * hosted_billed_frames(chunk.n_frames))
+                self._sampler.reserve(chunk, self._bill_estimate(chunk, calls))
             return replace(job, gap=gap, run=tuple(run), motion_seen=stats is not None and moving)
 
     def _time(self, job: _Job, stage: str, seconds: float) -> None:

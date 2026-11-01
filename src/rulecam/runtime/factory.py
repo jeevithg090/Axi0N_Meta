@@ -6,7 +6,14 @@ self-hosted worker (our own GPU pod when `SAM_BASE_URL` is set, otherwise Modal)
 `ParquetTrackStore` shared by the runtime loop and the correction loop. `build_runtime` adds the
 `Tracker`, the Tier 1 Glimmer verifier and the evidence chain around them.
 
-On the runtime path the tracker's segmenter is, from the outside in: `StaticServedSegmenter`
+`RULECAM_RUNTIME_SAM_MODE` picks the runtime perception. `image` (the default, PLAN-9.5 WS2b):
+`KeyframeTracker` segments 2 to 4 keyframes per second per camera (`RULECAM_KEYFRAME_FPS`,
+`RULECAM_KEYFRAME_FPS_CAMERAS`) with SAM 3.1 image mode, self-hosted (`POST /segment_image`
+on our GPU pod) with hosted image requests as the fallback (`router.keyframe_chain`), and joins
+them into tracks with ByteTrack; it is its own static cache, cost meter and budget estimate.
+`video` keeps the chain below, which probes, Rule CI and evidence re-checks use in any mode.
+
+In video mode the tracker's segmenter is, from the outside in: `StaticServedSegmenter`
 (static concepts from the static cache, no SAM call) -> `CallMeter` (requests and billed frames
 per camera, for the loop's budget and `/runtime/metrics`) -> `LimitedSegmenter` (at most
 `RULECAM_SAM_MAX_CONCURRENCY` SAM calls open at once, queue time timed) -> the router's runtime
@@ -52,6 +59,8 @@ from rulecam.contracts import (
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.log import get_logger
 from rulecam.perception.errors import SamRuntimeError
+from rulecam.perception.keyframe_tracker import KeyframeTracker
+from rulecam.perception.keyframes import HostedKeyframes, KeyframeRates, SelfHostedKeyframes
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.perception.motion_gate import MotionGate
 from rulecam.perception.router import (
@@ -60,14 +69,29 @@ from rulecam.perception.router import (
     Purpose,
     RoutingPolicy,
     SegmenterRouter,
+    keyframe_chain,
 )
-from rulecam.perception.sam_runtime import HttpSamWorker, ModalSam31, ModalWorker, SamWorker
-from rulecam.perception.static_cache import StaticServedSegmenter
+from rulecam.perception.sam_runtime import (
+    HttpSamWorker,
+    ModalSam31,
+    ModalWorker,
+    SamImageWorker,
+    SamWorker,
+)
+from rulecam.perception.static_cache import StaticCache, StaticServedSegmenter
 from rulecam.perception.tracking import Tracker
 from rulecam.replay.cache import ReplayCache
 from rulecam.rules.operators import OperatorExclusion
 from rulecam.rules.store import ParquetTrackStore
-from rulecam.runtime.loop import RuntimeLoop, chunk_end
+from rulecam.runtime.loop import (
+    BillEstimate,
+    ChunkTracker,
+    RuntimeLoop,
+    SamUsage,
+    StaticSink,
+    chunk_end,
+    video_bill_estimate,
+)
 from rulecam.runtime.sampling import SamplingPolicy
 from rulecam.runtime.strips import EpisodeStrips, face_detector
 from rulecam.runtime.timings import StageTimings
@@ -221,6 +245,7 @@ class Perception:
     store: LockedTrackStore
     chunks: ChunkIndex
     runtime_hosted: HostedSam31 | None = None  # the runtime path's view of `hosted`
+    image_worker: SamImageWorker | None = None  # our GPU pod's `/segment_image`, if configured
 
 
 def self_hosted_worker(settings: Settings) -> tuple[SamWorker, str] | None:
@@ -278,6 +303,7 @@ def build_perception(
         store=store,
         chunks=ChunkIndex(metrics),
         runtime_hosted=runtime_hosted,
+        image_worker=worker if picked is not None and isinstance(worker, HttpSamWorker) else None,
     )
 
 
@@ -304,30 +330,19 @@ def build_runtime(
         The loop, with placeholder policy and actions until P3-05 and P3-06.
     """
     timings = StageTimings()
-    if perception.runtime_hosted is not None:
-        perception.runtime_hosted.set_stage_sink(timings.record)
-    limited = LimitedSegmenter(
-        perception.router.for_purpose(Purpose.RUNTIME),
-        settings.rulecam_sam_max_concurrency,
-        timings=timings,
+    picked = (
+        _image_tracker(settings, perception, clock=clock, bus=bus, timings=timings)
+        if settings.rulecam_runtime_sam_mode == "image"
+        else _video_tracker(settings, perception, bus=bus, timings=timings)
     )
-    meter = CallMeter(limited)
-    served = StaticServedSegmenter(meter)
-    depth = settings.rulecam_runtime_pipeline_depth
-    tracker = Tracker(
-        served,
-        store=perception.store,
-        bus=bus,
-        reprompt=depth == 1,
-        max_workers=settings.rulecam_runtime_concept_workers,
-    )
+    _log.info("runtime_perception", mode=settings.rulecam_runtime_sam_mode)
     verifier = GlimmerVerifier(
         GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
     )
     return RuntimeLoop(
         bus=bus,
         clock=clock,
-        tracker=tracker,
+        tracker=picked.tracker,
         store=perception.store,
         verifier=verifier,
         policy=VerifyOnlyPolicy(),
@@ -341,11 +356,94 @@ def build_runtime(
         chain=chain,
         sampling=SamplingPolicy.from_settings(settings),
         motion_gate=MotionGate(),  # camera time is recorded by `ChunkIndex`, not twice here
-        usage=meter,
-        static_sink=lambda concepts, version: served.set_static(concepts, generation=version),
-        companions=(lambda: served.cache.run(bus),),
-        pipeline_depth=depth,
+        usage=picked.usage,
+        static_sink=picked.static_sink,
+        companions=(lambda: picked.static_cache.run(bus),),
+        pipeline_depth=settings.rulecam_runtime_pipeline_depth,
         timings=timings,
         verify_workers=settings.rulecam_runtime_verify_workers,
         operators=OperatorExclusion.from_csv(settings.rulecam_operator_exclusion_off),
+        bill_estimate=picked.bill_estimate,
+    )
+
+
+@dataclass(frozen=True)
+class RuntimeTracker:
+    """The runtime loop's perception side, for one `RULECAM_RUNTIME_SAM_MODE`."""
+
+    tracker: ChunkTracker
+    usage: SamUsage
+    static_sink: StaticSink
+    static_cache: StaticCache
+    bill_estimate: BillEstimate
+
+
+def _video_tracker(
+    settings: Settings, perception: Perception, *, bus: Bus, timings: StageTimings
+) -> RuntimeTracker:
+    """Video mode: SAM 3.1 video per chunk through the router, IoU hand-off between chunks."""
+    if perception.runtime_hosted is not None:
+        perception.runtime_hosted.set_stage_sink(timings.record)
+    limited = LimitedSegmenter(
+        perception.router.for_purpose(Purpose.RUNTIME),
+        settings.rulecam_sam_max_concurrency,
+        timings=timings,
+    )
+    meter = CallMeter(limited)
+    served = StaticServedSegmenter(meter)
+    tracker = Tracker(
+        served,
+        store=perception.store,
+        bus=bus,
+        reprompt=settings.rulecam_runtime_pipeline_depth == 1,
+        max_workers=settings.rulecam_runtime_concept_workers,
+    )
+    return RuntimeTracker(
+        tracker=tracker,
+        usage=meter,
+        static_sink=lambda concepts, version: served.set_static(concepts, generation=version),
+        static_cache=served.cache,
+        bill_estimate=video_bill_estimate,
+    )
+
+
+def _image_tracker(
+    settings: Settings, perception: Perception, *, clock: Clock, bus: Bus, timings: StageTimings
+) -> RuntimeTracker:
+    """Image mode: SAM 3.1 image keyframes (self-hosted, then hosted) joined by ByteTrack."""
+    metrics = perception.metrics
+    hosted = HostedKeyframes(
+        perception.runtime_hosted or perception.hosted,
+        max_concurrency=settings.rulecam_sam_max_concurrency,
+        metrics=metrics,
+        timings=timings.record,
+    )
+    worker = perception.image_worker
+    self_hosted = (
+        SelfHostedKeyframes(worker, bus=bus, metrics=metrics, timings=timings.record)
+        if worker is not None
+        else None
+    )
+
+    def on_fallback(camera_id: str, error: SamRuntimeError) -> None:  # noqa: ARG001 - hook signature
+        metrics.record_fallback(camera_id)
+
+    keyframes = keyframe_chain(
+        hosted, self_hosted, policy=perception.router.policy, clock=clock, on_fallback=on_fallback
+    )
+    tracker = KeyframeTracker(
+        keyframes,
+        rates=KeyframeRates.parse(
+            settings.rulecam_keyframe_fps, settings.rulecam_keyframe_fps_cameras
+        ),
+        store=perception.store,
+        bus=bus,
+        timings=timings,
+    )
+    return RuntimeTracker(
+        tracker=tracker,
+        usage=tracker,
+        static_sink=lambda concepts, version: tracker.set_static(concepts, generation=version),
+        static_cache=tracker.cache,
+        bill_estimate=tracker.estimate,
     )

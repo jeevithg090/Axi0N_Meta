@@ -77,6 +77,7 @@ from rulecam.ask import (
     open_tables,
     planner_profiles,
 )
+from rulecam.ask.identity import IdentityMemory, gpu_embedder
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
 from rulecam.clients.errors import ClientConfigError
@@ -765,7 +766,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     planner = build_planner(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, plans=plans, site=site
     )
-    ask_agent, captions = build_ask(
+    ask_agent, ask_tickers = build_ask(
         settings, cache=cache, clock=clock, bus=bus, perception=perception
     )
     origins = viewer_origins(settings.public_ui_url)
@@ -796,7 +797,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         tickers=(
             *response.tickers,
             *((watch.tick,) if watch is not None else ()),
-            *((captions.tick,) if captions is not None else ()),
+            *ask_tickers,
         ),
         response=response.status,
         cost=watch.report if watch is not None else None,
@@ -821,23 +822,24 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
 
 def build_ask(
     settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus, perception: Perception
-) -> tuple[AskAgent | None, CaptionMemory | None]:
-    """The `POST /ask` agent and its caption memory: Spark plans, SAM 3.1 counts, Glimmer looks.
+) -> tuple[AskAgent | None, tuple[Callable[[], object], ...]]:
+    """The `POST /ask` agent and its memories' tickers: Spark plans, SAM counts, Glimmer looks.
 
     Served in prototype mode only: it reads per-track spans (dwell time per tracked person). The
-    caption memory runs when `RULECAM_ASK_CAPTION_EVERY_S` is above 0.
+    caption memory runs when `RULECAM_ASK_CAPTION_EVERY_S` is above 0; the identity memory
+    (DINOv2 re-identification on the GPU pod) when `SAM_BASE_URL` and `SAM_API_KEY` are set.
 
     Returns:
-        The agent and the memory; `(None, None)` (logged) outside prototype mode or without a
+        The agent and the tickers; `(None, ())` (logged) outside prototype mode or without a
         Spark key, and `/ask` then answers 503.
     """
     if not settings.rulecam_prototype_mode:
-        return None, None
+        return None, ()
     try:
         spark = SparkClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
     except ClientConfigError as exc:
         _log.warning("ask_disabled", error=str(exc))
-        return None, None
+        return None, ()
     glimmer = GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
     ask_dir = settings.rulecam_data_dir / "ask"
     frames = FrameGrabber(perception.chunks, ask_dir / "frames")
@@ -857,12 +859,28 @@ def build_ask(
         if every > 0
         else None
     )
+    identity = None
+    if settings.rulecam_ask_identities and settings.sam_base_url and settings.sam_api_key:
+        identity = IdentityMemory(
+            tracks_root=settings.rulecam_data_dir / "tracks",
+            frames=frames,
+            embed=gpu_embedder(settings.sam_base_url, settings.sam_api_key.get_secret_value()),
+            glimmer=glimmer,
+            glimmer_model=glimmer.model,
+            out_dir=ask_dir / "identity",
+            site_profile=settings.rulecam_site_profile,
+        )
     agent = AskAgent(
         spark=spark,
         segmenter=perception.hosted,
         glimmer=glimmer,
         glimmer_model=glimmer.model,
-        tables=open_tables(settings.rulecam_data_dir / "tracks", ask_dir / "captions.jsonl"),
+        tables=open_tables(
+            settings.rulecam_data_dir / "tracks",
+            ask_dir / "captions.jsonl",
+            identity.identities_path if identity is not None else None,
+            identity.notes_path if identity is not None else None,
+        ),
         frames=frames,
         clock=clock,
         timezone=settings.rulecam_site_timezone,
@@ -872,7 +890,7 @@ def build_ask(
         caption_every_s=every,
         marks_dir=ask_dir / "marked",
     )
-    return agent, memory
+    return agent, tuple(m.tick for m in (memory, identity) if m is not None)
 
 
 def cost_watch(

@@ -9,7 +9,9 @@ are `TIMESTAMP` in UTC, without a zone):
 - `track_spans`: one row per track: `track_id, camera_id, concept, first_seen, last_seen,
   seconds, points`;
 - `captions`: what Muse Glimmer saw on each camera every few seconds (`ask.memory`):
-  `camera_id, t0, t1, caption, people, events`.
+  `camera_id, t0, t1, caption, people, events`;
+- `track_identity`, `identity_spans`, `identity_notes`: track fragments joined into identities
+  by appearance (`ask.identity`), each identity's span, and Glimmer's note on each person.
 
 After the snapshot the connection loses file access (`enable_external_access = false`, locked),
 so a query can read these tables and nothing else. Only one `SELECT` or `WITH` statement runs;
@@ -19,6 +21,7 @@ results are capped at `MAX_ROWS` rows.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
@@ -80,12 +83,20 @@ def _cell(value: object) -> object:
 class TrackTables:
     """A per-question snapshot of the track store in DuckDB."""
 
-    def __init__(self, root: Path, captions: Path | None = None) -> None:
-        """Snapshot every Parquet partition under `root` (and the captions) and lock file access.
+    def __init__(
+        self,
+        root: Path,
+        captions: Path | None = None,
+        identities: Path | None = None,
+        notes: Path | None = None,
+    ) -> None:
+        """Snapshot the track store and the memories, then lock file access.
 
         Args:
             root: The track store's directory (`<data>/tracks`).
             captions: The caption memory's JSON-lines file, if any.
+            identities: The identity memory's track -> identity file, if any.
+            notes: The identity notes file, if any.
         """
         self._con = duckdb.connect()
         self._con.execute("SET TimeZone = 'UTC'")
@@ -120,8 +131,58 @@ class TrackTables:
                 "CREATE TABLE captions (camera_id VARCHAR, t0 TIMESTAMP, t1 TIMESTAMP, "
                 "caption VARCHAR, people BIGINT, events VARCHAR[])"
             )
+        self._json_table(
+            "track_identity",
+            identities,
+            "track_id VARCHAR, camera_id VARCHAR, concept VARCHAR, identity_id VARCHAR, "
+            "similarity DOUBLE, threshold DOUBLE",
+        )
+        self._json_table(
+            "identity_notes",
+            notes,
+            "identity_id VARCHAR, role VARCHAR, description VARCHAR, carrying VARCHAR",
+        )
+        self._con.execute(
+            "CREATE TABLE identity_spans AS SELECT i.identity_id, i.camera_id, i.concept, "
+            "min(s.first_seen) AS first_seen, max(s.last_seen) AS last_seen, "
+            "epoch(max(s.last_seen)) - epoch(min(s.first_seen)) AS seconds, "
+            "count(*) AS fragments, sum(s.seconds) AS seen_seconds "
+            "FROM track_identity i JOIN track_spans s USING (track_id) "
+            "GROUP BY i.identity_id, i.camera_id, i.concept"
+        )
         self._con.execute("SET enable_external_access = false")
         self._con.execute("SET lock_configuration = true")
+
+    def _json_table(self, name: str, path: Path | None, columns: str) -> None:
+        """Load a JSON-lines file as table `name`, or create it empty with `columns`."""
+        if path is not None and path.is_file() and path.stat().st_size:
+            source = path.as_posix().replace("'", "''")
+            self._con.execute(
+                f"CREATE TABLE {name} AS SELECT * FROM "  # noqa: S608 - constant name and path
+                f"read_json_auto('{source}', format = 'newline_delimited')"
+            )
+        else:
+            self._con.execute(f"CREATE TABLE {name} ({columns})")
+
+    def query_params(self, sql: str, params: Sequence[object]) -> list[tuple[object, ...]]:
+        """Run a fixed internal query with parameters and return the raw rows."""
+        return self._con.execute(sql, list(params)).fetchall()
+
+    def track_samples(
+        self, track_id: str, n: int
+    ) -> list[tuple[datetime, tuple[float, float, float, float]]]:
+        """Up to `n` points of a track, spread evenly over it: `(UTC instant, box)`."""
+        rows = self._con.execute(
+            "SELECT ts, x1, y1, x2, y2 FROM track_points WHERE track_id = ? ORDER BY ts",
+            [track_id],
+        ).fetchall()
+        if not rows:
+            return []
+        picks = sorted({round(k * (len(rows) - 1) / max(1, n - 1)) for k in range(n)})
+        return [
+            (rows[i][0].replace(tzinfo=UTC), (rows[i][1], rows[i][2], rows[i][3], rows[i][4]))
+            for i in picks
+        ]
 
     def close(self) -> None:
         """Close the snapshot."""

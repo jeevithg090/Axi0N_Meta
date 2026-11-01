@@ -98,6 +98,15 @@ reliable. To ask about an area (a lane, a door, a shelf), find its box with coun
 look and filter on the foot point yourself.
 - track_spans(track_id, camera_id, concept, first_seen, last_seen, seconds, points): one row per \
 track.
+- track_identity(track_id, camera_id, concept, identity_id, similarity, threshold): track \
+fragments joined into identities by appearance (DINOv2 re-identification of each track's \
+crops; similarity is how alike the fragment was to its identity, threshold the bar learned \
+from objects seen at the same time). identity_spans(identity_id, camera_id, concept, \
+first_seen, last_seen, seconds, fragments, seen_seconds) summarises each identity. Use \
+identities, not track_ids, for unique visitors and dwell time; tracks still being recorded \
+have no identity yet.
+- identity_notes(identity_id, role, description, carrying): Muse Glimmer's note on each \
+person identity (customer or staff, clothing, what they carry).
 - captions(camera_id, t0, t1, caption, people, events): the temporal memory. What Muse Glimmer \
 saw on each camera every {caption_s}; search them with ILIKE and read them for "what happened" \
 and summary questions.
@@ -309,9 +318,14 @@ def _instants(times: Sequence[str]) -> list[datetime]:
     return [t if t.tzinfo is not None else t.replace(tzinfo=UTC) for t in parsed]
 
 
-def open_tables(root: Path, captions: Path | None = None) -> Callable[[], TrackTables]:
-    """A factory of fresh snapshots of the track store at `root` (and the captions file)."""
-    return lambda: TrackTables(root, captions)
+def open_tables(
+    root: Path,
+    captions: Path | None = None,
+    identities: Path | None = None,
+    notes: Path | None = None,
+) -> Callable[[], TrackTables]:
+    """A factory of fresh snapshots of the track store at `root` and the memories' files."""
+    return lambda: TrackTables(root, captions, identities, notes)
 
 
 def camera_names(text: str) -> dict[str, str]:

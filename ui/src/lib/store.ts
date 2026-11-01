@@ -11,6 +11,7 @@ import type {
   VerdictNew,
   VerifierVerdict,
 } from "./events";
+import type { Alert, RuleCIReport, StationCoach, StationProgress, SurpriseEvent } from "./ops";
 import type { PlannerStepFrame, SitePlan, StepStatus } from "./plan";
 import { emptyRelay, reduceRelay, type RelayState } from "./relay";
 
@@ -44,6 +45,10 @@ export interface UiState {
   coverage: Record<string, string>; // camera_id → state
   plans: Record<string, PlanEntry>;
   planner: PlannerProgress;
+  alerts: Alert[]; // newest first
+  ci: Record<string, RuleCIReport>; // rule_id → latest report
+  surprises: SurpriseEvent[]; // newest first
+  station: Record<string, { coach?: StationCoach; progress?: StationProgress }>; // camera_id →
 }
 
 export const initialState: UiState = {
@@ -55,6 +60,10 @@ export const initialState: UiState = {
   coverage: {},
   plans: {},
   planner: { planId: null, steps: {} },
+  alerts: [],
+  ci: {},
+  surprises: [],
+  station: {},
 };
 
 export type Action =
@@ -63,7 +72,25 @@ export type Action =
   | { type: "mode"; mode: ModeChanged }
   | { type: "plan-loaded"; plan: SitePlan; approved: boolean }
   | { type: "plan-approved"; planId: string }
-  | { type: "reset" };
+  | { type: "reset" }
+  | { type: "alerts-loaded"; alerts: Alert[] }
+  | { type: "alert-status"; eventId: string; status: Alert["status"] };
+
+function upsertAlert(alerts: Alert[], alert: Alert): Alert[] {
+  const rest = alerts.filter((a) => a.alert_id !== alert.alert_id);
+  return [alert, ...rest].slice(0, MAX_EVENTS);
+}
+
+function withStation(
+  state: UiState,
+  cameraId: string,
+  patch: { coach?: StationCoach; progress?: StationProgress },
+): UiState {
+  return {
+    ...state,
+    station: { ...state.station, [cameraId]: { ...state.station[cameraId], ...patch } },
+  };
+}
 
 /** The newer of two versions of one plan (a reload must not undo a `plan.updated`). */
 function newer(a: SitePlan | null | undefined, b: SitePlan): SitePlan {
@@ -133,6 +160,25 @@ function reduceFrame(state: UiState, frame: Frame): UiState {
         })),
       };
     }
+    case "alert.new":
+      return { ...state, alerts: upsertAlert(state.alerts, frame.payload as Alert) };
+    case "station.coach": {
+      const coach = frame.payload as StationCoach;
+      return withStation(state, coach.camera_id, { coach });
+    }
+    case "station.progress": {
+      const progress = frame.payload as StationProgress;
+      return withStation(state, progress.camera_id, { progress });
+    }
+    case "ci.result": {
+      const { rule_id, report } = frame.payload as { rule_id: string; report: RuleCIReport };
+      return { ...state, ci: { ...state.ci, [rule_id]: report } };
+    }
+    case "surprise.new": {
+      const event = frame.payload as SurpriseEvent;
+      const rest = state.surprises.filter((s) => s.event_id !== event.event_id);
+      return { ...state, surprises: [event, ...rest].slice(0, MAX_EVENTS) };
+    }
     case "plan.updated":
       return withPlan(state, frame.payload as SitePlan, false);
     case "planner.step":
@@ -158,6 +204,15 @@ export function reducer(state: UiState, action: Action): UiState {
       return { ...state, mode: action.mode.mode, badge: action.mode.badge };
     case "plan-loaded":
       return withPlan(state, action.plan, action.approved);
+    case "alerts-loaded":
+      return { ...state, alerts: action.alerts.reduceRight(upsertAlert, state.alerts) };
+    case "alert-status":
+      return {
+        ...state,
+        alerts: state.alerts.map((a) =>
+          a.event_id === action.eventId ? { ...a, status: action.status } : a,
+        ),
+      };
     case "plan-approved": {
       const entry = state.plans[action.planId];
       return entry ? withPlan(state, entry.latest, true) : state;

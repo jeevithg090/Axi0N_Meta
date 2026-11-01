@@ -10,13 +10,7 @@ import {
   type GoldenRun,
   type GoldenVerification,
 } from "@/fixtures/golden";
-import {
-  decisionText,
-  goldenActions,
-  goldenCandidates,
-  plural,
-  VERDICT_TEXT,
-} from "@/lib/golden";
+import { decisionText, goldenActions, goldenCandidates, plural, VERDICT_TEXT } from "@/lib/golden";
 import { useDemo, useGolden } from "@/lib/stream";
 
 function Check({ ok, children }: { ok: boolean; children: ReactNode }) {
@@ -29,8 +23,8 @@ function CandidateStory({ run, v }: { run: GoldenRun; v: GoldenVerification }) {
     <div data-testid="golden-candidate">
       <p>
         <strong>{v.rule_id}</strong> fired on {run.camera_id}
-        {v.measurement ? ` at ${v.measurement.value.toFixed(2)} ${v.measurement.unit}` : ""} (severity{" "}
-        {v.severity}).
+        {v.measurement ? ` at ${v.measurement.value.toFixed(2)} ${v.measurement.unit}` : ""}{" "}
+        (severity {v.severity}).
       </p>
       {candidate && <StripFrames paths={candidate.strip_paths} />}
       <p>
@@ -95,7 +89,9 @@ function GoldenStory({ run }: { run: GoldenRun }) {
           </p>
         ))}
         <ul>
-          <Check ok={plan.rule_hashes_match_run}>The runtime ran exactly these rules (hashes)</Check>
+          <Check ok={plan.rule_hashes_match_run}>
+            The runtime ran exactly these rules (hashes)
+          </Check>
           {plan.rules.map((rule) => (
             <Check key={rule.id} ok={rule.canonical}>
               {rule.id} is in its canonical form
@@ -143,8 +139,8 @@ function GoldenStory({ run }: { run: GoldenRun }) {
             Verify it in your browser
           </a>{" "}
           <span className="muted">
-            (your browser recomputes every SHA-256 of the{" "}
-            <a href={run.chain_url}>chain file</a>; nothing is trusted from a server)
+            (your browser recomputes every SHA-256 of the <a href={run.chain_url}>chain file</a>;
+            nothing is trusted from a server)
           </span>
         </p>
       </section>
@@ -167,9 +163,7 @@ export default function DemoPage() {
     return (
       <section className="golden" aria-label="Golden runs">
         <h2>Golden runs</h2>
-        <p>
-          Golden runs are recorded live runs that replay with no model calls, labelled REPLAY.
-        </p>
+        <p>Golden runs are recorded live runs that replay with no model calls, labelled REPLAY.</p>
         <ul>
           {GOLDEN_RUNS.map((run) => (
             <li key={run.name}>

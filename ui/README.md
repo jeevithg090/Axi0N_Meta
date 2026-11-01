@@ -38,3 +38,15 @@ npm run lint && npm run typecheck && npm test -- --run
   - Approve, and a **diff** against the last approved version (rules added, removed or changed,
     plus settings) with *Approve vN* / *Keep vN-1*.
 - `?demo=1` works on every screen: recorded UC1 frames plus a v1 (approved) and v2 (proposed) plan.
+- **Alerts PWA** (`/alerts`, phone-first): your role is remembered on the device; each alert has big
+  *On my way* / *False alarm* / *Escalate* buttons (`POST /alerts/{id}/respond`) and its escalation
+  timeline from `action.done`.
+- **Station display** (`/station/<camera>`, the sink tablet): a huge countdown driven by
+  `station.progress` ("12 / 20 s"), frozen red at "8 / 20 s · Too short" on a failed wash, plus the
+  coaching line from `station.coach`.
+- **Rule CI** (`/ci`): per rule, from `ci.result` — boundary traces, mutations, scenes, lookalikes
+  (and what fooled it, with the fix), injection signs, the alert forecast against the budget.
+- **Card gallery** (`/cards`): rule cards with their CI numbers, and declined cards that show the
+  reason and alternative but **never the request text**.
+- **Surprise Lens** (`/surprise`): the z-score curve with its alert line, the SAM labels at the hot
+  spot, and *Draft a rule from this* (`POST /surprise/{id}/suggest`). Surprise never cuts power.

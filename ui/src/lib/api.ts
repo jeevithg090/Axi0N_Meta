@@ -4,6 +4,7 @@
 // sends the session's CSRF token (`setCsrfToken`, kept in memory only) in `X-CSRF-Token`.
 
 import { API_PROXY } from "./config";
+import type { Alert } from "./ops";
 import type { PlanSummary, SitePlan } from "./plan";
 import type { DisputeRequest, DisputeResult, WorkerPage } from "./worker";
 
@@ -182,4 +183,15 @@ export const api = {
     ),
   frameUrl: (planId: string, camera: string) =>
     `${API_PROXY}/plans/${encodeURIComponent(planId)}/frames/${encodeURIComponent(camera)}`,
+  alerts: (role?: string) =>
+    call<Alert[]>(`/alerts${role ? `?role=${encodeURIComponent(role)}` : ""}`),
+  respond: (alertId: string, button: string, role: string) =>
+    call<{ alert_id: string; action: string }>(
+      `/alerts/${encodeURIComponent(alertId)}/respond`,
+      json({ button, role }),
+    ),
+  suggestRule: (surpriseId: string) =>
+    call<{ rule_id: string }>(`/surprise/${encodeURIComponent(surpriseId)}/suggest`, {
+      method: "POST",
+    }),
 };

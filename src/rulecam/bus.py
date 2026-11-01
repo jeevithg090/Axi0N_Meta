@@ -29,6 +29,9 @@ class Topic(StrEnum):
     # {plan_id, step, status: "running" | "done" | "failed", detail}; published by the
     # Site Planner pipeline (P2-06) for each of its ten fixed steps.
     PLANNER_STEP = "planner.step"
+    # {camera_id, rule_id, elapsed_s, required_s, state: "counting" | "passed" | "failed"} for
+    # the station countdown (e.g. a hand wash in progress); published by the rules runtime.
+    STATION_PROGRESS = "station.progress"
     CI_RESULT = "ci.result"
     SURPRISE_NEW = "surprise.new"
     ADVICE_NEW = "advice.new"

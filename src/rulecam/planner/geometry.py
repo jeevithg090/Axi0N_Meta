@@ -63,8 +63,10 @@ from rulecam.log import get_logger
 from rulecam.perception.calibration import (
     DOOR_SCALE_TOLERANCE,
     ReferenceKind,
+    calibrate_people,
     calibrate_reference,
     door_scale_ratio,
+    people_agree,
 )
 from rulecam.perception.errors import CalibrationError
 from rulecam.perception.masks import NO_MASK, decode_rle
@@ -84,6 +86,14 @@ _FLOOR_SQUARE: Final = re.compile(
     r"^(?:(?:1\s?m|one[\s-]met(?:re|er)|calibration)\s+)(?:floor\s+)?(?:square|mat|tile)s?$"
 )
 _DOOR: Final = re.compile(r"\b(?:doors?|doorways?)\b")
+_PERSON: Final = re.compile(
+    r"\b(?:persons?|people|workers?|pedestrians?|m[ae]n|wom[ae]n|staff|employees?|walkers?)\b"
+)
+_NOT_STANDING: Final = re.compile(
+    r"\b(?:drivers?|operators?|seated|sitting|riders?|hands?|heads?)\b"
+)
+STANDING_ASPECT: Final = 1.8  # box height / width at or above which a person counts as standing
+_EDGE_PX: Final = 2.0
 PLACE_WORDS: Final = re.compile(
     r"\b(?:sinks?|doors?|doorways?|exits?|racks?|racking|shel(?:f|ves|ving)|counters?|"
     r"stations?|tables?|benches?|docks?|bays?|aisles?|stoves?|ovens?|fryers?|grills?|"
@@ -213,8 +223,90 @@ def _agrees_with_doors(calibration: Calibration, doors: Sequence[BoxXYXY]) -> bo
     return not ratios or abs(median(ratios) - 1.0) <= DOOR_SCALE_TOLERANCE
 
 
+def _is_person(concept: str) -> bool:
+    phrase = _normalise(concept)
+    return bool(_PERSON.search(phrase)) and not _NOT_STANDING.search(phrase)
+
+
+def standing_people(sightings: Iterable[Sighting]) -> dict[str, list[BoxXYXY]]:
+    """Boxes of whole, standing people per camera: tall boxes not cut by the frame's top or foot.
+
+    Args:
+        sightings: SAM calls; only those for a person concept are read.
+
+    Returns:
+        Camera id -> person boxes (pixels of that camera's frames).
+    """
+    sizes: dict[Path, FrameSize | None] = {}
+    people: dict[str, list[BoxXYXY]] = {}
+    for sighting in sightings:
+        if not _is_person(sighting.concept):
+            continue
+        if sighting.frame not in sizes:
+            sizes[sighting.frame] = frame_size(sighting.frame)
+        size = sizes[sighting.frame]
+        if size is None:
+            continue
+        for detection in sighting.detections:
+            x1, y1, x2, y2 = detection.mask.box_xyxy
+            whole = y1 > _EDGE_PX and y2 < size[1] - _EDGE_PX
+            if whole and x2 > x1 and (y2 - y1) >= STANDING_ASPECT * (x2 - x1):
+                people.setdefault(sighting.camera_id, []).append(detection.mask.box_xyxy)
+    return people
+
+
+def _people_calibration(
+    camera_id: str, boxes: Sequence[BoxXYXY], sightings: Sequence[Sighting]
+) -> Calibration | None:
+    size = next(
+        (
+            frame_size(s.frame)
+            for s in sightings
+            if s.camera_id == camera_id and _is_person(s.concept)
+        ),
+        None,
+    )
+    if size is None:
+        return None
+    try:
+        return calibrate_people(camera_id, boxes, size[0], size[1])
+    except CalibrationError as exc:
+        _log.info("people_calibration_rejected", camera_id=camera_id, error=str(exc))
+        return None
+
+
+def _reference_calibration(
+    camera_id: str,
+    detection: Detection,
+    kind: ReferenceKind,
+    doors: Sequence[BoxXYXY],
+    people: Sequence[BoxXYXY],
+) -> Calibration | None:
+    """The calibration one reference detection gives, or `None` if it fails a check."""
+    mask = _mask(detection)
+    if mask is None or int(mask.sum()) < MIN_REFERENCE_AREA_PX:
+        return None
+    try:
+        calibration = calibrate_reference(camera_id, mask, kind)
+    except CalibrationError as exc:
+        _log.info("scene_calibration_rejected", camera_id=camera_id, error=str(exc))
+        return None
+    if not _agrees_with_doors(calibration, doors):
+        _log.warning("scene_calibration_door_mismatch", camera_id=camera_id)
+        return None
+    if not people_agree(calibration, people):
+        _log.warning("scene_calibration_people_mismatch", camera_id=camera_id)
+        return None
+    return calibration
+
+
 def scene_calibrations(sightings: Sequence[Sighting]) -> dict[str, Calibration]:
-    """Ground calibrations from reference objects SAM found, the best (lowest `err_m`) per camera.
+    """Ground calibrations from the scene, the best (lowest `err_m`) per camera.
+
+    A reference object (pallet, floor square) must agree with any door and with the standing
+    people in view (`people_agree`), or it is dropped. A camera left without one, but with
+    enough standing people at different depths, is calibrated from the people
+    (`calibrate_people`, reference `person_height_1.7m`), with its wider error.
 
     Args:
         sightings: The survey's (and probe's) SAM calls.
@@ -224,28 +316,24 @@ def scene_calibrations(sightings: Sequence[Sighting]) -> dict[str, Calibration]:
         reference are absent.
     """
     best: dict[str, Calibration] = {}
+    people = standing_people(sightings)
     for sighting in sightings:
         kind = reference_kind(sighting.concept)
         if kind is None:
             continue
         doors = _door_boxes(sightings, sighting.camera_id)
         for detection in sighting.detections:
-            mask = _mask(detection)
-            if mask is None or int(mask.sum()) < MIN_REFERENCE_AREA_PX:
-                continue
-            try:
-                calibration = calibrate_reference(sighting.camera_id, mask, kind)
-            except CalibrationError as exc:
-                _log.info(
-                    "scene_calibration_rejected", camera_id=sighting.camera_id, error=str(exc)
-                )
-                continue
-            if not _agrees_with_doors(calibration, doors):
-                _log.warning("scene_calibration_door_mismatch", camera_id=sighting.camera_id)
+            calibration = _reference_calibration(
+                sighting.camera_id, detection, kind, doors, people.get(sighting.camera_id, ())
+            )
+            if calibration is None:
                 continue
             current = best.get(sighting.camera_id)
             if current is None or calibration.err_m < current.err_m:
                 best[sighting.camera_id] = calibration
+    for camera_id, boxes in people.items():
+        if camera_id not in best and (fit := _people_calibration(camera_id, boxes, sightings)):
+            best[camera_id] = fit
     for camera_id, calibration in sorted(best.items()):
         _log.info(
             "scene_calibration",
@@ -254,6 +342,32 @@ def scene_calibrations(sightings: Sequence[Sighting]) -> dict[str, Calibration]:
             err_m=round(calibration.err_m, 4),
         )
     return dict(sorted(best.items()))
+
+
+def trusted_calibrations(
+    calibrations: Mapping[str, Calibration], sightings: Sequence[Sighting]
+) -> dict[str, Calibration]:
+    """The calibrations the standing people in `sightings` do not contradict.
+
+    The probe step segments `person` on every camera; a survey calibration those people
+    disagree with is not trusted, so the camera is calibrated again (reference probes, then
+    the people themselves).
+
+    Args:
+        calibrations: Camera id -> calibration (the survey's).
+        sightings: Later SAM calls on the same cameras (the probe's).
+
+    Returns:
+        The subset that agrees with the people in view.
+    """
+    people = standing_people(sightings)
+    trusted: dict[str, Calibration] = {}
+    for camera_id, calibration in calibrations.items():
+        if people_agree(calibration, people.get(camera_id, ())):
+            trusted[camera_id] = calibration
+        else:
+            _log.warning("scene_calibration_people_mismatch", camera_id=camera_id)
+    return trusted
 
 
 # --- reference probes --------------------------------------------------------------------------

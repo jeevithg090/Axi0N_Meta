@@ -49,6 +49,10 @@ DEFAULT_TIMEOUT_S = 60.0
 DEFAULT_MAX_TOKENS = 1024
 LOCAL_RPM = 600.0
 JSON_ATTEMPTS = 2
+SCHEMA_PROMPT = (
+    "Reply with only a JSON object (no prose, no code fence) that matches this JSON Schema, "
+    "with every required field present:\n{schema}"
+)
 RETRY_PROMPT = (
     "Your previous reply did not match the required JSON schema ({error}). "
     "Reply again with only a JSON object that matches the schema."
@@ -103,6 +107,15 @@ def request_hash(body: Mapping[str, object]) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _strip_fence(content: str) -> str:
+    """Drop a Markdown code fence some hosts wrap JSON replies in."""
+    text = content.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1] if "\n" in text else ""
+        text = text.removesuffix("```").strip()
+    return text
+
+
 def _message_content(body: object) -> str:
     try:
         content = body["choices"][0]["message"]["content"]  # type: ignore[index]
@@ -112,7 +125,7 @@ def _message_content(body: object) -> str:
     if not isinstance(content, str):
         msg = "Glimmer reply content is not text"
         raise ModelResponseError(msg)
-    return content
+    return _strip_fence(content)
 
 
 def _with_retry_hint(messages: list[dict[str, object]], error: str) -> list[dict[str, object]]:
@@ -132,6 +145,8 @@ class GlimmerConfig:
         hardware: Where it runs (for the evidence log), e.g. `M3 Max 36 GB`.
         max_tokens: Output token cap per call.
         segment: Relay HUD segment name.
+        schema_in_prompt: Also state the schema in a system message, for hosts that do not
+            enforce `response_format` strictly.
     """
 
     model: str = "muse-glimmer-30b"
@@ -139,6 +154,7 @@ class GlimmerConfig:
     hardware: str = ""
     max_tokens: int = DEFAULT_MAX_TOKENS
     segment: str = "verify"
+    schema_in_prompt: bool = False
 
 
 class GlimmerClient:
@@ -194,6 +210,7 @@ class GlimmerClient:
             model=settings.glimmer_model,
             quant=settings.glimmer_quant,
             hardware=settings.glimmer_hardware,
+            schema_in_prompt=settings.glimmer_schema_in_prompt,
         )
         # llama-server ignores the key unless started with --api-key (needed when it is remote).
         key = settings.glimmer_api_key.get_secret_value() if settings.glimmer_api_key else "local"
@@ -217,6 +234,13 @@ class GlimmerClient:
     def _body(
         self, messages: list[dict[str, object]], schema: type[BaseModel], effort: str
     ) -> dict[str, object]:
+        if self._config.schema_in_prompt:
+            schema_text = json.dumps(schema.model_json_schema(), separators=(",", ":"))
+            hint: dict[str, object] = {
+                "role": "system",
+                "content": SCHEMA_PROMPT.format(schema=schema_text),
+            }
+            messages = [hint, *messages]
         return {
             "model": self._config.model,
             "messages": messages,

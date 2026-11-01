@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from rulecam.contracts.core import Calibration, Detection, Zone
@@ -36,6 +37,8 @@ from rulecam.planner.geometry import (
     reference_kind,
     scene_calibrations,
     scene_zones,
+    standing_people,
+    trusted_calibrations,
     zone_slug,
 )
 from rulecam.planner.models import Concern
@@ -152,6 +155,82 @@ def test_a_door_that_disagrees_with_the_scale_rejects_the_calibration() -> None:
     assert scene_calibrations([_sighting("dock", "wooden pallet", pallet)])
     sightings = [_sighting("dock", "wooden pallet", pallet), _sighting("dock", "door", tiny_door)]
     assert scene_calibrations(sightings) == {}
+
+
+def _people(camera_id: str, scale: float) -> list[Detection]:
+    """Standing people at three depths, `scale` times the height a 1.7 m adult has there."""
+    boxes = []
+    for x_m, y_m in ((0.5, 0.5), (1.5, 2.0), (2.5, 3.5)):
+        foot_x, foot_y = to_image([(x_m, y_m)])[0]
+        a, b = to_image([(x_m - 0.25, y_m), (x_m + 0.25, y_m)])
+        px_per_m = float(np.hypot(*(b - a))) / 0.5
+        tall = 1.7 * px_per_m * scale
+        half = max(tall / 4.0, 1.0)
+        boxes.append((foot_x - half, foot_y - tall, foot_x + half, foot_y))
+    return [detection(camera_id, "person", box) for box in boxes]
+
+
+def test_people_who_disagree_with_a_pallet_reject_it_and_calibrate_the_camera(
+    tmp_path: Path,
+) -> None:
+    (frame,) = write_frames(tmp_path, "dock", n=1)
+    pallet = _sighting("dock", "wooden pallet", pallet_detection("dock"), frame=frame)
+    agreeing = _sighting("dock", "person", *_people("dock", 1.0), frame=frame)
+    tiny = _sighting("dock", "person", *_people("dock", 0.25), frame=frame)
+
+    kept = scene_calibrations([pallet, agreeing])["dock"]
+    assert kept.reference == "pallet_48x40in"
+
+    replaced = scene_calibrations([pallet, tiny])["dock"]
+    assert replaced.reference == "person_height_1.7m"
+    assert replaced.err_m > kept.err_m
+
+
+@pytest.mark.parametrize(
+    ("concept", "counted"),
+    [
+        ("person", True),
+        ("standing worker", True),
+        ("warehouse workers", True),
+        ("pedestrian", True),
+        ("forklift driver", False),
+        ("seated operator", False),
+        ("worker hands", False),
+        ("forklift", False),
+    ],
+)
+def test_spark_phrases_for_standing_people(tmp_path: Path, concept: str, counted: bool) -> None:
+    (frame,) = write_frames(tmp_path, "dock", n=1)
+    people = _people("dock", 1.0)
+    found = standing_people([_sighting("dock", concept, *people, frame=frame)])
+    assert (found.get("dock", []) != []) is counted
+
+
+def test_a_survey_calibration_the_probes_people_contradict_is_not_trusted(
+    tmp_path: Path,
+) -> None:
+    (frame,) = write_frames(tmp_path, "dock", n=1)
+    survey = scene_calibrations([_sighting("dock", "wooden pallet", pallet_detection("dock"))])
+    agreeing = [_sighting("dock", "person", *_people("dock", 1.0), frame=frame)]
+    tiny = [_sighting("dock", "person", *_people("dock", 0.25), frame=frame)]
+
+    assert trusted_calibrations(survey, agreeing) == survey
+    assert trusted_calibrations(survey, tiny) == {}
+    assert trusted_calibrations(survey, []) == survey
+
+
+def test_people_cut_by_the_frame_or_sitting_are_not_a_ruler(tmp_path: Path) -> None:
+    (frame,) = write_frames(tmp_path, "dock", n=1)
+    sitting = [
+        detection(
+            "dock", "person", (100.0 + 50 * i, 300.0 + 40 * i, 200.0 + 50 * i, 360.0 + 40 * i)
+        )
+        for i in range(3)
+    ]
+    cut = [
+        detection("dock", "person", (100.0 + 50 * i, 0.0, 130.0 + 50 * i, 300.0)) for i in range(3)
+    ]
+    assert scene_calibrations([_sighting("dock", "person", *sitting, *cut, frame=frame)]) == {}
 
 
 def test_the_recording_segmenter_keeps_every_call(tmp_path: Path) -> None:

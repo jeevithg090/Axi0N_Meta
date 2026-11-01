@@ -1,0 +1,15 @@
+# Pexels video 32243653 ("Warehouse worker operating forklift safely"): a forklift carries a roll
+# through an empty bay; the only person is the driver. A driver-only NEGATIVE candidate; not
+# hand-labelled yet, so it is scored only with --include-unlabelled.
+name: pexels_32243653
+description: Forklift carrying a roll through an empty bay; the driver is the only person.
+camera_id: warehouse-pexels-2
+source:
+  url: https://www.pexels.com/download/video/32243653/?w=1280
+  sha256: c6aac047e929853a56419567560b9bea8dfb08ad82d9b2fadac030da78db8fcc
+duration_s: 10.16
+license: Pexels License (https://www.pexels.com/license/)
+rules:
+  - id: forklift_2m
+    request: Keep people at least 2 metres away from a moving forklift.
+    status: unlabelled

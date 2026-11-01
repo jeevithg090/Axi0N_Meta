@@ -70,6 +70,14 @@ REFERENCE_SIZES_M: dict[str, tuple[float, float]] = {
 }
 DOOR_HEIGHT_M = 2.03
 DOOR_SCALE_TOLERANCE = 0.25
+PERSON_HEIGHT_M = 1.7  # adult standing height used as a ruler (people vary about +/- 6 %)
+PERSON_REFERENCE = "person_height_1.7m"
+PERSON_SCALE_TOLERANCE = 0.45  # people slouch, sit and are foreshortened: a loose band
+PERSON_ASSUMED_HFOV_DEG = 65.0  # phone and CCTV lenses: depth only, lateral scale needs none
+MIN_PERSON_BOXES = 3
+MIN_PERSON_ROW_SPREAD = 0.08  # of the frame height between the nearest and farthest foot rows
+_PERSON_TRIM_RATIO = 0.25  # a box more than 25 % off the first fit is dropped before the refit
+_MAX_PITCH_DEG = 60.0  # a horizon fitted further above the frame than this tilt allows is noise
 BASE_BAND_FRACTION = 0.05  # lowest share of an upright mask's height that touches the floor
 RANSAC_THRESHOLD_M = 0.10  # a click more than 10 cm off the fit is an outlier
 MIN_POINTS = 4
@@ -261,6 +269,141 @@ def door_scale_ok(
         CalibrationError: As for `door_scale_ratio`.
     """
     return abs(door_scale_ratio(cal, door_box_xyxy) - 1.0) <= tolerance
+
+
+def person_scale_ratio(cal: Calibration, person_box_xyxy: BoxXYXY) -> float:
+    """Ratio of a standing person's pixel height to the height the calibration predicts.
+
+    The same check as `door_scale_ratio`, with a 1.7 m adult as the upright object: about 1 when
+    the calibration's scale is right. People are in view on almost every camera a person rule
+    runs on, so this catches a reference fit that is off by a large factor (a loaded pallet or a
+    stack read as one pallet) even where no door is visible.
+
+    Args:
+        cal: The calibration under test.
+        person_box_xyxy: Box of a standing person, feet on the floor.
+
+    Returns:
+        Observed over predicted height.
+
+    Raises:
+        CalibrationError: Box without positive width and height, or as for `px_to_m`.
+    """
+    x1, y1, x2, y2 = person_box_xyxy
+    if not (x2 > x1 and y2 > y1):
+        raise CalibrationError(f"person box {person_box_xyxy} needs positive width and height")
+    width_m = ground_distance_m(cal, (x1, y2), (x2, y2))
+    if width_m <= 0:
+        raise CalibrationError("person box has no ground width under this calibration")
+    expected_height_px = PERSON_HEIGHT_M * (x2 - x1) / width_m
+    return (y2 - y1) / expected_height_px
+
+
+def people_agree(
+    cal: Calibration,
+    person_boxes: Sequence[BoxXYXY],
+    *,
+    tolerance: float = PERSON_SCALE_TOLERANCE,
+) -> bool:
+    """True when fewer than `MIN_PERSON_BOXES` people were seen, or most of them fit the scale.
+
+    Each standing person is measured on its own; a person the calibration cannot measure (feet
+    beyond its horizon, no ground width) counts against it. At least half the people must be
+    within `tolerance` of a 1.7 m adult, so a degenerate fit cannot pass on a lucky median.
+
+    Args:
+        cal: The calibration under test.
+        person_boxes: Boxes of standing people on that camera.
+        tolerance: Allowed relative deviation of each `person_scale_ratio` from 1.
+
+    Returns:
+        Whether the people in view agree with the calibration's scale.
+    """
+    if len(person_boxes) < MIN_PERSON_BOXES:
+        return True
+    agreeing = 0
+    for person_box in person_boxes:
+        try:
+            ratio = person_scale_ratio(cal, person_box)
+        except CalibrationError:
+            continue
+        if abs(ratio - 1.0) <= tolerance:
+            agreeing += 1
+    return 2 * agreeing >= len(person_boxes)
+
+
+def calibrate_people(
+    camera_id: str,
+    person_boxes: Sequence[BoxXYXY],
+    frame_width: int,
+    frame_height: int,
+    *,
+    hfov_deg: float = PERSON_ASSUMED_HFOV_DEG,
+) -> Calibration:
+    """Fit a ground homography from standing people of known average height.
+
+    Under a level (no roll) pinhole camera, an upright object of height h whose feet are at
+    image row y spans h * (y - y_h) / C pixels, where y_h is the horizon row and C the camera
+    height. A line fitted through (foot row, pixel height) over the people in view gives y_h and
+    C; then a ground point (x, y) is X = C (x - cx) / (y - y_h) across the view and
+    Z = f C / (y - y_h) away from the camera, with f from an assumed lens field of view. Lateral
+    distances (people beside a forklift) do not depend on f; depth does, so `err_m` is wider than
+    a reference object's and acceptance keeps the rule amber until the owner marks a distance.
+
+    Args:
+        camera_id: Camera the boxes come from.
+        person_boxes: Boxes of standing people, whole (not cut by the frame edge).
+        frame_width: Frame width in pixels (principal point and focal length).
+        frame_height: Frame height in pixels (the spread check).
+        hfov_deg: Assumed horizontal field of view of the lens.
+
+    Returns:
+        A `Calibration` with method `reference_object` and reference `PERSON_REFERENCE`.
+
+    Raises:
+        CalibrationError: Too few people, or all at one depth.
+    """
+    boxes = np.asarray([b for b in person_boxes if b[2] > b[0] and b[3] > b[1]], dtype=np.float64)
+    if len(boxes) < MIN_PERSON_BOXES:
+        raise CalibrationError(f"need {MIN_PERSON_BOXES} standing people, got {len(boxes)}")
+    feet = boxes[:, 3]
+    heights = boxes[:, 3] - boxes[:, 1]
+    if float(feet.max() - feet.min()) < MIN_PERSON_ROW_SPREAD * frame_height:
+        raise CalibrationError("people are all at one depth; the horizon cannot be fitted")
+    slope, intercept = np.polyfit(feet, heights, 1)
+    keep = np.abs(heights - (slope * feet + intercept)) <= _PERSON_TRIM_RATIO * heights
+    if int(keep.sum()) >= MIN_PERSON_BOXES:
+        slope, intercept = np.polyfit(feet[keep], heights[keep], 1)
+        feet, heights = feet[keep], heights[keep]
+    focal = frame_width / (2.0 * math.tan(math.radians(hfov_deg) / 2.0))
+    highest = frame_height / 2.0 - focal * math.tan(math.radians(_MAX_PITCH_DEG))
+    lowest = float(feet.min()) - MIN_PERSON_ROW_SPREAD * frame_height
+    # People at nearly one depth leave the slope ill-conditioned; their own scale is still
+    # right, so the horizon is clamped into the range a real tilt allows and C refitted to it.
+    horizon = -intercept / slope if slope > 0 else highest
+    horizon = min(max(horizon, highest), lowest)
+    camera_height = float(np.median(PERSON_HEIGHT_M * (feet - horizon) / heights))
+    slope, intercept = PERSON_HEIGHT_M / camera_height, -PERSON_HEIGHT_M * horizon / camera_height
+    cx = frame_width / 2.0
+    homography = np.array(
+        [
+            [camera_height, 0.0, -camera_height * cx],
+            [0.0, 0.0, focal * camera_height],
+            [0.0, 1.0, -horizon],
+        ]
+    )
+    relative = np.abs(heights - (slope * feet + intercept)) / heights
+    spread = math.sqrt(float(np.mean(np.square(relative))) + 0.06**2)  # fit + people's heights
+    err_m = 2.0 * spread  # 1-sigma at the 2 m distances person rules are written with
+    _LOG.info(
+        "people_calibration",
+        camera_id=camera_id,
+        people=len(feet),
+        horizon_px=round(horizon, 1),
+        camera_height_m=round(camera_height, 2),
+        err_m=round(err_m, 3),
+    )
+    return _calibration(camera_id, homography, "reference_object", PERSON_REFERENCE, err_m)
 
 
 def polygon_zone(zone_id: str, camera_id: str, points_px: Sequence[PointXY]) -> Zone:

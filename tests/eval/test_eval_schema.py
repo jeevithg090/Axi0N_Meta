@@ -156,4 +156,9 @@ def test_the_committed_seed_set() -> None:
     assert kitchen.rule("handwash_20s").status == "unlabelled"
     placeholders = [c for c in evalset.clips if c.placeholder]
     assert len(placeholders) >= 12
-    assert {c.name for c in evalset.runnable()} == {"warehouse_45848", "kitchen_15875"}
+    assert {c.name for c in evalset.runnable()} == {
+        "warehouse_45848",
+        "kitchen_15875",
+        "pexels_32243653",
+        "pexels_32243654",
+    }

@@ -26,6 +26,8 @@ dependencies = [
   "typer>=0.12",
   "meta-sam-parser>=0.1.0",
   "prometheus-client>=0.21",
+  "trackers==2.6.1",  # Apache-2.0: ByteTrack between SAM keyframes (P1-03)
+  "supervision==0.30.0",  # MIT: the detections type `trackers` takes
 ]
 
 [project.optional-dependencies]
@@ -134,3 +136,10 @@ asyncio_default_fixture_loop_scope = "function"
 [tool.coverage.run]
 source = ["src/rulecam"]
 branch = true
+
+[tool.uv]
+# `trackers` (Apache-2.0) declares opencv-python; the repo ships opencv-python-headless, which
+# provides the same `cv2` module without the GUI libraries. Never install both.
+override-dependencies = ["opencv-python; sys_platform == 'never'"]
+# Transitive pins of `trackers`/`supervision` to releases at least two weeks old (repo rule).
+constraint-dependencies = ["av==19.0.1"]

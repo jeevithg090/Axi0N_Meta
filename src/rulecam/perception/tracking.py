@@ -388,15 +388,28 @@ class Tracker:
         )
 
     def _point(self, det: Detection) -> TrackPoint:
-        foot = foot_point(det.mask.rle, det.mask.box_xyxy)
-        return TrackPoint(
-            ts=det.ts,
-            frame_idx=det.frame_idx,
-            box_xyxy=det.mask.box_xyxy,
-            foot_px=foot,
-            foot_m=self._px_to_m(foot) if self._px_to_m is not None else None,
-            confidence=det.mask.confidence,
-        )
+        return track_point(det, self._px_to_m)
+
+
+def track_point(det: Detection, px_to_m: PxToM | None = None) -> TrackPoint:
+    """Turn one detection into a track sample (foot point from the mask, else the box).
+
+    Args:
+        det: The detection.
+        px_to_m: Image-pixel to ground-metre mapping, if the camera is calibrated.
+
+    Returns:
+        The sample, with `foot_m` only when `px_to_m` is given.
+    """
+    foot = foot_point(det.mask.rle, det.mask.box_xyxy)
+    return TrackPoint(
+        ts=det.ts,
+        frame_idx=det.frame_idx,
+        box_xyxy=det.mask.box_xyxy,
+        foot_px=foot,
+        foot_m=px_to_m(foot) if px_to_m is not None else None,
+        confidence=det.mask.confidence,
+    )
 
 
 def _chunk_end(chunk: Chunk) -> datetime:

@@ -7,6 +7,8 @@
 
 # Cost
 budget_alarm: {}              # the hourly dollar budget alarms on the UI and degrades (WS3) (auto)
+gpu_cameras: {}               # value: cameras one GPU pod (Glimmer + SAM image) carried in a soak at p95 lag <= 6 s;
+                              # needed when the cost divides the GPU by --cameras-per-gpu / site cameras_per_gpu > 1
 
 # Perception
 sam_agreement: {}             # value: detection agreement with hosted SAM (scripts/sam_pod/compare.py)

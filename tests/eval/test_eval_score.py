@@ -243,3 +243,14 @@ def test_replay_of_the_committed_baseline() -> None:
     assert run.alerts == 0
     assert run.decisive == 0
     assert report.rules[0].false_alerts_on_negatives == 0
+
+
+def test_cameras_per_gpu_flag_then_site_config_then_one() -> None:
+    from rulecam.eval.score import resolve_cameras_per_gpu  # noqa: PLC0415
+
+    assert resolve_cameras_per_gpu(4.0, 6) == (4.0, "--cameras-per-gpu")
+    assert resolve_cameras_per_gpu(None, 6, site_source="site config a.yaml") == (
+        6.0,
+        "site config a.yaml",
+    )
+    assert resolve_cameras_per_gpu(None, None) == (1.0, "default")

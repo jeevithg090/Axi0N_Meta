@@ -12,6 +12,7 @@ from rulecam.perception import sam_worker
 ROOT = Path(__file__).resolve().parents[2]
 API_DOCKERFILE = (ROOT / "deploy" / "api.Dockerfile").read_text(encoding="utf-8")
 SAM_DOCKERFILE = (ROOT / "deploy" / "sam.Dockerfile").read_text(encoding="utf-8")
+GPU_DOCKERFILE = (ROOT / "deploy" / "gpu.Dockerfile").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / ".github" / "workflows" / "images.yml").read_text(encoding="utf-8")
 DEPLOY_DOC = (ROOT / "docs" / "deploy.md").read_text(encoding="utf-8")
 
@@ -35,7 +36,7 @@ def from_images(dockerfile: str) -> list[str]:
 
 
 def test_base_images_are_pinned_to_exact_tags() -> None:
-    for dockerfile in (API_DOCKERFILE, SAM_DOCKERFILE):
+    for dockerfile in (API_DOCKERFILE, SAM_DOCKERFILE, GPU_DOCKERFILE):
         for image in from_images(dockerfile):
             assert ":" in image, image
             assert not image.endswith((":latest", ":3.12", ":12.8")), image
@@ -76,3 +77,48 @@ def test_glimmer_pod_matches_the_documented_args() -> None:
     assert f"Image `{rp.GLIMMER_IMAGE}`" in doc  # type: ignore[attr-defined]
     assert " ".join(rp.GLIMMER_ARGS) in doc  # type: ignore[attr-defined]
     assert "LLAMA_API_KEY" in doc
+
+
+def test_gpu_image_has_the_sam_venv_and_the_pinned_llama_server() -> None:
+    rp = load_deploy_script()
+    images = from_images(GPU_DOCKERFILE)
+    assert "nvidia/cuda:12.8.1-base-ubuntu24.04" in images
+    assert rp.GLIMMER_IMAGE in images  # type: ignore[attr-defined]
+    assert "COPY --from=llama /app /opt/llama" in GPU_DOCKERFILE
+    # The same SAM venv as the SAM image, pin for pin.
+    assert f"ARG SAM3_COMMIT={sam_worker.SAM3_COMMIT}" in GPU_DOCKERFILE
+    assert f'"{sam_worker.TORCH_PACKAGES[0]}"' in GPU_DOCKERFILE
+    assert sam_worker.TORCH_INDEX_URL in GPU_DOCKERFILE
+    for package in ("einops", "pycocotools", "psutil", '"numpy<2"', '"pydantic>=2.7"'):
+        assert package in GPU_DOCKERFILE
+    # llama-server's CUDA runtime and cuBLAS come from the torch wheels; the build checks them.
+    for lib in ("libcudart.so.12", "libcublas.so.12", "libcublasLt.so.12"):
+        assert lib in GPU_DOCKERFILE
+    assert "ldd /opt/llama/llama-server" in GPU_DOCKERFILE
+    assert "SAM_MEMORY_GUARD_GB=8" in GPU_DOCKERFILE
+    assert "GLIMMER_CTX=32768" in GPU_DOCKERFILE
+    assert "EXPOSE 8080 8090" in GPU_DOCKERFILE
+    assert '"/opt/rulecam/deploy/gpu-entrypoint.sh"' in GPU_DOCKERFILE
+    for name in (
+        "gpu-entrypoint.sh",
+        "gpu_supervisor.py",
+        "sam-entrypoint.sh",
+        "entrypoint-lib.sh",
+    ):
+        assert f"deploy/{name}" in GPU_DOCKERFILE
+
+
+def test_workflow_builds_the_gpu_image() -> None:
+    assert "ghcr.io/jeevithg090/rulecam-gpu" in WORKFLOW
+    assert "deploy/gpu.Dockerfile" in WORKFLOW
+    assert "needs.changes.outputs.gpu" in WORKFLOW
+    rp = load_deploy_script()
+    assert rp.GPU_IMAGE == "ghcr.io/jeevithg090/rulecam-gpu"  # type: ignore[attr-defined]
+
+
+def test_one_gpu_section_is_documented() -> None:
+    doc = " ".join(DEPLOY_DOC.split())
+    assert "## One GPU per site" in DEPLOY_DOC
+    assert "runpod_up.sh --one-gpu" in doc
+    assert "SAM_MEMORY_GUARD_GB=8" in doc
+    assert "--cameras-per-gpu" in doc

@@ -178,3 +178,12 @@ def test_build_planner_reads_the_site_config(
     assert missing._site == SiteConfig(site_name="api-site")
     path.write_text("privacy_mode: open", encoding="utf-8")
     assert _build(tmp_path, monkeypatch, path) is None
+
+
+def test_cameras_per_gpu_is_optional_and_bounded() -> None:
+    assert load_site_config(EXAMPLE).cameras_per_gpu == 6
+    assert parse_site_config(CONFIG).cameras_per_gpu is None
+    assert parse_site_config("cameras_per_gpu: 4").cameras_per_gpu == 4
+    for bad in ("cameras_per_gpu: 0", "cameras_per_gpu: 65", "cameras_per_gpu: many"):
+        with pytest.raises(SiteConfigError, match="cameras_per_gpu"):
+            parse_site_config(bad)

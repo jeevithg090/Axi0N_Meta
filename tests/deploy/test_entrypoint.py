@@ -16,6 +16,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 API_ENTRYPOINT = ROOT / "deploy" / "api-entrypoint.sh"
 SAM_ENTRYPOINT = ROOT / "deploy" / "sam-entrypoint.sh"
+GPU_ENTRYPOINT = ROOT / "deploy" / "gpu-entrypoint.sh"
 BASH = shutil.which("bash")
 SECRET = "sk-test-not-a-real-key-1234"
 
@@ -280,5 +281,81 @@ def test_sam_download_failure_names_the_gated_model(sam_home: Path, tmp_path: Pa
 
 def test_sam_rejects_unknown_commands(tmp_path: Path) -> None:
     result, _ = run(SAM_ENTRYPOINT, "bogus", env={}, tmp_path=tmp_path)
+    assert result.returncode == 1
+    assert "unknown command" in result.stderr
+
+
+GPU_NAMES = "LLAMA_API_KEY,SAM_API_KEY,HF_TOKEN,HF_HOME,LLAMA_CACHE,SAM_HOME,GLIMMER_CTX,SAM_PORT"
+
+
+def gpu_env(gpu_home: Path, tmp_path: Path, **extra: str) -> dict[str, str]:
+    return {
+        "GPU_HOME": str(gpu_home),
+        "GPU_PYTHON": str(tmp_path / "bin" / "fakepython"),
+        "RECORD_NAMES": GPU_NAMES,
+        **extra,
+    }
+
+
+def test_gpu_serve_reads_both_keys_and_runs_the_supervisor(sam_home: Path, tmp_path: Path) -> None:
+    secret_file(sam_home / ".llama_api_key", "llama-from-file")
+    secret_file(sam_home / ".hf_token", "hf-secret")
+    (sam_home / "sam.env").write_text("GLIMMER_CTX=16384\n")
+    result, record = run(
+        GPU_ENTRYPOINT, env=gpu_env(sam_home, tmp_path, SAM_API_KEY=SECRET), tmp_path=tmp_path
+    )
+    assert result.returncode == 0, result.stderr
+    assert record is not None
+    assert record["argv"] == [str(GPU_ENTRYPOINT.parent / "gpu_supervisor.py")]
+    env = record["env"]
+    assert isinstance(env, dict)
+    assert env["LLAMA_API_KEY"] == "llama-from-file"
+    assert env["SAM_API_KEY"] == SECRET
+    assert env["HF_TOKEN"] == "hf-secret"  # the supervisor gives it to the SAM download only
+    assert env["HF_HOME"] == str(sam_home / "hf-cache")
+    assert env["LLAMA_CACHE"] == str(sam_home / "llama-cache")
+    assert env["SAM_HOME"] == str(sam_home)  # sam-entrypoint.sh _serve uses the same volume
+    assert env["GLIMMER_CTX"] == "16384"
+    assert env["SAM_PORT"] == "8090"
+    assert (sam_home / "llama-cache").is_dir()
+    assert (sam_home / "hf-cache").is_dir()
+    for value in ("llama-from-file", SECRET, "hf-secret"):
+        assert value not in result.stderr + result.stdout
+
+
+@pytest.mark.parametrize("missing", ["LLAMA_API_KEY", "SAM_API_KEY"])
+def test_gpu_needs_both_keys(sam_home: Path, tmp_path: Path, missing: str) -> None:
+    keys = {"LLAMA_API_KEY": "a-key", "SAM_API_KEY": "b-key"}
+    keys.pop(missing)
+    result, record = run(GPU_ENTRYPOINT, env=gpu_env(sam_home, tmp_path, **keys), tmp_path=tmp_path)
+    assert result.returncode == 1
+    assert record is None
+    assert f"no {missing}" in result.stderr
+
+
+def test_gpu_plan_prints_both_commands_without_secrets(sam_home: Path, tmp_path: Path) -> None:
+    python = shutil.which("python3") or sys.executable
+    result, _ = run(
+        GPU_ENTRYPOINT,
+        "plan",
+        env={"GPU_HOME": str(sam_home), "GPU_PYTHON": python, "LLAMA_API_KEY": SECRET},
+        tmp_path=tmp_path,
+    )
+    assert result.returncode == 0, result.stderr
+    plan = json.loads(result.stdout)
+    assert [p["name"] for p in plan] == ["glimmer", "sam"]
+    assert plan[0]["argv"][0] == "/opt/llama/llama-server"
+    assert SECRET not in result.stdout
+
+
+def test_gpu_healthcheck_needs_both_servers(tmp_path: Path) -> None:
+    result, _ = run(
+        GPU_ENTRYPOINT,
+        "healthcheck",
+        env={"GLIMMER_PORT": "9", "SAM_PORT": "9"},
+        tmp_path=tmp_path,
+    )
+    assert result.returncode == 1
+    result, _ = run(GPU_ENTRYPOINT, "bogus", env={}, tmp_path=tmp_path)
     assert result.returncode == 1
     assert "unknown command" in result.stderr

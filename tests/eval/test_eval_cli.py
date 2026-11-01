@@ -167,3 +167,29 @@ def test_run_against_a_mock_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     assert list((tmp_path / "out" / "runs").glob("*/yard__forklift_2m.run.json"))
     assert list((tmp_path / "out").glob("*.md"))
     shutil.rmtree(tmp_path / "out")
+
+
+def test_score_takes_cameras_per_gpu_from_the_site_config(tmp_path: Path) -> None:
+    site = tmp_path / "site.yaml"
+    site.write_text("cameras_per_gpu: 4\n", encoding="utf-8")
+    base = ["eval", "score", str(BASELINE), "--set", str(SEED), "--gpu-usd-per-hour", "0.59"]
+
+    def config(*extra: str) -> dict[str, object]:
+        out = tmp_path / f"out{len(list(tmp_path.iterdir()))}"
+        result = cli.invoke(app, [*base, "--out", str(out), *extra])
+        assert result.exit_code == 0, result.output
+        (report,) = out.glob("*.json")
+        data = yaml.safe_load(report.read_text(encoding="utf-8"))
+        assert isinstance(data, dict)
+        return dict(data["config"])
+
+    from_site = config("--site-config", str(site))
+    assert from_site["cameras_per_gpu"] == 4
+    assert from_site["cameras_per_gpu_source"] == f"site config {site}"
+    flag = config("--site-config", str(site), "--cameras-per-gpu", "8")
+    assert (flag["cameras_per_gpu"], flag["cameras_per_gpu_source"]) == (8, "--cameras-per-gpu")
+    none = config("--site-config", str(tmp_path / "missing.yaml"))
+    assert (none["cameras_per_gpu"], none["cameras_per_gpu_source"]) == (1, "default")
+    site.write_text("cameras_per_gpu: 0\n", encoding="utf-8")
+    bad = cli.invoke(app, [*base, "--out", str(tmp_path / "bad"), "--site-config", str(site)])
+    assert bad.exit_code == 2

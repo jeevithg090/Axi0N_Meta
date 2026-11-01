@@ -51,7 +51,7 @@ Every row has a test that checks it on the live deployment or on the eval set (�
 |---|---|---|
 | Alert quality | **9.5** | On the labelled eval set: precision ≥ 0.92 and recall ≥ 0.90 per rule. **0 false alerts** on the negative set (driver-only, pedestrians far away, lookalikes). Glimmer gives a decisive verdict (not "unsure") on ≥ 85% of candidates. |
 | Real-time | **9.5** | 2 cameras for 30 minutes: p95 lag ≤ 6 s; p95 alert latency (event start → verified alert on the UI) ≤ 10 s; keyframe mode never triggered. |
-| Cost | **9** | ≤ $0.15 per camera-hour of model spend at idle, ≤ $0.60 when active. A budget alarm works. |
+| Cost | **9** | ≤ $0.15 per camera-hour of model spend at idle, ≤ $0.60 when active. A budget alarm works. Deployment assumption: one 48 GB GPU pod per site (Glimmer + SAM image mode) shared by 4–8 cameras, so the GPU share is the pod's price ÷ cameras per GPU (`--cameras-per-gpu`, or `cameras_per_gpu` in the site config; $0.59/h ÷ 6 ≈ $0.10); the scorecard needs a soak showing one pod carries that many cameras (`gpu_cameras`). |
 | Perception | **9.5** | Detection agreement with hosted SAM ≥ 0.95 on the eval set. ID switches ≤ 1 per minute per camera (TrackEval HOTA ≥ 0.6 on our clips). |
 | Planner | **9.5** | The same request compiles to the **same canonical rule** 20 times out of 20. 100% of eval-set requests produce activatable rules where the scene allows, and honest refusals where it doesn't. |
 | Safety and privacy | **9.5** | Owner login. No public route exposes candidate traces. Guardrail tests pass. The scene-text firewall is live. |
@@ -161,6 +161,7 @@ Nothing can honestly be called 9.5 without numbers.
 - Image keyframes plus a tracker instead of video sessions: about 10× fewer billed frames on hosted, $0 marginal on self-hosted.
 - Make the existing per-camera budget an hourly **dollar** budget, with an alarm on the UI and a degrade path.
 - A cost line per camera-hour on `/runtime/metrics` and the UI. Stop the GPU pods automatically when no camera has an active plan (RunPod REST API + idle timer).
+- **One GPU per site:** Glimmer and SAM image mode on one 48 GB pod (`runpod_up.sh --one-gpu`, `ghcr.io/jeevithg090/rulecam-gpu`) instead of two pods ($1.18/h → about $0.59/h); the per-camera GPU share is the pod's price ÷ cameras per GPU, and the deployment assumes 4–8 (docs/deploy.md "One GPU per site").
 
 ---
 

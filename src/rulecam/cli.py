@@ -273,7 +273,30 @@ SetOption = Annotated[Path, typer.Option("--set", help="Eval-set folder")]
 GpuOption = Annotated[
     float, typer.Option(help="GPU pods' price per hour, all together (SAM + Glimmer)")
 ]
-CamerasOption = Annotated[float, typer.Option(help="Cameras sharing those GPU pods")]
+CamerasOption = Annotated[
+    float | None,
+    typer.Option(help="Cameras sharing those GPU pods (default: the site config's, else 1)"),
+]
+SiteOption = Annotated[
+    Path | None,
+    typer.Option(help="Site config with cameras_per_gpu (default: RULECAM_SITE_CONFIG)"),
+]
+
+
+def _cameras_per_gpu(flag: float | None, site_config: Path | None) -> tuple[float, str]:
+    """`--cameras-per-gpu`, else the site config's `cameras_per_gpu`, else 1 (with the source)."""
+    from rulecam.eval.score import resolve_cameras_per_gpu  # noqa: PLC0415
+    from rulecam.planner.site_config import SiteConfigError, load_site_config  # noqa: PLC0415
+
+    path = site_config or get_settings().rulecam_site_config
+    site = None
+    if flag is None and path is not None and path.is_file():
+        try:
+            site = load_site_config(path).cameras_per_gpu
+        except SiteConfigError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=USAGE_ERROR) from exc
+    return resolve_cameras_per_gpu(flag, site, site_source=f"site config {path}")
 
 
 def _load_set(set_dir: Path) -> EvalSet:
@@ -355,7 +378,8 @@ def eval_run(
     out: Annotated[Path, typer.Option(help="Reports folder")] = EVAL_REPORTS,
     checks: Annotated[Path | None, typer.Option(help="Checks file")] = EVAL_CHECKS,
     gpu_usd_per_hour: GpuOption = 0.0,
-    cameras_per_gpu: CamerasOption = 1.0,
+    cameras_per_gpu: CamerasOption = None,
+    site_config: SiteOption = None,
 ) -> None:
     """Play the eval set into a running API, then score it and write the scorecard."""
     from datetime import UTC, datetime  # noqa: PLC0415
@@ -393,7 +417,10 @@ def eval_run(
         )
     finally:
         client.close()
-    config = ScoreConfig(gpu_usd_per_hour=gpu_usd_per_hour, cameras_per_gpu=cameras_per_gpu)
+    cameras, source = _cameras_per_gpu(cameras_per_gpu, site_config)
+    config = ScoreConfig(
+        gpu_usd_per_hour=gpu_usd_per_hour, cameras_per_gpu=cameras, cameras_per_gpu_source=source
+    )
     report = score_runs(load_runs(runs_dir), evalset, config=config, generated_at=datetime.now(UTC))
     _write_outputs(report, out, checks, f"live runs: {runs_dir} against {api}")
 
@@ -407,7 +434,8 @@ def eval_score(
     checks: Annotated[Path | None, typer.Option(help="Checks file")] = EVAL_CHECKS,
     iou: Annotated[float, typer.Option(help="Temporal IoU to match an alert")] = 0.3,
     gpu_usd_per_hour: GpuOption = 0.0,
-    cameras_per_gpu: CamerasOption = 1.0,
+    cameras_per_gpu: CamerasOption = None,
+    site_config: SiteOption = None,
 ) -> None:
     """Re-score recorded runs offline (replay mode: no API, no network)."""
     from datetime import UTC, datetime  # noqa: PLC0415
@@ -417,8 +445,12 @@ def eval_score(
     from rulecam.eval.score import ScoreConfig, score_runs  # noqa: PLC0415
 
     evalset = _load_set(set_dir)
+    cameras, source = _cameras_per_gpu(cameras_per_gpu, site_config)
     config = ScoreConfig(
-        iou=iou, gpu_usd_per_hour=gpu_usd_per_hour, cameras_per_gpu=cameras_per_gpu
+        iou=iou,
+        gpu_usd_per_hour=gpu_usd_per_hour,
+        cameras_per_gpu=cameras,
+        cameras_per_gpu_source=source,
     )
     try:
         report = score_runs(load_runs(runs), evalset, config=config, generated_at=datetime.now(UTC))

@@ -282,11 +282,12 @@ def test_status_rows_and_exit_code(
         ("rulecam-api", "RUNNING", "ok"),
         ("rulecam-glimmer", "RUNNING", "ok"),
         ("rulecam-sam", "absent", "-"),
+        ("rulecam-gpu", "absent", "-"),
     ]
     assert rows[0][3] == "$0.060"
     down = list(rp.status_rows(runpod, rp.Options(), probe=lambda url: 503))
     assert down[0][4] == "down (503)"
-    assert rp.print_status(runpod, rp.Options()) == 1  # sam absent, health unreachable
+    assert rp.print_status(runpod, rp.Options()) == 1  # health unreachable
 
 
 def test_main_dry_run_end_to_end(  # noqa: PLR0917 - pytest fixtures
@@ -470,3 +471,180 @@ def test_registry_credential_is_passed_for_ghcr_images(secrets_dir: Path) -> Non
     assert rp.sam_body(options, rp.SecretRefs())["registry"] == "reg123"
     assert rp.api_body(options, {}, "vol")["registry"] == "reg123"
     assert "registry" not in rp.glimmer_body(options, rp.SecretRefs())
+
+
+# ---------------------------------------------------------------------------------------------
+# --one-gpu (WS3/WS5): Glimmer and SAM image mode on one 48 GB pod
+
+
+def test_one_gpu_dry_run_plans_a_single_pod_and_wires_both_urls(
+    fake: FakeRunPod, account: FakeAccount, secrets_dir: Path
+) -> None:
+    runpod, out = client(fake, dry_run=True)
+    stack = rp.up(runpod, opts(secrets_dir, dry_run=True, one_gpu=True))
+    assert account.writes() == []
+    assert set(stack.pods) == {"gpu", "api"}
+    assert set(stack.urls) == {"glimmer", "sam", "api"}
+    gpu, api = stack.pods["gpu"], stack.pods["api"]
+    assert gpu["name"] == "rulecam-gpu"
+    assert gpu["image"] == "ghcr.io/jeevithg090/rulecam-gpu:latest"
+    assert gpu["ports"] == ["8080/http", "8090/http"]
+    assert gpu["env"] == {
+        "LLAMA_API_KEY": "{{ RUNPOD_SECRET_rulecam_glimmer_api_key }}",
+        "SAM_API_KEY": "{{ RUNPOD_SECRET_rulecam_sam_api_key }}",
+    }
+    assert gpu["gpu"]["id"] == "NVIDIA RTX A6000"  # the first 48 GB card with stock
+    assert stack.urls["glimmer"] == f"https://{gpu['id']}-8080.proxy.runpod.net"
+    assert stack.urls["sam"] == f"https://{gpu['id']}-8090.proxy.runpod.net"
+    env = api["env"]
+    assert env["GLIMMER_BASE_URL"] == stack.urls["glimmer"] + "/v1"
+    assert env["SAM_BASE_URL"] == stack.urls["sam"]
+    assert env["RULECAM_GPU_USD_PER_HOUR"] == rp.PRICE_PLACEHOLDER  # no pod yet, no price
+    assert env["RULECAM_IDLE_STOP_GPU_PODS"] == "rulecam-gpu"
+    text = out.getvalue()
+    assert "would place NVIDIA RTX A6000 in EU-RO-1" in text
+    assert "rulecam-glimmer: creating" not in text
+    assert "rulecam-sam: creating" not in text
+    for secret in (API_KEY, GLIMMER, SAM, META):
+        assert secret not in text
+
+
+def test_one_gpu_falls_back_across_48_gb_cards_and_prices_the_api(
+    fake: FakeRunPod, account: FakeAccount, secrets_dir: Path
+) -> None:
+    account.out_of_stock = {"NVIDIA RTX A6000"}
+    (secrets_dir / "rulecam-hf.token").write_text("hf-token-abc123\n")
+    runpod, out = client(fake)
+    stack = rp.up(runpod, opts(secrets_dir, one_gpu=True))
+    gpu, api = stack.pods["gpu"], stack.pods["api"]
+    # A6000 has no stock, A40 is not in the catalog: L40S, most stock first.
+    assert (gpu["gpu"]["id"], gpu["dataCenterIds"]) == ("NVIDIA L40S", ["EU-RO-1"])
+    assert gpu["env"]["HF_TOKEN"] == rp.HF_TOKEN.placeholder()
+    assert api["env"]["RULECAM_GPU_USD_PER_HOUR"] == "0.5"  # the fake's GPU pod price
+    assert api["env"]["SAM_BASE_URL"] == f"https://{gpu['id']}-8090.proxy.runpod.net"
+    assert len(account.pods) == 2
+    assert "hf-token-abc123" not in out.getvalue()
+    account.calls.clear()
+    rp.up(runpod, opts(secrets_dir, one_gpu=True))
+    assert account.writes() == []  # idempotent
+
+
+def test_one_gpu_warns_about_the_two_pods_it_replaces(
+    fake: FakeRunPod, account: FakeAccount, secrets_dir: Path
+) -> None:
+    runpod, out = client(fake)
+    rp.up(runpod, opts(secrets_dir))
+    rp.up(runpod, opts(secrets_dir, one_gpu=True))
+    text = out.getvalue()
+    assert "WARNING: rulecam-glimmer" in text
+    assert "still runs at $0.50/h and is no longer used" in text
+    assert "runpod_down.sh --only sam" in text
+    api = next(p for p in account.pods if p["name"] == "rulecam-api")
+    gpu = next(p for p in account.pods if p["name"] == "rulecam-gpu")
+    assert api["env"]["GLIMMER_BASE_URL"] == f"https://{gpu['id']}-8080.proxy.runpod.net/v1"
+    rp.up(runpod, opts(secrets_dir))  # and back: the gpu pod is the one left over
+    assert "WARNING: rulecam-gpu" in out.getvalue()
+
+
+def test_one_gpu_needs_both_services(secrets_dir: Path) -> None:
+    runpod = rp.RunPod(rp.offline_transport, rp.Reporter(out=io.StringIO()), dry_run=True)
+    with pytest.raises(rp.DeployError, match="drop --no-sam"):
+        rp.up(runpod, opts(secrets_dir, dry_run=True, one_gpu=True, with_sam=False))
+
+
+def test_gpu_price_override_reread_and_unknown(secrets_dir: Path) -> None:
+    reads: list[str] = []
+
+    def transport(method: str, path: str, body: Any) -> Any:
+        reads.append(path)
+        return {"id": "p1", "costPerHr": 0.44} if path == "/v2/pods/p1" else {"id": "p2"}
+
+    out = io.StringIO()
+    runpod = rp.RunPod(transport, rp.Reporter(out=out), dry_run=False)
+    stack = rp.Stack(pods={"gpu": {"id": "p1"}})
+    base = opts(secrets_dir)
+    assert rp.gpu_price(runpod, stack, base) == "0.44"  # re-read after a create without it
+    assert reads == ["/v2/pods/p1"]
+    assert rp.gpu_price(runpod, stack, replace(base, gpu_usd_per_hour=0.39)) == "0.39"
+    assert rp.gpu_price(runpod, rp.Stack(), base) is None  # no GPU pods
+    two = rp.Stack(pods={"glimmer": {"id": "a", "cost": 0.59}, "sam": {"id": "b", "cost": 0.39}})
+    assert rp.gpu_price(runpod, two, base) == "0.98"
+    unknown = rp.Stack(pods={"gpu": {"id": "p2", "cost": 0}})
+    assert rp.gpu_price(runpod, unknown, base) is None
+    assert "rulecam-gpu reports no price" in out.getvalue()
+    assert rp.pod_price({"adjustedCostPerHr": 0.5}) == 0.5
+    assert rp.pod_price({"cost": "0.5"}) is None
+
+
+def test_one_gpu_status_needs_both_servers(
+    fake: FakeRunPod, account: FakeAccount, secrets_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runpod, out = client(fake)
+    stack = rp.up(runpod, opts(secrets_dir, one_gpu=True))
+    gpu_id = stack.pods["gpu"]["id"]
+    rows = {r[0]: r for r in rp.status_rows(runpod, rp.Options(), probe=lambda url: 200)}
+    assert rows["rulecam-gpu"][4] == "ok"
+    assert rows["rulecam-glimmer"][2] == "absent"
+
+    def sam_down(url: str) -> int:
+        return 503 if "-8090." in url else 200
+
+    rows = {r[0]: r for r in rp.status_rows(runpod, rp.Options(), probe=sam_down)}
+    assert rows["rulecam-gpu"][4] == "down (200,503)"
+    monkeypatch.setattr(rp, "http_status", lambda url, **_: 200)
+    assert rp.print_status(runpod, rp.Options()) == 0  # glimmer and sam absent: not a failure
+    assert f"https://{gpu_id}-8080.proxy.runpod.net https://{gpu_id}-8090" in out.getvalue()
+    monkeypatch.setattr(rp, "http_status", lambda url, **_: 503 if "-8090." in url else 200)
+    assert rp.print_status(runpod, rp.Options()) == 1
+
+
+def test_one_gpu_waits_for_both_servers_on_the_one_pod(
+    fake: FakeRunPod, account: FakeAccount, secrets_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runpod, out = client(fake)
+    probed: list[str] = []
+
+    def status(url: str, **_: Any) -> int:
+        probed.append(url)
+        return 200
+
+    monkeypatch.setattr(rp, "http_status", status)
+    code = rp.run_up(runpod, opts(secrets_dir, one_gpu=True, wait=True))
+    assert code == 0
+    gpu = next(p for p in account.pods if p["name"] == "rulecam-gpu")
+    assert f"https://{gpu['id']}-8080.proxy.runpod.net/health" in probed
+    assert f"https://{gpu['id']}-8090.proxy.runpod.net/health" in probed
+    text = out.getvalue()
+    assert "glimmer: healthy" in text
+    assert "sam: healthy" in text
+    assert "GPU $0.50/h per camera-hour: 1 camera $0.500, 4 cameras $0.125" in text
+
+
+def test_one_gpu_command_line(
+    fake: FakeRunPod,
+    account: FakeAccount,
+    secrets_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = rp.parser().parse_args(
+        ["up", "--one-gpu", "--one-gpu-gpus", "NVIDIA A40,NVIDIA L40S", "--gpu-usd-per-hour", "0.4"]
+    )
+    options = rp.options(args)
+    assert options.one_gpu
+    assert options.one_gpu_gpus == ("NVIDIA A40", "NVIDIA L40S")
+    assert options.gpu_usd_per_hour == 0.4
+    assert rp.Options().one_gpu_gpus == (
+        "NVIDIA RTX A6000",
+        "NVIDIA A40",
+        "NVIDIA L40S",
+        "NVIDIA RTX 6000 Ada Generation",
+    )
+    config = tmp_path / "config.toml"
+    config.write_text(f'apikey = "{API_KEY}"\n')
+    monkeypatch.setenv("RUNPOD_REST_URL", fake.url)
+    monkeypatch.delenv("RUNPOD_API_KEY", raising=False)
+    argv = ["up", "--one-gpu", "--dry-run", "--config", str(config)]
+    assert rp.main([*argv, "--secrets-dir", str(secrets_dir)]) == 0
+    assert account.writes() == []
+    assert rp.main(["up", "--one-gpu", "--no-sam", "--dry-run", "--config", str(config)]) == 1

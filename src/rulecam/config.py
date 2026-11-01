@@ -70,6 +70,13 @@ class Settings(BaseSettings):
     # Where confirmed false alarms become permanent Rule CI lookalike regressions (P2-09,
     # `rule_ci.hard_negatives`); default `<data dir>/rule_ci/regressions`.
     rulecam_regressions_dir: Path | None = None
+    # Prototype mode (`rulecam.prototype`): the planner declines nothing but rules that single
+    # people out by race, ethnicity, religion, nationality or sexual orientation; every compiled
+    # rule activates (failed checks are caveats); the verifier's verdict is final.
+    rulecam_prototype_mode: bool = False
+    # Evidence strips sent to Glimmer: frames per strip and their width in pixels.
+    rulecam_strip_frames: int = Field(default=6, ge=1, le=12)
+    rulecam_strip_max_width: int = Field(default=640, ge=320, le=1920)
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None

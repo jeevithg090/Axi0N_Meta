@@ -37,7 +37,7 @@ _log = get_logger(__name__)
 
 M = TypeVar("M", bound=BaseModel)
 
-MAX_STRIP_FRAMES = 6
+MAX_STRIP_FRAMES = 12
 UNSURE_SCORE = 0.5
 
 ANNOTATION_BAND = (

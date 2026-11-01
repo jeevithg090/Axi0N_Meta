@@ -77,7 +77,14 @@ import numpy as np
 
 from rulecam.contracts import Frozen, RuleIR
 from rulecam.contracts.rule_ir import DistanceM, Inside
-from rulecam.rules.geometry import BoolArray, FloatArray, box_centres, ground_speed, norm
+from rulecam.rules.geometry import (
+    SPEED_MEDIAN_SAMPLES,
+    BoolArray,
+    FloatArray,
+    box_centres,
+    ground_speed,
+    norm,
+)
 from rulecam.rules.ir import parse_ref, walk
 from rulecam.rules.timeline import SampledTrack
 
@@ -269,16 +276,27 @@ class _PairKinematics:
     co_moving: BoolArray
 
 
+def _around(values: FloatArray, span: slice, pad: int) -> tuple[FloatArray, slice]:
+    """`values` over `span` widened by `pad` samples each side, and `span` within that cut."""
+    lo = max(0, span.start - pad)
+    return values[lo : span.stop + pad], slice(span.start - lo, span.stop - lo)
+
+
 def _kinematics(
     person: SampledTrack, vehicle: SampledTrack, own: slice, theirs: slice, hz: float
 ) -> _PairKinematics:
     both = person.present[own] & vehicle.present[theirs]
     p_box, v_box = person.box[own], vehicle.box[theirs]
-    p_vel = image_velocity(person.box, hz)[own]
-    v_vel = image_velocity(vehicle.box, hz)[theirs]
-    reshape = np.abs(reshape_rate(vehicle.box, hz)[theirs])
+    # Windowed estimates only need their neighbourhood, not the whole (maybe hours-long) track.
+    pad = max(1, round(VELOCITY_WINDOW_S * hz / 2)) + SPEED_MEDIAN_SAMPLES
+    p_cut, p_in = _around(person.box, own, pad)
+    v_cut, v_in = _around(vehicle.box, theirs, pad)
+    m_cut, m_in = _around(vehicle.foot_m, theirs, pad)
+    p_vel = image_velocity(p_cut, hz)[p_in]
+    v_vel = image_velocity(v_cut, hz)[v_in]
+    reshape = np.abs(reshape_rate(v_cut, hz)[v_in])
     height = v_box[:, 3] - v_box[:, 1]
-    ground = ground_speed(vehicle.foot_m, hz)[theirs]
+    ground = ground_speed(m_cut, hz)[m_in]
     carried = _carried(p_vel, v_vel)
     with np.errstate(invalid="ignore"):
         vehicle_moving = (norm(v_vel) >= STILL_HEIGHTS_PER_S * height) | (ground >= MOVING_MPS)

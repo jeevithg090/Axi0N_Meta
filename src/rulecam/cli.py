@@ -322,6 +322,56 @@ def eval_validate(*, set_dir: SetOption = EVAL_SET) -> None:
     typer.echo(f"{len(evalset.clips)} clips, {len(evalset.runnable())} runnable")
 
 
+@eval_app.command("label")
+def eval_label(
+    manifest: Annotated[Path, typer.Argument(help="E1 manifest YAML (task P4-06)")],
+    *,
+    set_dir: SetOption = EVAL_SET,
+    check_hashes: Annotated[
+        bool, typer.Option(help="Also check each clip file against its pinned sha256")
+    ] = False,
+) -> None:
+    """Check an E1 manifest's consent and list the clip/rule pairs still to be labelled.
+
+    Every entry must carry a signed consent form, so this command refuses the whole manifest if
+    any clip has none, and names the clips that need one. It changes nothing on disk.
+    """
+    from rulecam.eval.manifests import (  # noqa: PLC0415
+        ManifestError,
+        check_against_set,
+        load_manifest,
+        unlabelled,
+    )
+
+    evalset = _load_set(set_dir)
+    try:
+        loaded = load_manifest(manifest)
+        check_against_set(
+            loaded,
+            evalset.clips,
+            root=Path.cwd() if check_hashes else None,
+        )
+    except ManifestError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+
+    labelled = [
+        (clip.name, rule.id)
+        for clip in evalset.clips
+        for rule in clip.rules
+        if rule.status in {"labelled", "negative"}
+    ]
+    missing = unlabelled(loaded, labelled)
+    typer.echo(f"{loaded.name}: {len(loaded.entries)} consented clip/rule pairs")
+    for pair in missing:
+        typer.echo(f"  to label: {pair}")
+    typer.echo(
+        f"{len(loaded.entries) - len(missing)} labelled, {len(missing)} still to label"
+        if missing
+        else "every pair is labelled"
+    )
+
+
 @eval_app.command("fetch")
 def eval_fetch(
     *,

@@ -36,7 +36,7 @@ from rulecam.contracts import (
     RequestItem,
     SitePlan,
 )
-from rulecam.evidence.chain import EventChain
+from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.planner.pipeline import PlanStore
 from rulecam.replay.cache import ModeChanged, ReplayCache
 from rulecam.runtime.factory import ChunkIndex
@@ -87,13 +87,26 @@ def test_evidence_routes(services: AppServices) -> None:
     chain = EventChain(services.chain_root, "site", clock=clock)
     chain.append("plan", {"p": 1})
     chain.append("ack", {"role": "lead"})
-    with TestClient(create_app(services)) as client:
-        assert client.get("/evidence/days").json() == ["2026-10-30"]
+    with owner(create_app(services)) as client:
         text = client.get("/evidence/2026-10-30/chain").text
         assert len(text.splitlines()) == 2
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        # The public sees days, hashes, roots and the verdict, never a record or payload.
+        assert client.get("/evidence/2026-10-30/chain").status_code == 403
+        assert client.get("/evidence/days").json() == ["2026-10-30"]
+        hashes = client.get("/evidence/2026-10-30/hashes").json()
+        assert hashes == {
+            "n": 2,
+            "hashes": [r.hash for r in read_chain(chain.path_for(EPOCH.date()))],
+        }
+        assert "lead" not in json.dumps(hashes)
+        assert client.get("/evidence/2026-10-30/root").json()["n"] == 2
         assert client.get("/evidence/2026-10-30/verify").json()["ok"] is True
         assert client.get("/evidence/2026-10-29/verify").status_code == 404
+        assert client.get("/evidence/2026-10-29/hashes").status_code == 404
         assert client.get("/evidence/not-a-day/verify").status_code == 422
+        chain.path_for(EPOCH.date()).write_text("{not json}\n", encoding="utf-8")
+        assert client.get("/evidence/2026-10-30/hashes").status_code == 409
 
 
 def test_evidence_days_empty(services: AppServices) -> None:
@@ -177,8 +190,14 @@ def test_services_from_settings(tmp_path: Path) -> None:
         "/worker/dispute",
         "/worker/{plan_id}/{camera}",
         "/worker/{plan_id}/{camera}/poster",
+        "/alerts",
+        "/ack",
+        "/interlock/{device}/resume",
     ):
         assert path in paths, path
+    assert services.tickers  # the escalation timers
+    assert services.response is not None
+    assert services.response.actions_dry_run  # dry run until the owner turns it off
 
 
 def test_find_plan_uses_the_registry_then_saved_plans(tmp_path: Path) -> None:
@@ -201,6 +220,33 @@ def test_services_from_settings_with_runtime(tmp_path: Path) -> None:
     assert services.pair is not None
     with owner(create_app(services)) as client:
         assert client.get("/health").json()["runtime"] is True
+        response = client.get("/runtime/metrics").json()["response"]
+        assert response["tier2"] == "configured"  # replay mode replays recorded reviews
+        assert response["firewall"] == "degraded"
+        assert "HF_TOKEN" in response["firewall_reason"]
+        assert response["actions_dry_run"] is True
+        cost = client.get("/runtime/metrics").json()["cost"]
+        assert cost["budget_usd_per_camera_hour"] == 12.0
+        assert cost["alarm"] is False
+        assert cost["idle_stop"]["enabled"] is False  # off by default
+        assert "rulecam_cost_budget_alarm 0.0" in client.get("/metrics").text
+        metrics = client.get("/runtime/metrics").json()
+        assert metrics["verifier_down"] is False
+        assert metrics["verifier"]["state"] == "closed"  # Tier 1 behind its circuit breaker
+        assert "rulecam_runtime_verifier_down 0.0" in client.get("/metrics").text
+    assert len(services.tickers) == 3  # escalation timers, Tier 1 health probe, the cost watch
+
+
+def test_alert_routes_are_owner_only(tmp_path: Path) -> None:
+    services = services_from_settings(Settings(_env_file=None, rulecam_data_dir=tmp_path), "s")
+    app = create_app(services)
+    with TestClient(app, **TUNNEL) as remote:  # type: ignore[arg-type]
+        assert remote.get("/alerts").status_code == 403
+        assert remote.post("/ack", json={"event_id": "e", "role": "lead"}).status_code == 403
+        assert remote.post("/interlock/plug/resume", json={"role": "lead"}).status_code == 403
+    with owner(app) as client:
+        assert client.get("/alerts").json() == []
+        assert client.post("/interlock/plug/resume", json={"role": "lead"}).status_code == 404
 
 
 async def test_bus_publish_from_worker_thread_is_delivered() -> None:
@@ -305,7 +351,7 @@ def test_plans_create_list_get_approve(services: AppServices) -> None:
     with TestClient(create_app(services), **TUNNEL) as remote:  # type: ignore[arg-type]
         assert remote.post("/plans", json=body).status_code == 403
         assert remote.post("/plans/main-st/approve").status_code == 403
-        assert remote.get("/plans").status_code == 200
+        assert remote.get("/plans").status_code == 403  # plans hold request text (W-01)
 
 
 def test_plan_registry_is_bounded() -> None:
@@ -409,6 +455,7 @@ PUBLIC_UI = "https://rulecam.vercel.app"
 
 def test_public_ui_can_watch_ws_but_not_change_state(services: AppServices) -> None:
     services.viewer_origins = viewer_origins(PUBLIC_UI + "/worker")
+    services.public_demo = True
     app = create_app(services)
     with TestClient(app, **TUNNEL) as client:  # type: ignore[arg-type]
         client.headers["Origin"] = PUBLIC_UI
@@ -437,3 +484,48 @@ def test_viewer_origins_from_public_ui_url(url: str | None, expected: frozenset[
 def test_viewer_origins_rejects_non_http_urls() -> None:
     with pytest.raises(ValueError, match="PUBLIC_UI_URL"):
         viewer_origins("javascript:alert(1)")
+
+
+def test_public_ui_origin_alone_cannot_watch_ws(services: AppServices) -> None:
+    """Without PUBLIC_DEMO an Origin header (easy to forge outside a browser) grants nothing."""
+    services.viewer_origins = viewer_origins(PUBLIC_UI)
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        client.headers["Origin"] = PUBLIC_UI
+        with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws") as ws:
+            ws.receive_json()
+
+
+def test_plan_reads_are_owner_only_unless_public_demo(services: AppServices) -> None:
+    EventChain(services.chain_root, "site", clock=FakeClock()).append("plan", {"p": 1})
+    services.plans.put(site_plan("p1"))
+    plans = ("/plans", "/plans/p1")
+    chain = "/evidence/2026-10-30/chain"
+
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        assert [client.get(path).status_code for path in plans] == [403, 403]
+    with owner(create_app(services)) as client:
+        assert [client.get(path).status_code for path in plans] == [200, 200]
+
+    services.public_demo = True
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        assert [client.get(path).status_code for path in plans] == [200, 200]
+        assert client.get(chain).status_code == 403  # the chain stays owner-only
+
+
+def test_correction_is_owner_only_through_the_tunnel(tmp_path: Path) -> None:
+    services = services_from_settings(
+        Settings(_env_file=None, rulecam_data_dir=tmp_path, public_demo=True), "s"
+    )
+    body = {"event_id": "ev-1", "frame_idx": 0, "x": 1.0, "y": 1.0}
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        assert client.post("/correction", json=body).status_code == 403
+    with owner(create_app(services)) as client:
+        assert client.post("/correction", json=body).status_code == 404
+
+
+def test_public_demo_setting_reaches_the_app(tmp_path: Path) -> None:
+    off = services_from_settings(Settings(_env_file=None, rulecam_data_dir=tmp_path), "s")
+    on = services_from_settings(
+        Settings(_env_file=None, rulecam_data_dir=tmp_path, public_demo=True), "s"
+    )
+    assert (off.public_demo, on.public_demo) == (False, True)

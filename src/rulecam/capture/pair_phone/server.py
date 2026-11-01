@@ -14,8 +14,8 @@ Every route is HTTPS-only, except on localhost:
 | `POST /pair/{token}/chunk` | phone | one WebM/MP4 clip ≤ 5 MB (header `X-Pair-Session`) |
 | `WS /pair/{token}/coach` | phone | placement-coach bars every ~2 s |
 
-`require_owner` only lets this machine create tokens. The API app may swap in real owner
-authentication with `app.dependency_overrides[require_owner]`.
+`require_owner` only lets this machine create tokens. The API app swaps in owner login
+(`rulecam.api.auth`) with `app.dependency_overrides[require_owner]`.
 """
 
 from __future__ import annotations
@@ -148,15 +148,23 @@ def _from_loopback_page(conn: HTTPConnection) -> bool:
     return origin is None or is_loopback(urlsplit(origin).hostname)
 
 
+def is_loopback_owner(conn: HTTPConnection) -> bool:
+    """Whether the request comes from this machine: loopback host and client, loopback `Origin`."""
+    client = conn.client.host if conn.client else None
+    return is_loopback(conn.url.hostname) and is_loopback(client) and _from_loopback_page(conn)
+
+
 def require_owner(conn: HTTPConnection) -> None:
     """Only let this machine (not the public tunnel, nor another site's page) make owner calls.
+
+    The API app replaces this with `rulecam.api.auth.OwnerAuth.require_owner`, which also
+    accepts a signed-in owner session.
 
     Raises:
         HTTPException: 403 unless the target host and the client are loopback and any browser
             `Origin` is a loopback page.
     """
-    client = conn.client.host if conn.client else None
-    if is_loopback(conn.url.hostname) and is_loopback(client) and _from_loopback_page(conn):
+    if is_loopback_owner(conn):
         return
     reason = "pairing codes are created on the owner's machine"
     raise HTTPException(status.HTTP_403_FORBIDDEN, reason)

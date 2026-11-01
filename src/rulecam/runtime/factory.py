@@ -4,19 +4,31 @@
 self-hosted worker (our own GPU pod when `SAM_BASE_URL` is set, otherwise Modal),
 `SegmenterRouter`, `PerceptionMetrics`, and a thread-safe
 `ParquetTrackStore` shared by the runtime loop and the correction loop. `build_runtime` adds the
-`Tracker`, the Tier 1 Glimmer verifier and the evidence chain around them.
+`Tracker`, the Tier 1 Glimmer verifier, the response side (`runtime.response`: the
+safety-asymmetric policy, the scene-text firewall and the actions) and the evidence chain.
 
-On the runtime path the tracker's segmenter is, from the outside in: `StaticServedSegmenter`
+`RULECAM_RUNTIME_SAM_MODE` picks the runtime perception. `image` (the default, PLAN-9.5 WS2b):
+`KeyframeTracker` segments 2 to 4 keyframes per second per camera (`RULECAM_KEYFRAME_FPS`,
+`RULECAM_KEYFRAME_FPS_CAMERAS`) with SAM 3.1 image mode, self-hosted (`POST /segment_image`
+on our GPU pod) with hosted image requests as the fallback (`router.keyframe_chain`), and joins
+them into tracks with ByteTrack; it is its own static cache, cost meter and budget estimate.
+`video` keeps the chain below, which probes, Rule CI and evidence re-checks use in any mode.
+
+In video mode the tracker's segmenter is, from the outside in: `StaticServedSegmenter`
 (static concepts from the static cache, no SAM call) -> `CallMeter` (requests and billed frames
-per camera, for the loop's budget and `/runtime/metrics`) -> the router's runtime segmenter. The
+per camera, for the loop's budget and `/runtime/metrics`) -> `LimitedSegmenter` (at most
+`RULECAM_SAM_MAX_CONCURRENCY` SAM calls open at once, queue time timed) -> the router's runtime
+segmenter, whose hosted SAM returns boxes only unless `RULECAM_RUNTIME_SAM_MASKS` is set (mask
+decoding is GIL-bound pure Python; the runtime needs foot points only). The
 loop also gets the motion gate, the idle-sampling/budget policy and its pipeline depth
 (`RULECAM_RUNTIME_PIPELINE_DEPTH`) from settings. With more than one chunk in flight the tracker
 does not re-prompt: a re-prompt needs the previous chunk's tracks, which would make every chunk
 wait for one more SAM round trip in order, so identities are handed off by IoU.
 
-The policy (P3-05), actions (P3-06) and strip renderer (P4-05) have not landed yet, so the
-defaults here are deliberately conservative: nothing acts first, nothing is executed, and no
-pixels are attached to a candidate (so nothing raw can leave the loop in any privacy mode).
+Each candidate gets its evidence strip from `EpisodeStrips` (P4-05): keyframes across the
+episode from the chunks on disk, with the rule's boxes, zones and distance ruler, in the plan's
+privacy mode, under `<data dir>/strips`. The policy is P3-05's `VerificationPolicy` and the
+actions P3-06's `ActionExecutor`, dry-run by default (`RULECAM_ACTIONS_DRY_RUN`).
 """
 
 from __future__ import annotations
@@ -35,31 +47,49 @@ from rulecam.clients.meta_hosted.sam_wire import SAM_MODEL
 from rulecam.clients.open_weights.glimmer import GlimmerClient
 from rulecam.clients.transport import HttpxTransport, Transport
 from rulecam.config import Settings
-from rulecam.contracts import (
-    ActionRecord,
-    CandidateEvent,
-    Chunk,
-    Clock,
-    EventRecord,
-    PrivacyMode,
-    RuleIR,
-    Track,
-    VerifierVerdict,
-)
+from rulecam.contracts import Chunk, Clock, EventRecord, Track
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.log import get_logger
 from rulecam.perception.errors import SamRuntimeError
+from rulecam.perception.keyframe_tracker import KeyframeTracker
+from rulecam.perception.keyframes import HostedKeyframes, KeyframeRates, SelfHostedKeyframes
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.perception.motion_gate import MotionGate
-from rulecam.perception.router import CallMeter, Purpose, RoutingPolicy, SegmenterRouter
-from rulecam.perception.sam_runtime import HttpSamWorker, ModalSam31, ModalWorker, SamWorker
-from rulecam.perception.static_cache import StaticServedSegmenter
+from rulecam.perception.router import (
+    CallMeter,
+    LimitedSegmenter,
+    Purpose,
+    RoutingPolicy,
+    SegmenterRouter,
+    keyframe_chain,
+)
+from rulecam.perception.sam_runtime import (
+    HttpSamWorker,
+    ModalSam31,
+    ModalWorker,
+    SamImageWorker,
+    SamWorker,
+)
+from rulecam.perception.static_cache import StaticCache, StaticServedSegmenter
 from rulecam.perception.tracking import Tracker
 from rulecam.replay.cache import ReplayCache
+from rulecam.rules.operators import OperatorExclusion
 from rulecam.rules.store import ParquetTrackStore
-from rulecam.runtime.loop import RuntimeLoop, chunk_end
+from rulecam.runtime.cost import CostMeter
+from rulecam.runtime.loop import (
+    BillEstimate,
+    ChunkTracker,
+    RuntimeLoop,
+    SamUsage,
+    StaticSink,
+    chunk_end,
+    video_bill_estimate,
+)
+from rulecam.runtime.response import Response, build_response
 from rulecam.runtime.sampling import SamplingPolicy
-from rulecam.verify.decision import Decision
+from rulecam.runtime.strips import EpisodeStrips, face_detector
+from rulecam.runtime.timings import StageTimings
+from rulecam.verify.guard import BreakerPolicy, CircuitBreaker, GuardedVerifier, http_probe
 from rulecam.verify.tier1 import GlimmerVerifier
 
 _log = get_logger(__name__)
@@ -146,44 +176,6 @@ def _candidate_event_id(record: EventRecord) -> object:
     return candidate.get("event_id") if isinstance(candidate, dict) else None
 
 
-class VerifyOnlyPolicy:
-    """Placeholder for P3-05: never acts first; alerts only on a Tier 1 violation, via a human."""
-
-    def act_first(self, candidate: CandidateEvent, rule: RuleIR) -> bool:  # noqa: ARG002 - protocol signature
-        """Nothing acts before verification until the real policy lands."""
-        return False
-
-    def decide(self, candidate: CandidateEvent, rule: RuleIR, tier1: VerifierVerdict) -> Decision:  # noqa: ARG002 - protocol signature
-        """Alert on a Tier 1 violation and route it to the human queue."""
-        return Decision(
-            alert=tier1.verdict == "violation",
-            route="human_queue",
-            act_first=False,
-            reason=f"tier1 {tier1.verdict} (placeholder policy, P3-05 pending)",
-        )
-
-
-class NoActions:
-    """Placeholder for P3-06: runs nothing."""
-
-    def run(
-        self,
-        candidate: CandidateEvent,  # noqa: ARG002 - protocol signature
-        rule: RuleIR,  # noqa: ARG002 - protocol signature
-        decision: Decision,  # noqa: ARG002 - protocol signature
-    ) -> list[ActionRecord]:
-        """Run no action."""
-        return []
-
-
-class NoStrips:
-    """Placeholder for P4-05: attaches no frames, so no pixels leave the loop in any mode."""
-
-    def render(self, candidate: CandidateEvent, chunk: Chunk, mode: PrivacyMode) -> CandidateEvent:  # noqa: ARG002 - protocol signature
-        """Return the candidate with an empty strip."""
-        return candidate.model_copy(update={"strip_paths": ()})
-
-
 def _offline(request: Mapping[str, object]) -> Mapping[str, object]:  # noqa: ARG001 - protocol signature
     msg = "no META_API_BASE_URL/META_API_KEY: hosted SAM can only be served from the replay cache"
     raise ClientConfigError(msg)
@@ -216,6 +208,8 @@ class Perception:
     metrics: PerceptionMetrics
     store: LockedTrackStore
     chunks: ChunkIndex
+    runtime_hosted: HostedSam31 | None = None  # the runtime path's view of `hosted`
+    image_worker: SamImageWorker | None = None  # our GPU pod's `/segment_image`, if configured
 
 
 def self_hosted_worker(settings: Settings) -> tuple[SamWorker, str] | None:
@@ -247,6 +241,7 @@ def build_perception(
     """
     metrics = PerceptionMetrics()
     hosted = hosted_sam(settings, cache, clock=clock, bus=bus)
+    runtime_hosted = hosted.runtime_view(masks=settings.rulecam_runtime_sam_masks)
     picked = self_hosted_worker(settings)
     backend = Backend.SELF_HOSTED if picked is not None else Backend.HOSTED
     worker, worker_name = picked if picked is not None else (ModalWorker(settings), "none")
@@ -261,12 +256,50 @@ def build_perception(
         policy=RoutingPolicy(runtime_backend=backend),
         metrics=metrics,
         on_fallback=on_fallback,
+        runtime_hosted=runtime_hosted,
     )
     store = LockedTrackStore(ParquetTrackStore(settings.rulecam_data_dir / "tracks"))
     _log.info("perception_built", runtime_backend=str(backend), self_hosted_worker=worker_name)
     return Perception(
-        hosted=hosted, router=router, metrics=metrics, store=store, chunks=ChunkIndex(metrics)
+        hosted=hosted,
+        router=router,
+        metrics=metrics,
+        store=store,
+        chunks=ChunkIndex(metrics),
+        runtime_hosted=runtime_hosted,
+        image_worker=worker if picked is not None and isinstance(worker, HttpSamWorker) else None,
     )
+
+
+def build_tier1(
+    settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus
+) -> GuardedVerifier:
+    """The Tier 1 verifier: Glimmer through the replay cache, behind retry and a circuit breaker.
+
+    A failure never passes silently: it becomes a `verifier_error` verdict that the policy sends
+    to a person (`verify.guard`). While the circuit is open, the API's ticker probes llama-server's
+    `/health` (not in replay mode, where nothing is called).
+    """
+    client = GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+    policy = BreakerPolicy(
+        retries=settings.rulecam_verify_retries,
+        failure_threshold=settings.rulecam_verify_breaker_failures,
+        cooldown_s=settings.rulecam_verify_breaker_cooldown_s,
+    )
+    probe = None
+    if settings.rulecam_mode != "replay":
+        probe = http_probe(glimmer_health_url(settings.glimmer_base_url))
+    return GuardedVerifier(
+        GlimmerVerifier(client, raise_errors=True),
+        model_version=client.model,
+        breaker=CircuitBreaker(policy),
+        probe=probe,
+    )
+
+
+def glimmer_health_url(base_url: str) -> str:
+    """llama-server's `/health` for an OpenAI-style base URL (`…/v1` → `…/health`)."""
+    return base_url.rstrip("/").removesuffix("/v1") + "/health"
 
 
 def build_runtime(
@@ -277,6 +310,8 @@ def build_runtime(
     clock: Clock,
     bus: Bus,
     chain: EventChain,
+    response: Response | None = None,
+    cost: CostMeter | None = None,
 ) -> RuntimeLoop:
     """Build the real runtime loop: router segmenter → `Tracker` → Parquet store → Glimmer.
 
@@ -287,37 +322,137 @@ def build_runtime(
         clock: Time source.
         bus: The event bus.
         chain: The evidence chain.
+        response: Policy, actions and Tier 1 (default: `build_tier1` + `build_response`).
+        cost: The dollar budget; a camera it marks over budget degrades (`runtime.cost`).
 
     Returns:
-        The loop, with placeholder policy, actions and strips until P3-05, P3-06 and P4-05.
+        The loop.
     """
-    meter = CallMeter(perception.router.for_purpose(Purpose.RUNTIME))
+    timings = StageTimings()
+    picked = (
+        _image_tracker(settings, perception, clock=clock, bus=bus, timings=timings)
+        if settings.rulecam_runtime_sam_mode == "image"
+        else _video_tracker(settings, perception, bus=bus, timings=timings)
+    )
+    _log.info("runtime_perception", mode=settings.rulecam_runtime_sam_mode)
+    if response is None:
+        response = build_response(
+            settings,
+            tier1=build_tier1(settings, cache=cache, clock=clock, bus=bus),
+            segmenter=perception.hosted,
+            cache=cache,
+            clock=clock,
+            bus=bus,
+            chain=chain,
+        )
+    return RuntimeLoop(
+        bus=bus,
+        clock=clock,
+        tracker=picked.tracker,
+        store=perception.store,
+        verifier=response.tier1,
+        policy=response.policy,
+        actions=response.actions,
+        strips=EpisodeStrips(
+            chunks=perception.chunks,
+            store=perception.store,
+            out_dir=settings.rulecam_data_dir / "strips",
+            faces=face_detector(settings.rulecam_face_model),
+        ),
+        chain=chain,
+        sampling=SamplingPolicy.from_settings(settings),
+        motion_gate=MotionGate(),  # camera time is recorded by `ChunkIndex`, not twice here
+        usage=picked.usage,
+        static_sink=picked.static_sink,
+        companions=(lambda: picked.static_cache.run(bus),),
+        pipeline_depth=settings.rulecam_runtime_pipeline_depth,
+        timings=timings,
+        verify_workers=settings.rulecam_runtime_verify_workers,
+        operators=OperatorExclusion.from_csv(
+            settings.rulecam_operator_exclusion_off, warmup_s=settings.rulecam_operator_warmup_s
+        ),
+        over_budget=cost.over_budget if cost is not None else None,
+        bill_estimate=picked.bill_estimate,
+    )
+
+
+@dataclass(frozen=True)
+class RuntimeTracker:
+    """The runtime loop's perception side, for one `RULECAM_RUNTIME_SAM_MODE`."""
+
+    tracker: ChunkTracker
+    usage: SamUsage
+    static_sink: StaticSink
+    static_cache: StaticCache
+    bill_estimate: BillEstimate
+
+
+def _video_tracker(
+    settings: Settings, perception: Perception, *, bus: Bus, timings: StageTimings
+) -> RuntimeTracker:
+    """Video mode: SAM 3.1 video per chunk through the router, IoU hand-off between chunks."""
+    if perception.runtime_hosted is not None:
+        perception.runtime_hosted.set_stage_sink(timings.record)
+    limited = LimitedSegmenter(
+        perception.router.for_purpose(Purpose.RUNTIME),
+        settings.rulecam_sam_max_concurrency,
+        timings=timings,
+    )
+    meter = CallMeter(limited)
     served = StaticServedSegmenter(meter)
-    depth = settings.rulecam_runtime_pipeline_depth
     tracker = Tracker(
         served,
         store=perception.store,
         bus=bus,
-        reprompt=depth == 1,
+        reprompt=settings.rulecam_runtime_pipeline_depth == 1,
         max_workers=settings.rulecam_runtime_concept_workers,
     )
-    verifier = GlimmerVerifier(
-        GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
-    )
-    return RuntimeLoop(
-        bus=bus,
-        clock=clock,
+    return RuntimeTracker(
         tracker=tracker,
-        store=perception.store,
-        verifier=verifier,
-        policy=VerifyOnlyPolicy(),
-        actions=NoActions(),
-        strips=NoStrips(),
-        chain=chain,
-        sampling=SamplingPolicy.from_settings(settings),
-        motion_gate=MotionGate(),  # camera time is recorded by `ChunkIndex`, not twice here
         usage=meter,
         static_sink=lambda concepts, version: served.set_static(concepts, generation=version),
-        companions=(lambda: served.cache.run(bus),),
-        pipeline_depth=depth,
+        static_cache=served.cache,
+        bill_estimate=video_bill_estimate,
+    )
+
+
+def _image_tracker(
+    settings: Settings, perception: Perception, *, clock: Clock, bus: Bus, timings: StageTimings
+) -> RuntimeTracker:
+    """Image mode: SAM 3.1 image keyframes (self-hosted, then hosted) joined by ByteTrack."""
+    metrics = perception.metrics
+    hosted = HostedKeyframes(
+        perception.runtime_hosted or perception.hosted,
+        max_concurrency=settings.rulecam_sam_max_concurrency,
+        metrics=metrics,
+        timings=timings.record,
+    )
+    worker = perception.image_worker
+    self_hosted = (
+        SelfHostedKeyframes(worker, bus=bus, metrics=metrics, timings=timings.record)
+        if worker is not None
+        else None
+    )
+
+    def on_fallback(camera_id: str, error: SamRuntimeError) -> None:  # noqa: ARG001 - hook signature
+        metrics.record_fallback(camera_id)
+
+    keyframes = keyframe_chain(
+        hosted, self_hosted, policy=perception.router.policy, clock=clock, on_fallback=on_fallback
+    )
+    tracker = KeyframeTracker(
+        keyframes,
+        rates=KeyframeRates.parse(
+            settings.rulecam_keyframe_fps, settings.rulecam_keyframe_fps_cameras
+        ),
+        store=perception.store,
+        bus=bus,
+        timings=timings,
+    )
+    return RuntimeTracker(
+        tracker=tracker,
+        usage=tracker,
+        static_sink=lambda concepts, version: tracker.set_static(concepts, generation=version),
+        static_cache=tracker.cache,
+        bill_estimate=tracker.estimate,
     )

@@ -1,0 +1,11 @@
+# PLACEHOLDER: the owner records this clip (eval/README.md, "Recording the owner's clips").
+# Intended label: POSITIVE for handwash_20s. Once recorded, set `source`, `duration_s`,
+# `placeholder: false` and `status: labelled` with its events.
+name: owner_hw_pos_two_short
+description: Two short washes (about 8 s each) with a 10 s gap away from the sink.
+camera_id: owner-sink
+placeholder: true
+rules:
+  - id: handwash_20s
+    request: Staff must wash their hands for at least 20 seconds.
+    status: unlabelled

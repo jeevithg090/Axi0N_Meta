@@ -4,7 +4,9 @@ When a person marks an alert as mis-segmented ("that is a backpack strap, not a 
 click the false region on the event clip. The clicked object's concept is re-prompted on the
 event's chunks with a **negative point**, propagating **backward** from the clicked frame to the
 episode start. The re-segmented detections replace the old ones and the rule is re-evaluated on
-the corrected tracks. If the episode no longer fires, the candidate is cancelled.
+the corrected tracks. If the episode no longer fires, the candidate is cancelled. The owner's
+click confirms a false detection, so with `hard_negatives` it also becomes a permanent Rule CI
+lookalike regression (WS1f).
 
 Frames are addressed on the event clip: the chunks overlapping `[ts_start, ts_end]`, in order.
 Click the last frame of the episode to correct all of it; detections after the clicked frame are
@@ -26,6 +28,7 @@ from rulecam.contracts import (
     Detection,
     EventRecord,
     Frozen,
+    RuleIR,
     Segmenter,
     Track,
     TrackPoint,
@@ -118,6 +121,16 @@ class LabelSink(Protocol):
         ...
 
 
+class FalsePositiveSink(Protocol):
+    """Remembers a confirmed false detection (`rule_ci.hard_negatives.HardNegatives`)."""
+
+    def from_correction(
+        self, candidate: CandidateEvent, rule: RuleIR, concept: str, *, x: float, y: float
+    ) -> object:
+        """Record an owner correction."""
+        ...
+
+
 class CorrectionService:
     """Applies corrections; inject the segmenter, stores and the chain writer."""
 
@@ -130,6 +143,7 @@ class CorrectionService:
         chunks: ChunkSource,
         record_label: LabelSink,
         pose: PoseFeatures | None = None,
+        hard_negatives: FalsePositiveSink | None = None,
     ) -> None:
         """Create the service.
 
@@ -140,6 +154,7 @@ class CorrectionService:
             chunks: Lookup of the event's video chunks.
             record_label: Writes the `label` record to the evidence chain.
             pose: Pose features, for rules with pose predicates.
+            hard_negatives: Turns each correction into a permanent Rule CI regression (WS1f).
         """
         self._segmenter = segmenter
         self._store = store
@@ -147,6 +162,7 @@ class CorrectionService:
         self._chunks = chunks
         self._record_label = record_label
         self._pose = pose
+        self._hard_negatives = hard_negatives
 
     def correct(self, request: CorrectionRequest) -> CorrectionResult:
         """Re-track the clicked object backward with a negative point and re-evaluate the rule.
@@ -184,6 +200,10 @@ class CorrectionService:
             y=request.y,
         )
         self._record_label("label", label.model_dump(mode="json"))
+        if self._hard_negatives is not None:
+            self._hard_negatives.from_correction(
+                candidate, context.rule, false_track.concept, x=request.x, y=request.y
+            )
         result = _result(candidate, after, label, [chunk_id for chunk_id, _ in per_chunk])
         _log.info(
             "correction_applied",

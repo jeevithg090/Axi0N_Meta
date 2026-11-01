@@ -26,10 +26,50 @@ class Settings(BaseSettings):
     rulecam_idle_stride_medium: int = Field(default=3, ge=1)
     rulecam_idle_stride_high: int = Field(default=2, ge=1, le=2)  # HIGH: every 2nd chunk at most
     rulecam_idle_holdoff_s: float = Field(default=30.0, ge=0)  # every chunk for 30 s after activity
-    rulecam_sam_budget_frames_per_min: int = Field(default=1000, ge=0)  # per camera; 0 = no budget
+    # Per-camera dollar budget (runtime.cost): hosted SAM spend over the last minute as $/h, plus
+    # the camera's share of the GPU pods. At or above it: alarm, and with hosted spend, degrade
+    # to one chunk in RULECAM_SAM_BUDGET_STRIDE. 12 $/h = the former 1,000 hosted frames/min.
+    rulecam_budget_usd_per_camera_hour: float = Field(default=12.0, ge=0)  # 0 = no budget
+    rulecam_gpu_usd_per_hour: float = Field(default=0.0, ge=0)  # GPU pods' combined $/h
+    rulecam_sam_budget_frames_per_min: int = Field(default=0, ge=0)  # optional frame cap; 0 = off
     rulecam_sam_budget_stride: int = Field(default=3, ge=1)  # over budget: one chunk in N
+    # Stop the GPU pods after this many seconds with no camera on an active plan
+    # (runtime.idle_stop); 0 = never. Needs the RunPod key in RULECAM_RUNPOD_API_KEY_FILE.
+    rulecam_idle_stop_gpu_after_s: float = Field(default=0.0, ge=0)
+    rulecam_idle_stop_gpu_pods: str = "rulecam-glimmer,rulecam-sam"  # pod names or ids
+    rulecam_runpod_api_key_file: Path | None = None
     rulecam_runtime_concept_workers: int = Field(default=4, ge=1)  # concepts segmented at once
     rulecam_runtime_pipeline_depth: int = Field(default=4, ge=1)  # chunks per camera in flight
+    # Runtime SAM calls open at once, across cameras (docs/deploy.md "Stage timings").
+    rulecam_sam_max_concurrency: int = Field(default=8, ge=1)
+    rulecam_runtime_verify_workers: int = Field(default=4, ge=1)  # Tier 1 verifications at once
+    # Tier 1 retry and circuit breaker (verify.guard): retries after a transient failure, the
+    # failures in a row that open the circuit, and how long it stays open before a trial.
+    rulecam_verify_retries: int = Field(default=1, ge=0)
+    rulecam_verify_breaker_failures: int = Field(default=3, ge=1)
+    rulecam_verify_breaker_cooldown_s: float = Field(default=30.0, gt=0)
+    # Decode hosted SAM masks on the runtime path (pure-Python, GIL-bound; boxes suffice for feet).
+    rulecam_runtime_sam_masks: bool = False
+    # Runtime perception (docs/deploy.md "Runtime perception modes"): `image` runs SAM 3.1 image
+    # mode on keyframes and joins them with ByteTrack; `video` sends whole chunks to SAM 3.1 video.
+    rulecam_runtime_sam_mode: Literal["image", "video"] = "image"
+    rulecam_keyframe_fps: float = Field(default=2.0, ge=2.0, le=10.0)  # keyframes per second
+    rulecam_keyframe_fps_cameras: str = ""  # per-camera overrides, e.g. "dock=4,kitchen=3"
+    # Rule ids whose owner turned operator exclusion off (comma-separated; rules/operators.py):
+    # for these, a person riding a forklift counts as a pedestrian next to it.
+    rulecam_operator_exclusion_off: str = ""
+    # How long a person first seen on board a vehicle is held as its operator pending before
+    # being judged operator or pedestrian (rules/operators.py rule 7); 0 turns the hold off.
+    rulecam_operator_warmup_s: float = Field(default=1.5, ge=0.0, le=1.5)
+    # YuNet face-detector ONNX (opencv_zoo) for blurring faces in evidence strips; without it
+    # only the head regions of tracked people are blurred (runtime.strips).
+    rulecam_face_model: Path | None = None
+    # Record actions as `dry-run: would …` and execute none of them (no power cut, light,
+    # speaker or notification) until the owner turns this off (docs/deploy.md "Actions").
+    rulecam_actions_dry_run: bool = True
+    # Where confirmed false alarms become permanent Rule CI lookalike regressions (P2-09,
+    # `rule_ci.hard_negatives`); default `<data dir>/rule_ci/regressions`.
+    rulecam_regressions_dir: Path | None = None
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None
@@ -54,6 +94,15 @@ class Settings(BaseSettings):
     whatsapp_phone_number_id: str | None = None
     public_tunnel_url: str | None = None
     public_ui_url: str | None = None  # public origin of the web UI (worker page QR on posters)
+    # Owner login (docs/deploy.md "Owner login"): `rulecam owner set-passphrase` prints the hash.
+    owner_passphrase_hash: SecretStr | None = None
+    session_secret: SecretStr | None = None  # signs owner session cookies; 32+ characters
+    session_ttl_s: int = Field(default=12 * 3600, ge=300, le=7 * 24 * 3600)
+    # Shared with the UI's middleware, which then forwards the browser's IP (per-client limits).
+    ui_proxy_secret: SecretStr | None = None
+    # Demo sites only: let non-owners watch the live feed and read plans. Never on a real site,
+    # where those reads stay owner-only (W-01).
+    public_demo: bool = False
     planner_survey_window_s: float = (
         60.0  # seconds of recent chunks the planner samples frames from
     )
@@ -62,6 +111,11 @@ class Settings(BaseSettings):
     def replay_dir(self) -> Path:
         """Directory of the replay cache (overridable for tests)."""
         return self.rulecam_replay_dir or self.rulecam_data_dir / "replay"
+
+    @property
+    def regressions_dir(self) -> Path:
+        """Directory of the site's permanent lookalike regressions."""
+        return self.rulecam_regressions_dir or self.rulecam_data_dir / "rule_ci" / "regressions"
 
 
 @lru_cache(maxsize=1)

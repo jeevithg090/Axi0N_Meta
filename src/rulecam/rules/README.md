@@ -8,10 +8,11 @@ the semantics below are the contract that the tests pin down.
 
 | Name | What it does |
 |---|---|
-| `evaluate(rule, tracks, *, calibration, zones, t0, t1, hz=10.0, episode_gap_s=2.0, cooldown_s=0.0, plan_version_hash="", pose=None)` | Pure: no I/O, no clock, no randomness. Identical inputs give byte-identical output; the order of `tracks` does not matter. Returns candidates sorted by `(ts_start, camera_id, event_id)` |
+| `evaluate(rule, tracks, *, calibration, zones, t0, t1, hz=10.0, episode_gap_s=2.0, cooldown_s=0.0, plan_version_hash="", pose=None, operator_exclusion=True, operator_warmup_s=1.5)` | Pure: no I/O, no clock, no randomness. Identical inputs give byte-identical output; the order of `tracks` does not matter. Returns candidates sorted by `(ts_start, camera_id, event_id)` |
 | `rule_ir_hash(rule)` | sha256 of the rule's canonical JSON (sorted keys) |
 | `backtest(rule, store, camera_id, t0, t1, *, calibration, zones, hz, baseline, pose) -> BacktestReport` | Re-runs the engine on `TrackStore.window` (no SAM calls): events, count, per-hour rate, `backtestable` (`yes`/`partial`/`no` from the concepts present in the stored tracks), and an optional v1-vs-v2 diff (`added`/`removed`, matched by subject and overlapping time). `report.headline()` gives "would have fired N× earlier today" |
-| `DecisionContext`, `candidate_payload(candidate, context)` | What a decision depended on besides tracks (rule, calibration, zones, window, rates). P3-07 stores `candidate_payload(...)` as the `candidate` record's payload |
+| `DecisionContext`, `candidate_payload(candidate, context)` | What a decision depended on besides tracks (rule, calibration, zones, window, rates, `operator_exclusion`, `operator_warmup_s`). P3-07 stores `candidate_payload(...)` as the `candidate` record's payload |
+| `OperatorExclusion(disabled_rules=..., warmup_s=1.5)`, `.from_csv(text, warmup_s=...)`, `.enabled_for(rule_id)` | Engine configuration keyed by rule id: the rules whose owner turned operator exclusion off (`RULECAM_OPERATOR_EXCLUSION_OFF`), and the operator warm-up (`RULECAM_OPERATOR_WARMUP_S`, 0 to 1.5 s) |
 | `rederive(record, store, *, pose=None) -> bool` | E9 audit: checks the rule hash, re-evaluates the stored window and requires the recorded candidate to be reproduced exactly. Tampered payloads, swapped rules or changed tracks give False |
 | `near_miss_at(tracks, *, camera_id, subject_concept, other_concept, at, calibration)` | Closest approach and time-to-collision per subject at one instant (e.g. person vs forklift) |
 | `PoseFeatures` | Protocol `(state, point) -> bool \| None` that adapts P4-04's `rulecam.pose.features`; passed as `pose=` |
@@ -78,9 +79,42 @@ coverage watchdog's job (P1-08).
 
 **Near-miss metrics.** For every `distance_m` node, the trace also holds `<path>.separation_m`,
 `<path>.closest_m` and `<path>.closest_in_s` (closest approach within a 1 s horizon), and
-`<path>.ttc_s` (time until the foot points come within 0.5 m, or `"none"`). Both objects are
-extrapolated at constant velocity; velocities are least-squares slopes of the ground foot point
-over the last 5 samples. These are part of the candidate, so `rederive` checks them too.
+`<path>.ttc_s` (time until they come within 0.5 m, or `"none"`). Both objects are extrapolated at
+constant velocity; velocities are least-squares slopes of the ground foot point over the last 5
+samples (an object seen once counts as standing still). The metrics measure the same geometry as
+the node (WS1d): to the other object's footprint when the node does (calibration, no
+`.foot_point`), the footprint moving rigidly with the object, and without the vehicle the subject
+operates. So `separation_m` equals the node's `value` at the firing time, and a candidate of
+`distance_m(lt=d)` always has `separation_m < d`. These are part of the candidate, so `rederive`
+checks them too.
+
+**Operator exclusion** (`operators.py`, WS1c). In `distance_m`, buffer-zone `inside` (and
+`count` in a buffer) and the near-miss metrics between a person-like concept (person, worker,
+pedestrian, ...) and a vehicle-like one (forklift, pallet jack, cart, vehicle, truck, ...), a
+vehicle is ignored for the person riding it. A person rides a vehicle during a *boarding*: a run
+of samples where at least 40% of the person's box lies in the vehicle's box (gaps up to 0.5 s
+bridged) in which, on the samples where the vehicle moves (5% of its box height per second in the
+image, or 0.1 m/s on the ground with a calibration) and its box keeps its shape, the pair
+co-moves at least 80% of the time, for at least 1 s. Co-moving is either the strict test (cosine
+>= 0.9, speeds within 30%) or a relative image velocity under 5% of the vehicle's box height per
+second, so a slow close-up forklift and its seated driver link (live P1-07). A boarding still
+running at the window's end with less evidence is pending (linked if it co-moves so far). A
+person who was outside the box beside the moving vehicle in the second before the boarding, and
+not moving with it, is a pedestrian for the whole boarding: pedestrians a vehicle drives up to,
+or who walk in front of it, still fire. A driver on a vehicle that does not move is never linked
+(the conservative side). **Warm-up** (live P1-07, golden run `warehouse_driver`): a person first
+seen already on board (their track is born, or the vehicle's track is born around them, inside
+the box, during the first `operator_warmup_s` = 1.5 s of the person's track) is *operator
+pending* while that boarding stays inside the warm-up: held, then resolved as the operator if it
+ended inside the warm-up without judged samples refuting co-motion (the keyframe tracker's first
+second: a new driver track, then a re-identified forklift track, each too short for 1 s of
+evidence), and as a pedestrian otherwise, counted from their first sample. A window that ends
+inside the warm-up holds such a boarding whatever its evidence. People seen outside the box
+first never wait. Latency: a pedestrian first seen inside a moving vehicle's box is reported at
+most 1.5 s later, on HIGH (act-first) rules too, inside the 10 s alert-latency target. The
+samples a track is only held at its last point after it ends (0.5 s) are never judged. On
+by default; `evaluate(..., operator_exclusion=False)` turns it off, which the runtime does for the
+rule ids in `RULECAM_OPERATOR_EXCLUSION_OFF` (owner override, no Rule IR change).
 
 **Episodes.** True samples of one subject merge into an episode across gaps shorter than
 `episode_gap_s` (2 s). With `cooldown_s`, an episode starting within that long after the

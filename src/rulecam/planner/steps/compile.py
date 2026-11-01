@@ -14,6 +14,14 @@ round runs with the errors attached; a second failure raises `RuleCompilationErr
 The guardrails (`planner.guardrails.check_request`, deterministic first, then Spark) run before
 anything is compiled. Static concepts (sink, door, racks, shelving) are tagged in code.
 
+**Determinism (WS1e).** The compile call always uses reasoning effort `COMPILE_EFFORT` ("low")
+and the same fixed system prompt (the request and context only ever follow it, so the prefix is
+byte-identical and cacheable). The system prompt states that the predicate is the *violation*
+and gives the one form for keeping people away from a vehicle. After validation,
+`planner.canonical.canonicalize_rule` rewrites every person-vehicle separation rule (distance,
+buffer, other order, an inverted `gt` bound) into that one canonical form, so the same request
+gives the same `canonical_rule_hash`.
+
 Given a `ZoneGrounder` (the pipeline passes `planner.geometry.SiteGeometry`), the prompt lists
 the real candidate zones and camera calibrations, and every compiled rule is grounded: zone
 polygons are the candidates', a polygon the model made up is an error (fed to the repair round),
@@ -49,6 +57,7 @@ from rulecam.contracts.rule_ir import (
     ZoneSpec,
 )
 from rulecam.log import get_logger
+from rulecam.planner.canonical import canonicalize_rule
 from rulecam.planner.errors import GuardrailDeclinedError, RuleCompilationError
 from rulecam.planner.guardrails import Declined, check_request
 from rulecam.planner.models import DATA_NOT_INSTRUCTIONS_CLAUSE, Concern
@@ -56,6 +65,7 @@ from rulecam.planner.models import DATA_NOT_INSTRUCTIONS_CLAUSE, Concern
 logger = get_logger(__name__)
 
 COMPILE_MODEL: Final = "muse-spark-1.3"
+COMPILE_EFFORT: Final = "low"
 STATIC_WORDS: Final = re.compile(
     r"\b(?:sinks?|doors?|doorways?|racks?|racking|shel(?:f|ves|ving)|walls?|counters?|"
     r"fire\s+exits?|exits?|hand\s*wash\s+stations?|eyewash\s+stations?)\b"
@@ -148,8 +158,15 @@ _COMPILE_SYSTEM_PROMPT = (
     "- concepts: short name -> {prompt, static}; prompt is ONE SAM noun phrase. Fixed objects "
     "(sink, door, racks) are static.\n"
     "- zones: name -> polygon or buffer zone; reuse the zones you are given by name and never "
-    "invent pixel polygons. For 'N m around <thing>' use a buffer zone (buffer_of the thing's "
-    "concept name, buffer_m N from the request).\n"
+    "invent pixel polygons. For 'N m around <fixed thing>' (a machine, a spill) use a buffer "
+    "zone (buffer_of the thing's concept name, buffer_m N from the request).\n"
+    "- The predicate describes the VIOLATION: it is true exactly when the rule is broken. "
+    "'Keep X at least d m from Y' is distance_m(a=X, b=Y, lt=d), never gt (gt would alert "
+    "while X is safely far away).\n"
+    "- Keeping people d m away from a vehicle (forklift, pallet jack, cart, truck) is always "
+    "all(distance_m(a=<person>, b=<vehicle>, lt=d), moving(object=<vehicle>, "
+    "speed_mps_gt=0.2)), without moving if the vehicle need not be moving; never a buffer "
+    "zone. The vehicle's own driver is excluded automatically.\n"
     "- The predicate is a flat list of nodes plus predicate_root, the id of the top node. "
     "Composite nodes refer to other nodes by id: 'all'/'any' list two or more ids in "
     "'children'; 'not', 'persist' and 'rate' list exactly one; 'sequence' sets 'trigger' and "
@@ -422,7 +439,9 @@ def _build_compile_messages(
 def _compile_once(
     spark: StructuredLLM, messages: list[dict[str, object]], geometry: ZoneGrounder | None
 ) -> RuleIR:
-    draft = spark.structured(model=COMPILE_MODEL, messages=messages, schema=RuleDraft)
+    draft = spark.structured(
+        model=COMPILE_MODEL, messages=messages, schema=RuleDraft, reasoning_effort=COMPILE_EFFORT
+    )
     rule = draft_to_rule(draft)
     return geometry.ground(rule) if geometry is not None else rule
 
@@ -482,7 +501,7 @@ def compile_rule(
             instead of `zones` and `calibration`, and the rule is grounded on them.
 
     Returns:
-        The validated rule, with static concepts tagged.
+        The validated rule in canonical form (`planner.canonical`), with static concepts tagged.
 
     Raises:
         GuardrailDeclinedError: If the guardrails decline the request (the decline is attached
@@ -512,5 +531,5 @@ def compile_rule(
         feedback=feedback,
         geometry=geometry,
     )
-    rule = _compile_with_repair(spark, messages, geometry)
+    rule = canonicalize_rule(_compile_with_repair(spark, messages, geometry), request_text=text)
     return apply_static_hints(rule, static_concepts=static_concepts)

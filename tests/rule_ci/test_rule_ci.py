@@ -89,9 +89,11 @@ def test_all_standard_mutants_of_the_distance_rule_are_killed() -> None:
         "scale_threshold_10",
         "flip_lt_gt",
         "swap_all_any",
+        "drop_operator_exclusion",
+        "drop_operator_warmup",
     ]
     report = run_rule_ci(rule)
-    assert (report.mutants_killed, report.mutants_total) == (4, 4)
+    assert (report.mutants_killed, report.mutants_total) == (6, 6)
     assert report.traces_passed == report.traces_total
     assert report.ci_green
 

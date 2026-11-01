@@ -16,26 +16,43 @@ file's leading bytes and by size. `POST /plans/requests` hands the request items
 Planner runner (P2-06), which reports progress on `planner.step`; a file item may only name an
 upload (`uploads/<name>`, as returned by `POST /plans/uploads`), which is resolved to its stored
 path, so a client never supplies a server path. Both are owner-only.
+
+Planner questions (WS4, owner-only): `GET /plans/{id}/questions` lists the questions the plan's
+last run saved (step 5 ask, step 8 accept), `GET /plans/{id}/frames/{camera}` serves the frame
+a tap answer is made on, and `POST /plans/{id}/answers` takes words, taps and floor
+calibrations and re-runs the planner with them (202; the plan comes back one version up on
+`plan.updated`). 404 for a plan with no saved run, 409 while it is being planned, 422 for an
+answer that cannot be used.
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
 import re
 import tempfile
 import threading
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import Annotated, Literal, Protocol
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, params, status
 from fastapi import Path as PathParam
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import require_owner
 from rulecam.contracts import RequestItem, SitePlan
+from rulecam.planner.answers import (
+    MAX_ANSWERS,
+    Answer,
+    AnswerError,
+    PlanBusyError,
+    PlanQuestions,
+)
+from rulecam.planner.errors import PipelineError
 from rulecam.planner.steps.understand import ALLOWED_SUFFIXES
 from rulecam.runtime.activate import (
     NothingActivatableError,
@@ -47,6 +64,7 @@ from rulecam.runtime.activate import (
 MAX_PLANS = 64
 MAX_UPLOAD_BYTES = 32 * 1024 * 1024
 PlanId = Annotated[str, PathParam(pattern=r"^[A-Za-z0-9_.-]{1,64}$")]
+CameraId = Annotated[str, PathParam(pattern=r"^[A-Za-z0-9_.-]{1,64}$")]
 UploadKind = Literal["voice", "pdf", "photo", "video"]
 # Content type -> (request item kind, stored extension). Only types the Understand step accepts.
 UPLOAD_TYPES: dict[str, tuple[UploadKind, str]] = {
@@ -151,6 +169,35 @@ class PlannerRunner(Protocol):
     def submit(self, items: Sequence[RequestItem]) -> str:
         """Queue a planning run and return its plan id."""
         ...
+
+
+class QuestionsService(Protocol):
+    """The planner's saved questions and the re-run with answers (`PlannerService`)."""
+
+    def questions(self, plan_id: str) -> PlanQuestions:
+        """The plan's open questions (raises `PipelineError` without a saved run)."""
+        ...
+
+    def frame(self, plan_id: str, camera_id: str) -> Path | None:
+        """The frame tap answers on that camera refer to."""
+        ...
+
+    def answer(self, plan_id: str, answers: Sequence[Answer]) -> None:
+        """Validate the answers and queue a re-run with them."""
+        ...
+
+
+class AnswersRequest(BaseModel):
+    """Body of `POST /plans/{plan_id}/answers`."""
+
+    answers: list[Answer] = Field(min_length=1, max_length=MAX_ANSWERS)
+
+
+class AnswersAccepted(BaseModel):
+    """Reply of `POST /plans/{plan_id}/answers`: the re-run is queued."""
+
+    plan_id: str
+    answers: int
 
 
 class PlanRequest(BaseModel):
@@ -263,6 +310,54 @@ def approve(
     )
 
 
+@contextlib.contextmanager
+def _planner_errors() -> Iterator[None]:
+    """Map the question routes' planner errors to HTTP (409 busy, 422 bad answer, 404 no run)."""
+    try:
+        yield
+    except PlanBusyError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except AnswerError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    except PipelineError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+def _questions_routes(router: APIRouter, service: QuestionsService | None) -> None:
+    owner = [Depends(require_owner)]
+
+    def running() -> QuestionsService:
+        if service is None:
+            raise HTTPException(
+                status.HTTP_503_SERVICE_UNAVAILABLE, "the Site Planner is not running yet"
+            )
+        return service
+
+    @router.get("/{plan_id}/questions", dependencies=owner)
+    def questions(plan_id: PlanId) -> PlanQuestions:
+        with _planner_errors():
+            return running().questions(plan_id)
+
+    @router.get("/{plan_id}/frames/{camera_id}", dependencies=owner, response_class=FileResponse)
+    def frame(plan_id: PlanId, camera_id: CameraId) -> FileResponse:
+        with _planner_errors():
+            path = running().frame(plan_id, camera_id)
+        if path is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"no saved frame of {camera_id}")
+        return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+    @router.post(
+        "/{plan_id}/answers",
+        status_code=status.HTTP_202_ACCEPTED,
+        dependencies=owner,
+        responses={409: {"description": "The plan is still being planned"}},
+    )
+    def answer(plan_id: PlanId, body: AnswersRequest) -> AnswersAccepted:
+        with _planner_errors():
+            running().answer(plan_id, body.answers)
+        return AnswersAccepted(plan_id=plan_id, answers=len(body.answers))
+
+
 def plans_router(
     registry: PlanRegistry,
     bus: Bus,
@@ -270,7 +365,9 @@ def plans_router(
     uploads_dir: Path | None = None,
     planner: PlannerRunner | None = None,
     activator: PlanActivator | None = None,
+    questions: QuestionsService | None = None,
     max_upload_bytes: int = MAX_UPLOAD_BYTES,
+    read_dependencies: Sequence[params.Depends] = (),
 ) -> APIRouter:
     """Build the `/plans` router.
 
@@ -280,13 +377,18 @@ def plans_router(
         uploads_dir: Where `POST /plans/uploads` stores files; `None` disables uploads.
         planner: The Site Planner runner; `POST /plans/requests` answers 503 without one.
         activator: Puts approved plans into force; approval answers 503 without one.
+        questions: The planner's questions and re-runs; the question routes answer 503
+            without it.
         max_upload_bytes: Upload size cap (the Voice Transcribe file limit by default).
+        read_dependencies: Authentication for the two read routes; plans hold the owner's request
+            text, so the API app passes the owner check unless the site is a public demo.
 
     Returns:
         The router.
     """
     router = APIRouter(prefix="/plans", tags=["plans"])
     owner = [Depends(require_owner)]
+    _questions_routes(router, questions)
 
     @router.post("/uploads", status_code=status.HTTP_201_CREATED, dependencies=owner)
     async def upload(file: UploadFile) -> UploadResult:
@@ -310,7 +412,7 @@ def plans_router(
         items = [resolve_upload(uploads_dir, item) for item in body.items]
         return PlanRequestAccepted(plan_id=planner.submit(items))
 
-    @router.get("")
+    @router.get("", dependencies=list(read_dependencies))
     def list_plans() -> list[PlanSummary]:
         return registry.summaries()
 
@@ -318,7 +420,7 @@ def plans_router(
     def create_plan(plan: SitePlan) -> PlanSummary:
         return registry.put(plan)
 
-    @router.get("/{plan_id}")
+    @router.get("/{plan_id}", dependencies=list(read_dependencies))
     def get_plan(plan_id: PlanId) -> SitePlan:
         return registry.get(plan_id)[0]
 

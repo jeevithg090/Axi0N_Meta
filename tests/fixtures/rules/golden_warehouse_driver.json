@@ -1,0 +1,245 @@
+{
+ "about": "Live regression P1-07 (operator warm-up): the golden run warehouse_driver (scenarios/warehouse_driver before its re-record, 2026-11-01, camera phone-26, self-hosted SAM image mode + keyframe tracker). The candidate window's tracks: a person track born inside a forklift track's box (the seated driver), and the forklift re-identified 1 s later. The rule fired on the driver in the first second (HIGH, act-first, dry run; Glimmer said no_violation). Track ids renumbered; no images, keypoints, confidences or provenance. Point: [ts, frame_idx, x1, y1, x2, y2, foot_x, foot_y] in pixels.",
+ "context": {
+  "rule": {
+   "id": "keep-people-2m-from-moving-forklift",
+   "version": 1,
+   "source": {
+    "kind": "text",
+    "text": "Keep people at least 2 metres away from a moving forklift.",
+    "lang": "en",
+    "plan_id": "plan-098d7b6fb193",
+    "standard": []
+   },
+   "concepts": {
+    "forklift": {
+     "prompt": "forklift",
+     "static": false
+    },
+    "person": {
+     "prompt": "person",
+     "static": false
+    }
+   },
+   "zones": {},
+   "calibration": "ground-plane@phone-26",
+   "predicate": {
+    "op": "all",
+    "of": [
+     {
+      "op": "distance_m",
+      "a": "person",
+      "b": "forklift",
+      "lt": 2.0,
+      "gt": null
+     },
+     {
+      "op": "moving",
+      "object": "forklift",
+      "speed_mps_gt": 0.2
+     }
+    ]
+   },
+   "severity": "high",
+   "actions": [
+    {
+     "kind": "speak",
+     "role": "operator",
+     "lang": "en",
+     "after_s": null
+    }
+   ],
+   "verify": {
+    "tier1": "glimmer",
+    "tier2": "spark-open-on-disagree",
+    "min_confidence": 0.7,
+    "calibrated_alpha": null
+   },
+   "accept": [],
+   "backtestable": "yes",
+   "schedule": null
+  },
+  "calibration": {
+   "camera_id": "phone-26",
+   "homography": [
+    [
+     0.005486241729051363,
+     0.0004220185945424167,
+     -4.175029955808087
+    ],
+    [
+     -3.102079079558648e-19,
+     0.05522316095296006,
+     5.908614624992072e-16
+    ],
+    [
+     -0.00037807183364839365,
+     -0.00046691273871012545,
+     0.9999999999999999
+    ]
+   ],
+   "method": "reference_object",
+   "reference": "pallet_48x40in",
+   "err_m": 0.09699897650936566
+  },
+  "zones": {},
+  "hz": 10.0,
+  "episode_gap_s": 2.0,
+  "cooldown_s": 0.0,
+  "plan_version_hash": "ad2b2d4a02c96b8194e4c1a75eb2973fb8d95ec9ebc316deb0edd3faf6d84eaa",
+  "operator_exclusion": true
+ },
+ "window": [
+  "2026-11-01T02:29:05.012767Z",
+  "2026-11-01T02:29:35.012767Z"
+ ],
+ "candidate": {
+  "ts_start": "2026-11-01T02:29:32.112767Z",
+  "ts_end": "2026-11-01T02:29:33.012767Z",
+  "subject": "phone-26:person:1",
+  "distance_m": 0.026799
+ },
+ "tracks": [
+  {
+   "track_id": "phone-26:forklift:1",
+   "camera_id": "phone-26",
+   "concept": "forklift",
+   "points": [
+    [
+     "2026-11-01T02:29:32.012768Z",
+     0,
+     288.974,
+     1.413,
+     819.153,
+     717.091,
+     554.063,
+     717.091
+    ],
+    [
+     "2026-11-01T02:29:32.512768Z",
+     5,
+     255.816,
+     0.685,
+     821.988,
+     716.448,
+     538.902,
+     716.448
+    ],
+    [
+     "2026-11-01T02:29:33.012768Z",
+     10,
+     330.785,
+     1.008,
+     828.825,
+     718.285,
+     579.805,
+     718.285
+    ]
+   ]
+  },
+  {
+   "track_id": "phone-26:person:1",
+   "camera_id": "phone-26",
+   "concept": "person",
+   "points": [
+    [
+     "2026-11-01T02:29:32.012768Z",
+     0,
+     0.0,
+     0.958,
+     642.438,
+     718.044,
+     321.219,
+     718.044
+    ],
+    [
+     "2026-11-01T02:29:32.512768Z",
+     5,
+     0.0,
+     1.081,
+     648.547,
+     717.736,
+     324.273,
+     717.736
+    ],
+    [
+     "2026-11-01T02:29:33.012768Z",
+     10,
+     0.0,
+     0.824,
+     656.265,
+     717.577,
+     328.132,
+     717.577
+    ],
+    [
+     "2026-11-01T02:29:33.512768Z",
+     15,
+     0.0,
+     1.371,
+     665.122,
+     717.731,
+     332.561,
+     717.731
+    ],
+    [
+     "2026-11-01T02:29:34.012768Z",
+     20,
+     0.0,
+     0.887,
+     671.436,
+     717.513,
+     335.718,
+     717.513
+    ],
+    [
+     "2026-11-01T02:29:34.512768Z",
+     25,
+     0.0,
+     1.137,
+     683.221,
+     717.531,
+     341.611,
+     717.531
+    ]
+   ]
+  },
+  {
+   "track_id": "phone-26:forklift:2",
+   "camera_id": "phone-26",
+   "concept": "forklift",
+   "points": [
+    [
+     "2026-11-01T02:29:33.012768Z",
+     10,
+     0.0,
+     1.363,
+     830.011,
+     717.956,
+     415.005,
+     717.956
+    ],
+    [
+     "2026-11-01T02:29:34.012768Z",
+     20,
+     5.277,
+     1.141,
+     841.029,
+     718.022,
+     423.153,
+     718.022
+    ],
+    [
+     "2026-11-01T02:29:34.512768Z",
+     25,
+     4.281,
+     1.007,
+     851.792,
+     717.325,
+     428.037,
+     717.325
+    ]
+   ]
+  }
+ ]
+}

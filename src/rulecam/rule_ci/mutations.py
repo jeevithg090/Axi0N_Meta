@@ -2,8 +2,14 @@
 
 The operators are the task book's list: scale every threshold by x0.1 and by x10, flip `lt`/`gt`,
 drop a `not`, swap `all`/`any`, remove `persist`, switch a sequence's `semantics` between past and
-future, and widen each zone by 50% (a polygon about its centroid, a buffer's radius). An operator
-that has nothing to change in a rule makes no mutant. A mutant is killed when at least one
+future, and widen each zone by 50% (a polygon about its centroid, a buffer's radius). A rule that
+relates a person and a vehicle also gets `drop_operator_exclusion`: the same rule evaluated with
+the engine's operator exclusion off (WS1c), which the riding-operator trace must catch, and
+`drop_operator_warmup`: the same rule with the operator warm-up off (P1-07), which the trace of a
+rider first seen on board through a re-identification (`operator_born_riding`) must catch (not
+made under a `persist` at least as long as the warm-up: the hold is shorter than the persistence,
+so the two rules always agree). An
+operator that has nothing to change in a rule makes no mutant. A mutant is killed when at least one
 boundary trace's outcome changes (`rule_ci.runner`).
 """
 
@@ -13,8 +19,10 @@ import copy
 from collections.abc import Callable, Iterator
 from typing import Any, Final
 
-from rulecam.contracts.rule_ir import RuleIR, ZoneSpec
+from rulecam.contracts.rule_ir import Persist, RuleIR, ZoneSpec
 from rulecam.rule_ci.models import MutationCase
+from rulecam.rules.ir import walk
+from rulecam.rules.operators import OPERATOR_WARMUP_S, has_operator_pair
 
 THRESHOLD_KEYS: Final = (
     "lt",
@@ -36,6 +44,8 @@ OPERATORS: Final = (
     "remove_persist",
     "switch_semantics",
     "widen_zone",
+    "drop_operator_exclusion",
+    "drop_operator_warmup",
 )
 
 Node = dict[str, Any]
@@ -182,4 +192,29 @@ def generate_mutations(rule: RuleIR) -> list[MutationCase]:
                 description=f"zone {name!r} widened by 50%",
             )
         )
+    if has_operator_pair(rule):
+        mutants.append(
+            MutationCase(
+                name="drop_operator_exclusion",
+                operator="drop_operator_exclusion",
+                rule=rule,
+                description="operator exclusion off: the vehicle's rider counts as a pedestrian",
+                operator_exclusion=False,
+            )
+        )
+    if has_operator_pair(rule) and _longest_persist(rule) < OPERATOR_WARMUP_S:
+        mutants.append(
+            MutationCase(
+                name="drop_operator_warmup",
+                operator="drop_operator_warmup",
+                rule=rule,
+                description="operator warm-up off: a rider first seen on board is judged at once",
+                operator_warmup_s=0.0,
+            )
+        )
     return mutants
+
+
+def _longest_persist(rule: RuleIR) -> float:
+    """The longest `persist` in the rule's predicate, in seconds (0 without one)."""
+    return max((n.seconds for _, n in walk(rule.predicate) if isinstance(n, Persist)), default=0.0)

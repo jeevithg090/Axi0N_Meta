@@ -8,10 +8,21 @@ from typing import Final, Literal
 from rulecam.contracts.core import Calibration, Frozen, Track
 from rulecam.contracts.rule_ir import RuleIR
 from rulecam.rule_ci.red_team import RedTeamReport
+from rulecam.rules.operators import OPERATOR_WARMUP_S
 
 REQUIRED_KILL_RATIO: Final = 0.90
 
-TraceKind = Literal["boundary", "gap", "window", "interruption", "id_swap", "order", "zone_edge"]
+TraceKind = Literal[
+    "boundary",
+    "gap",
+    "window",
+    "interruption",
+    "id_swap",
+    "order",
+    "zone_edge",
+    "kinematic",
+    "operator",
+]
 
 
 class TraceCase(Frozen):
@@ -50,12 +61,18 @@ class MutationCase(Frozen):
         operator: The operator that made it (see `rule_ci.mutations.OPERATORS`).
         rule: The mutated rule.
         description: What changed.
+        operator_exclusion: Whether the engine runs the mutant with operator exclusion
+            (`rules.operators`); `drop_operator_exclusion` turns it off.
+        operator_warmup_s: The engine's operator warm-up for the mutant (`rules.operators` rule
+            7); `drop_operator_warmup` sets it to 0.
     """
 
     name: str
     operator: str
     rule: RuleIR
     description: str
+    operator_exclusion: bool = True
+    operator_warmup_s: float = OPERATOR_WARMUP_S
 
 
 class RuleCIReport(Frozen):

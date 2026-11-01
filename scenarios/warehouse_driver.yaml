@@ -1,0 +1,16 @@
+# Golden run: the warehouse driver-only clip (eval/clips/warehouse_45848, a NEGATIVE for the 2 m
+# forklift rule), played live through the API in RULECAM_MODE=record on 1 Nov 2026 (third record,
+# after the operator warm-up, P1-07) and frozen with `rulecam golden capture` (fixture:
+# scenarios/warehouse_driver/). Every step re-derives part of that run offline: no network, no
+# model cost. See scenarios/README.md.
+name: warehouse_driver
+description: >-
+  Warehouse forklift, driver only. The planner compiles "keep people at least 2 m away from a
+  moving forklift"; the seated driver, first seen on board, is the forklift's operator (operator
+  exclusion with its warm-up), so the rule never fires: no candidate, no action, no alert.
+steps:
+  - {id: plan, kind: demo.plan, params: {fixture: scenarios/warehouse_driver}}
+  - {id: rule_ci, kind: demo.rule_ci, params: {fixture: scenarios/warehouse_driver}}
+  - {id: evidence, kind: demo.evidence, params: {fixture: scenarios/warehouse_driver}}
+  - {id: verify, kind: demo.verify, params: {fixture: scenarios/warehouse_driver}}
+  - {id: score, kind: demo.score, params: {fixture: scenarios/warehouse_driver, eval_set: eval/clips}}

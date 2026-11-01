@@ -1,0 +1,211 @@
+name: images
+
+# Container images (WS5): ghcr.io/jeevithg090/rulecam-api, rulecam-sam and rulecam-gpu (WS3/WS5:
+# Glimmer + SAM image mode on one 48 GB pod). Pull requests build them without pushing (and run
+# the API image's restart test); pushes to main also push `sha-<commit>` and `latest`. This is
+# its own workflow, so it runs beside `ci` and never slows the required checks; the SAM and GPU
+# images (torch + CUDA, ~6 GB) only build when their inputs change.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "deploy/**"
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".dockerignore"
+      - "scripts/deploy/**"
+      - "scripts/sam_pod/**"
+      - "tests/deploy/**"
+      - ".github/workflows/images.yml"
+  pull_request:
+    paths:
+      - "deploy/**"
+      - "src/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".dockerignore"
+      - "scripts/deploy/**"
+      - "scripts/sam_pod/**"
+      - "tests/deploy/**"
+      - ".github/workflows/images.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  PUSH: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      sam: ${{ steps.filter.outputs.sam }}
+      gpu: ${{ steps.filter.outputs.gpu }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            sam:
+              - "deploy/sam.Dockerfile"
+              - "deploy/sam-entrypoint.sh"
+              - "deploy/entrypoint-lib.sh"
+              - "src/rulecam/perception/**"
+              - "src/rulecam/contracts/**"
+              - ".github/workflows/images.yml"
+            gpu:
+              - "deploy/gpu.Dockerfile"
+              - "deploy/gpu-entrypoint.sh"
+              - "deploy/gpu_supervisor.py"
+              - "deploy/sam-entrypoint.sh"
+              - "deploy/entrypoint-lib.sh"
+              - "src/rulecam/perception/**"
+              - "src/rulecam/contracts/**"
+              - ".github/workflows/images.yml"
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: shellcheck --version
+      - run: shellcheck -x deploy/*.sh scripts/deploy/*.sh scripts/sam_pod/*.sh
+
+  api-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/jeevithg090/rulecam-api
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/api.Dockerfile
+          load: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Restart test (entrypoint twice on one volume)
+        run: |
+          image="$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | head -n1)"
+          docker image inspect "$image" --format 'image {{.Id}} size {{.Size}}'
+          uv sync --group dev
+          RULECAM_TEST_API_IMAGE="$image" uv run pytest -m slow tests/deploy/test_image_restart.py -v
+      - if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: env.PUSH == 'true'
+        run: printf '%s\n' "${{ steps.meta.outputs.tags }}" | xargs -n1 docker push
+
+  sam-image:
+    needs: changes
+    if: needs.changes.outputs.sam == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Free disk space (torch cu128 wheels are several GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker system prune -af > /dev/null
+          df -h /
+      - uses: actions/checkout@v4
+      - id: pin
+        run: |
+          commit="$(sed -n 's/^SAM3_COMMIT = "\(.*\)"$/\1/p' src/rulecam/perception/sam_worker.py)"
+          test -n "$commit"
+          echo "sam3_commit=$commit" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/jeevithg090/rulecam-sam
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+      - if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/sam.Dockerfile
+          build-args: SAM3_COMMIT=${{ steps.pin.outputs.sam3_commit }}
+          push: ${{ env.PUSH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  gpu-image:
+    # One GPU per site: the SAM venv plus llama-server from ghcr.io/ggml-org/llama.cpp. The build
+    # fails if llama-server's libraries do not resolve or an import is missing.
+    needs: changes
+    if: needs.changes.outputs.gpu == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Free disk space (torch cu128 wheels are several GB)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          docker system prune -af > /dev/null
+          df -h /
+      - uses: actions/checkout@v4
+      - id: pin
+        run: |
+          commit="$(sed -n 's/^SAM3_COMMIT = "\(.*\)"$/\1/p' src/rulecam/perception/sam_worker.py)"
+          test -n "$commit"
+          echo "sam3_commit=$commit" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/jeevithg090/rulecam-gpu
+          tags: |
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+      - if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/gpu.Dockerfile
+          build-args: SAM3_COMMIT=${{ steps.pin.outputs.sam3_commit }}
+          push: ${{ env.PUSH == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

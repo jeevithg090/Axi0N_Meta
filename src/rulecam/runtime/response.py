@@ -37,10 +37,12 @@ from fastapi import APIRouter
 from rulecam.act import ActionExecutor, EscalationManager, Interlock, LanNotifier, alerts_router
 from rulecam.act.devices import Connectable, KasaPlug, Light, StrobeLight
 from rulecam.act.errors import DeviceError
+from rulecam.act.whatsapp import WhatsAppNotifier, parse_recipients, whatsapp_router
 from rulecam.bus import Bus
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
+from rulecam.clients.transport import HttpxTransport
 from rulecam.config import Settings
-from rulecam.contracts import Clock, Detection, Frozen, Plug, Verifier
+from rulecam.contracts import Clock, Detection, Frozen, Notifier, Plug, Verifier
 from rulecam.contracts.core import BoxXYXY
 from rulecam.evidence.chain import EventChain
 from rulecam.log import get_logger
@@ -115,6 +117,8 @@ class Response:
         interlock: The smart-plug interlock, when configured.
         status: What is on, off or degraded.
         chain: The evidence chain (false-alarm labels from the alert buttons).
+        whatsapp: WhatsApp escalation (P3-S1), when configured; it wraps `notifier`.
+        whatsapp_secrets: (app secret, verify token) for its webhook, when both are set.
     """
 
     tier1: Verifier
@@ -125,6 +129,8 @@ class Response:
     interlock: Interlock | None
     status: ResponseStatus
     chain: EventChain
+    whatsapp: WhatsAppNotifier | None = None
+    whatsapp_secrets: tuple[str, str] | None = None
 
     @property
     def tickers(self) -> tuple[Callable[[], object], ...]:
@@ -132,6 +138,20 @@ class Response:
         if isinstance(self.tier1, GuardedVerifier):
             return (self.escalation.tick, self.tier1.tick)
         return (self.escalation.tick,)
+
+    def webhook_router(self) -> APIRouter | None:
+        """The WhatsApp webhook, outside owner auth (Meta calls it; it checks signatures)."""
+        if self.whatsapp is None or self.whatsapp_secrets is None:
+            return None
+        app_secret, verify_token = self.whatsapp_secrets
+        return whatsapp_router(
+            notifier=self.whatsapp,
+            lan=self.notifier,
+            escalation=self.escalation,
+            chain=self.chain,
+            app_secret=app_secret,
+            verify_token=verify_token,
+        )
 
     def router(self, roles: Collection[str] | None = None) -> APIRouter:
         """`/alerts`, `/ack` and `/interlock/{device}/resume` (P3-06)."""
@@ -261,7 +281,9 @@ def build_response(
     )
     policy = VerificationPolicy(tier1=tier1, tier2=tier2, firewall=firewall, screen_required=True)
     notifier = LanNotifier(bus=bus, clock=clock)
-    escalation = EscalationManager(notifier=notifier, clock=clock, chain=chain, bus=bus)
+    whatsapp = build_whatsapp(settings, lan=notifier, clock=clock)
+    outbound: Notifier = whatsapp or notifier
+    escalation = EscalationManager(notifier=outbound, clock=clock, chain=chain, bus=bus)
     interlock = None
     if settings.kasa_plug_host:
         plugs = {INTERLOCK_DEVICE: plug(settings.kasa_plug_host)}
@@ -272,7 +294,7 @@ def build_response(
     dry_run = settings.rulecam_actions_dry_run
     actions = ActionExecutor(
         clock=clock,
-        notifier=notifier,
+        notifier=outbound,
         escalation=escalation,
         interlock=interlock,
         light=light,
@@ -299,6 +321,40 @@ def build_response(
         interlock=interlock,
         status=status,
         chain=chain,
+        whatsapp=whatsapp,
+        whatsapp_secrets=_whatsapp_secrets(settings) if whatsapp is not None else None,
+    )
+
+
+def build_whatsapp(
+    settings: Settings, *, lan: LanNotifier, clock: Clock
+) -> WhatsAppNotifier | None:
+    """WhatsApp escalation when token, phone number id and recipients are all set (P3-S1)."""
+    if not (
+        settings.whatsapp_token
+        and settings.whatsapp_phone_number_id
+        and settings.whatsapp_recipients
+    ):
+        return None
+    transport = HttpxTransport(
+        settings.whatsapp_api_base, settings.whatsapp_token.get_secret_value()
+    )
+    return WhatsAppNotifier(
+        lan=lan,
+        transport=transport,
+        phone_number_id=settings.whatsapp_phone_number_id,
+        recipients=parse_recipients(settings.whatsapp_recipients.get_secret_value()),
+        clock=clock,
+    )
+
+
+def _whatsapp_secrets(settings: Settings) -> tuple[str, str] | None:
+    if settings.whatsapp_app_secret is None or settings.whatsapp_verify_token is None:
+        _log.warning("whatsapp_webhook_disabled", reason="WHATSAPP_APP_SECRET/VERIFY_TOKEN not set")
+        return None
+    return (
+        settings.whatsapp_app_secret.get_secret_value(),
+        settings.whatsapp_verify_token.get_secret_value(),
     )
 
 

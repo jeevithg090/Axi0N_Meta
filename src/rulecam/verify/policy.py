@@ -14,6 +14,14 @@ disagreement **demotes the alert to `human_queue`; it is never dropped.**
 The threshold is the rule's calibrated one when rule health provides it, else
 `rule.verify.min_confidence`. Disputes always go to Tier 2. The scene-text firewall runs between
 the tiers and the decision (see `firewall.py`).
+
+**Without Tier 2** (no Baseten key) the same rules apply with Tier 1 alone: Tier 1 confirming
+alerts, Tier 1 confidently rejecting suppresses, and anything else (unsure, low score) goes to
+`human_queue`. Nothing passes silently. A dispute then stays `pending` for a person.
+
+**Without the firewall** (`screen_required`: the runtime wanted it but Prompt Guard 2 is not
+available) scene text cannot be screened, so a candidate whose verdicts report scene text is
+never suppressed on those verdicts: it goes to `human_queue` instead.
 """
 
 from __future__ import annotations
@@ -30,6 +38,8 @@ from rulecam.verify.firewall import SceneTextFirewall
 _log = get_logger(__name__)
 
 _TAMPER_REASON = "text in view tried to instruct the verifier; a person reviews it"
+_UNSCREENED_REASON = "text in view could not be screened (firewall degraded); a person reviews it"
+NO_TIER2_REASONING = "no Tier 2 reviewer is configured; a person decides"
 
 
 class Tier2(Protocol):
@@ -133,6 +143,7 @@ class VerificationPolicy:
         tier2: Tier2 | None = None,
         firewall: SceneTextFirewall | None = None,
         thresholds: Mapping[str, float] | None = None,
+        screen_required: bool = False,
     ) -> None:
         """Create the policy.
 
@@ -141,11 +152,19 @@ class VerificationPolicy:
             tier2: Spark Open verifier, if configured.
             firewall: Scene-text firewall, if configured.
             thresholds: Calibrated thresholds by rule id (from rule health).
+            screen_required: Scene text must be screened; without a firewall, a candidate with
+                scene text is sent to a person instead of being suppressed.
         """
         self._tier1 = tier1
         self._tier2 = tier2
         self._firewall = firewall
         self._thresholds = dict(thresholds or {})
+        self._screen_required = screen_required
+
+    @property
+    def has_tier2(self) -> bool:
+        """Whether a Tier 2 reviewer is configured."""
+        return self._tier2 is not None
 
     def threshold(self, rule: RuleIR) -> float:
         """Return the rule's calibrated threshold, else its `min_confidence`."""
@@ -183,6 +202,8 @@ class VerificationPolicy:
             )
             return self._to_human(candidate, rule, "verification error; a person reviews it")
         decision = decide(candidate, rule, tier1, tier2, threshold=tau)
+        if self._unscreened(decision, tier1, tier2):
+            return self._to_human(candidate, rule, _UNSCREENED_REASON)
         _log.info(
             "policy_decision",
             event_id=candidate.event_id,
@@ -190,6 +211,15 @@ class VerificationPolicy:
             route=decision.route,
         )
         return decision
+
+    def _unscreened(
+        self, decision: Decision, tier1: VerifierVerdict, tier2: VerifierVerdict | None
+    ) -> bool:
+        """A suppression that rests on verdicts whose scene text nobody could screen."""
+        suppressed = not decision.alert and decision.route == "auto"
+        if not suppressed or self._firewall is not None or not self._screen_required:
+            return False
+        return any(v.scene_text.strip() for v in (tier1, tier2) if v is not None)
 
     def _to_human(self, candidate: CandidateEvent, rule: RuleIR, reason: str) -> Decision:
         """An alert a person must review (never dropped, whatever the severity)."""
@@ -219,5 +249,7 @@ class VerificationPolicy:
             The reviewed dispute.
         """
         if self._tier2 is None:
-            return dispute.model_copy(update={"outcome": "pending"})
+            return dispute.model_copy(
+                update={"outcome": "pending", "reviewer_reasoning": NO_TIER2_REASONING}
+            )
         return self._tier2.review_dispute(candidate, rule, dispute, tier1)

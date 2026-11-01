@@ -337,7 +337,11 @@ class EvalRunner:
         return _metrics_sample(self._api.runtime_metrics(), self._clock.now())
 
     def _drain(self) -> list[MetricsSample]:
-        """Sample metrics until nothing is in flight for `settle_s` (or the drain times out)."""
+        """Sample until no chunk is in flight and no verdict is pending for `settle_s`.
+
+        Tier 1 runs off the ordered stage (#103) and takes ~20-30 s per candidate, so waiting for
+        `in_flight` alone collected the candidates before their verdicts were on the chain.
+        """
         clock, config = self._clock, self._config
         deadline = clock.monotonic() + config.drain_timeout_s
         idle_since: float | None = None
@@ -346,7 +350,7 @@ class EvalRunner:
             sample = self._sample()
             samples.append(sample)
             now = clock.monotonic()
-            if sample.in_flight:
+            if sample.in_flight or sample.verify_pending:
                 idle_since = None
             elif idle_since is None:
                 idle_since = now

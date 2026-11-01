@@ -14,6 +14,11 @@ record it returns.
   role.
 
 A failing device never stops the other actions: its record says `ok=False`.
+
+**Dry run** (`RULECAM_ACTIONS_DRY_RUN`, on until the owner turns it off): nothing is executed (no
+power cut, light, speaker, station, notification or escalation chain), but every action the
+decision allows is still recorded, with `detail` starting `dry-run: would …`, so the evidence
+chain shows exactly what a live site would have done.
 """
 
 from __future__ import annotations
@@ -47,6 +52,7 @@ from rulecam.voice_out.prerender import PrerenderedPhrase, normalize_phrase
 _log = get_logger(__name__)
 
 DEFAULT_ESCALATE_AFTER_S = 60.0
+DRY_RUN_PREFIX = "dry-run: "
 HUMAN_QUEUE_KINDS = frozenset({"notify", "escalate"})
 _ORDER = {
     "interlock_cut": 0,
@@ -222,6 +228,7 @@ class ActionExecutor:
         phrases: PhraseBook | None = None,
         bus: Bus | None = None,
         monotonic: Callable[[], float] = time.perf_counter,
+        dry_run: bool = False,
     ) -> None:
         """Create the executor; missing devices make their actions record `ok=False`.
 
@@ -235,6 +242,7 @@ class ActionExecutor:
             phrases: Pre-rendered warnings.
             bus: Bus for the coaching station display (`station.coach`, mirrored on `/ws`).
             monotonic: Timer for the interlock latency detail.
+            dry_run: Record what would run without running it (module docstring).
         """
         self._clock = clock
         self._notifier = notifier
@@ -245,6 +253,12 @@ class ActionExecutor:
         self._phrases = phrases
         self._bus = bus
         self._monotonic = monotonic
+        self._dry_run = dry_run
+
+    @property
+    def dry_run(self) -> bool:
+        """Whether actions are only recorded, never executed."""
+        return self._dry_run
 
     def run(
         self, candidate: CandidateEvent, rule: RuleIR, decision: Decision
@@ -270,6 +284,15 @@ class ActionExecutor:
     def _one(
         self, spec: ActionSpec, candidate: CandidateEvent, rule: RuleIR, *, human: bool
     ) -> ActionRecord:
+        if self._dry_run:
+            return ActionRecord(
+                kind=spec.kind,
+                role=spec.role,
+                gate="human" if human else "auto",
+                ts=self._clock.now(),
+                ok=True,
+                detail=DRY_RUN_PREFIX + would(spec, human=human),
+            )
         try:
             detail = self._dispatch(spec, candidate, rule, human=human)
             ok = True
@@ -374,3 +397,20 @@ class ActionExecutor:
             rule_id=rule.id,
         )
         return f"escalation {' → '.join(roles)}"
+
+
+def would(spec: ActionSpec, *, human: bool) -> str:
+    """Describe what `spec` would do, for a dry-run record (`would notify site_lead`)."""
+    review = " (needs review)" if human else ""
+    roles = " → ".join(r.strip() for r in (spec.role or "site_lead").split(",") if r.strip())
+    lang = spec.lang or "crew"
+    text = {
+        "interlock_cut": "would cut power",
+        "visual_signal": "would strobe the light",
+        "speak": f"would play the warning ({lang})",
+        "coach_station": f"would show the station display and play the warning ({lang})",
+        "notify": f"would notify {spec.role or 'site_lead'}{review}",
+        "escalate": f"would escalate {roles}{review}",
+        "log": "logged",
+    }
+    return text[spec.kind]

@@ -26,6 +26,12 @@ The public verify page gets `GET /evidence/{day}/hashes` (record hashes only) an
 `GET /evidence/{day}/root` (the current and the committed Merkle root), so anyone can check that
 the day's log still reproduces the root committed to git without seeing a single record.
 
+Response (WS1b): `services_from_settings` builds the policy, firewall and actions once
+(`runtime.response`), mounts the alerts PWA routes (`/alerts`, `/ack`, `/interlock/{device}/resume`,
+owner-only), ticks the escalation timers once a second, and serves how the response side is
+configured (Tier 2, firewall, dry run, interlock) in `GET /runtime/metrics` under `response`.
+Upheld disputes and owner corrections become permanent Rule CI regressions (WS1f).
+
 `make api` serves the module-level `app`, built from settings with the replay cache, the bus, the
 evidence chain, perception and Pair-a-Phone; `RULECAM_RUNTIME=true` also starts the runtime loop.
 """
@@ -80,6 +86,7 @@ from rulecam.planner.standards import StandardsLibrary
 from rulecam.planner.steps.audit import audit_hook
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
 from rulecam.rule_ci import prove_plan_hook
+from rulecam.rule_ci.hard_negatives import HardNegatives
 from rulecam.runtime.activate import PlanActivator, restore_activation
 from rulecam.runtime.factory import (
     ChainEventSource,
@@ -87,10 +94,13 @@ from rulecam.runtime.factory import (
     Perception,
     build_perception,
     build_runtime,
+    build_tier1,
 )
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
+from rulecam.runtime.response import Response, ResponseStatus, build_response
 from rulecam.verify.tier2 import SparkOpenVerifier
 from rulecam.worker import DisputeService, worker_router
+from rulecam.worker.disputes import DisputeReviewer
 
 _log = get_logger(__name__)
 
@@ -124,6 +134,7 @@ class AppServices:
         questions: The planner's questions and re-runs (`PlannerService`).
         verdicts: Verdict counts for `GET /metrics`, fed from `verdict.new`.
         health_probes: Dependencies (Glimmer, the SAM pod) whose health `GET /metrics` shows.
+        response: How the policy, firewall and actions are configured (`/runtime/metrics`).
         public_demo: Demo sites only: non-owners may watch `/ws` (from a viewer origin) and read
             plans. Off by default; a real site keeps those reads owner-only.
     """
@@ -150,7 +161,14 @@ class AppServices:
     questions: QuestionsService | None = None
     verdicts: VerdictCounter = field(default_factory=VerdictCounter)
     health_probes: Sequence[HealthProbe] = ()
+    response: ResponseStatus | None = None
     public_demo: bool = False
+
+
+class RuntimeReport(LoopMetrics):
+    """Body of `GET /runtime/metrics`: the loop's metrics plus the response side's status."""
+
+    response: ResponseStatus | None = None
 
 
 TICK_S = 1.0
@@ -359,8 +377,8 @@ def _runtime_router(services: AppServices) -> APIRouter:
         return {"rules": len(plan.rules)}
 
     @router.get("/metrics")
-    def metrics() -> LoopMetrics:
-        return runtime().metrics
+    def metrics() -> RuntimeReport:
+        return RuntimeReport(**dict(runtime().metrics), response=services.response)
 
     return router
 
@@ -579,13 +597,23 @@ def build_worker_router(
     chain: EventChain,
     plans: PlanRegistry,
     client_address: ClientAddress | None = None,
+    reviewer: DisputeReviewer | None = None,
+    hard_negatives: HardNegatives | None = None,
 ) -> APIRouter:
-    """Build `/worker` (P2-11): disputes are re-reviewed by Spark Open through the replay cache."""
-    spark_open = SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+    """Build `/worker` (P2-11).
+
+    Disputes are re-reviewed by `reviewer` (the runtime's policy, which sends them to Tier 2 and
+    leaves them pending for a person without it), else by Spark Open through the replay cache.
+    Upheld ones become Rule CI regressions through `hard_negatives`.
+    """
+    if reviewer is None:
+        spark_open = SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+        reviewer = SparkOpenVerifier(spark_open)
+    disputes = DisputeService(chain, reviewer, clock=clock, hard_negatives=hard_negatives)
     return worker_router(
         plans=find_plan(plans, PlanStore(PLANS_DIR)),
         chain=chain,
-        disputes=DisputeService(chain, SparkOpenVerifier(spark_open), clock=clock),
+        disputes=disputes,
         clock=clock,
         public_base_url=settings.public_ui_url,
         client_address=client_address or ClientAddress(),
@@ -613,11 +641,23 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     chain_root = settings.rulecam_data_dir / "evidence" / "chain"
     chain = EventChain(chain_root, site, clock=clock)
     perception = build_perception(settings, cache=cache, clock=clock, bus=bus)
+    response = build_response(
+        settings,
+        tier1=build_tier1(settings, cache=cache, clock=clock, bus=bus),
+        segmenter=perception.hosted,
+        cache=cache,
+        clock=clock,
+        bus=bus,
+        chain=chain,
+    )
     runtime = (
-        build_runtime(settings, perception, cache=cache, clock=clock, bus=bus, chain=chain)
+        build_runtime(
+            settings, perception, cache=cache, clock=clock, bus=bus, chain=chain, response=response
+        )
         if settings.rulecam_runtime
         else None
     )
+    hard_negatives = HardNegatives(settings.regressions_dir)
 
     def concepts() -> list[str]:
         plan = runtime.plan if runtime is not None else None
@@ -632,6 +672,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         events=ChainEventSource(chain_root, site),
         chunks=perception.chunks,
         record_label=chain.append,
+        hard_negatives=hard_negatives,
     )
     active_plan_path = settings.rulecam_data_dir / ACTIVE_PLAN_FILE
     if runtime is not None:
@@ -671,6 +712,8 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         public_demo=settings.public_demo,
         auth=auth,
         health_probes=dependency_probes(settings.glimmer_base_url, settings.sam_base_url),
+        tickers=response.tickers,
+        response=response.status,
         routers=(
             build_worker_router(
                 settings,
@@ -680,9 +723,21 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 chain=chain,
                 plans=plans,
                 client_address=client_address,
+                reviewer=response.policy,
+                hard_negatives=hard_negatives,
             ),
+            owner_alerts_router(response),
         ),
     )
+
+
+def owner_alerts_router(response: Response) -> APIRouter:
+    """The alerts PWA routes (`/alerts`, `/ack`, interlock resume), owner-only (P3-06).
+
+    They show alert titles and clips and can restore power, so they need the owner (loopback or
+    an owner session), like every other route that reads traces or changes state.
+    """
+    return response.router(dependencies=_OWNER)
 
 
 def viewer_origins(public_ui_url: str | None) -> frozenset[str]:

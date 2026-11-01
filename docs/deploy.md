@@ -287,6 +287,31 @@ riders as pedestrians for a rule, list its id in `RULECAM_OPERATOR_EXCLUSION_OFF
 e.g. `RULECAM_OPERATOR_EXCLUSION_OFF=forklift-proximity`) and restart the API; each candidate's
 evidence record keeps the flag it was decided with.
 
+### Actions, escalation and the interlock
+
+The runtime decides with P3-05's `VerificationPolicy` and acts with P3-06's `ActionExecutor`
+(`src/rulecam/runtime/response.py`). `GET /runtime/metrics` shows how they are configured under
+`response`, and the API logs the same once at start-up (`response_built`):
+
+| Setting | Effect |
+|---|---|
+| `RULECAM_ACTIONS_DRY_RUN` (default `true`) | Every action the decision allows is chained as `dry-run: would cut power`, `dry-run: would notify dock_lead (needs review)`, ... and none runs: no power cut, light, speaker, LAN alert or escalation chain. Set `false` only once live tests show clean alerts. |
+| `BASETEN_API_KEY` | Tier 2 (Spark Open) reviews what Tier 1 did not confirm (rules with `tier2: spark-open-on-disagree`) and every worker dispute. Without it (`response.tier2 = absent`, logged `tier2_absent`) Tier 1 decides alone: a confirmed violation alerts, a confident rejection is suppressed, anything unsure goes to the human queue ("Needs review" notifications), and disputes stay `pending` for a person. Nothing passes silently. |
+| `HF_TOKEN` + the `ml` extra | The scene-text firewall: Llama Prompt Guard 2 (86M, CPU) loads at start-up and screens the text both tiers report; an injection attempt blurs the sign, re-verifies and chains `tamper_attempt`. The account must have accepted the Llama 4 licence on `meta-llama/Llama-Prompt-Guard-2-86M`. Without either, `response.firewall = degraded` with the reason (logged `firewall_degraded`), and a candidate whose verdicts report scene text is sent to a person instead of being suppressed. The API image installs no `ml` extra, so add it (`uv sync --extra ml`) to turn the firewall on. |
+| `KASA_PLUG_HOST` | The interlock plug (`/interlock/plug/resume {role}` restores power, owner-only and logged). It is connected at start-up, so the first HIGH cut is one round trip; a plug that does not answer is listed in `response.interlock_unreachable` and retried on first use. |
+| `KASA_LIGHT_HOST` | The red strobe (`visual_signal`). |
+
+HIGH rules act first: the interlock is cut and roles are notified before Glimmer runs, and a
+verifier veto then sends a "Needs review" notification (never a silent drop). The alerts PWA
+routes (`GET /alerts`, `POST /alerts/{id}/respond`, `POST /ack`) are owner-only; escalation timers
+tick once a second.
+
+**Hard-negative memory.** An upheld worker dispute and an owner correction (`POST /correction`)
+each append a lookalike regression to `$RULECAM_REGRESSIONS_DIR/<rule_id>.jsonl` (default
+`$RULECAM_DATA_DIR/rule_ci/regressions`, on the volume), which every later lookalike red-team run
+of that rule tests again. Copy the files into `src/rulecam/rule_ci/regressions/` in a PR to make
+them part of the package's own Rule CI.
+
 ## Runtime SAM cost
 
 Hosted SAM 3.1 takes **one concept per request** (a text prompt is a single noun phrase; see

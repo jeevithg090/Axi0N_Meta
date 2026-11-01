@@ -6,6 +6,10 @@ This package turns a policy decision into things that happen on site: a spoken w
 strobe, a station display, role notifications, escalation chains with acknowledgement timers, and
 the smart-plug power cut. **Stopping is automatic. Resuming always needs a person.**
 
+The runtime builds all of this from settings in `rulecam.runtime.response.build_response`
+(WS1b), with `ActionExecutor(dry_run=True)` until the owner sets `RULECAM_ACTIONS_DRY_RUN=false`:
+a dry run chains every allowed action as `dry-run: would …` and executes none.
+
 ## Public API
 
 ```python

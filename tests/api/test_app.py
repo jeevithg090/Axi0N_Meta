@@ -190,8 +190,14 @@ def test_services_from_settings(tmp_path: Path) -> None:
         "/worker/dispute",
         "/worker/{plan_id}/{camera}",
         "/worker/{plan_id}/{camera}/poster",
+        "/alerts",
+        "/ack",
+        "/interlock/{device}/resume",
     ):
         assert path in paths, path
+    assert services.tickers  # the escalation timers
+    assert services.response is not None
+    assert services.response.actions_dry_run  # dry run until the owner turns it off
 
 
 def test_find_plan_uses_the_registry_then_saved_plans(tmp_path: Path) -> None:
@@ -214,6 +220,23 @@ def test_services_from_settings_with_runtime(tmp_path: Path) -> None:
     assert services.pair is not None
     with owner(create_app(services)) as client:
         assert client.get("/health").json()["runtime"] is True
+        response = client.get("/runtime/metrics").json()["response"]
+        assert response["tier2"] == "configured"  # replay mode replays recorded reviews
+        assert response["firewall"] == "degraded"
+        assert "HF_TOKEN" in response["firewall_reason"]
+        assert response["actions_dry_run"] is True
+
+
+def test_alert_routes_are_owner_only(tmp_path: Path) -> None:
+    services = services_from_settings(Settings(_env_file=None, rulecam_data_dir=tmp_path), "s")
+    app = create_app(services)
+    with TestClient(app, **TUNNEL) as remote:  # type: ignore[arg-type]
+        assert remote.get("/alerts").status_code == 403
+        assert remote.post("/ack", json={"event_id": "e", "role": "lead"}).status_code == 403
+        assert remote.post("/interlock/plug/resume", json={"role": "lead"}).status_code == 403
+    with owner(app) as client:
+        assert client.get("/alerts").json() == []
+        assert client.post("/interlock/plug/resume", json={"role": "lead"}).status_code == 404
 
 
 async def test_bus_publish_from_worker_thread_is_delivered() -> None:

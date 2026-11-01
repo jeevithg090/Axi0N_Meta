@@ -1,0 +1,60 @@
+{
+  "key": "3cb18dce0a78820dc920712edfe249b6dfed54b7363660bcc7e1a5c8e6fd9d0a",
+  "provider": "glimmer",
+  "model": "muse-glimmer-30b",
+  "recorded_at": "2026-11-01T01:55:17.281816Z",
+  "latency_ms": 23053,
+  "response": {
+    "status": 200,
+    "headers": {
+      "date": "Sun, 01 Nov 2026 01:55:17 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "access-control-allow-origin": "",
+      "server": "cloudflare",
+      "strict-transport-security": "max-age=63072000; includeSubDomains",
+      "x-robots-tag": "noindex, nofollow, noarchive",
+      "cf-cache-status": "DYNAMIC",
+      "content-encoding": "gzip",
+      "cf-ray": "a537463129da1ccd-MSP"
+    },
+    "json": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "{\n  \"verdict\": \"no_violation\",\n  \"p_violation\": 0.05,\n  \"reason\": \"The visible person is seated in the operator’s seat of the forklift and is operating it; there is no separate person near a moving forklift in the frames.\",\n  \"scene_text\": \"1/6 t-1.0s keep-people-2m-from-moving-forklift measured 0.03 m\\n2/6 t-0.6s keep-people-2m-from-moving-forklift measured 0.03 m\\nsubject: person\\nforklift\\n14.1 m\\n3/6 t-0.2s keep-people-2m-from-moving-forklift measured 0.03 m\\nsubject: person\\nforklift\\n14.1 m\\n4/6 t+0.2s keep-people-2m-from-moving-forklift measured 0.03 m\\nsubject: person\\nforklift\\n14.1 m\\n5/6 t+0.6s keep-people-2m-from-moving-forklift measured 0.03 m\\nforklift: person\\nforklift\\n5.0 m\\n6/6 t+1.0s keep-people-2m-from-moving-forklift measured 0.03 m\\nforklift: person\\nforklift\\n4.9 m\"\n}",
+            "reasoning_content": "Rule: Keep people at least 2 metres away from a moving forklift.\n\nFrames show a person in blue jacket operating a forklift from first-person? Actually camera is on person? The person is seated on forklift, so person is operator of forklift. Distance measured 0.03 m. The rule is about people away from moving forklift. The person is the operator, so not a separate person near forklift. The measured distance is between person and forklift, but it's the same person operating it. So no violation.\n\nThe predicate trace says distance 0.025 m, moving true. But the person is the driver, so rule about keeping people away from forklift likely means other people, not operator. Visually person is on forklift.\n\nThus no violation.\n\nScene text: need copy visible text verbatim. Frames have overlay text: \"1/6 t-1.0s keep-people-2m-from-moving-forklift measured 0.03 m\" etc. Also \"subject: person\", \"forklift\", \"14.1 m\", \"5.0 m\", \"4.9 m\". Should copy all visible text. Probably list all? Might be enough to capture. Provide scene_text with all visible text.\n\nI'll output violation? no_violation. p_violation low ~0.05.\n\nReason: person is the forklift operator seated on the vehicle, not a separate person near it.\n\n"
+          }
+        }
+      ],
+      "created": 1793498117,
+      "model": "muse-glimmer-30b",
+      "system_fingerprint": "b11669-620d2225c",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 608,
+        "prompt_tokens": 2329,
+        "total_tokens": 2937,
+        "prompt_tokens_details": {
+          "cached_tokens": 188
+        }
+      },
+      "id": "chatcmpl-uHyXNTmxNyTtEnqIwpPrHyrJ6lBeWvsX",
+      "timings": {
+        "cache_n": 188,
+        "prompt_n": 2141,
+        "prompt_ms": 2747.414,
+        "prompt_per_token_ms": 1.2832386735170482,
+        "prompt_per_second": 779.2782594832813,
+        "predicted_n": 608,
+        "predicted_ms": 18802.383,
+        "predicted_per_token_ms": 30.975919275123562,
+        "predicted_per_second": 32.283141982588056
+      }
+    }
+  }
+}

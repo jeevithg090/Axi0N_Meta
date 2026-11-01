@@ -103,8 +103,34 @@
       rootLine.append("Daily root: ", code);
     }
 
+    // A chain file published on this same site (the golden demo: `?chain=/golden/<run>/chain.jsonl`
+    // with the root and record count committed to git). Only same-origin paths are fetched.
+    const CHAIN_PATH = /^\/[A-Za-z0-9_\/.-]+\.jsonl$/;
+
+    async function loadPublished(path, params) {
+      if (!CHAIN_PATH.test(path) || path.includes("..")) {
+        verdict.textContent = "Only a chain file on this site can be checked here.";
+        return;
+      }
+      const reply = await fetch(path);
+      if (!reply.ok) {
+        verdict.textContent = `No chain file at ${path}.`;
+        return;
+      }
+      const root = params.get("root");
+      const n = Number(params.get("n"));
+      const committed =
+        root && /^[0-9a-f]{64}$/.test(root) && Number.isSafeInteger(n) && n > 0 ? { root, n } : null;
+      await show(await reply.text(), committed);
+    }
+
     async function loadFromServer() {
       const params = new URLSearchParams(location.search);
+      const published = params.get("chain");
+      if (published !== null) {
+        await loadPublished(published, params);
+        return;
+      }
       const day = params.get("day");
       if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
         verdict.textContent = "Choose a chain file below.";

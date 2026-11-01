@@ -21,6 +21,7 @@ from rulecam.replay.golden import GoldenRunner
 if TYPE_CHECKING:
     from rulecam.eval.schema import EvalSet
     from rulecam.eval.score import EvalReport
+    from rulecam.eval.scorecard import Checks
 
 app = typer.Typer(help="Rulecam: a camera agent that plans its own job and proves its work.")
 
@@ -65,6 +66,8 @@ SCENARIOS_DIR = Path("scenarios")
 
 
 def _golden_runner(scenarios_dir: Path) -> GoldenRunner:
+    import rulecam.demo.steps  # noqa: F401, PLC0415 - registers the `demo.*` step kinds
+
     cache = ReplayCache.from_settings(get_settings(), clock=SystemClock())
     return GoldenRunner(cache, scenarios_dir)
 
@@ -93,6 +96,94 @@ def golden_verify(
     typer.echo(f"{scenario}: {report.steps - len(report.diffs)}/{report.steps} steps reproduced")
     if not report.ok:
         raise typer.Exit(code=1)
+
+
+@golden_app.command("capture")
+def golden_capture(
+    scenario: Annotated[
+        str, typer.Argument(help="Scenario name; the fixture is scenarios/<name>/")
+    ],
+    run: Annotated[Path, typer.Option(help="The eval run record (*.run.json) of a record run")],
+    plan: Annotated[Path, typer.Option(help="The approved plan as JSON (GET /plans/{id})")],
+    metrics: Annotated[
+        Path, typer.Option(help="GET /runtime/metrics as JSON, taken after the run")
+    ],
+    *,
+    chain: Annotated[Path | None, typer.Option(help="The day's chain file")] = None,
+    data_dir: Annotated[Path | None, typer.Option(help="The API's data dir")] = None,
+    scenarios_dir: Annotated[Path, typer.Option(help="Scenario directory")] = SCENARIOS_DIR,
+) -> None:
+    """Freeze a live RULECAM_MODE=record run into scenarios/<name>/ (run it on the API pod)."""
+    from rulecam.demo.capture import CaptureSources, capture  # noqa: PLC0415
+    from rulecam.demo.errors import DemoError  # noqa: PLC0415
+    from rulecam.eval.record import RunRecord  # noqa: PLC0415
+    from rulecam.rules.store import ParquetTrackStore  # noqa: PLC0415
+
+    data = data_dir or get_settings().rulecam_data_dir
+    record = RunRecord.model_validate_json(run.read_text(encoding="utf-8"))
+    day = record.started_at.date().isoformat()
+    store = ParquetTrackStore(data / "tracks")
+    sources = CaptureSources(
+        run=run,
+        plan=plan,
+        response=metrics,
+        chain=chain or data / "evidence" / "chain" / "demo" / f"{day}.jsonl",
+        tracks=store,
+        strips=data / "strips",
+        replay=get_settings().replay_dir if data_dir is None else data / "replay",
+    )
+    try:
+        fixture = capture(sources, scenarios_dir / scenario)
+    except DemoError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=AUDIT_FAILED) from exc
+    finally:
+        store.close()
+    typer.echo(f"captured {record.clip} ({record.camera_id}) -> {fixture.root}")
+
+
+@golden_app.command("export")
+def golden_export(
+    scenario: Annotated[str, typer.Argument(help="Scenario name")],
+    *,
+    ui_dir: Annotated[Path, typer.Option(help="The web UI folder")] = Path("ui"),
+    set_dir: Annotated[Path, typer.Option("--set", help="Eval-set folder")] = Path("eval/clips"),
+    scenarios_dir: Annotated[Path, typer.Option(help="Scenario directory")] = SCENARIOS_DIR,
+) -> None:
+    """Write the UI's REPLAY bundle of a verified scenario (ui/src/fixtures/golden/<name>.json)."""
+    import json  # noqa: PLC0415
+
+    from rulecam.demo.export import export_ui  # noqa: PLC0415
+    from rulecam.demo.fixture import GoldenFixture  # noqa: PLC0415
+    from rulecam.replay.golden import load_scenario  # noqa: PLC0415
+
+    runner = _golden_runner(scenarios_dir)
+    report = runner.verify(scenario)
+    if not report.ok:
+        typer.echo(f"{scenario} does not verify; run `rulecam golden verify {scenario}`", err=True)
+        raise typer.Exit(code=AUDIT_FAILED)
+    loaded = load_scenario(runner.scenario_path(scenario))
+    expected = json.loads(runner.expected_path(scenario).read_text(encoding="utf-8"))["steps"]
+    fixture_dir = scenarios_dir / scenario
+    fixture = GoldenFixture(fixture_dir)
+    clip_name = fixture.run().clip
+    evalset = _load_set(set_dir)
+    entry = evalset.clip(clip_name)
+    clip = {
+        "name": entry.name,
+        "description": entry.description,
+        "license": entry.license,
+        "source": (entry.source.url or entry.source.path) if entry.source else None,
+    }
+    path = export_ui(
+        fixture,
+        loaded,
+        expected,
+        bundle_dir=ui_dir / "src" / "fixtures" / "golden",
+        public_dir=ui_dir / "public",
+        clip=clip,
+    )
+    typer.echo(f"exported {scenario} -> {path}")
 
 
 evidence_app = typer.Typer(help="Evidence chain: daily Merkle roots.")
@@ -337,19 +428,66 @@ def eval_score(
     _write_outputs(report, out, checks, f"replayed runs: {runs}")
 
 
+AUTO_CHECKS = "auto"
+DEFAULT_UI = "https://rulecam.vercel.app"
+
+
+def _auto_checks(
+    *, api: str | None, ui: str | None, restart: Path | None, budget: Path | None, dry_run: bool
+) -> Checks:
+    from rulecam.eval.autochecks import AutoConfig, run_auto_checks  # noqa: PLC0415
+    from rulecam.eval.scorecard import Checks  # noqa: PLC0415
+
+    settings = get_settings()
+    public_api = api or settings.public_tunnel_url
+    if not public_api:
+        typer.echo("--checks auto needs --api (the public API URL) or PUBLIC_TUNNEL_URL", err=True)
+        raise typer.Exit(code=USAGE_ERROR)
+    config = AutoConfig(
+        api=public_api.rstrip("/"),
+        ui=(ui or settings.public_ui_url or DEFAULT_UI).rstrip("/"),
+        restart_evidence=restart,
+        budget_evidence=budget,
+        deploy_dry_run=AutoConfig.deploy_dry_run if dry_run else None,
+    )
+    return Checks(checks=run_auto_checks(config))
+
+
 @app.command()
 def scorecard(
     *,
     report: Annotated[Path | None, typer.Option(help="Eval report JSON")] = None,
-    checks: Annotated[Path | None, typer.Option(help="Checks file")] = EVAL_CHECKS,
+    checks: Annotated[
+        str, typer.Option(help="Checks file, or `auto` to run the automatable checks")
+    ] = str(EVAL_CHECKS),
+    checks_file: Annotated[
+        Path, typer.Option(help="With --checks auto: the manual checks underneath")
+    ] = EVAL_CHECKS,
+    api: Annotated[str | None, typer.Option(help="Public API URL for --checks auto")] = None,
+    ui: Annotated[str | None, typer.Option(help="Public site URL for --checks auto")] = None,
+    restart_evidence: Annotated[
+        Path | None, typer.Option(help="scripts/ops/restart_check.sh output")
+    ] = None,
+    budget_evidence: Annotated[
+        Path | None, typer.Option(help="scripts/ops/budget_alarm_check.sh output")
+    ] = None,
+    deploy_dry_run: Annotated[
+        bool, typer.Option(help="Run runpod_up.sh --dry-run for one_command_deploy")
+    ] = True,
     live_api: Annotated[str | None, typer.Option(help="Sample /runtime/metrics here")] = None,
     samples: Annotated[int, typer.Option(help="Live samples")] = 60,
     interval_s: Annotated[float, typer.Option(help="Seconds between live samples")] = 30.0,
     out: Annotated[Path | None, typer.Option(help="Write the markdown here")] = None,
 ) -> None:
-    """Print the PLAN-9.5 §2 scorecard from an eval report, live metrics and the checks file."""
+    """Print the PLAN-9.5 §2 scorecard from an eval report, live metrics and the checks.
+
+    `--checks auto` runs the automatable checks (`rulecam.eval.autochecks`) on top of
+    `--checks-file` and writes the merged checks with their evidence next to the markdown
+    (`checks-<date>.yaml`). A check passes only on observed evidence.
+    """
     from datetime import UTC, datetime  # noqa: PLC0415
 
+    from rulecam.eval.autochecks import checks_yaml, merge_checks  # noqa: PLC0415
     from rulecam.eval.client import HttpApiClient  # noqa: PLC0415
     from rulecam.eval.live import sample_live  # noqa: PLC0415
     from rulecam.eval.score import load_report  # noqa: PLC0415
@@ -368,13 +506,29 @@ def scorecard(
         finally:
             client.close()
         sources.append(f"live: {live_api}, {samples} samples every {interval_s:g} s")
-    if checks and checks.is_file():
-        sources.append(f"checks: {checks}")
     day = datetime.now(UTC).date().isoformat()
+    manual_path = checks_file if checks == AUTO_CHECKS else Path(checks)
+    manual = load_checks(manual_path) if manual_path.is_file() else None
+    if manual is not None:
+        sources.append(f"checks: {manual_path}")
+    merged = manual
+    if checks == AUTO_CHECKS:
+        auto = _auto_checks(
+            api=api,
+            ui=ui,
+            restart=restart_evidence,
+            budget=budget_evidence,
+            dry_run=deploy_dry_run,
+        )
+        merged = merge_checks(manual, auto.checks)
+        evidence = (out.parent if out else EVAL_REPORTS) / f"checks-{day}.yaml"
+        evidence.parent.mkdir(parents=True, exist_ok=True)
+        evidence.write_text(checks_yaml(merged), encoding="utf-8")
+        sources.append(f"automated checks ({len(auto.checks)}): {evidence}")
     card = build_scorecard(
         title=f"Rulecam 9.5 scorecard, {day}",
         report=loaded,
-        checks=load_checks(checks) if checks and checks.is_file() else None,
+        checks=merged,
         live=live,
         sources=sources,
     )

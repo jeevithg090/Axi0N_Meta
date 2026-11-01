@@ -41,6 +41,18 @@ jobs:
       - run: uv sync --group dev
       - run: make eval-replay EVAL_OUT=${{ runner.temp }}/eval
 
+  golden-verify:
+    # WS6: replay every golden run (scenarios/) from its committed recording: no network, no model.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: make golden-verify
+
   guardrails:
     runs-on: ubuntu-latest
     steps:

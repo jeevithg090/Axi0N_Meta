@@ -29,7 +29,7 @@ video) and the recorded Glimmer reply each strip was sent with.
 | `demo.score` | the eval harness's score of the run against the clip's labels |
 
 `warehouse_driver` is the first: the stock driver-only clip (`eval/clips/warehouse_45848`, a
-negative). The site plays it on `?demo=1` (`/demo`, `/planner`, `/plans/<id>`, `/monitor`) and
+negative; since the operator warm-up, P1-07, a clean one with no candidate). The site plays it on `?demo=1` (`/demo`, `/planner`, `/plans/<id>`, `/monitor`) and
 its chain on `/verify/index.html?chain=…`.
 
 ### Adding a run (e.g. the owner's positive clip)

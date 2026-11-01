@@ -51,11 +51,30 @@ describe("golden runs", () => {
   });
 
   it("keeps each candidate's actions in chain order", () => {
-    const [candidate] = goldenCandidates(run);
-    expect(candidate).toBeDefined();
-    const actions = goldenActions(run, candidate!.event_id);
-    expect(actions.length).toBeGreaterThan(0);
-    expect(goldenActions(run, "no-such-event")).toEqual([]);
+    const action = (event_id: string, detail: string) => ({
+      topic: "action.done",
+      payload: { event_id, action: { kind: "notify", ok: true, detail } },
+    });
+    const withCandidate = {
+      ...run,
+      frames: [
+        { topic: "candidate.new", payload: { event_id: "e1" } },
+        action("e1", "first"),
+        action("e2", "other"),
+        action("e1", "second"),
+      ],
+    } as unknown as typeof run;
+    const [candidate] = goldenCandidates(withCandidate);
+    expect(candidate?.event_id).toBe("e1");
+    expect(goldenActions(withCandidate, "e1").map((a) => a.detail)).toEqual(["first", "second"]);
+    expect(goldenActions(withCandidate, "no-such-event")).toEqual([]);
+  });
+
+  it("the driver-only run is a clean negative: no candidate, no alert (P1-07)", () => {
+    expect(goldenCandidates(run)).toEqual([]);
+    expect(run.steps.verify).toEqual([]);
+    expect(run.steps.score.status).toBe("negative");
+    expect(run.steps.score.false_alerts_on_negative).toBe(0);
   });
 
   it("describes the policy's decision from the recorded fields", () => {
@@ -130,10 +149,13 @@ describe("DemoPage", () => {
     for (const step of run.steps.plan.planner_steps) {
       expect(screen.getByText(step.step)).toBeTruthy();
     }
-    const [v] = run.steps.verify;
-    expect(screen.getByTestId("golden-decision").textContent).toBe(decisionText(v!));
-    expect(screen.getByText(new RegExp(v!.tier1.reason.slice(0, 30)))).toBeTruthy();
-    expect(screen.getAllByRole("img")).toHaveLength(v!.strip_frames);
+    for (const v of run.steps.verify) {
+      expect(screen.getByTestId("golden-decision").textContent).toBe(decisionText(v));
+      expect(screen.getByText(new RegExp(v.tier1.reason.slice(0, 30)))).toBeTruthy();
+    }
+    const frames = run.steps.verify.reduce((n, v) => n + v.strip_frames, 0);
+    expect(screen.queryAllByRole("img")).toHaveLength(frames);
+    expect(screen.getByText(/0 candidates and 0 alerts on a negative clip/)).toBeTruthy();
     expect(screen.getByTestId("verify-link").getAttribute("href")).toBe(run.verify_url);
     for (const pending of PENDING_RUNS) {
       expect(screen.getByLabelText(`Pending: ${pending.name}`)).toBeTruthy();

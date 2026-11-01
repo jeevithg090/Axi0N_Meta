@@ -1,7 +1,7 @@
 {
   "actions_dry_run": true,
   "firewall": "degraded",
-  "firewall_reason": "HF_TOKEN is not set (Prompt Guard 2 is gated on Hugging Face)",
+  "firewall_reason": "the ml extra (transformers) is not installed",
   "interlock_devices": [],
   "interlock_unreachable": [],
   "light": false,

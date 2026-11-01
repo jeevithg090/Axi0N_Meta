@@ -1,7 +1,10 @@
 """Golden demo runs: capture, the `demo.*` golden steps, the UI export and the CLI (no network).
 
 The committed `scenarios/warehouse_driver/` fixture (a live record run) is the test data: capture
-is checked by rebuilding it from the same files laid out as the API pod has them.
+is checked by rebuilding it from the same files laid out as the API pod has them. Since the
+operator warm-up (P1-07) that run is a clean negative with no candidate, so the candidate
+mechanics (strips, the Tier 1 reply, the decision, the UI's candidate frames) run on
+`tests.demo.synthetic`: the same run plus one pedestrian candidate appended as the runtime does.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from rulecam.demo.fixture import GoldenFixture, RecordedWindows, TrackWindows
 from rulecam.demo.steps import fixture_of, planner_steps, verify_step
 from rulecam.replay.cache import ReplayCache
 from rulecam.replay.golden import GoldenRunner, load_scenario
+from tests.demo import synthetic
 
 REPO = Path(__file__).resolve().parents[2]
 SCENARIOS = REPO / "scenarios"
@@ -34,17 +38,26 @@ EVAL_SET = REPO / "eval" / "clips"
 cli = CliRunner()
 
 
-def scenario_copy(tmp_path: Path) -> Path:
-    """Copy the scenario to `tmp_path/scenarios`, with absolute fixture and eval-set paths."""
+def scenario_copy(tmp_path: Path, *, with_candidate: bool = False) -> Path:
+    """Copy the scenario to `tmp_path/scenarios`, with absolute fixture and eval-set paths.
+
+    With `with_candidate`, the fixture is `tests.demo.synthetic` (the committed run plus one
+    pedestrian candidate) and its expected outputs are recorded from it.
+    """
     out = tmp_path / "scenarios"
-    shutil.copytree(FIXTURE, out / NAME)
-    shutil.copyfile(SCENARIOS / f"{NAME}.expected.json", out / f"{NAME}.expected.json")
+    if with_candidate:
+        synthetic.build(FIXTURE, out / NAME)
+    else:
+        shutil.copytree(FIXTURE, out / NAME)
+        shutil.copyfile(SCENARIOS / f"{NAME}.expected.json", out / f"{NAME}.expected.json")
     data = yaml.safe_load((SCENARIOS / f"{NAME}.yaml").read_text(encoding="utf-8"))
     for step in data["steps"]:
         step["params"]["fixture"] = str(out / NAME)
         if "eval_set" in step["params"]:
             step["params"]["eval_set"] = str(EVAL_SET)
     (out / f"{NAME}.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
+    if with_candidate:
+        runner(out).record(NAME)
     return out
 
 
@@ -75,25 +88,38 @@ def test_record_writes_the_same_outputs_without_any_model(tmp_path: Path) -> Non
 
 
 def test_what_the_golden_run_proves() -> None:
+    """The driver-only clip: the seated driver is the forklift's operator, nothing fires (P1-07)."""
     steps = json.loads((SCENARIOS / f"{NAME}.expected.json").read_text(encoding="utf-8"))["steps"]
     assert steps["plan"]["rule_hashes_match_run"]
     assert [s["step"] for s in steps["plan"]["planner_steps"]][:2] == ["understand", "survey"]
     (ci,) = steps["rule_ci"]
     assert ci["ci_green"]
     assert ci["matches_plan"]
+    assert ci["summary"].endswith("mutations 6/6")  # with `drop_operator_warmup`, killed
     assert steps["evidence"]["ok"]
+    assert steps["evidence"]["candidates"] == 0
+    assert steps["verify"] == []
+    assert steps["score"]["status"] == "negative"
+    assert steps["score"]["false_alerts_on_negative"] == 0
+
+
+def test_the_candidate_mechanics_reproduce(tmp_path: Path) -> None:
+    scenarios = scenario_copy(tmp_path, with_candidate=True)
+    report = runner(scenarios).verify(NAME)
+    assert report.ok, report.diffs
+    steps = json.loads((scenarios / f"{NAME}.expected.json").read_text(encoding="utf-8"))["steps"]
+    assert steps["evidence"]["candidates"] == steps["evidence"]["reproduced"] == 1
     (verified,) = steps["verify"]
-    assert verified["tier1"]["verdict"] == "no_violation"
+    assert verified["tier1"]["scene_text"] == synthetic.SIGN  # our band text never reaches it
     assert verified["tier1_matches_chain"]
     assert verified["decision_matches_chain"]
-    assert verified["decision"]["route"] == "human_queue"
-    assert steps["score"]["status"] == "negative"
+    assert verified["strip_frames"] == 2
 
 
 def test_a_changed_reply_or_record_is_caught(tmp_path: Path) -> None:
-    scenarios = scenario_copy(tmp_path)
+    scenarios = scenario_copy(tmp_path, with_candidate=True)
     (reply,) = (scenarios / NAME / "replay" / "glimmer").glob("*.json")
-    reply.write_text(reply.read_text(encoding="utf-8").replace("no_violation", "violation"))
+    reply.write_text(reply.read_text(encoding="utf-8").replace('\\"violation', '\\"unsure'))
     chain = scenarios / NAME / "chain.jsonl"
     lines = chain.read_text(encoding="utf-8").splitlines()
     lines[0] = lines[0].replace('"ts":"2026-11-01T', '"ts":"2026-11-02T', 1)  # an edited record
@@ -103,7 +129,7 @@ def test_a_changed_reply_or_record_is_caught(tmp_path: Path) -> None:
 
 
 def test_a_missing_reply_is_a_replay_miss(tmp_path: Path) -> None:
-    scenarios = scenario_copy(tmp_path)
+    scenarios = scenario_copy(tmp_path, with_candidate=True)
     shutil.rmtree(scenarios / NAME / "replay")
     report = runner(scenarios).verify(NAME)
     (diff,) = [d for d in report.diffs if d.step_id == "verify"]
@@ -141,9 +167,10 @@ def test_fixture_parameter_and_files_are_checked(tmp_path: Path) -> None:
     assert empty.strips("nothing") == []
 
 
-def test_recorded_windows_answer_only_what_was_recorded() -> None:
-    fixture = GoldenFixture(FIXTURE)
-    data = TrackWindows.model_validate_json((FIXTURE / "windows.json").read_text())
+def test_recorded_windows_answer_only_what_was_recorded(tmp_path: Path) -> None:
+    root = scenario_copy(tmp_path, with_candidate=True) / NAME
+    fixture = GoldenFixture(root)
+    data = TrackWindows.model_validate_json((root / "windows.json").read_text())
     (window,) = data.windows
     store = RecordedWindows(data)
     assert store.window(window.camera_id, window.t0, window.t1) == list(window.tracks)
@@ -151,46 +178,52 @@ def test_recorded_windows_answer_only_what_was_recorded() -> None:
     with pytest.raises(FixtureError, match="read-only"):
         store.append([])
     candidate: Any = fixture.run_records()[0].payload["candidate"]
-    assert [p.name for p in fixture.strips(candidate["event_id"])] == [
-        f"{k}.jpg" for k in range(1, 7)
-    ]
+    assert [p.name for p in fixture.strips(candidate["event_id"])] == ["1.jpg", "2.jpg"]
     assert planner_steps(fixture)[-1]["step"] == "prove"
 
 
-def pod_layout(tmp_path: Path) -> CaptureSources:
-    """The committed fixture's files laid out as the API pod keeps them."""
-    fixture = GoldenFixture(FIXTURE)
+def pod_layout(tmp_path: Path, root: Path | None = None) -> CaptureSources:
+    """A fixture's files laid out as the API pod keeps them (default: the synthetic one)."""
+    if root is None:
+        root = scenario_copy(tmp_path / "source", with_candidate=True) / NAME
+    fixture = GoldenFixture(root)
     run = fixture.run()
     strips = tmp_path / "pod" / "strips"
-    for event in (FIXTURE / "strips").iterdir():
+    strips.mkdir(parents=True)
+    for event in (root / "strips").iterdir() if (root / "strips").is_dir() else ():
         shutil.copytree(event, strips / run.camera_id / event.name)
     metrics = tmp_path / "pod" / "metrics.json"
     metrics.write_text(
-        json.dumps({"lag_s": 0, "response": json.loads((FIXTURE / "response.json").read_text())}),
+        json.dumps({"lag_s": 0, "response": json.loads((root / "response.json").read_text())}),
         encoding="utf-8",
     )
     return CaptureSources(
-        run=FIXTURE / "run.json",
-        plan=FIXTURE / "plan.json",
+        run=root / "run.json",
+        plan=root / "plan.json",
         response=metrics,
-        chain=FIXTURE / "chain.jsonl",
+        chain=root / "chain.jsonl",
         tracks=fixture.windows(),
         strips=strips,
-        replay=FIXTURE / "replay",
+        replay=root / "replay",
     )
 
 
-def test_capture_rebuilds_the_fixture_byte_for_byte(tmp_path: Path) -> None:
+@pytest.mark.parametrize("committed", [True, False], ids=["committed", "with-candidate"])
+def test_capture_rebuilds_the_fixture_byte_for_byte(tmp_path: Path, committed: bool) -> None:
+    sources = pod_layout(tmp_path, FIXTURE if committed else None)
+    root = sources.run.parent
     out = tmp_path / "captured"
-    capture(pod_layout(tmp_path), out)
-    committed = sorted(p.relative_to(FIXTURE) for p in FIXTURE.rglob("*") if p.is_file())
+    capture(sources, out)
+    expected = sorted(p.relative_to(root) for p in root.rglob("*") if p.is_file())
     captured = sorted(p.relative_to(out) for p in out.rglob("*") if p.is_file())
-    assert captured == committed
-    for rel in committed:
+    assert captured == expected
+    if not committed:
+        assert any(p.name == "annotations.json" for p in captured)  # what the bands say
+    for rel in expected:
         if rel.suffix == ".json":  # the committed copies end with a newline (pre-commit)
-            assert json.loads((out / rel).read_text()) == json.loads((FIXTURE / rel).read_text())
+            assert json.loads((out / rel).read_text()) == json.loads((root / rel).read_text())
         else:
-            assert (out / rel).read_bytes() == (FIXTURE / rel).read_bytes(), rel
+            assert (out / rel).read_bytes() == (root / rel).read_bytes(), rel
 
 
 @pytest.mark.parametrize("broken", ["replay", "strips", "tracks", "metrics", "plan"])
@@ -211,9 +244,11 @@ def test_capture_refuses_an_incomplete_run(tmp_path: Path, broken: str) -> None:
 
 
 def test_the_ui_bundle_replays_the_run_in_chain_order(tmp_path: Path) -> None:
-    scenario = load_scenario(SCENARIOS / f"{NAME}.yaml")
-    expected = json.loads((SCENARIOS / f"{NAME}.expected.json").read_text())["steps"]
-    fixture = GoldenFixture(FIXTURE)
+    scenarios = scenario_copy(tmp_path / "source", with_candidate=True)
+    scenario = load_scenario(scenarios / f"{NAME}.yaml")
+    expected = json.loads((scenarios / f"{NAME}.expected.json").read_text())["steps"]
+    root = scenarios / NAME
+    fixture = GoldenFixture(root)
     bundle: Any = build_bundle(fixture, scenario, expected, clip={"name": "warehouse_45848"})
     topics = [f["topic"] for f in bundle["frames"]]
     assert topics[0] == "mode.changed"
@@ -237,8 +272,8 @@ def test_the_ui_bundle_replays_the_run_in_chain_order(tmp_path: Path) -> None:
     )
     assert json.loads(path.read_text()) == json.loads(json.dumps(bundle))
     assets = tmp_path / "public" / "golden" / NAME
-    assert (assets / "chain.jsonl").read_bytes() == (FIXTURE / "chain.jsonl").read_bytes()
-    assert len(list(assets.glob("strips/*/*.jpg"))) == 6
+    assert (assets / "chain.jsonl").read_bytes() == (root / "chain.jsonl").read_bytes()
+    assert len(list(assets.glob("strips/*/*.jpg"))) == 2
 
 
 def test_the_committed_ui_copies_match_the_fixture() -> None:
@@ -261,13 +296,14 @@ def test_cli_capture_and_export(tmp_path: Path) -> None:
     data = tmp_path / "pod"
     store = data / "tracks"
     store.mkdir()
-    windows = TrackWindows.model_validate_json((FIXTURE / "windows.json").read_text())
+    root = sources.run.parent
+    windows = TrackWindows.model_validate_json((root / "windows.json").read_text())
     tracks: list[Track] = [t for w in windows.windows for t in w.tracks]
     from rulecam.rules.store import ParquetTrackStore  # noqa: PLC0415
 
     with ParquetTrackStore(store) as parquet:
         parquet.append(tracks)
-    shutil.copytree(FIXTURE / "replay", data / "replay")
+    shutil.copytree(root / "replay", data / "replay")
     scenarios = tmp_path / "scenarios"
     result = cli.invoke(
         app,
@@ -291,7 +327,7 @@ def test_cli_capture_and_export(tmp_path: Path) -> None:
     )  # fmt: skip
     assert bad.exit_code == 1
 
-    copied = scenario_copy(tmp_path / "export")
+    copied = scenario_copy(tmp_path / "export", with_candidate=True)
     ui = tmp_path / "ui"
     result = cli.invoke(
         app,

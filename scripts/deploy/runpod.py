@@ -471,6 +471,7 @@ class Options:
     cpu_flavors: tuple[str, ...] = CPU_FLAVORS
     cloud: str = "SECURE"
     public_ui_url: str = "https://rulecam.vercel.app"
+    public_demo: bool = False  # PUBLIC_DEMO=true: visitors may watch /ws and read plans
     meta_api_base_url: str = "https://api.meta.ai/v1"
     secrets_dir: Path = Path.home() / ".runpod"
     inline_secrets: bool = False
@@ -579,7 +580,8 @@ def api_env(
     Data and evidence stay at their defaults under /workspace/rulecam (the working directory, on
     the volume); anything not set here can still come from /workspace/rulecam/.env.
     `gpu_usd_per_hour` is the GPU pods' combined price (the cost meter shares it among the
-    active cameras); `gpu_pods` are their names, for the idle GPU stop.
+    active cameras); `gpu_pods` are their names, for the idle GPU stop. `PUBLIC_DEMO` is set only
+    with `--public-demo`, so a hand-set value in that .env still applies otherwise.
     """
     env = {
         "RULECAM_MODE": "live",
@@ -598,6 +600,8 @@ def api_env(
     if sam_url:
         env["SAM_BASE_URL"] = sam_url
         env.update(secrets.env(SAM_KEY, "SAM_API_KEY"))
+    if opts.public_demo:
+        env["PUBLIC_DEMO"] = "true"
     if gpu_usd_per_hour is not None:
         env["RULECAM_GPU_USD_PER_HOUR"] = gpu_usd_per_hour
     if gpu_pods:
@@ -1186,6 +1190,11 @@ def parser() -> argparse.ArgumentParser:
     )
     p_up.add_argument("--cloud", choices=("SECURE", "COMMUNITY"), default="SECURE")
     p_up.add_argument("--public-ui-url", default="https://rulecam.vercel.app")
+    p_up.add_argument(
+        "--public-demo",
+        action="store_true",
+        help="PUBLIC_DEMO=true: logged-out visitors may watch /ws and read plans (demo sites only)",
+    )
     p_up.add_argument("--secrets-dir", type=Path, default=Path.home() / ".runpod")
     p_up.add_argument(
         "--inline-secrets", action="store_true", help="env values, not RunPod secrets"
@@ -1223,6 +1232,7 @@ def options(args: argparse.Namespace) -> Options:
         gpu_usd_per_hour=args.gpu_usd_per_hour,
         cloud=args.cloud,
         public_ui_url=args.public_ui_url,
+        public_demo=args.public_demo,
         secrets_dir=args.secrets_dir,
         inline_secrets=args.inline_secrets,
         sync_secrets=args.sync_secrets,

@@ -73,7 +73,7 @@ The \$150 Meta Model API hackathon credit claim has been filled and submitted vi
 - **Status**: **SUBMITTED**
 - **Details Submitted**:
   - **Full Name**: `Navadarshanth Shanmugasundaram`
-  - **Email**: `nav6aus@gmail.com` (no dot, per Google Form credit claim requirement)
+  - **Email**: `nav6ind@gmail.com` (no dot, per Google Form credit claim requirement)
   - **Meta Model API Team ID**: `1097704756498249`
   - **Terms & Credit Policy**: Agreed & Checked
 - **Confirmation Message**: *"Credits will show up under 'free credits' section under 'Billing'"*

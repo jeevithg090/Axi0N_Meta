@@ -10,9 +10,22 @@ Built for the Meta Global AI Developer Hackathon (build window Oct 26 – Nov 4 
 
 > **Built with Muse Spark Open.** · **Built with Llama** (Llama Prompt Guard 2).
 
-## Status
+## What it does
 
-Scaffold, shared contracts and CI are in place. Feature work follows the task books:
+1. **Describe it.** The owner says or types what worries them ("keep people 2 m from a moving
+   forklift"). Muse Spark plans the job: what to watch, which camera covers it, and what a camera
+   *cannot* check (the feasibility screen says so before anything goes live).
+2. **Plan it.** The planner surveys the scene with SAM 3.1, calibrates distances, compiles a typed
+   Rule IR and shows the plan, the diff against the last approved plan, and the acceptance trace.
+3. **Prove it.** Rule CI runs every rule against generated boundary scenes and mutants before the
+   owner can approve it. A rule that fails Rule CI cannot go live.
+4. **Trust it.** Every candidate alert is verified by Muse Glimmer (Tier 1, on the site laptop),
+   and safety-critical or disputed cases get a second check by Muse Spark Open (Tier 2). Text in
+   the scene is screened by a Llama Prompt Guard 2 firewall before it reaches the verifier. Every event, verdict,
+   action and acknowledgement goes into a hash-chained, Merkle-rooted log that anyone can check in
+   the browser with no server.
+
+## Documents
 
 | File | Purpose |
 |---|---|
@@ -22,6 +35,11 @@ Scaffold, shared contracts and CI are in place. Feature work follows the task bo
 | [`docs/v2-design.md`](docs/v2-design.md) | Engine internals: Rule IR, perception, Rule CI, verifier, privacy |
 | [`docs/jepa.md`](docs/jepa.md) | Surprise Lens (V-JEPA 2 world model) |
 | [`docs/site-advisor.md`](docs/site-advisor.md) | Site Advisor: business advice you can check |
+| [`docs/DEMO.md`](docs/DEMO.md) | The 3-minute live demo script and the golden REPLAY |
+| [`docs/deploy.md`](docs/deploy.md) | Deployment: Vercel UI, RunPod API, Glimmer and SAM pods |
+| [`WHAT-WE-BUILT.md`](WHAT-WE-BUILT.md) | What we wrote during the hackathon vs. what we reused, with licences |
+| [`evidence/`](evidence/README.md) | Screenshots and verify-page captures behind our claims |
+| [`eval/RESULTS.md`](eval/RESULTS.md) | Measured evaluation results |
 
 ## Quick start
 
@@ -32,7 +50,20 @@ make check        # lint + types + tests + coverage floors — must pass before 
 uv run rulecam version
 ```
 
-Requires Python 3.12 (via `uv`), `ffmpeg`, and Node 20+ once the UI lands.
+Requires Python 3.12 (via `uv`), `ffmpeg`, and Node 20+ for the UI.
+
+### Run it locally
+
+```bash
+cd ui && npm ci && npm run dev          # the web UI on http://localhost:3000
+```
+
+- **Without keys:** open `http://localhost:3000/demo?demo=1`. It replays a recorded live run
+  (labelled REPLAY in the header) with no model calls. Nothing in it is hand-written.
+- **Live:** copy `.env.example` to `.env`, fill in the Meta Model API key and the Glimmer and SAM
+  endpoints, then follow [`docs/deploy.md`](docs/deploy.md). The header badge reads LIVE.
+- **Check an evidence log:** `uv run rulecam audit <YYYY-MM-DD> <site>` re-verifies a day's chain and
+  re-derives every decision; or drop the chain file on the browser verify page, which recomputes every SHA-256 and the Merkle root itself.
 
 ## How we work
 
@@ -63,3 +94,23 @@ Each status says exactly how far the model is wired today. **Live** means the de
 No evaluation has been run against the real system yet; results will be published in
 `eval/RESULTS.md` with their run IDs. An earlier E3 figure came from a simulated harness and was
 withdrawn on Oct 31 (see that file).
+
+## What we claim, and what we don't
+
+- **We claim** what `eval/RESULTS.md`, the golden runs and `evidence/` show, and nothing more.
+  Every number in the UI and in the video comes from a run you can replay.
+- **REPLAY is never shown as LIVE.** The header badge says which one you are watching, and it
+  never switches silently.
+- **The verifier can say no.** Glimmer and Spark Open can reject a candidate; safety-critical
+  rules fail towards alerting a human, never towards silence.
+- **Rulecam is not a safety system of record.** It helps people watch; it does not replace a
+  guard, a lock-out or a supervisor. Interlocks (Kasa plugs) only ever stop equipment, and only a
+  human can resume it.
+- **No face recognition, ever.** Faces are blurred in evidence strips; the anonymous and strict
+  privacy modes keep no person pixels at all.
+
+## Licences
+
+The code in this repository was written during the hackathon. Third-party components are used as
+dependencies under their own licences; see [`WHAT-WE-BUILT.md`](WHAT-WE-BUILT.md).
+Llama Prompt Guard 2 is used under the Llama 4 Community License: **Built with Llama**.

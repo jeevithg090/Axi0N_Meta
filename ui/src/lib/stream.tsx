@@ -21,7 +21,7 @@ import { initialState, reducer, type Action, type UiState } from "./store";
 const StreamContext = createContext<UiState>(initialState);
 const DispatchContext = createContext<Dispatch<Action>>(() => undefined);
 const MAX_BACKOFF_MS = 10_000;
-const DEMO_STEP_MS = 600;
+const DEMO_STEP_MS = 250;
 
 function playDemo(dispatch: Dispatch<Action>): () => void {
   dispatch({ type: "connection", connection: "open" });

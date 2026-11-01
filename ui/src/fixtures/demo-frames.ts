@@ -3,6 +3,7 @@
 
 import type { Frame } from "@/lib/events";
 
+import { demoOpsFrames } from "./demo-ops";
 import { demoPlannerSteps, demoPlanV2 } from "./demo-plan";
 
 const T0 = "2026-11-01T18:00:00Z";
@@ -82,5 +83,6 @@ export const demoFrames: Frame[] = [
       },
     },
   },
+  ...demoOpsFrames,
   { topic: "coverage.changed", payload: { camera_id: "cam1", state: "BLIND" } },
 ];

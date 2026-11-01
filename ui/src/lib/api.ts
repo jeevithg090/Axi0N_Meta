@@ -1,6 +1,7 @@
 // Thin, typed calls to the Rulecam API. Owner-only calls work from the owner's machine (loopback).
 
 import { API_BASE } from "./config";
+import type { Alert } from "./ops";
 import type { PlanSummary, SitePlan } from "./plan";
 
 export interface RequestItemInput {
@@ -66,4 +67,15 @@ export const api = {
     return call<UploadResult>("/plans/uploads", { method: "POST", body: form });
   },
   cameras: () => call<CameraInfo[]>("/cameras"),
+  alerts: (role?: string) =>
+    call<Alert[]>(`/alerts${role ? `?role=${encodeURIComponent(role)}` : ""}`),
+  respond: (alertId: string, button: string, role: string) =>
+    call<{ alert_id: string; action: string }>(
+      `/alerts/${encodeURIComponent(alertId)}/respond`,
+      json({ button, role }),
+    ),
+  suggestRule: (surpriseId: string) =>
+    call<{ rule_id: string }>(`/surprise/${encodeURIComponent(surpriseId)}/suggest`, {
+      method: "POST",
+    }),
 };

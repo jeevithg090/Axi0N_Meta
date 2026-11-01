@@ -12,6 +12,10 @@ const LINKS = [
   { href: "/planner", label: "Planner" },
   { href: "/plans", label: "Plans" },
   { href: "/monitor", label: "Live monitor" },
+  { href: "/alerts", label: "Alerts" },
+  { href: "/ci", label: "Rule CI" },
+  { href: "/cards", label: "Cards" },
+  { href: "/surprise", label: "Surprise" },
 ];
 
 /** Every screen sits in this shell: title, LIVE/REPLAY badge and the relay HUD strip (§5.7). */

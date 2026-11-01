@@ -85,7 +85,7 @@ def test_simulate_plan_observable_valid_rule() -> None:
 
 
 def test_aggregate_e3_empty() -> None:
-    summary = aggregate_e3([], total_requests=0)
+    summary = aggregate_e3([], total_requests=0, simulated=False)
     assert summary.total_runs == 0
     assert summary.valid_or_honest_rate == 0.0
     assert summary.gate_passed is False
@@ -104,12 +104,32 @@ def test_aggregate_e3_gate_pass() -> None:
         )
         for i in range(10)
     ]
-    summary = aggregate_e3(records, total_requests=10)
+    summary = aggregate_e3(records, total_requests=10, simulated=False)
     assert summary.total_runs == 10
     assert summary.valid_or_honest_count == 10
     assert summary.valid_or_honest_rate == 1.0
     assert summary.first_pass_acceptance_rate == 1.0
+    assert summary.simulated is False
     assert summary.gate_passed is True
+
+
+def test_aggregate_e3_simulated_never_passes_gate() -> None:
+    records = [
+        RequestRunRecord(
+            request_id=f"req-{i}",
+            run_index=0,
+            outcome="valid_rule",
+            is_valid_or_honest=True,
+            first_pass_accepted=True,
+            repair_rounds=0,
+            duration_s=0.0,
+        )
+        for i in range(10)
+    ]
+    summary = aggregate_e3(records, total_requests=10, simulated=True)
+    assert summary.valid_or_honest_rate == 1.0
+    assert summary.simulated is True
+    assert summary.gate_passed is False
 
 
 def test_render_e3_markdown_table() -> None:
@@ -123,12 +143,36 @@ def test_render_e3_markdown_table() -> None:
         first_pass_acceptance_rate=0.9667,
         mean_repair_rounds=0.033,
         mean_duration_s=0.85,
+        simulated=False,
         gate_passed=True,
     )
     md = render_e3_markdown_table(summary)
     assert "Evaluation E3: Held-Out Requests Generalisation" in md
     assert "100.0%" in md
     assert "PASS (Gate unblocked)" in md
+    assert "SIMULATED" not in md
+
+
+def test_render_e3_markdown_table_labels_simulated_runs() -> None:
+    summary = E3Summary(
+        total_requests=20,
+        runs_per_request=3,
+        total_runs=60,
+        valid_or_honest_count=60,
+        valid_or_honest_rate=1.0,
+        first_pass_count=58,
+        first_pass_acceptance_rate=0.9667,
+        mean_repair_rounds=0.033,
+        mean_duration_s=0.0,
+        simulated=True,
+        gate_passed=False,
+    )
+    md = render_e3_markdown_table(summary)
+    assert "SIMULATED HARNESS, not a Planner run" in md
+    assert "SIMULATED: no gate" in md
+    assert "not evidence of generalisation" in md
+    assert "PASS" not in md
+    assert "Plan Generation Time" not in md
 
 
 def test_run_e3_evaluation_end_to_end(tmp_path: Path) -> None:
@@ -166,7 +210,9 @@ def test_run_e3_evaluation_end_to_end(tmp_path: Path) -> None:
     assert summary.total_requests == 2
     assert summary.total_runs == 4
     assert summary.valid_or_honest_rate == 1.0
-    assert summary.gate_passed is True
+    assert summary.simulated is True
+    assert summary.gate_passed is False
+    assert summary.mean_duration_s == 0.0
     assert results_path.exists()
     assert len(list(plans_dir.glob("*.json"))) == 4
     assert len(list(plans_dir.glob("*.yaml"))) == 4

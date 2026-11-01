@@ -40,7 +40,7 @@ executor = ActionExecutor(
 )
 interlock.connect()  # at start-up: discovery now, so the first cut is one round trip
 # AppServices(..., routers=[alerts_router(notifier=..., escalation=..., chain=..., interlock=...,
-#                                         roles=plan_roles)],
+#                                         roles=plan_roles, dependencies=[<real auth>])],
 #             tickers=[escalation.tick])
 ```
 

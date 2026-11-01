@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Protocol
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, params, status
 from starlette.concurrency import run_in_threadpool
 
 from rulecam.bus import Topic
@@ -25,17 +26,26 @@ class Publisher(Protocol):
         ...
 
 
-def correction_router(service: CorrectionService, bus: Publisher) -> APIRouter:
+def correction_router(
+    service: CorrectionService,
+    bus: Publisher,
+    *,
+    dependencies: Sequence[params.Depends],
+) -> APIRouter:
     """Build the router; segmentation runs in a worker thread, publishing on the event loop.
+
+    A correction cancels candidates, writes `label` records and triggers SAM calls, so the caller
+    must pass its authentication explicitly (the API app passes the owner check).
 
     Args:
         service: The correction service.
         bus: Receives the cancelled candidate on `candidate.new`.
+        dependencies: Authentication applied to every route.
 
     Returns:
         An `APIRouter` with `POST /correction`.
     """
-    router = APIRouter(tags=["correction"])
+    router = APIRouter(tags=["correction"], dependencies=list(dependencies))
 
     @router.post("/correction")
     async def post_correction(request: CorrectionRequest) -> CorrectionResult:

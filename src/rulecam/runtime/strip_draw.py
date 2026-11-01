@@ -12,10 +12,17 @@ Privacy modes (MP §7.5):
   per-pixel median of the strip's frames over pixels no person box covered; pixels never seen
   empty are neutral grey, no generative inpainting), the non-person objects of the rule (a
   forklift) are pasted from the frame *minus every person box*, faces the detector still finds
-  are blurred, and each person is drawn as a skeleton (COCO-17 keypoints when pose is on) or a
-  stick figure fitted to the person's box.
-- **strict**: as anonymous, but greyscale (no clothing or skin colour), every person is the same
-  canonical stick figure in one neutral colour (no per-track colour, no real bone lengths).
+  are blurred, and each person is drawn as a skeleton (COCO-17 body keypoints when pose is on;
+  the face keypoints are never drawn) or a stick figure fitted to the person's box.
+- **strict**: as anonymous, but greyscale (no clothing or skin colour), and every person is drawn
+  in one neutral colour (no per-track colour) with canonical bone lengths: the pose keeps each
+  bone's direction but not its length (`skeleton.canonical_pose`), or the canonical stick figure
+  when the torso is not known.
+
+In anonymous and strict mode a person also carries **PPE marks** (`skeleton.draw_ppe`): for each
+`without` predicate of the rule, a cap, vest or wrist ring in one neutral colour, filled if the
+item was detected in that region at this keyframe and crossed if not. The person's own pixels
+are gone in these modes, so the marks are how the verifier sees what the detector saw.
 
 **Annotation band.** Every word Rulecam draws goes in a band *appended below* the frame (the
 scene's pixels are never covered by text): a header that says the band is Rulecam's, the caption
@@ -31,7 +38,7 @@ from __future__ import annotations
 
 import hashlib
 import threading
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -41,6 +48,17 @@ import numpy as np
 from numpy.typing import NDArray
 
 from rulecam.contracts.core import BoxXYXY, PointXY
+from rulecam.runtime.skeleton import (
+    GLYPH_COLOUR,
+    GLYPH_LEGEND,
+    Anchors,
+    PpeMark,
+    body_joints,
+    canonical_head,
+    canonical_pose,
+    draw_ppe,
+    joint_anchors,
+)
 
 Frame = NDArray[np.uint8]
 BoolMask = NDArray[np.bool_]
@@ -103,6 +121,7 @@ class Item:
         subject: Whether it is the candidate's subject (drawn highlighted).
         colour_key: Seed of its colour in anonymous mode (an opaque track id, never drawn).
         keypoints: COCO-17 `(x, y, score)` when pose is on.
+        ppe: PPE marks drawn on the person's skeleton (anonymous and strict mode only).
     """
 
     concept: str
@@ -111,6 +130,7 @@ class Item:
     subject: bool = False
     colour_key: str = ""
     keypoints: tuple[tuple[float, float, float], ...] | None = None
+    ppe: tuple[PpeMark, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -329,38 +349,65 @@ def track_colour(key: str) -> tuple[int, int, int]:
     return PALETTE[digest[0] % len(PALETTE)]
 
 
+@dataclass(frozen=True)
+class Figure:
+    """A person as drawn: bones, and where the head, torso and wrists are (for PPE marks)."""
+
+    bones: list[tuple[PointXY, PointXY]]
+    anchors: Anchors
+
+
 def draw_person(frame: Frame, item: Item, *, strict: bool) -> None:
-    """Draw a person as a skeleton (keypoints) or a stick figure fitted to the box, in place."""
+    """Draw a person as a skeleton (keypoints) or a stick figure, with its PPE marks, in place."""
     colour = STRICT_COLOUR if strict else track_colour(item.colour_key or item.concept)
-    bones = None if strict else _keypoint_bones(item)
-    if bones is None:
-        bones = stick_figure(item.box)
+    figure = person_figure(item, strict=strict)
     thickness = max(2, int((item.box[3] - item.box[1]) / 40))
-    for a, b in bones:
+    for a, b in figure.bones:
         cv2.line(frame, _pt(a), _pt(b), colour, thickness, cv2.LINE_AA)
-    head = _head_circle(item, bones)
-    if head is not None:
-        centre, radius = head
+    if figure.anchors.head is not None:
+        centre, radius = figure.anchors.head
         cv2.circle(frame, _pt(centre), max(2, int(radius)), colour, thickness, cv2.LINE_AA)
+    draw_ppe(frame, figure.anchors, item.ppe, thickness)
 
 
-def _keypoint_bones(item: Item) -> list[tuple[PointXY, PointXY]] | None:
-    points = item.keypoints
-    if points is None or len(points) < 17:  # noqa: PLR2004 - COCO-17
-        return None
-    bones = [
-        ((points[a][0], points[a][1]), (points[b][0], points[b][1]))
-        for a, b in BONES
-        if points[a][2] >= KEYPOINT_MIN_SCORE and points[b][2] >= KEYPOINT_MIN_SCORE
-    ]
-    return bones or None
+def person_figure(item: Item, *, strict: bool) -> Figure:
+    """The figure drawn for a person; face keypoints (COCO 0-4) are never part of it.
+
+    Anonymous: the real pose when keypoints are known, else a stick figure fitted to the box.
+    Strict: the pose rebuilt with canonical bone lengths (`skeleton.canonical_pose`) when the
+    torso is known, else the same stick figure.
+    """
+    joints = body_joints(item.keypoints or (), KEYPOINT_MIN_SCORE)
+    if strict:
+        rebuilt = canonical_pose(joints)
+        if rebuilt:
+            return Figure(_joint_bones(rebuilt), joint_anchors(rebuilt, canonical_head(joints)))
+        return _stick(item.box)
+    bones = _joint_bones(joints)
+    if bones:
+        hx0, hy0, hx1, hy1 = head_box(item)
+        head = (((hx0 + hx1) / 2, (hy0 + hy1) / 2), (hx1 - hx0) / 4)
+        return Figure(bones, joint_anchors(joints, head))
+    return _stick(item.box)
+
+
+def _joint_bones(joints: Mapping[int, PointXY]) -> list[tuple[PointXY, PointXY]]:
+    return [(joints[a], joints[b]) for a, b in BONES if a in joints and b in joints]
+
+
+def _place(box: BoxXYXY, v: float, u: float) -> PointXY:
+    """A point of the canonical body in a box: `u` along the body (0 head, 1 feet), `v` across.
+
+    The body is upright in a tall box and lies along a wide one.
+    """
+    x0, y0, x1, y1 = box
+    if (y1 - y0) >= (x1 - x0) / 1.3:
+        return (x0 + v * (x1 - x0), y0 + u * (y1 - y0))
+    return (x0 + u * (x1 - x0), y0 + v * (y1 - y0))
 
 
 def stick_figure(box: BoxXYXY) -> list[tuple[PointXY, PointXY]]:
     """Canonical stick-figure bones fitted to a box (upright, or lying along a wide box)."""
-    x0, y0, x1, y1 = box
-    upright = (y1 - y0) >= (x1 - x0) / 1.3
-    # Canonical body in unit coordinates: u along the body (0 = head, 1 = feet), v across it.
     unit = (
         ((0.5, 0.20), (0.5, 0.55)),  # spine
         ((0.25, 0.25), (0.75, 0.25)),  # shoulders
@@ -369,25 +416,20 @@ def stick_figure(box: BoxXYXY) -> list[tuple[PointXY, PointXY]]:
         ((0.5, 0.55), (0.30, 1.0)),  # left leg
         ((0.5, 0.55), (0.70, 1.0)),  # right leg
     )
-
-    def place(v: float, u: float) -> PointXY:
-        if upright:
-            return (x0 + v * (x1 - x0), y0 + u * (y1 - y0))
-        return (x0 + u * (x1 - x0), y0 + v * (y1 - y0))
-
-    return [(place(*a), place(*b)) for a, b in unit]
+    return [(_place(box, *a), _place(box, *b)) for a, b in unit]
 
 
-def _head_circle(
-    item: Item, bones: Sequence[tuple[PointXY, PointXY]]
-) -> tuple[PointXY, float] | None:
-    x0, y0, x1, y1 = item.box
-    if bones and item.keypoints is not None and len(item.keypoints) >= 17:  # noqa: PLR2004
-        hx0, hy0, hx1, hy1 = head_box(item)
-        return ((hx0 + hx1) / 2, (hy0 + hy1) / 2), (hx1 - hx0) / 4
+def _stick(box: BoxXYXY) -> Figure:
+    x0, y0, x1, y1 = box
     if (y1 - y0) >= (x1 - x0) / 1.3:
-        return ((x0 + x1) / 2, y0 + 0.1 * (y1 - y0)), 0.08 * (y1 - y0)
-    return (x0 + 0.1 * (x1 - x0), (y0 + y1) / 2), 0.08 * (x1 - x0)
+        head = ((x0 + x1) / 2, y0 + 0.1 * (y1 - y0)), 0.08 * (y1 - y0)
+    else:
+        head = (x0 + 0.1 * (x1 - x0), (y0 + y1) / 2), 0.08 * (x1 - x0)
+    torso = tuple(
+        _place(box, v, u) for v, u in ((0.25, 0.25), (0.75, 0.25), (0.6, 0.55), (0.4, 0.55))
+    )
+    wrists = (_place(box, 0.15, 0.5), _place(box, 0.85, 0.5))
+    return Figure(stick_figure(box), Anchors(head=head, torso=torso, wrists=wrists))
 
 
 def draw_overlay(frame: Frame, overlay: Overlay, *, strict: bool) -> Frame:
@@ -409,7 +451,7 @@ def draw_overlay(frame: Frame, overlay: Overlay, *, strict: bool) -> Frame:
 
 
 def legend(overlay: Overlay, *, strict: bool) -> list[tuple[str, tuple[int, int, int]]]:
-    """The band's legend: `(text, swatch colour)` per subject, other concept, ruler, tick, zone."""
+    """The band's legend: `(text, swatch colour)` per subject, concept, ruler, tick, zone, PPE."""
     entries: list[tuple[str, tuple[int, int, int]]] = []
     subjects = sorted({i.concept for i in overlay.items if i.subject})
     entries += [(f"subject: {concept}", SUBJECT_COLOUR) for concept in subjects]
@@ -420,6 +462,8 @@ def legend(overlay: Overlay, *, strict: bool) -> list[tuple[str, tuple[int, int,
         if overlay.ruler.tick is not None:
             entries.append((TICK_LABEL, (255, 255, 255)))
     entries += [(f"zone {name}", ZONE_COLOUR) for name, _ in overlay.zones]
+    if any(item.ppe for item in overlay.items):
+        entries.append((GLYPH_LEGEND, GLYPH_COLOUR))
     return entries
 
 

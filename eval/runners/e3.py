@@ -13,6 +13,7 @@ with the Planner pipeline and requests written by people outside the team (W-10)
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Final, Literal
@@ -31,7 +32,7 @@ from rulecam.contracts.plan import (
 from rulecam.contracts.rule_ir import RuleIR
 from rulecam.log import get_logger
 from rulecam.planner.guardrails import Declined, check_request
-from rulecam.planner.pipeline import plan_to_yaml
+from rulecam.planner.pipeline import PipelineInput, PlannerPipeline, plan_to_yaml
 
 _log = get_logger(__name__)
 
@@ -284,6 +285,150 @@ def simulate_plan_for_request(
     return plan, record
 
 
+def plan_for_request(
+    request: HeldoutRequest,
+    run_idx: int,
+    pipeline: PlannerPipeline,
+    *,
+    camera_frames: dict[str, tuple[Path, ...]] | None = None,
+) -> tuple[SitePlan, RequestRunRecord]:
+    """Execute the real PlannerPipeline for one held-out request, timing its run."""
+    t0 = time.monotonic()
+    plan_id = f"plan-{request.id}-r{run_idx}"
+    site_name = f"Site {request.domain.replace('_', ' ').title()}"
+
+    guardrail = check_request(request.text)
+    if isinstance(guardrail, Declined):
+        verdict = FeasibilityVerdict(
+            concern=request.text,
+            verdict="declined",
+            says=f"I cannot accept this request: {guardrail.reason}",
+            reason=guardrail.reason,
+            alternative=guardrail.alternative,
+        )
+        plan = SitePlan(
+            plan_id=plan_id,
+            site_name=site_name,
+            setting_inferred=request.domain,
+            languages=("en",),
+            request=(RequestItem(kind="text", text=request.text),),
+            inventory=(),
+            feasibility=(verdict,),
+            rules=(),
+            privacy_mode=PrivacyMode.STANDARD,
+            acceptance=AcceptanceResult(
+                checks=(
+                    AcceptanceCheck(
+                        item="feasibility",
+                        check="guardrail_decline_valid",
+                        passed=True,
+                        detail="declined with reason and alternative",
+                    ),
+                ),
+                rounds=0,
+            ),
+        )
+        duration_s = max(0.001, time.monotonic() - t0)
+        record = RequestRunRecord(
+            request_id=request.id,
+            run_index=run_idx,
+            outcome="declined",
+            is_valid_or_honest=True,
+            first_pass_accepted=True,
+            repair_rounds=0,
+            duration_s=round(duration_s, 3),
+            declined_reason=guardrail.reason,
+        )
+        return plan, record
+
+    inputs = PipelineInput(
+        plan_id=plan_id,
+        site_name=site_name,
+        request=(RequestItem(kind="text", text=request.text),),
+        camera_frames=camera_frames or {},
+        languages=("en",),
+    )
+
+    try:
+        plan = pipeline.run(inputs)
+        duration_s = max(0.001, time.monotonic() - t0)
+    except Exception as exc:
+        duration_s = max(0.001, time.monotonic() - t0)
+        _log.warning("e3_plan_failed", request_id=request.id, run_idx=run_idx, error=str(exc))
+        empty_plan = SitePlan(
+            plan_id=plan_id,
+            site_name=site_name,
+            setting_inferred=request.domain,
+            languages=("en",),
+            request=(RequestItem(kind="text", text=request.text),),
+            inventory=(),
+            feasibility=(),
+            rules=(),
+            privacy_mode=PrivacyMode.STANDARD,
+            acceptance=AcceptanceResult(checks=(), rounds=0),
+        )
+        record = RequestRunRecord(
+            request_id=request.id,
+            run_index=run_idx,
+            outcome="failed",
+            is_valid_or_honest=False,
+            first_pass_accepted=False,
+            repair_rounds=0,
+            duration_s=round(duration_s, 3),
+        )
+        return empty_plan, record
+
+    not_obs = [f for f in plan.feasibility if f.verdict == "not_observable"]
+    declined = [f for f in plan.feasibility if f.verdict == "declined"]
+    if not_obs and not plan.rules:
+        record = RequestRunRecord(
+            request_id=request.id,
+            run_index=run_idx,
+            outcome="not_observable",
+            is_valid_or_honest=True,
+            first_pass_accepted=True,
+            repair_rounds=plan.acceptance.rounds,
+            duration_s=round(duration_s, 3),
+            not_observable_reason=not_obs[0].says,
+        )
+        return plan, record
+    if declined and not plan.rules:
+        record = RequestRunRecord(
+            request_id=request.id,
+            run_index=run_idx,
+            outcome="declined",
+            is_valid_or_honest=True,
+            first_pass_accepted=True,
+            repair_rounds=plan.acceptance.rounds,
+            duration_s=round(duration_s, 3),
+            declined_reason=declined[0].reason or declined[0].says,
+        )
+        return plan, record
+    if plan.rules:
+        all_passed = plan.acceptance.all_passed
+        record = RequestRunRecord(
+            request_id=request.id,
+            run_index=run_idx,
+            outcome="valid_rule",
+            is_valid_or_honest=all_passed,
+            first_pass_accepted=(plan.acceptance.rounds == 0 and all_passed),
+            repair_rounds=plan.acceptance.rounds,
+            duration_s=round(duration_s, 3),
+            rule_ids=[r.id for r in plan.rules],
+        )
+        return plan, record
+    record = RequestRunRecord(
+        request_id=request.id,
+        run_index=run_idx,
+        outcome="failed",
+        is_valid_or_honest=False,
+        first_pass_accepted=False,
+        repair_rounds=plan.acceptance.rounds,
+        duration_s=round(duration_s, 3),
+    )
+    return plan, record
+
+
 def aggregate_e3(
     records: Sequence[RequestRunRecord],
     total_requests: int,
@@ -383,8 +528,14 @@ def run_e3_evaluation(
     results_path: Path,
     *,
     runs_per_request: int = DEFAULT_RUNS_PER_REQUEST,
+    pipeline: PlannerPipeline | None = None,
+    camera_frames: dict[str, tuple[Path, ...]] | None = None,
 ) -> E3Summary:
-    """Run the simulated E3 harness over the held-out requests and write plans and a summary."""
+    """Run the E3 evaluation over held-out requests and write plans and a summary.
+
+    When `pipeline` is provided, requests are evaluated through the actual PlannerPipeline
+    and `simulated=False`. When `pipeline` is None, runs the simulated harness.
+    """
     requests = load_heldout_requests(requests_path)
     plans_dir.mkdir(parents=True, exist_ok=True)
     results_path.parent.mkdir(parents=True, exist_ok=True)
@@ -393,7 +544,10 @@ def run_e3_evaluation(
 
     for req in requests:
         for run_idx in range(runs_per_request):
-            plan, record = simulate_plan_for_request(req, run_idx)
+            if pipeline is not None:
+                plan, record = plan_for_request(req, run_idx, pipeline, camera_frames=camera_frames)
+            else:
+                plan, record = simulate_plan_for_request(req, run_idx)
             records.append(record)
 
             json_file = plans_dir / f"{plan.plan_id}.json"
@@ -401,7 +555,7 @@ def run_e3_evaluation(
             json_file.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
             yaml_file.write_text(plan_to_yaml(plan), encoding="utf-8")
 
-    summary = aggregate_e3(records, len(requests), simulated=True)
+    summary = aggregate_e3(records, len(requests), simulated=(pipeline is None))
 
     results_path.write_text(summary.model_dump_json(indent=2), encoding="utf-8")
     _log.info(

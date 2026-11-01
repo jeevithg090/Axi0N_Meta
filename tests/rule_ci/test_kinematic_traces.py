@@ -43,6 +43,8 @@ def test_the_proximity_rule_gets_the_kinematic_and_operator_traces() -> None:
         "operator_riding_0.5m": False,
         "pedestrian_beside_0.5m": True,
         "pedestrian_in_front_0.5m": True,
+        "operator_riding_slow_0.5m": False,
+        "pedestrian_slow_approach_0.5m": True,
     }
     assert {name: traces[name].expected_violation for name in expected} == expected
     rule = _rule({"op": "all", "of": [DISTANCE, MOVING]})

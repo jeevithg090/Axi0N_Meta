@@ -16,6 +16,11 @@ call queued for a slot (`sam_queue`) and how long it then took (`sam`).
 
 The runtime path may use its own hosted segmenter (`runtime_hosted`, e.g. the box-only
 `HostedSam31.runtime_view()`), while probes and Rule CI keep the full one.
+
+Image mode (`RULECAM_RUNTIME_SAM_MODE=image`, `perception.keyframes`) has its own chain,
+`keyframe_chain`: self-hosted keyframes (`POST /segment_image` on our GPU pod) first, hosted
+image requests while it fails (`KeyframeFallback`), counted the same way. Video mode keeps the
+`Segmenter` chain above, and probes, Rule CI and evidence re-checks always use hosted video.
 """
 
 from __future__ import annotations
@@ -23,7 +28,7 @@ from __future__ import annotations
 import math
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Literal, Protocol
@@ -34,6 +39,7 @@ from rulecam.contracts.core import Chunk, Detection, Frozen
 from rulecam.contracts.protocols import Clock, Segmenter
 from rulecam.log import get_logger
 from rulecam.perception.errors import SamRuntimeError
+from rulecam.perception.keyframes import Keyframe, KeyframeBatch, KeyframeSegmenter
 from rulecam.perception.metrics import Backend, PerceptionMetrics, hosted_billed_frames
 from rulecam.perception.sam_runtime import MAX_PROMPTED_OBJECTS
 
@@ -252,6 +258,39 @@ class LimitedSegmenter:
                     self._timings.record_sam(camera, chunk_id, concept, self._monotonic() - started)
 
 
+class _Outage:
+    """Remembers that self-hosted SAM failed: try it again `retry_after_s` later, alert once."""
+
+    def __init__(
+        self, clock: Clock, retry_after_s: float, on_fallback: FallbackAlert | None
+    ) -> None:
+        self._clock = clock
+        self._retry_after = timedelta(seconds=retry_after_s)
+        self._on_fallback = on_fallback
+        self._down_until: datetime | None = None
+
+    @property
+    def degraded(self) -> bool:
+        return self._down_until is not None
+
+    def primary_due(self) -> bool:
+        return self._down_until is None or self._clock.now() >= self._down_until
+
+    def down(self, camera_id: str, error: SamRuntimeError) -> None:
+        first_failure = self._down_until is None
+        self._down_until = self._clock.now() + self._retry_after
+        if not first_failure:
+            return
+        _log.warning("sam_fallback_to_hosted", camera_id=camera_id, error=str(error))
+        if self._on_fallback is not None:
+            self._on_fallback(camera_id, error)
+
+    def up(self, camera_id: str) -> None:
+        if self._down_until is not None:
+            _log.info("sam_self_hosted_recovered", camera_id=camera_id)
+        self._down_until = None
+
+
 class FallbackSegmenter:
     """Runtime segmenter: self-hosted first, hosted while self-hosted is failing."""
 
@@ -275,15 +314,12 @@ class FallbackSegmenter:
         """
         self._primary = primary
         self._fallback = fallback
-        self._clock = clock
-        self._retry_after = timedelta(seconds=retry_after_s)
-        self._on_fallback = on_fallback
-        self._down_until: datetime | None = None
+        self._outage = _Outage(clock, retry_after_s, on_fallback)
 
     @property
     def degraded(self) -> bool:
         """True while runtime calls are being served by the fallback."""
-        return self._down_until is not None
+        return self._outage.degraded
 
     def segment(
         self,
@@ -300,7 +336,7 @@ class FallbackSegmenter:
         Raises:
             ValueError: If the prompts are invalid (never falls back).
         """
-        if self._down_until is None or self._clock.now() >= self._down_until:
+        if self._outage.primary_due():
             try:
                 detections = self._primary.segment(
                     chunk,
@@ -311,9 +347,9 @@ class FallbackSegmenter:
                     include_confidence=include_confidence,
                 )
             except SamRuntimeError as exc:
-                self._mark_down(chunk.camera_id, exc)
+                self._outage.down(chunk.camera_id, exc)
             else:
-                self._mark_up(chunk.camera_id)
+                self._outage.up(chunk.camera_id)
                 return detections
         return self._fallback.segment(
             chunk,
@@ -324,19 +360,96 @@ class FallbackSegmenter:
             include_confidence=include_confidence,
         )
 
-    def _mark_down(self, camera_id: str, error: SamRuntimeError) -> None:
-        first_failure = self._down_until is None
-        self._down_until = self._clock.now() + self._retry_after
-        if not first_failure:
-            return
-        _log.warning("sam_fallback_to_hosted", camera_id=camera_id, error=str(error))
-        if self._on_fallback is not None:
-            self._on_fallback(camera_id, error)
 
-    def _mark_up(self, camera_id: str) -> None:
-        if self._down_until is not None:
-            _log.info("sam_self_hosted_recovered", camera_id=camera_id)
-        self._down_until = None
+class KeyframeFallback:
+    """Image-mode runtime chain: self-hosted keyframes first, hosted while self-hosted fails.
+
+    The same outage rules as `FallbackSegmenter`: the first failure of an outage logs
+    `sam_fallback_to_hosted` and calls the alert hook (counted in `sam_fallbacks`); for
+    `retry_after_s` every chunk goes straight to hosted, then self-hosted is tried again.
+    """
+
+    def __init__(
+        self,
+        primary: KeyframeSegmenter,
+        fallback: KeyframeSegmenter,
+        *,
+        clock: Clock,
+        retry_after_s: float = 60.0,
+        on_fallback: FallbackAlert | None = None,
+    ) -> None:
+        """Create the chain.
+
+        Args:
+            primary: Self-hosted keyframes (`SelfHostedKeyframes`).
+            fallback: Hosted keyframes (`HostedKeyframes`).
+            clock: Decides when to retry the primary.
+            retry_after_s: How long to stay on the fallback after a failure.
+            on_fallback: Alert hook, called once per outage.
+        """
+        self._primary = primary
+        self._fallback = fallback
+        self._outage = _Outage(clock, retry_after_s, on_fallback)
+
+    @property
+    def degraded(self) -> bool:
+        """True while keyframes are being served by the fallback."""
+        return self._outage.degraded
+
+    @property
+    def billed(self) -> bool:
+        """Whether the next chunk is expected to be billed (the fallback is serving)."""
+        return self._fallback.billed if self._outage.degraded else self._primary.billed
+
+    def segment_keyframes(
+        self, chunk: Chunk, frames: Sequence[Keyframe], concepts: Sequence[str]
+    ) -> KeyframeBatch:
+        """Segment with the primary, or with the fallback while the primary is down.
+
+        Raises:
+            ValueError: If the concepts are invalid (never falls back).
+        """
+        if self._outage.primary_due():
+            try:
+                batch = self._primary.segment_keyframes(chunk, frames, concepts)
+            except SamRuntimeError as exc:
+                self._outage.down(chunk.camera_id, exc)
+            else:
+                self._outage.up(chunk.camera_id)
+                return batch
+        return self._fallback.segment_keyframes(chunk, frames, concepts)
+
+
+def keyframe_chain(
+    hosted: KeyframeSegmenter,
+    self_hosted: KeyframeSegmenter | None,
+    *,
+    policy: RoutingPolicy,
+    clock: Clock,
+    on_fallback: FallbackAlert | None = None,
+) -> KeyframeSegmenter:
+    """The image-mode runtime segmenter for a routing policy.
+
+    Args:
+        hosted: Hosted keyframes.
+        self_hosted: Self-hosted keyframes, or `None` when no GPU pod serves images.
+        policy: The site's routing policy.
+        clock: For the fallback's retry window.
+        on_fallback: Alert hook for runtime fallbacks.
+
+    Returns:
+        Self-hosted with hosted fallback when the policy runs self-hosted and a pod serves
+        images; hosted otherwise.
+    """
+    if self_hosted is None or policy.runtime_backend is not Backend.SELF_HOSTED:
+        return hosted
+    return KeyframeFallback(
+        self_hosted,
+        hosted,
+        clock=clock,
+        retry_after_s=policy.retry_after_s,
+        on_fallback=on_fallback,
+    )
 
 
 class SegmenterRouter:

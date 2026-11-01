@@ -5,13 +5,15 @@ Counters are kept per camera, never per person or per track (R13). P3's API serv
 
 Who records what:
 - `MotionGate.decide` records the camera time of every chunk and how many concepts it gated;
-- `ModalSam31` records each self-hosted call with its GPU-seconds;
+- `ModalSam31` records each self-hosted call with its GPU-seconds, and the keyframe segmenters
+  (`perception.keyframes`) each image request or self-hosted keyframe batch;
 - the segmenter router records each runtime call served by hosted SAM 3.1;
 - the runtime factory records each self-hosted outage that sent runtime calls to hosted
   (`sam_fallbacks`; the calls themselves then show up in `sam_calls_hosted`).
 
-Hosted-equivalent cost prices every call as hosted SAM 3.1 video: `max(50, frames)` billed frames
-at $0.20 per 1,000 frames. Actual cost prices self-hosted calls by GPU-seconds at
+Hosted-equivalent cost prices every video call as hosted SAM 3.1 video: `max(50, frames)` billed
+frames at $0.20 per 1,000 frames; every image (runtime keyframes, one per concept) at $2.50 per
+1,000 images. Actual cost prices self-hosted calls by GPU-seconds at
 `gpu_usd_per_hour`, and hosted calls at the hosted price. GPU-seconds count only time spent
 serving calls; Modal also bills the idle time of the warm container.
 
@@ -235,22 +237,25 @@ class PerceptionMetrics:
                 counters.actual_usd += gpu_seconds * self._gpu_usd_per_second
 
     def record_image_call(
-        self, camera_id: str, *, backend: Backend, gpu_seconds: float = 0.0
+        self, camera_id: str, *, backend: Backend, images: int = 1, gpu_seconds: float = 0.0
     ) -> None:
-        """Record one SAM 3.1 single-image request (e.g. a runtime keyframe).
+        """Record one SAM 3.1 image request, or one self-hosted batch of keyframe images.
 
         Args:
             camera_id: The camera.
             backend: Which deployment served it.
-            gpu_seconds: GPU time used (self-hosted only).
+            images: Images hosted SAM bills for the same work (one per keyframe and concept);
+                hosted requests are one image each.
+            gpu_seconds: GPU time used (self-hosted only; its images are not billed).
         """
+        hosted_price = images * HOSTED_USD_PER_IMAGE
         with self._lock:
             counters = self._counters(camera_id)
-            counters.hosted_equivalent_usd += HOSTED_USD_PER_IMAGE
+            counters.hosted_equivalent_usd += hosted_price
             if backend is Backend.HOSTED:
                 counters.calls_hosted += 1
-                counters.actual_usd += HOSTED_USD_PER_IMAGE
-                counters.hosted_images += 1
+                counters.actual_usd += hosted_price
+                counters.hosted_images += images
             else:
                 counters.calls_self_hosted += 1
                 counters.gpu_seconds += gpu_seconds

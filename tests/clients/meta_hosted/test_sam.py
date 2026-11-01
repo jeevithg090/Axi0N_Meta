@@ -359,6 +359,26 @@ def test_segment_image_rejects_unknown_types(make_client: Factory, tmp_path: Pat
 
     with pytest.raises(ValueError, match="JPEG or PNG"):
         client.segment_image(tmp_path / "frame.gif", "sink")
+    with pytest.raises(ValueError, match="JPEG or PNG"):
+        client.segment_image_bytes(b"GIF89a", "sink", content_type="image/gif")
+
+
+def test_segment_image_bytes_bills_one_image_per_keyframe(make_client: Factory) -> None:
+    """Runtime keyframes (image mode): in-memory JPEG bytes, the keyframe's own timestamp."""
+    client, transport, bus = make_client(load_reply("image_one"), load_reply("image_one"))
+    stamp = EPOCH + timedelta(seconds=2.5)
+    runtime = client.runtime_view()
+
+    detections = runtime.segment_image_bytes(b"\xff\xd8jpeg", "sink", camera_id="cam1", ts=stamp)
+    runtime.segment_image_bytes(b"\xff\xd8jpeg", "sink", camera_id="cam1", ts=stamp)
+
+    assert [(d.ts, d.frame_idx, d.camera_id) for d in detections] == [(stamp, 0, "cam1")]
+    assert detections[0].mask.rle == NO_MASK  # the runtime view decodes no masks
+    content = transport.bodies()[0]["input"][0]["content"]
+    assert content[1]["image_url"].startswith("data:image/jpeg;base64,")
+    assert client.costs.snapshot()["cam1"].images == 2  # the view shares the ledger
+    assert client.costs.snapshot()["cam1"].usd == pytest.approx(0.005)
+    assert len([t for t, _ in bus.published if t is Topic.RELAY_MODEL_USED]) == 2
 
 
 def test_upload_without_id_is_a_response_error(chunk: Chunk) -> None:

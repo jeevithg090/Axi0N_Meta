@@ -61,9 +61,11 @@ pass-by pair (passes `d -/+ eps` to the side), both without `persist`; and a co-
 never fire and kills `flip_lt_gt`. When the subject is person-like and the other vehicle-like:
 a person riding the vehicle inside its box `min(d/2, 0.5)` m from its footprint (must not fire:
 operator exclusion, `rules.operators`), a pedestrian walking beside it at the same distance and
-one standing in front of it while it passes (both must fire). These rules also get the
+one standing in front of it while it passes (both must fire); and the live P1-07 close-up, a
+vehicle just above `moving`'s threshold whose box fills the 720 px frame: a person riding it
+(must not fire) and a pedestrian it drives up to and over (must fire). These rules also get the
 `drop_operator_exclusion` mutant (the same rule run with exclusion off), killed by the riding
-trace. Kinematic traces use the synthetic plane even when the buffer traces use a real
+traces. Kinematic traces use the synthetic plane even when the buffer traces use a real
 homography: they test the rule's kinematics and the image-box operator logic, not the camera.
 
 `nonvacuous`: every threshold and zone-edge pair has a positive member the rule fires on and a

@@ -14,8 +14,9 @@
 #   It links the CUDA runtime, cuBLAS and NCCL, which CUDA's minimal `base` image lacks: the
 #   torch cu128 wheels already ship them (libcudart.so.12, libcublas(Lt).so.12, libnccl.so.2),
 #   so /opt/llama/cuda links to those instead of adding the `runtime` image's second copy
-#   (~3 GB). The build fails when any library of the binary or its backends is unresolved (libcuda.so.1, the driver, is
-#   mounted by the NVIDIA container runtime and is checked against the image's compat copy).
+#   (~3 GB). The build fails when any library of the binary or its backends is unresolved
+#   (libcuda.so.1, the driver, is mounted by the NVIDIA container runtime and is checked
+#   against the image's compat copy).
 #   The extra runtime packages are the ones the ggml-org image installs: libgomp1, curl, ffmpeg.
 #
 #   docker build -f deploy/gpu.Dockerfile -t rulecam-gpu .

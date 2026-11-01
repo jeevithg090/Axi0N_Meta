@@ -3,12 +3,15 @@
 <html class="dark" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Rulecam Industrial Safety Monitor - Site Planner Studio</title>
+<title>RULECAM // SITE PLANNER STUDIO</title>
+<!-- Fonts -->
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=JetBrains+Mono:wght@100..900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,300..900;1,300..900&amp;family=JetBrains+Mono:ital,wght@0,300..800;1,300..800&amp;family=Playfair+Display:ital,wght@0,400..900;1,400..900&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script id="tailwind-config">
     tailwind.config = {
@@ -16,98 +19,108 @@
       theme: {
         extend: {
           "colors": {
-            "on-primary": "#003824",
+            "on-primary-fixed-variant": "#004b71",
+            "hazard-glow": "rgba(252, 115, 77, 0.25)",
+            "outline-variant": "#3f4850",
             "on-error-container": "#ffdad6",
-            "inverse-primary": "#006c49",
-            "surface-tint": "#4edea3",
-            "on-secondary-fixed": "#001f26",
-            "tertiary-fixed-dim": "#ffb95f",
-            "error-container": "#93000a",
-            "tertiary-fixed": "#ffddb8",
-            "surface-container-low": "#181b25",
-            "on-primary-fixed-variant": "#005236",
-            "background": "#0f131c",
-            "surface-variant": "#31353f",
-            "surface-container-high": "#262a34",
-            "on-error": "#690005",
-            "on-background": "#dfe2ef",
-            "tertiary-container": "#e29100",
-            "on-tertiary": "#472a00",
-            "surface-bright": "#353943",
-            "primary-fixed": "#6ffbbe",
-            "on-primary-container": "#00422b",
-            "secondary-container": "#03b5d3",
-            "tertiary": "#ffb95f",
-            "secondary": "#4cd7f6",
-            "on-surface": "#dfe2ef",
-            "on-tertiary-fixed-variant": "#653e00",
-            "secondary-fixed": "#acedff",
-            "primary": "#4edea3",
-            "on-secondary-fixed-variant": "#004e5c",
-            "on-secondary-container": "#00424e",
-            "primary-fixed-dim": "#4edea3",
-            "surface-container": "#1c1f29",
-            "on-tertiary-container": "#523200",
-            "primary-container": "#10b981",
+            "inverse-on-surface": "#2a3235",
+            "secondary-fixed-dim": "#ffb5a1",
+            "on-secondary-container": "#ffa086",
+            "primary": "#8fcdff",
+            "on-surface": "#dce4e9",
+            "bubblegum-pink": "#FD91CC",
+            "on-primary-fixed": "#001e30",
             "error": "#ffb4ab",
-            "outline-variant": "#3c4a42",
-            "on-tertiary-fixed": "#2a1700",
-            "surface-container-highest": "#31353f",
-            "surface-dim": "#0f131c",
-            "inverse-surface": "#dfe2ef",
-            "inverse-on-surface": "#2c303a",
-            "on-secondary": "#003640",
-            "surface-container-lowest": "#0a0e17",
-            "surface": "#0f131c",
-            "secondary-fixed-dim": "#4cd7f6",
-            "on-surface-variant": "#bbcabf",
-            "on-primary-fixed": "#002113",
-            "outline": "#86948a"
+            "tertiary-container": "#d46fa8",
+            "surface-tint": "#8fcdff",
+            "tertiary-fixed": "#ffd8e9",
+            "telemetry-muted": "#6C8294",
+            "cantaloupe-orange": "#FC734D",
+            "surface-dim": "#0d1418",
+            "on-background": "#dce4e9",
+            "surface": "#0d1418",
+            "surface-container-high": "#232b2f",
+            "on-primary": "#003450",
+            "surface-bright": "#323a3e",
+            "secondary-container": "#8b2201",
+            "inverse-surface": "#dce4e9",
+            "surface-container-lowest": "#080f13",
+            "secondary": "#ffb5a1",
+            "surface-variant": "#2e363a",
+            "on-secondary-fixed-variant": "#882000",
+            "surface-container": "#192124",
+            "tertiary": "#ffafd7",
+            "inverse-primary": "#006495",
+            "on-tertiary-fixed-variant": "#7b255a",
+            "surface-elevated": "#0B1924",
+            "on-surface-variant": "#bec7d2",
+            "border-glass": "rgba(255, 255, 255, 0.08)",
+            "on-secondary": "#601400",
+            "secondary-fixed": "#ffdbd1",
+            "on-tertiary-container": "#55003c",
+            "tertiary-fixed-dim": "#ffafd7",
+            "on-tertiary-fixed": "#3c0029",
+            "on-primary-container": "#002d46",
+            "border-active": "rgba(2, 151, 222, 0.35)",
+            "on-secondary-fixed": "#3b0900",
+            "on-error": "#690005",
+            "primary-container": "#0b99e0",
+            "primary-fixed": "#cbe6ff",
+            "surface-container-low": "#151d20",
+            "surface-panel": "#061017",
+            "background": "#0d1418",
+            "surface-canvas": "#02070A",
+            "electric-blue": "#0297DE",
+            "surface-container-highest": "#2e363a",
+            "on-tertiary": "#5e0943",
+            "outline": "#88929c",
+            "error-container": "#93000a",
+            "primary-fixed-dim": "#8fcdff"
           },
           "borderRadius": {
-            "DEFAULT": "0.125rem",
-            "lg": "0.25rem",
-            "xl": "0.5rem",
-            "full": "0.75rem"
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
           },
           "spacing": {
-            "gutter": "0.75rem",
+            "margin-sm": "1rem",
+            "gutter": "1.5rem",
             "space-xs": "0.25rem",
-            "space-sm": "0.5rem",
-            "margin-mobile": "0.75rem",
-            "margin": "1rem",
-            "space-xl": "1.5rem",
-            "space-md": "0.75rem",
-            "space-lg": "1rem",
-            "gutter-mobile": "0.5rem"
+            "space-md": "1rem",
+            "space-lg": "1.5rem",
+            "gutter-sm": "0.75rem",
+            "space-xl": "2.5rem",
+            "margin": "2rem",
+            "space-sm": "0.5rem"
           },
           "fontFamily": {
-            "headline-xl": ["Inter"],
-            "body-md": ["Inter"],
-            "headline-xl-mobile": ["Inter"],
-            "body-lg": ["Inter"],
-            "telemetry-md": ["JetBrains Mono"],
-            "telemetry-lg": ["JetBrains Mono"],
-            "headline-sm": ["Inter"],
-            "headline-md": ["Inter"],
-            "body-sm": ["Inter"],
-            "label-caps": ["JetBrains Mono"],
-            "telemetry-sm": ["JetBrains Mono"],
-            "headline-lg": ["Inter"]
+            "headline-sm": ["Hanken Grotesk"],
+            "body-md": ["Hanken Grotesk"],
+            "body-lg": ["Hanken Grotesk"],
+            "label-lg": ["JetBrains Mono"],
+            "headline-xl": ["Playfair Display"],
+            "label-sm": ["JetBrains Mono"],
+            "headline-lg": ["Playfair Display"],
+            "headline-xl-mobile": ["Playfair Display"],
+            "headline-lg-mobile": ["Playfair Display"],
+            "body-sm": ["Hanken Grotesk"],
+            "label-md": ["JetBrains Mono"],
+            "headline-md": ["Hanken Grotesk"]
           },
           "fontSize": {
-            "headline-xl": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
-            "body-md": ["13px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "400" }],
-            "headline-xl-mobile": ["28px", { "lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
-            "body-lg": ["15px", { "lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "400" }],
-            "telemetry-md": ["13px", { "lineHeight": "16px", "letterSpacing": "-0.01em", "fontWeight": "500" }],
-            "telemetry-lg": ["20px", { "lineHeight": "24px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
-            "headline-sm": ["16px", { "lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "600" }],
-            "headline-md": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
-            "body-sm": ["12px", { "lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "400" }],
-            "label-caps": ["10px", { "lineHeight": "12px", "letterSpacing": "0.08em", "fontWeight": "600" }],
-            "telemetry-sm": ["11px", { "lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "500" }],
-            "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.015em", "fontWeight": "600" }]
+            "headline-sm": ["18px", { "lineHeight": "26px", "letterSpacing": "0em", "fontWeight": "600" }],
+            "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400" }],
+            "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "400" }],
+            "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.04em", "fontWeight": "500" }],
+            "headline-xl": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "400" }],
+            "label-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.08em", "fontWeight": "500" }],
+            "headline-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.01em", "fontWeight": "400" }],
+            "headline-xl-mobile": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "400" }],
+            "headline-lg-mobile": ["26px", { "lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "400" }],
+            "body-sm": ["12px", { "lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "400" }],
+            "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+            "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }]
           }
         }
       }
@@ -115,594 +128,554 @@
   </script>
 <style>
     .material-symbols-outlined {
-      font-family: 'Material Symbols Outlined';
-      font-weight: normal;
-      font-style: normal;
-      font-size: 18px;
-      line-height: 1;
-      letter-spacing: normal;
-      text-transform: none;
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
       display: inline-block;
-      white-space: nowrap;
-      word-wrap: normal;
-      direction: ltr;
-      -webkit-font-feature-settings: 'liga';
-      -webkit-font-smoothing: antialiased;
+      vertical-align: middle;
+      line-height: 1;
     }
-    /* Custom HUD styling */
-    .polygon-glow {
-      filter: drop-shadow(0 0 6px rgba(78, 222, 163, 0.45));
+    /* Subtle custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
     }
-    .hud-vector-glow {
-      filter: drop-shadow(0 0 4px rgba(76, 215, 246, 0.6));
+    ::-webkit-scrollbar-track {
+      background: #02070A;
     }
-    @keyframes pulseSlow {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.35; }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 2px;
     }
-    .pulse-live {
-      animation: pulseSlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    ::-webkit-scrollbar-thumb:hover {
+      background: #0297DE;
     }
-    /* Monospace tabular alignment */
-    .tabular-mono {
-      font-variant-numeric: tabular-nums;
+    @keyframes wavePulse {
+      0%, 100% { height: 4px; }
+      50% { height: 22px; }
+    }
+    .wave-bar {
+      animation: wavePulse 1.2s ease-in-out infinite;
     }
   </style>
 </head>
-<body class="bg-background text-on-surface antialiased flex flex-col h-screen overflow-hidden selection:bg-primary-container selection:text-on-primary">
+<body class="bg-surface-canvas text-on-surface antialiased overflow-x-hidden min-h-screen selection:bg-electric-blue selection:text-white relative">
+<!-- Atmospheric Glows -->
+<div class="fixed top-0 left-0 w-[550px] h-[550px] rounded-full bg-electric-blue opacity-[0.07] blur-[140px] pointer-events-none z-0"></div>
+<div class="fixed bottom-0 right-0 w-[600px] h-[600px] rounded-full bg-cantaloupe-orange opacity-[0.06] blur-[160px] pointer-events-none z-0"></div>
 <!-- TOP APP BAR (Shared Component Anchor) -->
-<header class="flex justify-between items-center w-full px-4 h-12 z-50 border-b border-outline-variant/30 bg-surface-container-lowest shrink-0">
-<!-- Left: Brand Logo & Product Name -->
-<div class="flex items-center gap-4">
-<div class="text-headline-sm font-headline-sm font-bold tracking-tight text-primary uppercase flex items-center gap-2">
-<span class="material-symbols-outlined text-primary text-xl">security</span>
-<span>Rulecam Industrial Safety Monitor</span>
+<header class="bg-surface-panel/80 dark:bg-surface-panel/80 backdrop-blur-2xl docked full-width top-0 z-50 shadow-[0_20px_40px_rgba(0,0,0,0.6)] border-b border-border-glass">
+<div class="flex justify-between items-center w-full px-6 py-3">
+<!-- Brand & Breadcrumbs -->
+<div class="flex items-center space-x-6">
+<div class="flex items-center space-x-3">
+<div class="w-8 h-8 rounded-lg bg-surface-elevated border border-border-glass flex items-center justify-center shadow-[0_0_15px_rgba(2,151,222,0.25)]">
+<span class="material-symbols-outlined text-electric-blue text-[18px]">emergency_home</span>
 </div>
-<div class="h-4 w-px bg-outline-variant/40"></div>
-<div class="flex items-center gap-2">
-<span class="font-telemetry-sm text-telemetry-sm text-secondary bg-surface-container-high px-2 py-0.5 rounded border border-outline-variant/30">/planner:session_48a9</span>
-<div class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container border border-outline-variant/30">
-<span class="w-1.5 h-1.5 rounded-full bg-primary pulse-live"></span>
-<span class="font-telemetry-sm text-telemetry-sm text-on-surface">Site Commercial Kitchen #104</span>
-<span class="font-label-caps text-label-caps text-primary uppercase ml-1">ONLINE</span>
+<div class="flex flex-col">
+<span class="text-headline-sm font-headline-sm font-bold text-on-surface tracking-wider leading-none">RULECAM // SITE PLANNER STUDIO</span>
+<div class="flex items-center space-x-2 mt-1">
+<span class="text-label-sm font-label-sm text-telemetry-muted">/planner: session_48a9</span>
+<span class="text-label-sm font-label-sm text-telemetry-muted">•</span>
+<span class="text-label-sm font-label-sm text-primary flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+                Site Commercial Kitchen #104 (Online)
+              </span>
 </div>
 </div>
 </div>
-<!-- Center Navigation Links (Exact Shared Component Content, 'Rule Matrix' intent active) -->
-<nav class="hidden xl:flex items-center gap-6 h-full">
-<a class="text-on-surface-variant font-telemetry-md text-telemetry-md py-3 hover:text-on-surface transition-colors duration-150" href="#live-feeds">Live Feeds</a>
-<a class="text-primary border-b-2 border-primary font-telemetry-md text-telemetry-md py-3 transition-colors duration-150" href="#rule-matrix">Rule Matrix</a>
-<a class="text-on-surface-variant font-telemetry-md text-telemetry-md py-3 hover:text-on-surface transition-colors duration-150" href="#violation-episodes">Violation Episodes</a>
-<a class="text-on-surface-variant font-telemetry-md text-telemetry-md py-3 hover:text-on-surface transition-colors duration-150" href="#telemetry-diagnostics">Telemetry Diagnostics</a>
-<a class="text-on-surface-variant font-telemetry-md text-telemetry-md py-3 hover:text-on-surface transition-colors duration-150" href="#audit-trail">Audit Trail</a>
+<!-- Navigation Cluster -->
+<nav class="hidden xl:flex items-center space-x-6 pl-6 border-l border-border-glass">
+<button class="text-telemetry-muted dark:text-telemetry-muted hover:text-on-surface font-label-md transition-colors">Spatial Graph</button>
+<button class="text-electric-blue dark:text-electric-blue border-b-2 border-electric-blue pb-1 font-label-md">Multimodal Rules</button>
+<button class="text-telemetry-muted dark:text-telemetry-muted hover:text-on-surface font-label-md transition-colors">Simulation</button>
+<button class="text-telemetry-muted dark:text-telemetry-muted hover:text-on-surface font-label-md transition-colors">Compliance Matrix</button>
 </nav>
-<!-- Right Trailing Controls & Operator Profile -->
-<div class="flex items-center gap-3">
-<!-- Session Stepper Pill -->
-<div class="flex items-center gap-2 px-2.5 py-1 bg-surface-container-high rounded border border-outline-variant/40">
-<div class="w-2 h-2 rounded-full bg-primary-container pulse-live"></div>
-<span class="font-label-caps text-label-caps text-primary tracking-wider">STEP 8/10: ACCEPTANCE VERIFIED</span>
-<div class="w-12 h-1 bg-surface-variant rounded-full overflow-hidden ml-1">
-<div class="w-4/5 h-full bg-primary"></div>
 </div>
+<!-- Trailing Controls & Telemetry -->
+<div class="flex items-center space-x-4">
+<!-- Latency & Stepper Badge -->
+<div class="hidden md:flex items-center space-x-3 bg-surface-canvas/80 border border-border-glass rounded-lg px-3 py-1.5">
+<div class="flex items-center space-x-1.5">
+<span class="w-2 h-2 rounded-full bg-cantaloupe-orange"></span>
+<span class="text-label-sm font-label-sm text-on-surface font-medium">STEP 8/10: ACCEPTANCE VERIFIED</span>
 </div>
-<!-- Plan version & Latency metrics -->
-<div class="hidden md:flex items-center gap-2 font-telemetry-sm text-telemetry-sm text-on-surface-variant">
-<span class="text-secondary bg-surface-container-high/60 px-1.5 py-0.5 rounded border border-outline-variant/20">DRAFT v2.1 (diff vs v1.0)</span>
-<span class="tabular-mono text-primary font-telemetry-sm text-telemetry-sm">14ms</span>
+<span class="text-telemetry-muted text-[10px]">|</span>
+<span class="text-label-sm font-label-sm text-telemetry-muted flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] text-electric-blue">sensors</span> 14ms
+          </span>
+<span class="text-label-sm font-label-sm text-primary px-1.5 py-0.5 rounded bg-surface-elevated border border-border-glass">v2.1 (diff vs v1.0)</span>
 </div>
-<!-- Emergency Trip Interlock Action (JSON Trailing Primary Action) -->
-<button class="flex items-center gap-1.5 px-2.5 py-1 bg-error-container text-error border border-error/50 rounded font-telemetry-sm text-telemetry-sm font-semibold hover:bg-error/20 active:scale-95 transition-all">
-<span class="material-symbols-outlined text-sm">lock_clock</span>
-<span>Emergency Interlock Trip</span>
+<!-- Utility Action Icons -->
+<div class="flex items-center space-x-1">
+<button class="p-2 text-telemetry-muted hover:text-primary transition-all rounded-lg hover:bg-surface-elevated" title="Diagnostics Sensors">
+<span class="material-symbols-outlined text-[20px]">sensors</span>
 </button>
-<!-- Trailing Action Icons (sensors, security, notifications, settings) -->
-<div class="flex items-center gap-1 border-l border-outline-variant/40 pl-2">
-<button class="p-1 rounded text-on-surface-variant hover:bg-surface-container-high hover:text-primary transition-colors" title="sensors">
-<span class="material-symbols-outlined">sensors</span>
-</button>
-<button class="p-1 rounded text-on-surface-variant hover:bg-surface-container-high hover:text-primary transition-colors" title="notifications">
-<span class="material-symbols-outlined">notifications</span>
-</button>
-<button class="p-1 rounded text-on-surface-variant hover:bg-surface-container-high hover:text-primary transition-colors" title="settings">
-<span class="material-symbols-outlined">settings</span>
+<button class="p-2 text-telemetry-muted hover:text-primary transition-all rounded-lg hover:bg-surface-elevated" title="System Tuning">
+<span class="material-symbols-outlined text-[20px]">tune</span>
 </button>
 </div>
-<!-- Lead Telemetry Operator Avatar -->
-<div class="flex items-center gap-2 pl-2 border-l border-outline-variant/40">
-<div class="w-7 h-7 rounded bg-surface-container-high border border-primary/40 flex items-center justify-center font-telemetry-sm text-telemetry-sm text-primary font-bold">
-          JV
-        </div>
-<div class="hidden lg:flex flex-col text-left">
-<span class="font-telemetry-sm text-telemetry-sm leading-none text-on-surface">OP-772 J. Vance</span>
-<span class="font-label-caps text-label-caps text-on-surface-variant leading-none mt-0.5">SITE LEAD</span>
+<!-- Secondary Action -->
+<button class="hidden sm:inline-flex items-center px-3 py-1.5 rounded-lg border border-border-glass bg-surface-elevated/70 hover:border-border-active text-primary text-label-md font-label-md transition-all active:scale-[0.98]">
+          Commit Rules
+        </button>
+<!-- Primary Emergency Action -->
+<button class="flex items-center space-x-2 px-3.5 py-1.5 rounded-lg bg-secondary-container/90 border border-cantaloupe-orange/60 text-on-secondary-container hover:bg-cantaloupe-orange hover:text-surface-canvas transition-all shadow-[0_0_20px_rgba(252,115,77,0.3)] active:scale-[0.98]">
+<span class="material-symbols-outlined text-[16px]">warning</span>
+<span class="text-label-md font-label-md font-bold">Emergency Stop</span>
+</button>
+<!-- Operator Avatar -->
+<div class="relative w-8 h-8 rounded-lg overflow-hidden border border-border-glass ml-2">
+<img class="w-full h-full object-cover" data-alt="High-contrast close-up portrait of a Chief Safety Operations Engineer wearing cleanroom carbon fiber telemetry headset in a darkened autonomous control room with electric blue monitors reflecting softly on glass shields." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRxqc2ba6X5p1zGgimviz4VKdLLFjAJ7g80N03RDWM0HqA5DVScsdj6siEP1WT9g_WhOXEewD7knpLjcfYi6lNyzKOW-lj1zXp7V-5ZsR-3HbIPmxcxB7cvqwTRIxHfjpBctYmZTI_9kwuE8rhoVG24u50MNLikHtSf5sUIO5FzxDLS1YjrlerenqD-gNoC2G1ts22wg-ZOceL1Gib971a51EpJPCZ-427y42A7ei7MKYdyP0f6DJQFBkpx4ghwmhiQGIkVLAFjhQ"/>
 </div>
 </div>
 </div>
 </header>
-<!-- WORKSPACE BODY WITH COCKPIT THREE-COLUMN LAYOUT -->
-<div class="flex flex-1 overflow-hidden">
-<!-- LEFT PANEL: MULTIMODAL REQUEST COMPOSER (~320px) -->
-<aside class="w-80 shrink-0 bg-surface-container-low border-r border-outline-variant/30 flex flex-col justify-between overflow-y-auto">
-<div class="p-3 space-y-3">
+<!-- EDITORIAL HEADER STRIP -->
+<section class="relative z-10 px-6 pt-5 pb-3 border-b border-border-glass bg-surface-panel/40 backdrop-blur-xl">
+<div class="max-w-[1920px] mx-auto flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="text-label-sm font-label-sm tracking-widest text-cantaloupe-orange uppercase">Autonomous Spatial Governance</span>
+<span class="text-telemetry-muted">•</span>
+<span class="text-label-sm font-label-sm text-telemetry-muted">SECTOR 04-A // COMMERCIAL SANITATION</span>
+</div>
+<h1 class="text-headline-lg font-headline-lg italic text-on-surface tracking-tight">
+          Synthesize Site Safety from Intent.
+        </h1>
+<p class="text-label-md font-label-md text-telemetry-muted mt-1">
+          Multimodal Operator Dictation <span class="text-electric-blue">→</span> Real-Time SAM 3.1 Spatial Geometry <span class="text-electric-blue">→</span> Z3 Formally Proved AST Rules
+        </p>
+</div>
+<!-- Quick Metrics Ribbon -->
+<div class="flex items-center gap-6 self-start lg:self-auto py-1 px-4 rounded-xl bg-surface-elevated/50 border border-border-glass backdrop-blur-md">
+<div class="text-left">
+<div class="text-label-sm font-label-sm text-telemetry-muted">ACTIVE AGENTS</div>
+<div class="text-label-md font-label-md text-on-surface font-semibold">03 LINE COOKS</div>
+</div>
+<div class="w-[1px] h-6 bg-border-glass"></div>
+<div class="text-left">
+<div class="text-label-sm font-label-sm text-telemetry-muted">INTERLOCK RELAYS</div>
+<div class="text-label-md font-label-md text-cantaloupe-orange font-semibold flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-cantaloupe-orange animate-ping"></span> ARMED
+          </div>
+</div>
+<div class="w-[1px] h-6 bg-border-glass"></div>
+<div class="text-left">
+<div class="text-label-sm font-label-sm text-telemetry-muted">FORMAL SOLVER</div>
+<div class="text-label-md font-label-md text-primary font-semibold">Z3 SMT VERIFIED</div>
+</div>
+</div>
+</div>
+</section>
+<!-- MAIN 3-COLUMN STUDIO WORKSPACE -->
+<main class="relative z-10 px-6 py-5 max-w-[1920px] mx-auto">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+<!-- ==========================================
+           LEFT COLUMN: 01 // MULTIMODAL INTAKE (Span 3)
+           ========================================== -->
+<div class="lg:col-span-3 space-y-4">
+<!-- Panel Container -->
+<div class="rounded-2xl bg-surface-panel/70 border border-border-glass backdrop-blur-2xl p-4 shadow-[0_20px_40px_rgba(0,0,0,0.6)]">
 <!-- Panel Header -->
-<div class="flex items-center justify-between border-b border-outline-variant/30 pb-2">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-secondary text-base">neurology</span>
-<span class="font-label-caps text-label-caps text-secondary uppercase tracking-wider font-semibold">01 // MULTIMODAL INTAKE</span>
+<div class="flex items-center justify-between pb-3 mb-4 border-b border-border-glass">
+<div class="flex items-center space-x-2">
+<span class="w-2 h-2 rounded bg-electric-blue"></span>
+<h2 class="text-label-md font-label-md text-on-surface tracking-wider font-semibold">01 // MULTIMODAL INTAKE</h2>
 </div>
-<span class="font-telemetry-sm text-telemetry-sm bg-surface-container px-2 py-0.5 rounded text-primary border border-primary/30">3 ARTIFACTS PARSED</span>
+<span class="text-label-sm font-label-sm px-2 py-0.5 rounded-full bg-surface-elevated text-electric-blue border border-border-active">
+              3 ARTIFACTS PARSED
+            </span>
 </div>
-<!-- 1. Voice Audio Waveform Player -->
-<div class="bg-surface-container-lowest border border-outline-variant/30 rounded p-2.5 space-y-2">
+<!-- Component A: Audio Waveform Player -->
+<div class="p-3 rounded-xl bg-surface-elevated/80 border border-border-glass space-y-3 mb-3">
 <div class="flex items-center justify-between">
-<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Operator Audio Memo</span>
-<span class="font-telemetry-sm text-telemetry-sm text-secondary bg-surface-container-high px-1.5 py-0.2 rounded">FLAC • 48kHz</span>
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-electric-blue text-[18px]">graphic_eq</span>
+<span class="text-label-sm font-label-sm text-on-surface font-semibold">FLAC 48kHz Stream</span>
 </div>
-<!-- Dynamic Audio Waveform -->
-<div class="bg-surface-container-low rounded p-2 border border-outline-variant/20 flex flex-col gap-1.5">
-<div class="flex items-center justify-between text-on-surface-variant font-telemetry-sm text-telemetry-sm tabular-mono">
-<span class="text-primary font-semibold">00:14</span>
-<span>/ 00:42</span>
+<span class="text-label-sm font-label-sm text-primary font-mono">Clean 2.4 SNR</span>
 </div>
-<!-- Waveform SVG visualizer -->
-<div class="h-8 flex items-center gap-0.5 px-1 py-1 bg-surface-container-lowest rounded overflow-hidden">
-<div class="w-1 bg-primary h-3 rounded-full"></div>
-<div class="w-1 bg-primary h-5 rounded-full"></div>
-<div class="w-1 bg-primary h-7 rounded-full"></div>
-<div class="w-1 bg-primary h-4 rounded-full"></div>
-<div class="w-1 bg-primary h-6 rounded-full"></div>
-<div class="w-1 bg-primary h-8 rounded-full"></div>
-<div class="w-1 bg-primary h-5 rounded-full"></div>
-<div class="w-1 bg-secondary h-4 rounded-full"></div>
-<div class="w-1 bg-secondary h-6 rounded-full"></div>
-<div class="w-1 bg-secondary h-7 rounded-full"></div>
-<div class="w-1 bg-secondary h-5 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-3 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-2 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-4 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-6 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-3 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-1 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-2 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-5 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-3 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-2 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-4 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-2 rounded-full"></div>
-<div class="w-1 bg-surface-variant h-1 rounded-full"></div>
+<!-- Waveform Visualizer -->
+<div class="h-10 w-full flex items-center justify-between gap-[3px] px-2 bg-surface-canvas/60 rounded-lg border border-border-glass overflow-hidden">
+<div class="w-1 wave-bar bg-electric-blue rounded-full" style="animation-delay: 0.1s; height: 12px;"></div>
+<div class="w-1 wave-bar bg-electric-blue rounded-full" style="animation-delay: 0.3s; height: 24px;"></div>
+<div class="w-1 wave-bar bg-electric-blue rounded-full" style="animation-delay: 0.2s; height: 16px;"></div>
+<div class="w-1 wave-bar bg-cantaloupe-orange rounded-full" style="animation-delay: 0.5s; height: 28px;"></div>
+<div class="w-1 wave-bar bg-cantaloupe-orange rounded-full" style="animation-delay: 0.4s; height: 32px;"></div>
+<div class="w-1 wave-bar bg-electric-blue rounded-full" style="animation-delay: 0.6s; height: 18px;"></div>
+<div class="w-1 wave-bar bg-electric-blue rounded-full" style="animation-delay: 0.2s; height: 10px;"></div>
+<div class="w-1 wave-bar bg-electric-blue rounded-full" style="animation-delay: 0.8s; height: 22px;"></div>
+<div class="w-1 wave-bar bg-electric-blue rounded-full" style="animation-delay: 0.1s; height: 30px;"></div>
+<div class="w-1 wave-bar bg-cantaloupe-orange rounded-full" style="animation-delay: 0.7s; height: 26px;"></div>
+<div class="w-1 wave-bar bg-cantaloupe-orange rounded-full" style="animation-delay: 0.3s; height: 14px;"></div>
+<div class="w-1 wave-bar bg-electric-blue rounded-full" style="animation-delay: 0.9s; height: 20px;"></div>
+<div class="w-1 wave-bar bg-electric-blue rounded-full" style="animation-delay: 0.4s; height: 12px;"></div>
+<div class="w-1 wave-bar bg-electric-blue rounded-full" style="animation-delay: 0.2s; height: 16px;"></div>
+<div class="w-1 wave-bar bg-electric-blue rounded-full" style="animation-delay: 0.5s; height: 8px;"></div>
 </div>
-<div class="flex items-center justify-between pt-1">
-<button class="flex items-center gap-1 px-2 py-0.5 bg-primary-container text-on-primary rounded font-telemetry-sm text-telemetry-sm font-semibold hover:bg-surface-tint">
-<span class="material-symbols-outlined text-sm">pause</span>
-<span>Playing</span>
+<!-- Waveform Controls & Timestamp -->
+<div class="flex items-center justify-between text-label-sm font-label-sm text-telemetry-muted">
+<div class="flex items-center space-x-2">
+<button class="w-6 h-6 rounded-full bg-electric-blue text-surface-canvas flex items-center justify-center hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-[14px]">pause</span>
 </button>
-<span class="font-label-caps text-label-caps text-on-surface-variant">Spectrogram: Clean 2.4 SNR</span>
+<span class="text-on-surface">00:14 / 00:42</span>
+</div>
+<span class="text-telemetry-muted">MIC_ARRAY_02 (STEREO)</span>
 </div>
 </div>
-<!-- Bilingual Transcription Card -->
-<div class="space-y-1.5">
+<!-- Component B: Bilingual Transcript Box -->
+<div class="p-3 rounded-xl bg-surface-elevated/80 border border-border-glass space-y-2 mb-3">
+<div class="flex items-center justify-between border-b border-border-glass pb-1.5">
+<div class="flex items-center space-x-2">
+<button class="text-label-sm font-label-sm text-electric-blue border-b border-electric-blue pb-0.5">EN (Original)</button>
+<button class="text-label-sm font-label-sm text-telemetry-muted hover:text-on-surface pb-0.5">ES (Auto-Sync)</button>
+</div>
+<span class="text-label-sm font-label-sm text-telemetry-muted">WER: 0.012</span>
+</div>
+<p class="text-body-sm font-body-sm text-on-surface italic pl-2 border-l-2 border-electric-blue">
+              "Cooks must wash hands for 20 seconds at sink before handling raw poultry."
+            </p>
+<p class="text-body-sm font-body-sm text-telemetry-muted pl-2 border-l-2 border-outline-variant text-[11px]">
+              [ES: Los cocineros deben lavarse las manos durante 20 segundos en el fregadero antes de manipular aves crudas.]
+            </p>
+</div>
+<!-- Component C: Regulatory Authority Citation Card -->
+<div class="p-3 rounded-xl bg-surface-canvas/90 border border-border-glass space-y-2 mb-3">
 <div class="flex items-center justify-between">
-<span class="font-label-caps text-label-caps text-on-surface-variant">Intake Transcription</span>
-<div class="flex items-center gap-1 font-label-caps text-label-caps">
-<span class="text-primary font-bold">EN</span>
-<span class="text-outline">/</span>
-<span class="text-on-surface-variant hover:text-secondary cursor-pointer">ES</span>
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-cantaloupe-orange text-[16px]">policy</span>
+<span class="text-label-sm font-label-sm text-on-surface font-semibold">Statutory Authority Citation</span>
+</div>
+<span class="text-label-sm font-label-sm px-1.5 py-0.5 rounded bg-surface-container text-primary border border-border-active">
+                REGULATORY_REF: PASS
+              </span>
+</div>
+<div class="text-body-sm font-body-sm text-on-surface font-medium bg-surface-panel p-2 rounded border border-border-glass">
+              FDA Food Code 2026 § 2-301.12 Cleaning Procedure &amp; Scrubbing
+              <div class="flex items-center justify-between mt-1 text-label-sm font-label-sm text-telemetry-muted font-normal">
+<span class="hover:text-primary cursor-pointer underline flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px]">picture_as_pdf</span> p.44 excerpt
+                </span>
+<span class="font-mono text-[9px]">SHA256: d8f4...119c</span>
 </div>
 </div>
-<div class="p-2 bg-surface-container rounded border border-outline-variant/30 text-body-sm font-body-sm text-on-surface">
-              "Cooks must wash hands for <span class="text-secondary font-semibold">20 seconds</span> at sink before handling raw poultry."
-            </div>
-<div class="p-1.5 bg-surface-container-high/40 rounded border border-outline-variant/20 text-body-sm font-body-sm text-on-surface-variant italic">
-              [ES: "Los cocineros deben lavarse las manos durante 20 segundos en el fregadero antes de manipular aves crudas."]
-            </div>
 </div>
-</div>
-<!-- 2. Attached Inspection Citation PDF Preview -->
-<div class="bg-surface-container-lowest border border-outline-variant/30 rounded p-2.5 space-y-2">
+<!-- Component D: Canonical Operator Intent Card -->
+<div class="p-3 rounded-xl bg-surface-elevated/90 border border-border-active space-y-2 shadow-[0_0_20px_rgba(2,151,222,0.15)]">
 <div class="flex items-center justify-between">
-<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Regulatory Authority Source</span>
-<span class="font-telemetry-sm text-telemetry-sm text-primary bg-primary/10 border border-primary/30 px-1.5 py-0.2 rounded font-semibold">REGULATORY_REF: PASS</span>
-</div>
-<div class="flex items-start gap-2.5 p-2 bg-surface-container-high/50 rounded border border-outline-variant/30">
-<div class="w-8 h-10 bg-error-container/40 border border-error/40 rounded flex flex-col items-center justify-center shrink-0">
-<span class="material-symbols-outlined text-error text-sm">picture_as_pdf</span>
-<span class="font-label-caps text-label-caps text-error text-[8px]">PDF</span>
-</div>
-<div class="flex-1 min-w-0">
-<p class="font-telemetry-sm text-telemetry-sm font-semibold text-on-surface truncate">FDA Food Code 2026 § 2-301.12</p>
-<p class="font-body-sm text-body-sm text-on-surface-variant">Cleaning Procedure & Scrubbing</p>
-<div class="flex items-center gap-2 mt-1">
-<span class="font-label-caps text-label-caps text-secondary bg-surface-container px-1 py-0.2 rounded">p.44 excerpt</span>
-<span class="font-label-caps text-label-caps text-outline">SHA-256: d8f4...119c</span>
-</div>
-</div>
-<button class="p-1 text-on-surface-variant hover:text-primary">
-<span class="material-symbols-outlined text-sm">download</span>
-</button>
-</div>
-</div>
-<!-- 3. Operator Prompt Text Box & Confidence -->
-<div class="bg-surface-container-lowest border border-outline-variant/30 rounded p-2.5 space-y-2">
-<div class="flex items-center justify-between">
-<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Canonical Operator Intent</span>
-<span class="material-symbols-outlined text-sm text-primary">verified</span>
-</div>
-<textarea class="w-full bg-surface-container-low border border-outline-variant/30 rounded p-2 font-telemetry-sm text-telemetry-sm text-on-surface focus:border-secondary focus:ring-0 resize-none h-20" readonly="">Make sure cooks wash their hands at the handwash sink for at least 20 seconds before touching food on the prep line.</textarea>
-<div class="flex items-center justify-between bg-surface-container-high/50 px-2 py-1.5 rounded border border-outline-variant/20">
-<div class="flex items-center gap-1.5">
-<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
-<span class="font-label-caps text-label-caps text-on-surface-variant">Semantic Extraction Confidence:</span>
-</div>
-<span class="font-telemetry-sm text-telemetry-sm text-primary font-bold">99.4%</span>
-</div>
-<p class="font-label-caps text-label-caps text-outline text-right">Validated via Multi-LLM Consensus Ensemble</p>
-</div>
-</div>
-<!-- Left Panel Footer Telemetry Tag -->
-<div class="p-2 border-t border-outline-variant/30 bg-surface-container-lowest flex items-center justify-between font-label-caps text-label-caps text-outline">
-<span>SESSION: 48A9-STATION-02</span>
-<span>STREAM_OK: 60 FPS</span>
-</div>
-</aside>
-<!-- CENTER PANEL: 10-STEP PIPELINE & INTERACTIVE CAMERA ZONE CANVAS (flex-1) -->
-<main class="flex-1 flex flex-col bg-surface-container-lowest overflow-hidden">
-<!-- Horizontal 10-Step Pipeline Stepper Bar -->
-<div class="h-14 bg-surface-container-low border-b border-outline-variant/30 px-3 flex items-center justify-between overflow-x-auto shrink-0">
-<div class="flex items-center gap-2 min-w-max">
-<!-- Step 1 -->
-<div class="flex items-center gap-1 px-2 py-1 bg-surface-container-high rounded border border-primary/30">
-<span class="material-symbols-outlined text-primary text-xs">check_circle</span>
-<span class="font-label-caps text-label-caps text-on-surface">1. Understand</span>
-<span class="font-label-caps text-label-caps text-primary text-[9px]">4ms</span>
-</div>
-<span class="text-outline-variant">→</span>
-<!-- Step 2 -->
-<div class="flex items-center gap-1 px-2 py-1 bg-surface-container-high rounded border border-primary/30">
-<span class="material-symbols-outlined text-primary text-xs">check_circle</span>
-<span class="font-label-caps text-label-caps text-on-surface">2. Survey</span>
-<span class="font-label-caps text-label-caps text-primary text-[9px]">8ms</span>
-</div>
-<span class="text-outline-variant">→</span>
-<!-- Step 3 -->
-<div class="flex items-center gap-1 px-2 py-1 bg-surface-container-high rounded border border-primary/30">
-<span class="material-symbols-outlined text-primary text-xs">check_circle</span>
-<span class="font-label-caps text-label-caps text-on-surface">3. Probe</span>
-<span class="font-label-caps text-label-caps text-primary text-[9px]">12ms</span>
-</div>
-<span class="text-outline-variant">→</span>
-<!-- Step 4 -->
-<div class="flex items-center gap-1 px-2 py-1 bg-surface-container-high rounded border border-primary/30">
-<span class="material-symbols-outlined text-primary text-xs">check_circle</span>
-<span class="font-label-caps text-label-caps text-on-surface">4. Gauge</span>
-<span class="font-label-caps text-label-caps text-primary text-[9px]">6ms</span>
-</div>
-<span class="text-outline-variant">→</span>
-<!-- Step 5 -->
-<div class="flex items-center gap-1 px-2 py-1 bg-surface-container-high rounded border border-primary/30">
-<span class="material-symbols-outlined text-primary text-xs">check_circle</span>
-<span class="font-label-caps text-label-caps text-on-surface">5. Ask</span>
-<span class="font-label-caps text-label-caps text-primary text-[9px]">15ms</span>
-</div>
-<span class="text-outline-variant">→</span>
-<!-- Step 6 -->
-<div class="flex items-center gap-1 px-2 py-1 bg-surface-container-high rounded border border-primary/30">
-<span class="material-symbols-outlined text-primary text-xs">check_circle</span>
-<span class="font-label-caps text-label-caps text-on-surface">6. Compile</span>
-<span class="font-label-caps text-label-caps text-primary text-[9px]">11ms</span>
-</div>
-<span class="text-outline-variant">→</span>
-<!-- Step 7 -->
-<div class="flex items-center gap-1 px-2 py-1 bg-surface-container-high rounded border border-primary/30">
-<span class="material-symbols-outlined text-primary text-xs">check_circle</span>
-<span class="font-label-caps text-label-caps text-on-surface">7. Lint</span>
-<span class="font-label-caps text-label-caps text-primary text-[9px]">9ms</span>
-</div>
-<span class="text-outline-variant">→</span>
-<!-- Step 8 (ACTIVE GLOWING) -->
-<div class="flex items-center gap-1.5 px-2.5 py-1 bg-primary/20 border-2 border-primary rounded shadow-[0_0_12px_rgba(78,222,163,0.35)]">
-<span class="w-2 h-2 rounded-full bg-primary pulse-live"></span>
-<span class="font-label-caps text-label-caps text-primary font-bold">8. Accept [ACTIVE]</span>
-<span class="font-label-caps text-label-caps text-on-primary bg-primary px-1 py-0.2 rounded font-bold">PASS</span>
-</div>
-<span class="text-outline-variant">→</span>
-<!-- Step 9 -->
-<div class="flex items-center gap-1 px-2 py-1 bg-surface-container/60 rounded border border-outline-variant/30 opacity-60">
-<span class="material-symbols-outlined text-on-surface-variant text-xs">hourglass_empty</span>
-<span class="font-label-caps text-label-caps text-on-surface-variant">9. Audit</span>
-<span class="font-label-caps text-label-caps text-outline text-[9px]">WAIT</span>
-</div>
-<span class="text-outline-variant">→</span>
-<!-- Step 10 -->
-<div class="flex items-center gap-1 px-2 py-1 bg-surface-container/60 rounded border border-outline-variant/30 opacity-60">
-<span class="material-symbols-outlined text-on-surface-variant text-xs">lock_clock</span>
-<span class="font-label-caps text-label-caps text-on-surface-variant">10. Prove</span>
-<span class="font-label-caps text-label-caps text-outline text-[9px]">WAIT</span>
-</div>
-</div>
-</div>
-<!-- CAMERA VIEWPORT & SAM 3.1 POLYGON ZONES -->
-<div class="flex-1 relative bg-black flex items-center justify-center overflow-hidden border-b border-outline-variant/30">
-<!-- Live Viewport Header HUD Strip -->
-<div class="absolute top-2 left-2 right-2 z-20 flex items-center justify-between pointer-events-none">
-<div class="flex items-center gap-2 bg-surface-container-lowest/80 backdrop-blur-md px-2.5 py-1 rounded border border-outline-variant/40">
-<span class="w-2 h-2 rounded-full bg-error pulse-live"></span>
-<span class="font-telemetry-sm text-telemetry-sm font-bold text-on-surface">CAM-02 SINK-PREP-STATION</span>
-<span class="font-label-caps text-label-caps text-secondary">RTSP • 60 FPS</span>
-<span class="font-label-caps text-label-caps text-primary">4K H.265</span>
-<span class="font-label-caps text-label-caps text-outline tabular-mono"><78ms LATENCY</span>
-</div>
-<div class="flex items-center gap-2 bg-surface-container-lowest/80 backdrop-blur-md px-2.5 py-1 rounded border border-outline-variant/40">
-<span class="font-label-caps text-label-caps text-secondary">SAM 3.1 GEOMETRIC ENGINE</span>
-<span class="font-label-caps text-label-caps text-primary border-l border-outline-variant/40 pl-2">HOMOGRAPHY: LOCK</span>
-<span class="font-label-caps text-label-caps text-on-surface-variant border-l border-outline-variant/40 pl-2">FOV: 94.2°</span>
-</div>
-</div>
-<!-- Industrial Kitchen Viewport Background Visual -->
-<div class="relative w-full h-full bg-[#070b12] flex items-center justify-center">
-<img class="w-full h-full object-cover opacity-60" data-alt="High-resolution industrial surveillance camera feed inside a sterile modern commercial kitchen with stainless steel sinks, prep counters, and industrial tile walls under cool high-frequency fluorescent lighting, overlaid with crisp tactical HUD lines, dark obsidian tones, and cyan safety vectors." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDxCQ35pcC1rTrFecFsglWkr4Eu5woh2dzFHxmMwEyK4JF-Eniy-nL4HmfoLXRyI48eZVSfsinvXuFM3kz6xq49KWThx51PXQq76qTzyF6VzIxjy4rEWDPnt0muALLj3xcsKniW3PtXZLXsrL7Cnft8GGsqs70sudqA7f-TdAatZ6U69fsjC0o09WRE7eul4owI36M2F_GkQeOE2wWKF5lSE_BbFFUROUKdyDCyJ2gJ70PjdKNGDDrk9MZfjb3DZ3LOL1eMgdPGdo8"/>
-<!-- SAM 3.1 VECTOR OVERLAYS (SVG Layer) -->
-<svg class="absolute inset-0 w-full h-full pointer-events-none" preserveaspectratio="none" viewbox="0 0 1000 600">
-<!-- Grid crosshairs -->
-<defs>
-<pattern height="40" id="reticle-grid" patternunits="userSpaceOnUse" width="40">
-<path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(76, 215, 246, 0.04)" stroke-width="0.5"></path>
-</pattern>
-</defs>
-<rect fill="url(#reticle-grid)" height="100%" width="100%"></rect>
-<!-- ZONE A: Handwash Sink Polygon (Cyan HUD) -->
-<polygon class="hud-vector-glow" fill="rgba(6, 182, 212, 0.15)" points="120,240 280,220 320,440 140,460" stroke="#06b6d4" stroke-dasharray="4,2" stroke-width="1.8"></polygon>
-<!-- Vertices Markers Zone A -->
-<circle cx="120" cy="240" fill="#06b6d4" r="3"></circle>
-<circle cx="280" cy="220" fill="#06b6d4" r="3"></circle>
-<circle cx="320" cy="440" fill="#06b6d4" r="3"></circle>
-<circle cx="140" cy="460" fill="#06b6d4" r="3"></circle>
-<!-- ZONE B: Raw Food Prep Counter (Amber/Emerald Polygon) -->
-<polygon fill="rgba(245, 158, 11, 0.12)" points="620,180 880,160 920,430 650,450" stroke="#f59e0b" stroke-dasharray="3,3" stroke-width="1.8"></polygon>
-<!-- Vertices Markers Zone B -->
-<circle cx="620" cy="180" fill="#f59e0b" r="3"></circle>
-<circle cx="880" cy="160" fill="#f59e0b" r="3"></circle>
-<circle cx="920" cy="430" fill="#f59e0b" r="3"></circle>
-<circle cx="650" cy="450" fill="#f59e0b" r="3"></circle>
-<!-- Interlock Vector Line connecting Zone A to Zone B -->
-<path class="polygon-glow" d="M 320 340 C 440 300, 520 280, 620 310" fill="none" stroke="#10b981" stroke-dasharray="6,4" stroke-width="2.5"></path>
-<!-- Direction Arrow -->
-<polygon fill="#10b981" points="620,310 608,303 610,317"></polygon>
-</svg>
-<!-- Zone A Floating Annotator Label -->
-<div class="absolute left-32 top-48 pointer-events-auto bg-surface-container-lowest/90 border border-secondary p-1.5 rounded shadow-lg">
-<div class="flex items-center gap-1.5">
-<span class="w-2 h-2 rounded-full bg-secondary"></span>
-<span class="font-telemetry-sm text-telemetry-sm font-bold text-secondary">Zone A: Handwash Sink</span>
-</div>
-<div class="font-label-caps text-label-caps text-on-surface-variant mt-0.5 space-y-0.5">
-<p>Height: 0.85m datum • FOV 98%</p>
-<p class="text-primary font-bold">Enforced Time: t ≥ 20.0s</p>
-</div>
-</div>
-<!-- Zone B Floating Annotator Label -->
-<div class="absolute right-40 top-36 pointer-events-auto bg-surface-container-lowest/90 border border-tertiary p-1.5 rounded shadow-lg">
-<div class="flex items-center gap-1.5">
-<span class="w-2 h-2 rounded-full bg-tertiary"></span>
-<span class="font-telemetry-sm text-telemetry-sm font-bold text-tertiary">Zone B: Raw Food Prep</span>
-</div>
-<div class="font-label-caps text-label-caps text-on-surface-variant mt-0.5 space-y-0.5">
-<p>Exclusion Buffer: 1.20m</p>
-<p class="text-error font-bold">Interlock: Slicer Locked</p>
-</div>
-</div>
-<!-- Vector Connection HUD Tag -->
-<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-8 bg-surface-container-high/90 border border-primary px-2.5 py-1 rounded shadow-lg pointer-events-none flex items-center gap-2">
-<span class="material-symbols-outlined text-primary text-sm">lock</span>
-<div class="flex flex-col">
-<span class="font-label-caps text-label-caps text-primary font-bold">ENFORCED TRANSITION SEQUENCE</span>
-<span class="font-telemetry-sm text-telemetry-sm text-on-surface">Zone A (Sanitized 20.0s) ➔ Zone B Entry</span>
-</div>
-</div>
-<!-- Camera Optical Overlay Corners -->
-<div class="absolute bottom-2 left-2 flex items-center gap-2 bg-surface-container-lowest/80 px-2 py-0.5 rounded border border-outline-variant/30 text-label-caps font-label-caps text-outline">
-<span>F/1.8 • 16.5mm • ISO 400</span>
-<span class="text-secondary">OPTICAL FLOW: STEADY</span>
-</div>
-<div class="absolute bottom-2 right-2 flex items-center gap-2 bg-surface-container-lowest/80 px-2 py-0.5 rounded border border-outline-variant/30 text-label-caps font-label-caps text-outline">
-<span class="text-primary">RETICLE HOMOGRAPHY: CONFIRMED</span>
-<span>FPS: 59.98</span>
-</div>
-</div>
-</div>
-<!-- Clarifying Interview Card (Below Viewport) -->
-<div class="bg-surface-container border-t border-outline-variant/30 p-3 space-y-2 shrink-0">
-<div class="flex items-center justify-between">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-primary text-base">forum</span>
-<span class="font-label-caps text-label-caps text-primary uppercase font-bold tracking-wider">AUTOMATED REGULATORY GROUNDING INTERVIEW</span>
-</div>
-<span class="font-telemetry-sm text-telemetry-sm bg-primary/10 text-primary border border-primary/30 px-2 py-0.5 rounded font-semibold flex items-center gap-1">
-<span class="material-symbols-outlined text-xs">verified_user</span>
-<span>STATUS: VERIFIED & SEALED</span>
+<span class="text-label-sm font-label-sm text-primary tracking-wide font-semibold">CANONICAL OPERATOR INTENT</span>
+<span class="flex items-center space-x-1.5 text-label-sm font-label-sm text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
+<span>99.4% Confidence</span>
 </span>
 </div>
-<div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-<!-- AI Clarifying Prompt -->
-<div class="p-2 bg-surface-container-low rounded border border-outline-variant/30 flex items-start gap-2">
-<div class="p-1 bg-surface-container-high rounded text-secondary shrink-0">
-<span class="material-symbols-outlined text-sm">smart_toy</span>
+<div class="text-body-sm font-body-sm text-on-surface bg-surface-canvas p-2.5 rounded-lg border border-border-glass">
+              "Make sure cooks wash their hands at the handwash sink for at least 20 seconds before touching food on the prep line."
+            </div>
+<div class="flex items-center justify-between text-label-sm font-label-sm text-telemetry-muted pt-1">
+<span>Validated via Multi-LLM Consensus</span>
+<span class="material-symbols-outlined text-primary text-[14px]">verified</span>
 </div>
-<div>
-<p class="font-label-caps text-label-caps text-secondary font-semibold">SYNTHESIS ENGINE QUERY</p>
-<p class="font-body-sm text-body-sm text-on-surface mt-0.5">
+</div>
+</div>
+<!-- Sidebar Telemetry Extra Info -->
+<div class="p-3.5 rounded-xl bg-surface-panel/40 border border-border-glass text-label-sm font-label-sm space-y-2">
+<div class="flex justify-between text-telemetry-muted">
+<span>INTENT INGEST LATENCY</span>
+<span class="text-on-surface font-mono">112ms total</span>
+</div>
+<div class="flex justify-between text-telemetry-muted">
+<span>TEMPORAL CONSTRAINTS</span>
+<span class="text-cantaloupe-orange font-mono">STRICT SEQUENCE (FIFO)</span>
+</div>
+</div>
+</div>
+<!-- ==========================================
+           CENTER COLUMN: PIPELINE STEPPER & VIEWPORT (Span 6)
+           ========================================== -->
+<div class="lg:col-span-6 space-y-4">
+<!-- 10-Step Pipeline Stepper -->
+<div class="rounded-xl bg-surface-panel/80 border border-border-glass p-2.5 backdrop-blur-xl">
+<div class="flex items-center justify-between overflow-x-auto gap-2 pb-1 text-label-sm font-label-sm scrollbar-none">
+<div class="flex items-center space-x-1 text-primary whitespace-nowrap">
+<span>1. Understand</span>
+<span class="text-telemetry-muted text-[9px]">(4ms)</span>
+<span class="text-telemetry-muted">→</span>
+</div>
+<div class="flex items-center space-x-1 text-primary whitespace-nowrap">
+<span>2. Survey</span>
+<span class="text-telemetry-muted text-[9px]">(8ms)</span>
+<span class="text-telemetry-muted">→</span>
+</div>
+<div class="flex items-center space-x-1 text-primary whitespace-nowrap">
+<span>3. Probe</span>
+<span class="text-telemetry-muted text-[9px]">(12ms)</span>
+<span class="text-telemetry-muted">→</span>
+</div>
+<div class="flex items-center space-x-1 text-primary whitespace-nowrap">
+<span>4. Gauge</span>
+<span class="text-telemetry-muted text-[9px]">(6ms)</span>
+<span class="text-telemetry-muted">→</span>
+</div>
+<div class="flex items-center space-x-1 text-primary whitespace-nowrap">
+<span>5. Ask</span>
+<span class="text-telemetry-muted text-[9px]">(18ms)</span>
+<span class="text-telemetry-muted">→</span>
+</div>
+<div class="flex items-center space-x-1 text-primary whitespace-nowrap">
+<span>6. Compile</span>
+<span class="text-telemetry-muted text-[9px]">(15ms)</span>
+<span class="text-telemetry-muted">→</span>
+</div>
+<div class="flex items-center space-x-1 text-primary whitespace-nowrap">
+<span>7. Lint</span>
+<span class="text-telemetry-muted text-[9px]">(9ms)</span>
+<span class="text-telemetry-muted">→</span>
+</div>
+<!-- Active Step 8 -->
+<div class="flex items-center space-x-1.5 px-2.5 py-1 rounded bg-secondary-container/60 border border-cantaloupe-orange text-cantaloupe-orange whitespace-nowrap shadow-[0_0_15px_rgba(252,115,77,0.35)] animate-pulse">
+<span class="w-1.5 h-1.5 rounded-full bg-cantaloupe-orange"></span>
+<span class="font-bold">8. ACCEPT</span>
+<span class="text-on-secondary-container">→</span>
+</div>
+<div class="flex items-center space-x-1 text-telemetry-muted whitespace-nowrap">
+<span>9. Audit</span>
+<span>→</span>
+</div>
+<div class="flex items-center space-x-1 text-telemetry-muted/60 whitespace-nowrap">
+<span>10. Prove</span>
+</div>
+</div>
+</div>
+<!-- 4K Viewport Container with Reticles -->
+<div class="relative rounded-2xl overflow-hidden border border-border-active bg-surface-canvas shadow-[0_20px_50px_rgba(0,0,0,0.85)] group">
+<!-- Image Feed -->
+<div class="relative aspect-[16/9] w-full overflow-hidden">
+<img alt="Live surveillance camera feed of a high-end commercial kitchen" class="w-full h-full object-cover select-none filter contrast-[1.04]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDiGqu5O6ylYHSmPamHgHDE1AGoOAKJz6k8R9iJwHq3C3GLhOsRem774rSanNa_tKHvRFnO2sAJS9ddACHrZ8xo_6y9Qf7i_x8NYNgvT8iCeMxnDfhIlCt1Xn_FtAmSory4jFVgdPUYRJeOfOD38lLkQvoJRGhCXiBLneJoL1BpZa0BuXCgDGUunxCMTv3I4VZU8XgnUoVC1bI0ss_eyGb0f9kXhCK797QFyQYxIj94ln51o98M_KrOjepfQ2V9BhR8WHOOlq4j59M"/>
+<!-- Gradient edge overlays for deep glass integration -->
+<div class="absolute inset-0 bg-gradient-to-t from-surface-canvas via-transparent to-surface-canvas/60 pointer-events-none"></div>
+<!-- Telemetry Overhead HUD Strip -->
+<div class="absolute top-3 inset-x-3 flex items-center justify-between text-label-sm font-label-sm z-20 pointer-events-none">
+<div class="flex items-center space-x-2 bg-surface-canvas/85 backdrop-blur-md px-3 py-1 rounded border border-border-glass">
+<span class="w-2 h-2 rounded-full bg-cantaloupe-orange animate-ping"></span>
+<span class="text-on-surface font-bold tracking-wider">CAM-02 SINK-PREP-STATION</span>
+<span class="text-telemetry-muted">|</span>
+<span class="text-primary font-mono">REC [60.0 FPS] // 4K RAW</span>
+</div>
+<div class="flex items-center space-x-2 bg-surface-canvas/85 backdrop-blur-md px-3 py-1 rounded border border-border-glass text-telemetry-muted">
+<span class="text-electric-blue font-mono font-medium">SAM 3.1 GEOMETRIC ENGINE</span>
+<span>•</span>
+<span class="text-on-surface font-mono">HOMOGRAPHY: LOCK</span>
+<span>•</span>
+<span>FOV: 94.2°</span>
+</div>
+</div>
+<!-- Spatial Overlay Reticles & Zones (SVG / CSS Overlay) -->
+<div class="absolute inset-0 z-10 pointer-events-none">
+<!-- Zone A (Handwash Sink Station) - Left Side -->
+<div class="absolute top-[48%] left-[9%] w-[24%] h-[42%] border-2 border-electric-blue rounded bg-electric-blue/10 shadow-[0_0_25px_rgba(2,151,222,0.4)]">
+<div class="absolute -top-6 left-0 bg-surface-canvas/90 border border-electric-blue text-electric-blue px-2 py-0.5 rounded text-[9px] font-label-sm tracking-wide whitespace-nowrap">
+                  Zone A: Handwash Sink (Active Scrub)
+                </div>
+<div class="absolute bottom-1 left-1.5 text-[8px] font-mono text-on-surface bg-surface-panel/80 px-1 rounded">
+                  Height: 0.85m datum • FOV 98% • Enforced: t ≥ 20.0s
+                </div>
+<!-- Precision Corner Reticles -->
+<div class="absolute -top-1 -left-1 w-2 h-2 border-t-2 border-l-2 border-white"></div>
+<div class="absolute -top-1 -right-1 w-2 h-2 border-t-2 border-r-2 border-white"></div>
+<div class="absolute -bottom-1 -left-1 w-2 h-2 border-b-2 border-l-2 border-white"></div>
+<div class="absolute -bottom-1 -right-1 w-2 h-2 border-b-2 border-r-2 border-white"></div>
+</div>
+<!-- Zone B (Raw Food Prep Counter) - Center Right -->
+<div class="absolute top-[42%] left-[45%] w-[36%] h-[46%] border-2 border-dashed border-cantaloupe-orange rounded bg-cantaloupe-orange/10 shadow-[0_0_30px_rgba(252,115,77,0.3)]">
+<div class="absolute -top-6 left-0 bg-surface-canvas/90 border border-cantaloupe-orange text-cantaloupe-orange px-2 py-0.5 rounded text-[9px] font-label-sm tracking-wide whitespace-nowrap">
+                  Zone B: Raw Food Prep (Protected Counter)
+                </div>
+<div class="absolute bottom-1 right-1.5 text-[8px] font-mono text-on-surface bg-surface-panel/80 px-1 rounded">
+                  Exclusion Buffer: 1.20m • Interlock: Slicer Locked
+                </div>
+</div>
+<!-- Vector Trajectory Transition Indicator -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="arrow" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="5" refy="5" viewbox="0 0 10 10">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#0297DE"></path>
+</marker>
+</defs>
+<path d="M 230 380 Q 340 330 460 370" fill="none" marker-end="url(#arrow)" stroke="#0297DE" stroke-dasharray="6,4" stroke-width="2.5"></path>
+<rect fill="#02070A" height="18" rx="4" stroke="#0297DE" stroke-width="0.8" width="220" x="260" y="325"></rect>
+<text fill="#8fcdff" font-family="JetBrains Mono" font-size="9" font-weight="600" x="270" y="338">
+                  ENFORCED SEQUENCE: Zone A → Zone B
+                </text>
+</svg>
+</div>
+<!-- Bottom Telemetric Camera Strip -->
+<div class="absolute bottom-2 inset-x-3 flex items-center justify-between text-label-sm font-label-sm text-telemetry-muted z-20 pointer-events-none bg-surface-canvas/75 backdrop-blur-md px-3 py-1 rounded border border-border-glass">
+<div>F/1.8 • 16.5mm • ISO 400 • H.265 LOW-LATENCY</div>
+<div class="text-primary font-mono">OPTICAL FLOW: RETICLE HOMOGRAPHY CONFIRMED [59.98 FPS]</div>
+</div>
+</div>
+</div>
+<!-- Under-Viewport Card: Automated Regulatory Grounding Interview -->
+<div class="p-3.5 rounded-xl bg-surface-panel/80 border border-border-glass backdrop-blur-xl">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center space-x-2">
+<span class="material-symbols-outlined text-primary text-[18px]">contact_support</span>
+<h3 class="text-label-md font-label-md text-on-surface font-semibold">Automated Regulatory Grounding Interview</h3>
+</div>
+<span class="text-label-sm font-label-sm text-primary bg-surface-elevated px-2 py-0.5 rounded border border-border-glass flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] text-primary">verified_user</span>
+              VERIFIED &amp; SEALED
+            </span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-body-sm font-body-sm">
+<div class="p-2.5 rounded-lg bg-surface-canvas/90 border border-border-glass">
+<div class="text-label-sm font-label-sm text-electric-blue mb-1">AI SYNTHESIS QUERY [PROBE-03]</div>
+<p class="text-telemetry-muted italic text-[12px]">
                 "Does the 20-second threshold include lathering and rinsing, or water flow contact only?"
               </p>
 </div>
-</div>
-<!-- Operator Confirmed Response -->
-<div class="p-2 bg-surface-container-high/60 rounded border border-primary/40 flex items-start gap-2">
-<div class="p-1 bg-primary/20 rounded text-primary shrink-0">
-<span class="material-symbols-outlined text-sm">person_check</span>
-</div>
-<div>
-<div class="flex items-center justify-between">
-<p class="font-label-caps text-label-caps text-primary font-semibold">CONFIRMED OPERATOR RESPONSE</p>
-<span class="font-label-caps text-label-caps text-outline">OP-772 • 14:02:18 UTC</span>
-</div>
-<p class="font-body-sm text-body-sm text-on-surface mt-0.5">
+<div class="p-2.5 rounded-lg bg-surface-elevated/90 border border-border-glass">
+<div class="text-label-sm font-label-sm text-cantaloupe-orange mb-1">OPERATOR RESPONSE [OP-772]</div>
+<p class="text-on-surface text-[12px]">
                 "Per FDA §2-301.12(B), 20s total vigorous lathering at water stream. Interlock timer resets if hands leave sink basin before 20.0s."
               </p>
 </div>
 </div>
 </div>
-</div>
-</main>
-<!-- RIGHT PANEL: GENERATED RULE CARD & FORMAL ACCEPTANCE TRACE (~360px) -->
-<aside class="w-96 shrink-0 bg-surface-container-low border-l border-outline-variant/30 flex flex-col justify-between overflow-y-auto">
-<div class="p-3 space-y-3">
-<!-- Panel Header -->
-<div class="flex items-center justify-between border-b border-outline-variant/30 pb-2">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-primary text-base">rule</span>
-<span class="font-label-caps text-label-caps text-primary uppercase font-bold tracking-wider">02 // GENERATED RULE CARD</span>
-</div>
-<span class="font-telemetry-sm text-telemetry-sm bg-surface-container px-2 py-0.5 rounded text-secondary border border-secondary/30">SYNTHESIZED_AST</span>
-</div>
-<!-- Generated Formal Rule Card -->
-<div class="bg-surface-container-lowest border border-outline-variant/40 rounded p-2.5 space-y-2">
-<div class="flex items-start justify-between">
-<div>
-<p class="font-telemetry-sm text-telemetry-sm font-bold text-on-surface">RULE-CK-012</p>
-<p class="font-body-sm text-body-sm text-on-surface-variant">Handwash Duration & Prep Interlock</p>
-</div>
-<!-- Runtime QR Code Preview -->
-<div class="p-1 bg-white rounded flex items-center justify-center shrink-0" title="Edge Deployment Verification Hash">
-<svg class="w-10 h-10" fill="#000" viewbox="0 0 33 33">
-<rect height="7" width="7" x="0" y="0"></rect>
-<rect fill="#fff" height="5" width="5" x="1" y="1"></rect>
-<rect height="3" width="3" x="2" y="2"></rect>
-<rect height="7" width="7" x="26" y="0"></rect>
-<rect fill="#fff" height="5" width="5" x="27" y="1"></rect>
-<rect height="3" width="3" x="28" y="2"></rect>
-<rect height="7" width="7" x="0" y="26"></rect>
-<rect fill="#fff" height="5" width="5" x="1" y="27"></rect>
-<rect height="3" width="3" x="2" y="28"></rect>
-<rect height="4" width="2" x="10" y="2"></rect>
-<rect height="2" width="3" x="14" y="2"></rect>
-<rect height="2" width="4" x="19" y="4"></rect>
-<rect height="4" width="4" x="10" y="10"></rect>
-<rect height="6" width="2" x="16" y="10"></rect>
-<rect height="2" width="6" x="20" y="12"></rect>
-<rect height="2" width="4" x="10" y="18"></rect>
-<rect height="4" width="2" x="18" y="18"></rect>
-<rect height="4" width="4" x="24" y="20"></rect>
-<rect height="6" width="2" x="10" y="26"></rect>
-<rect height="2" width="4" x="14" y="24"></rect>
-<rect height="4" width="4" x="20" y="26"></rect>
-<rect height="4" width="2" x="26" y="26"></rect>
-</svg>
-</div>
-</div>
-<!-- Formal Monospace Rule Logic Block -->
-<div class="p-2.5 bg-background rounded border border-outline-variant/30 font-telemetry-sm text-telemetry-sm leading-relaxed overflow-x-auto text-on-surface">
-<p><span class="text-tertiary font-bold">WHEN</span> Event(Worker_Entry, Zone_B)</p>
-<p><span class="text-primary font-bold">REQUIRE</span> Prev(Handwash, Zone_A).duration >= <span class="text-secondary font-bold">20.0s</span></p>
-<p><span class="text-tertiary font-bold">WITHIN</span> TemporalWindow(<span class="text-secondary">180s</span>)</p>
-<p><span class="text-error font-bold">ON_FAIL:</span> Interlock.Trigger(Alarm_Audible, Lockout_Prep_Slicer)</p>
-</div>
-<div class="flex items-center justify-between text-label-caps font-label-caps text-outline pt-1">
-<span>AST ID: 0x93FA-A1</span>
-<span class="text-primary">Z3 VERIFIED: SAT</span>
-</div>
-</div>
-<!-- Formal Acceptance Checks Trace (All 6 Passed) -->
-<div class="bg-surface-container-lowest border border-outline-variant/30 rounded p-2.5 space-y-2">
-<div class="flex items-center justify-between border-b border-outline-variant/20 pb-1.5">
-<span class="font-label-caps text-label-caps text-on-surface uppercase font-bold">FORMAL ACCEPTANCE SUITE</span>
-<span class="font-telemetry-sm text-telemetry-sm text-primary font-bold">6/6 CHECKS PASSED</span>
-</div>
-<div class="space-y-1.5 font-telemetry-sm text-telemetry-sm">
-<!-- Check 1 -->
-<div class="flex items-center justify-between p-1.5 rounded bg-surface-container-low border border-outline-variant/20">
-<div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-primary text-xs">done</span>
-<span class="text-on-surface">camera_fov_adequate</span>
-</div>
-<span class="text-primary font-bold">[PASS] (94.2° FOV)</span>
-</div>
-<!-- Check 2 -->
-<div class="flex items-center justify-between p-1.5 rounded bg-surface-container-low border border-outline-variant/20">
-<div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-primary text-xs">done</span>
-<span class="text-on-surface">reference_pallet_calibrated</span>
-</div>
-<span class="text-primary font-bold">[PASS] (ArUco 0.85m)</span>
-</div>
-<!-- Check 3 -->
-<div class="flex items-center justify-between p-1.5 rounded bg-surface-container-low border border-outline-variant/20">
-<div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-primary text-xs">done</span>
-<span class="text-on-surface">boundary_traces</span>
-</div>
-<span class="text-primary font-bold">[16/16 PASS]</span>
-</div>
-<!-- Check 4 -->
-<div class="flex items-center justify-between p-1.5 rounded bg-surface-container-low border border-outline-variant/20">
-<div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-primary text-xs">done</span>
-<span class="text-on-surface">ast_mutants</span>
-</div>
-<span class="text-primary font-bold">[6/6 KILLED] (100%)</span>
-</div>
-<!-- Check 5 -->
-<div class="flex items-center justify-between p-1.5 rounded bg-surface-container-low border border-outline-variant/20">
-<div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-primary text-xs">done</span>
-<span class="text-on-surface">latency_budget</span>
-</div>
-<span class="text-primary font-bold">[PASS] (18.2ms < 50ms)</span>
-</div>
-<!-- Check 6 -->
-<div class="flex items-center justify-between p-1.5 rounded bg-surface-container-low border border-outline-variant/20">
-<div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-primary text-xs">done</span>
-<span class="text-on-surface">formal_liveness_check</span>
-</div>
-<span class="text-primary font-bold">[PASS] (Z3 SMT: No Deadlock)</span>
-</div>
-</div>
-</div>
-<!-- Real-Time Micro Interlock Simulator -->
-<div class="bg-surface-container-lowest border border-outline-variant/30 rounded p-2.5 space-y-1.5">
-<div class="flex items-center justify-between">
-<span class="font-label-caps text-label-caps text-on-surface-variant uppercase">Runtime Trip Interlock</span>
-<span class="font-label-caps text-label-caps text-secondary font-bold">READY TO DEPLOY</span>
-</div>
-<div class="flex items-center justify-between text-body-sm font-body-sm text-on-surface">
-<span>Slicer Solenoid Relay:</span>
-<span class="text-primary font-telemetry-sm text-telemetry-sm font-bold">ARMED (HARD-LATCH)</span>
-</div>
-<div class="flex items-center justify-between text-body-sm font-body-sm text-on-surface">
-<span>Audible Buzzer Line:</span>
-<span class="text-primary font-telemetry-sm text-telemetry-sm font-bold">92dB 24V OP</span>
-</div>
-</div>
-</div>
-<!-- Action Bar CTA (Primary & Secondary Actions) -->
-<div class="p-3 border-t border-outline-variant/30 bg-surface-container-lowest space-y-2">
-<!-- Primary Operational Button -->
-<button class="w-full py-2.5 px-3 bg-primary-container text-on-primary rounded font-headline-sm text-headline-sm font-bold flex items-center justify-center gap-2 hover:bg-surface-tint active:scale-[0.98] transition-all duration-150 shadow-[0_0_16px_rgba(16,185,129,0.3)]">
-<span class="material-symbols-outlined text-lg">rocket_launch</span>
-<span>Approve Plan v2.1 & Deploy to Runtime</span>
-</button>
-<!-- Secondary Diff Review Button -->
-<button class="w-full py-2 px-3 bg-surface-container-low text-on-surface border border-outline-variant/50 rounded font-telemetry-sm text-telemetry-sm font-medium flex items-center justify-center gap-2 hover:border-secondary hover:text-white transition-all duration-150">
-<span class="material-symbols-outlined text-base">difference</span>
+<!-- Studio Action Bar -->
+<div class="flex items-center justify-between pt-2">
+<button class="flex items-center space-x-2 px-4 py-2.5 rounded-xl bg-surface-elevated border border-border-glass hover:border-border-active text-on-surface text-label-md font-label-md transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined text-[18px]">difference</span>
 <span>Compare Diff against v1.0</span>
 </button>
-<!-- Monospace Telemetry Footer & Cryptographic Signature -->
-<div class="pt-1 flex items-center justify-between font-label-caps text-label-caps text-outline border-t border-outline-variant/20">
-<span>SIG: 0x8F94...B12E</span>
-<span class="text-primary">SHA256 VERIFIED</span>
-<span>BUILD: #8942-REL</span>
+<button class="flex items-center space-x-2.5 px-6 py-2.5 rounded-xl bg-cantaloupe-orange text-surface-canvas hover:bg-cantaloupe-orange/90 font-label-md text-label-md font-bold transition-all shadow-[0_0_35px_rgba(252,115,77,0.4)] active:scale-[0.98]">
+<span class="material-symbols-outlined text-[20px]">check_circle</span>
+<span>Approve Plan v2.1 &amp; Deploy to Runtime</span>
+</button>
 </div>
 </div>
-</aside>
+<!-- ==========================================
+           RIGHT COLUMN: 02 // SYNTHESIZED RULE & FORMAL SUITE (Span 3)
+           ========================================== -->
+<div class="lg:col-span-3 space-y-4">
+<!-- Synthesized AST Rule Container -->
+<div class="rounded-2xl bg-surface-panel/70 border border-border-glass backdrop-blur-2xl p-4 shadow-[0_20px_40px_rgba(0,0,0,0.6)]">
+<!-- Header -->
+<div class="flex items-center justify-between pb-3 mb-3 border-b border-border-glass">
+<div class="flex items-center space-x-2">
+<span class="w-2 h-2 rounded bg-cantaloupe-orange"></span>
+<h2 class="text-label-md font-label-md text-on-surface tracking-wider font-semibold">02 // GENERATED RULE CARD</h2>
 </div>
+<span class="text-label-sm font-label-sm px-2 py-0.5 rounded-full bg-secondary-container/50 text-secondary border border-cantaloupe-orange/30">
+              SYNTHESIZED_AST
+            </span>
+</div>
+<!-- Rule Definition Title + ID -->
+<div class="flex items-start justify-between mb-3 bg-surface-elevated/70 p-2.5 rounded-xl border border-border-glass">
+<div>
+<div class="text-label-sm font-label-sm text-telemetry-muted">RULE IDENTIFIER</div>
+<div class="text-label-md font-label-md font-bold text-on-surface">RULE-CK-012</div>
+<div class="text-body-sm font-body-sm text-telemetry-muted text-[11px]">Handwash Duration &amp; Prep Interlock</div>
+</div>
+<!-- Minimal Micro QR placeholder -->
+<div class="w-8 h-8 rounded bg-surface-canvas border border-border-glass flex items-center justify-center p-1 text-[8px] font-mono text-telemetry-muted">
+<span class="material-symbols-outlined text-[18px] text-primary">qr_code_2</span>
+</div>
+</div>
+<!-- Formal Logic Syntax Code Box -->
+<div class="p-3 rounded-xl bg-surface-canvas border border-border-glass space-y-1 font-mono text-label-sm font-label-sm overflow-x-auto mb-3">
+<div class="text-telemetry-muted text-[9px] mb-1">// FORMAL SPECIFICATION - TEMPORAL LOGIC</div>
+<div><span class="text-cantaloupe-orange">WHEN</span> <span class="text-primary">Event</span>(Worker_Entry, Zone_B)</div>
+<div><span class="text-cantaloupe-orange">REQUIRE</span> <span class="text-primary">Prev</span>(Handwash, Zone_A).duration &gt;= 20.0s</div>
+<div><span class="text-cantaloupe-orange">WITHIN</span> <span class="text-electric-blue">TemporalWindow</span>(180s)</div>
+<div><span class="text-bubblegum-pink">ON_FAIL</span>: <span class="text-error">Interlock.Trigger</span>(Alarm_Audible, Lockout_Prep_Slicer)</div>
+</div>
+<!-- Solver Verification Badge -->
+<div class="flex items-center justify-between p-2 rounded-lg bg-surface-elevated/80 border border-border-glass text-label-sm font-label-sm mb-3">
+<div class="flex items-center space-x-1.5">
+<span class="text-telemetry-muted">AST ID:</span>
+<span class="text-on-surface font-mono">0x93FA-A1</span>
+</div>
+<span class="px-2 py-0.5 rounded bg-surface-canvas text-primary border border-border-active flex items-center gap-1 font-bold">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span> Z3: SAT (PROVED)
+            </span>
+</div>
+<!-- Formal Acceptance Suite (6/6 Checks All PASS) -->
+<div class="space-y-1.5 mb-4">
+<div class="flex items-center justify-between text-label-sm font-label-sm text-telemetry-muted px-1">
+<span>FORMAL ACCEPTANCE SUITE</span>
+<span class="text-primary">6 / 6 PASS</span>
+</div>
+<div class="space-y-1 text-label-sm font-label-sm">
+<div class="flex items-center justify-between p-1.5 rounded bg-surface-canvas/60 border border-border-glass">
+<span class="text-on-surface">camera_fov_adequate</span>
+<span class="text-primary font-mono font-medium">[PASS] 94.2°</span>
+</div>
+<div class="flex items-center justify-between p-1.5 rounded bg-surface-canvas/60 border border-border-glass">
+<span class="text-on-surface">reference_pallet_calibrated</span>
+<span class="text-primary font-mono font-medium">[PASS] 0.85m</span>
+</div>
+<div class="flex items-center justify-between p-1.5 rounded bg-surface-canvas/60 border border-border-glass">
+<span class="text-on-surface">boundary_traces</span>
+<span class="text-primary font-mono font-medium">[16/16 PASS]</span>
+</div>
+<div class="flex items-center justify-between p-1.5 rounded bg-surface-canvas/60 border border-border-glass">
+<span class="text-on-surface">ast_mutants</span>
+<span class="text-primary font-mono font-medium">[6/6 KILLED] 100%</span>
+</div>
+<div class="flex items-center justify-between p-1.5 rounded bg-surface-canvas/60 border border-border-glass">
+<span class="text-on-surface">latency_budget</span>
+<span class="text-primary font-mono font-medium">[PASS] 18.2ms &lt; 50ms</span>
+</div>
+<div class="flex items-center justify-between p-1.5 rounded bg-surface-canvas/60 border border-border-glass">
+<span class="text-on-surface">formal_liveness_check</span>
+<span class="text-primary font-mono font-medium">[PASS] No Deadlock</span>
+</div>
+</div>
+</div>
+<!-- Runtime Trip Interlock status block -->
+<div class="p-3 rounded-xl bg-surface-elevated/90 border border-cantaloupe-orange/40 space-y-2 mb-3 shadow-[0_0_20px_rgba(252,115,77,0.15)]">
+<div class="flex items-center justify-between text-label-sm font-label-sm">
+<span class="text-cantaloupe-orange font-semibold">RUNTIME INTERLOCK COUPLING</span>
+<span class="material-symbols-outlined text-cantaloupe-orange text-[14px]">lock</span>
+</div>
+<div class="text-[11px] font-mono text-on-surface space-y-1">
+<div class="flex justify-between">
+<span class="text-telemetry-muted">Slicer Solenoid:</span>
+<span class="text-primary">ARMED (HARD-LATCH)</span>
+</div>
+<div class="flex justify-between">
+<span class="text-telemetry-muted">Audible Buzzer:</span>
+<span class="text-on-surface">92dB 24V OP READY</span>
+</div>
+</div>
+</div>
+<!-- Cryptographic Footer -->
+<div class="pt-2 border-t border-border-glass text-[10px] font-mono text-telemetry-muted text-center">
+            SIG: 0x8F94...B12E • SHA256 VERIFIED • BUILD: #8942-REL
+          </div>
+</div>
+</div>
+</div>
+</main>
+<!-- Telemetric Bottom Auxiliary Bar -->
+<footer class="mt-6 border-t border-border-glass bg-surface-canvas/90 backdrop-blur-md px-6 py-2.5 text-label-sm font-label-sm text-telemetry-muted">
+<div class="max-w-[1920px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+<div class="flex items-center space-x-4">
+<span class="flex items-center gap-1.5 text-primary">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></span>
+          REAL-TIME TELEMETRY STREAM CONNECTED
+        </span>
+<span class="hidden md:inline">•</span>
+<span class="hidden md:inline">Z3 SAT SOLVER VER: 4.12.2</span>
+<span class="hidden md:inline">•</span>
+<span class="hidden md:inline">SAM 3.1 RECEPTIVE FIELD: 1024x1024</span>
+</div>
+<div class="flex items-center space-x-4">
+<span>SESSION: #SEC-04-A-104</span>
+<span class="text-on-surface">ALL FAILSAFES ACTIVE</span>
+</div>
+</div>
+</footer>
 </body></html>

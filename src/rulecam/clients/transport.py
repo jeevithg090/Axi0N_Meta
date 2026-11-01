@@ -17,8 +17,9 @@ and replies like `{"status": 200, "headers": {"x-ratelimit-remaining-requests": 
 from __future__ import annotations
 
 import random
+import threading
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 import httpx
@@ -34,6 +35,7 @@ Transport = Callable[[Mapping[str, object]], Mapping[str, object]]
 
 HTTP_OK_MIN = 200
 HTTP_OK_MAX = 299
+HTTP_NOT_FOUND = 404
 HTTP_TOO_MANY_REQUESTS = 429
 HTTP_SERVER_ERROR_MIN = 500
 HTTP_SERVER_ERROR_MAX = 599
@@ -268,6 +270,74 @@ class HttpxTransport:
             body = None
         headers = {k.lower(): v for k, v in response.headers.items()}
         return {"status": response.status_code, "headers": headers, "json": body}
+
+
+class PooledTransport:
+    """Spreads requests over transports to identical servers, least busy first, with failover.
+
+    Each request goes to the member with the fewest requests in flight (ties rotate). A member
+    that gives no HTTP answer, a 404 (a proxy that lost its route) or a retryable status is
+    passed over for the next one; when every member fails, the last reply is returned or the
+    last error raised, so the caller's retry policy still sees it.
+    """
+
+    def __init__(self, members: Sequence[Transport]) -> None:
+        """Create the pool.
+
+        Args:
+            members: One transport per server; at least one.
+
+        Raises:
+            ValueError: If `members` is empty.
+        """
+        if not members:
+            msg = "a transport pool needs at least one member"
+            raise ValueError(msg)
+        self._members = list(members)
+        self._in_flight = [0] * len(self._members)
+        self._turn = 0
+        self._lock = threading.Lock()
+
+    def _order(self) -> list[int]:
+        with self._lock:
+            n = len(self._members)
+            rotation = [(self._turn + i) % n for i in range(n)]
+            self._turn = (self._turn + 1) % n
+            return sorted(rotation, key=lambda i: self._in_flight[i])
+
+    def __call__(self, request: Mapping[str, object]) -> Mapping[str, object]:
+        """Send `request` to the least busy member, failing over to the others.
+
+        Args:
+            request: A transport request mapping.
+
+        Returns:
+            The first usable reply, else the last reply.
+
+        Raises:
+            ModelTransportError: If no member gave an HTTP answer.
+        """
+        last_reply: Mapping[str, object] | None = None
+        last_error: ModelTransportError | None = None
+        for index in self._order():
+            with self._lock:
+                self._in_flight[index] += 1
+            try:
+                reply = self._members[index](request)
+            except ModelTransportError as exc:
+                last_error = exc
+                continue
+            finally:
+                with self._lock:
+                    self._in_flight[index] -= 1
+            parsed = parse_reply(reply)
+            if parsed.status == HTTP_NOT_FOUND or parsed.retryable:
+                last_reply = reply
+                continue
+            return reply
+        if last_reply is not None or last_error is None:
+            return last_reply or {"status": HTTP_NOT_FOUND, "headers": {}, "json": None}
+        raise last_error
 
 
 def _form(request: Mapping[str, object]) -> dict[str, str] | None:

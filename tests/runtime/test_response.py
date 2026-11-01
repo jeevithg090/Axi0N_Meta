@@ -11,7 +11,15 @@ from pydantic import SecretStr
 from rulecam.act.actions import DRY_RUN_PREFIX
 from rulecam.act.errors import DeviceError
 from rulecam.config import Settings
-from rulecam.contracts import Detection, Dispute, Mask, RuleIR, Severity, VerifierVerdict
+from rulecam.contracts import (
+    Detection,
+    Dispute,
+    Mask,
+    RuleIR,
+    Severity,
+    Verifier,
+    VerifierVerdict,
+)
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.replay.cache import ReplayCache
 from rulecam.runtime.loop import RuntimeLoop, chunk_end
@@ -117,7 +125,7 @@ class Rig:
 
     def build(
         self,
-        tier1: FakeVerifier | None = None,
+        tier1: Verifier | None = None,
         *,
         classifier: TextClassifier | None = None,
         plugs: Plugs | None = None,

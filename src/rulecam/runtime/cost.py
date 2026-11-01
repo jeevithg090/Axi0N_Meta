@@ -305,6 +305,7 @@ class CostWatch:
         plan: Callable[[], ActivePlan | None],
         last_seen: Callable[[], Mapping[str, datetime]],
         idle_stop: IdleGpuStop | None = None,
+        busy: Callable[[], bool] | None = None,
     ) -> None:
         """Create the watch.
 
@@ -314,12 +315,15 @@ class CostWatch:
             plan: The runtime's active plan (`RuntimeLoop.plan`).
             last_seen: Each camera's latest chunk start (`ChunkIndex.last_seen`).
             idle_stop: Stops the GPU pods after a long idle period, if configured.
+            busy: Whether verifications are pending (`RuntimeLoop.verify_pending`); the idle
+                stop never stops the pods under them.
         """
         self._meter = meter
         self._clock = clock
         self._plan = plan
         self._last_seen = last_seen
         self._idle_stop = idle_stop
+        self._busy = busy
 
     def tick(self) -> None:
         """Called once a second by the API."""
@@ -327,7 +331,8 @@ class CostWatch:
         active = active_cameras(self._plan(), self._last_seen(), now)
         self._meter.tick(now, active)
         if self._idle_stop is not None:
-            self._idle_stop.tick(now, active)
+            busy = self._busy() if self._busy is not None else False
+            self._idle_stop.tick(now, active, busy=busy)
 
     def report(self) -> CostReport:
         """The meter's report with the idle stop's status."""

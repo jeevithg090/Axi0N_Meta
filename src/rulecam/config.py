@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     # Runtime SAM calls open at once, across cameras (docs/deploy.md "Stage timings").
     rulecam_sam_max_concurrency: int = Field(default=8, ge=1)
     rulecam_runtime_verify_workers: int = Field(default=4, ge=1)  # Tier 1 verifications at once
+    # Tier 1 retry and circuit breaker (verify.guard): retries after a transient failure, the
+    # failures in a row that open the circuit, and how long it stays open before a trial.
+    rulecam_verify_retries: int = Field(default=1, ge=0)
+    rulecam_verify_breaker_failures: int = Field(default=3, ge=1)
+    rulecam_verify_breaker_cooldown_s: float = Field(default=30.0, gt=0)
     # Decode hosted SAM masks on the runtime path (pure-Python, GIL-bound; boxes suffice for feet).
     rulecam_runtime_sam_masks: bool = False
     # Runtime perception (docs/deploy.md "Runtime perception modes"): `image` runs SAM 3.1 image

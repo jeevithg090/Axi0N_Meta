@@ -230,7 +230,11 @@ def test_services_from_settings_with_runtime(tmp_path: Path) -> None:
         assert cost["alarm"] is False
         assert cost["idle_stop"]["enabled"] is False  # off by default
         assert "rulecam_cost_budget_alarm 0.0" in client.get("/metrics").text
-    assert len(services.tickers) == 2  # escalation timers and the cost watch
+        metrics = client.get("/runtime/metrics").json()
+        assert metrics["verifier_down"] is False
+        assert metrics["verifier"]["state"] == "closed"  # Tier 1 behind its circuit breaker
+        assert "rulecam_runtime_verifier_down 0.0" in client.get("/metrics").text
+    assert len(services.tickers) == 3  # escalation timers, Tier 1 health probe, the cost watch
 
 
 def test_alert_routes_are_owner_only(tmp_path: Path) -> None:

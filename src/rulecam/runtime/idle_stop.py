@@ -4,9 +4,16 @@
 the active plan and a recent chunk (`cost.active_cameras`) for that many seconds, the GPU pods
 named in `RULECAM_IDLE_STOP_GPU_PODS` (pod names or ids; default `rulecam-glimmer,rulecam-sam`)
 are stopped through the RunPod REST API (`POST /v2/pods/{id}/action {"action": "stop"}`), once.
-Activity re-arms the timer. Pods are never started from here: bring them back with
-`scripts/deploy/runpod_up.sh`, and expect the runtime to fall back to hosted SAM (and the planner
-to skip its Glimmer audit) while they are stopped.
+Activity re-arms the timer. **Glimmer is never stopped under a running plan:** a camera with a rule
+of the active plan that delivered a chunk in the last minute is activity, and so is any candidate
+still waiting for Tier 1 (`busy`, the runtime's `verify_pending`), so a verification in flight
+never loses its GPU. Cameras of an active plan that stop sending chunks for `after_s` do count as
+idle (that is the point of the idle stop). If they come back while the pods are stopped, the
+runtime does not go blind or silent: Tier 1's circuit breaker opens (`verify.guard`), every
+candidate goes to the human queue as "verifier unavailable", and `/runtime/metrics` and the UI
+header show `verifier_down` until Glimmer answers again. Pods are never started from here: bring
+them back with `scripts/deploy/runpod_up.sh`, and expect the runtime to fall back to hosted SAM
+(and the planner to skip its Glimmer audit) while they are stopped.
 
 The API key is read from `RULECAM_RUNPOD_API_KEY_FILE` at each call. It is sent only as a Bearer
 header to `api.runpod.io` and is never logged or put in an error. Requests carry a non-Python
@@ -225,17 +232,18 @@ class IdleGpuStop:
             last_error=self._error,
         )
 
-    def tick(self, now: datetime, active: Collection[str]) -> list[str]:
+    def tick(self, now: datetime, active: Collection[str], *, busy: bool = False) -> list[str]:
         """Advance the timer; stop the pods when it runs out.
 
         Args:
             now: The current time.
             active: Cameras with an active plan and a recent chunk.
+            busy: Work still needs the pods (candidates waiting for Tier 1): counts as activity.
 
         Returns:
             Pod ids stopped by this tick.
         """
-        if active:
+        if active or busy:
             if self._stopped_at is not None:
                 _log.warning("idle_stop_activity_resumed", pods=list(self._pods))
             self._idle_since = self._stopped_at = self._failed_at = None

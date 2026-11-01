@@ -6,9 +6,10 @@ import type { ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { useDemo, useStream } from "@/lib/stream";
 
-import { CostBadge, useCost } from "./CostBadge";
+import { CostBadge, useRuntimeMetrics } from "./CostBadge";
 import { ModeBadge } from "./ModeBadge";
 import { RelayHud } from "./RelayHud";
+import { VerifierBadge } from "./VerifierBadge";
 
 const LINKS = [
   { href: "/planner", label: "Planner" },
@@ -40,7 +41,7 @@ export function OwnerControl() {
 /** Every screen sits in this shell: title, LIVE/REPLAY badge and the relay HUD strip (§5.7). */
 export function Shell({ children }: { children: ReactNode }) {
   const state = useStream();
-  const cost = useCost();
+  const metrics = useRuntimeMetrics();
   const query = useDemo() ? "?demo=1" : "";
   return (
     <>
@@ -56,7 +57,8 @@ export function Shell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <OwnerControl />
-        <CostBadge cost={cost} />
+        <VerifierBadge metrics={metrics} />
+        <CostBadge cost={metrics?.cost ?? null} />
         <ModeBadge state={state} />
       </header>
       <RelayHud relay={state.relay} />

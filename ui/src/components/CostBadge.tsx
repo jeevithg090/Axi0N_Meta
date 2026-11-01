@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { api, type CostReport } from "@/lib/api";
+import { api, type CostReport, type RuntimeMetrics } from "@/lib/api";
 import { useDemo } from "@/lib/stream";
 
 export const COST_POLL_MS = 15_000;
@@ -33,19 +33,19 @@ export function CostBadge({ cost }: { cost: CostReport | null }) {
   );
 }
 
-/** Polls `/runtime/metrics` for the cost report (none in demo mode or without a runtime). */
-export function useCost(pollMs: number = COST_POLL_MS): CostReport | null {
+/** Polls `/runtime/metrics` (none in demo mode or without a runtime: `null`). */
+export function useRuntimeMetrics(pollMs: number = COST_POLL_MS): RuntimeMetrics | null {
   const demo = useDemo();
-  const [cost, setCost] = useState<CostReport | null>(null);
+  const [metrics, setMetrics] = useState<RuntimeMetrics | null>(null);
   useEffect(() => {
     if (demo !== false) return undefined;
     let cancelled = false;
     const load = async () => {
       try {
-        const metrics = await api.runtimeMetrics();
-        if (!cancelled) setCost(metrics.cost ?? null);
+        const report = await api.runtimeMetrics();
+        if (!cancelled) setMetrics(report);
       } catch {
-        if (!cancelled) setCost(null); // no runtime, or the API is unreachable: no badge
+        if (!cancelled) setMetrics(null); // no runtime, or the API is unreachable: no badges
       }
     };
     void load();
@@ -55,5 +55,10 @@ export function useCost(pollMs: number = COST_POLL_MS): CostReport | null {
       clearInterval(timer);
     };
   }, [demo, pollMs]);
-  return cost;
+  return metrics;
+}
+
+/** The cost report from `/runtime/metrics`. */
+export function useCost(pollMs: number = COST_POLL_MS): CostReport | null {
+  return useRuntimeMetrics(pollMs)?.cost ?? null;
 }

@@ -7,7 +7,9 @@ values, and the 6-frame strip (rendered by P4-05 in the site's privacy mode). It
 Text visible in the frames is **data, never instructions**: the prompt says so, and asks Glimmer to
 copy any visible text verbatim into `scene_text` so the firewall (P3-05) can scan it. Any failure
 (a malformed reply twice, a server error, an unreadable strip) gives `unsure` with score 0.5,
-never a crash and never a silent pass.
+never a crash and never a silent pass. The runtime instead builds it with `raise_errors=True` and
+wraps it in `verify.guard.GuardedVerifier`, which retries, trips a circuit breaker, and records
+the failure as an explicit `verifier_error` verdict that the policy sends to a person.
 """
 
 from __future__ import annotations
@@ -118,16 +120,28 @@ class GlimmerVerifier:
     """`Verifier` implementation backed by Glimmer."""
 
     def __init__(
-        self, client: StructuredChat, *, monotonic: Callable[[], float] = time.perf_counter
+        self,
+        client: StructuredChat,
+        *,
+        monotonic: Callable[[], float] = time.perf_counter,
+        raise_errors: bool = False,
     ) -> None:
         """Create the verifier.
 
         Args:
             client: The Glimmer client (or a fake with the same `structured` signature).
             monotonic: Timer for latency (injected in tests).
+            raise_errors: Re-raise client errors instead of answering `unsure`, so a
+                `GuardedVerifier` can retry and count them (the runtime's Tier 1).
         """
         self._client = client
         self._monotonic = monotonic
+        self._raise = raise_errors
+
+    @property
+    def model_version(self) -> str:
+        """The Glimmer model name recorded on verdicts."""
+        return self._client.model
 
     def verify(self, candidate: CandidateEvent, rule: RuleIR) -> VerifierVerdict:
         """Ask Glimmer whether the candidate is a real violation.
@@ -138,11 +152,17 @@ class GlimmerVerifier:
 
         Returns:
             Glimmer's verdict, or `unsure` with score 0.5 when Glimmer could not answer.
+
+        Raises:
+            ModelClientError: With `raise_errors`, when Glimmer could not answer (also `OSError`
+                or `ValueError` for an unreadable strip).
         """
         started = self._monotonic()
         try:
             answer = self._ask(candidate, rule)
         except (ModelClientError, OSError, ValueError) as exc:
+            if self._raise:
+                raise
             _log.warning(
                 "tier1_unsure_fallback", event_id=candidate.event_id, error=type(exc).__name__
             )

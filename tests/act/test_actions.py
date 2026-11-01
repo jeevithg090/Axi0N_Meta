@@ -146,6 +146,23 @@ def test_suppressed_runs_nothing_and_human_queue_only_notifies(tmp_path: Path) -
     assert rig.notifier.list()[0].title.startswith("Needs review")
 
 
+def test_the_human_queue_always_reaches_a_person_and_says_why(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    why = Decision(
+        alert=True,
+        route="human_queue",
+        act_first=False,
+        reason="verifier unavailable — ModelTransportError",
+    )
+    r = rule([{"kind": "speak"}, {"kind": "log"}])  # no notify or escalate of its own
+    (record,) = rig.executor.run(make_candidate(), r, why)
+    assert (record.kind, record.role, record.gate) == ("notify", "site_lead", "human")
+    (alert,) = rig.notifier.list("site_lead")
+    assert alert.title == "Needs review: verifier unavailable — ModelTransportError"
+    assert alert.body.startswith(f"{r.source.text or r.id}. Camera cam1 at ")
+    assert rig.speaker.played == []
+
+
 def test_missing_devices_record_failure_without_stopping(tmp_path: Path) -> None:
     rig = Rig(tmp_path)
     bare = ActionExecutor(clock=rig.clock, notifier=rig.notifier, escalation=rig.escalation)

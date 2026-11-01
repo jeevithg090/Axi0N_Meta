@@ -220,6 +220,14 @@ def runtime_metrics(metrics: LoopMetrics) -> Iterator[Metric]:
         chunks.add_metric([outcome], value)
     yield chunks
     yield _counter("runtime_candidates", "Candidate events opened.", metrics.candidates)
+    yield _counter(
+        "runtime_verifications_failed",
+        "Candidates Tier 1 gave no verdict for (sent to the human queue).",
+        metrics.verifications_failed,
+    )
+    yield _gauge(
+        "runtime_verifier_down", "1 while the Tier 1 circuit is not closed.", metrics.verifier_down
+    )
     yield _counter("runtime_windows_blind", "Rule windows cut by gaps.", metrics.windows_blind)
     yield _counter("runtime_sam_calls", "Runtime SAM requests.", metrics.sam_calls)
     yield _counter("runtime_billed_frames", "Hosted-billed SAM frames.", metrics.billed_frames)

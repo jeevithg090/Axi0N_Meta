@@ -102,3 +102,16 @@ above** the threshold (default 0.5; a tie counts as an attack). On a flag it:
 4. appends a `tamper_attempt` record to the chain.
 
 A property test shows that a flagged sign never suppresses an alert (E4 under D3).
+
+## When Tier 1 fails: never silent (P3-05, `guard.py`)
+
+The runtime's Tier 1 is `GuardedVerifier(GlimmerVerifier(client, raise_errors=True))`
+(`runtime.factory.build_tier1`). A verification that gives no verdict (pod stopped or
+unreachable, timeout, 5xx, bad reply, unreadable strip) is retried once if transient, then
+recorded as an `unsure` verdict whose reason starts `verifier_error: ` (no contract change). The
+policy's `decide_unverified` sends it to the human queue ("Needs review: verifier unavailable —
+<reason>") for every severity; Tier 2 may confirm it first when the rule allows it. A circuit
+breaker opens after 3 transient failures in a row, so later candidates fail fast (no timeout)
+until a trial after the cooldown, or a healthy `/health` probe, gets through. Its state is in
+`/runtime/metrics` (`verifier`, `verifier_down`) and the UI header. Details: docs/deploy.md,
+"When Tier 1 fails".

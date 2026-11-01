@@ -74,9 +74,24 @@ export interface CostReport {
   usd_per_camera_hour: number | null;
 }
 
+/** `GET /runtime/metrics` → `verifier` (P3-05): the Tier 1 circuit breaker. */
+export interface VerifierHealth {
+  state: "closed" | "open" | "half_open";
+  down: boolean;
+  consecutive_failures: number;
+  failures: number;
+  fast_failures: number;
+  opens: number;
+  last_error: string;
+  retry_in_s: number;
+}
+
 /** The parts of `GET /runtime/metrics` the UI reads. */
 export interface RuntimeMetrics {
   cost?: CostReport | null;
+  verifications_failed?: number;
+  verifier_down?: boolean;
+  verifier?: VerifierHealth | null;
 }
 
 export const CSRF_HEADER = "X-CSRF-Token";

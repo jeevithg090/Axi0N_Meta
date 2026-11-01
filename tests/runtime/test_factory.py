@@ -29,11 +29,14 @@ from rulecam.runtime.factory import (
     Perception,
     build_perception,
     build_runtime,
+    build_tier1,
+    glimmer_health_url,
     hosted_sam,
     self_hosted_worker,
 )
 from rulecam.runtime.loop import RuntimeLoop
 from rulecam.runtime.strips import EpisodeStrips
+from rulecam.verify.guard import GuardedVerifier
 from rulecam.verify.policy import VerificationPolicy
 from tests.fakes import EPOCH, FakeClock, make_chunk, make_track
 from tests.rules.helpers import CAL, make_rule
@@ -205,6 +208,28 @@ def test_runtime_hosted_sam_is_box_only_by_default_and_reports_stages(
     limited = loop._tracker._segmenter._inner._inner  # type: ignore[attr-defined]
     assert isinstance(limited, LimitedSegmenter)
     assert limited.max_concurrent == 3
+
+
+def test_tier1_is_glimmer_behind_retry_and_a_circuit_breaker(tmp_path: Path) -> None:
+    clock, bus = FakeClock(), Bus()
+    live = settings(
+        tmp_path, rulecam_mode="live", rulecam_verify_retries=2, rulecam_verify_breaker_failures=5
+    )
+    cache = ReplayCache(tmp_path / "replay", "live", clock=clock, bus=bus)
+    tier1 = build_tier1(live, cache=cache, clock=clock, bus=bus)
+    assert isinstance(tier1, GuardedVerifier)
+    policy = tier1.breaker.policy
+    assert (policy.retries, policy.failure_threshold, policy.cooldown_s) == (2, 5, 30.0)
+    assert tier1.health().state == "closed"
+    replay = settings(tmp_path, rulecam_mode="replay")
+    assert isinstance(build_tier1(replay, cache=cache, clock=clock, bus=bus), GuardedVerifier)
+
+
+def test_glimmer_health_url_drops_the_api_suffix() -> None:
+    assert glimmer_health_url("http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/health"
+    assert glimmer_health_url("https://pod-8080.proxy.runpod.net/v1/") == (
+        "https://pod-8080.proxy.runpod.net/health"
+    )
 
 
 # --- image mode (RULECAM_RUNTIME_SAM_MODE, WS2b) ----------------------------------------------

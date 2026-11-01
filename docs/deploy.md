@@ -436,8 +436,10 @@ covered, and `usd_per_camera_hour` overall and per camera with each camera's cur
 **Idle GPU stop (optional, off by default).** `RULECAM_IDLE_STOP_GPU_AFTER_S=1800` stops the GPU
 pods (`RULECAM_IDLE_STOP_GPU_PODS`, default `rulecam-glimmer,rulecam-sam`, names or ids) through
 the RunPod REST API after 30 minutes in which no camera had a rule of the active plan and a
-recent chunk; once per idle period, retried every 5 minutes if RunPod refuses. It needs a RunPod
-API key in a file on the volume:
+recent chunk; once per idle period, retried every 5 minutes if RunPod refuses. A candidate still
+waiting for Tier 1 (`verify_pending`) also counts as activity, so Glimmer is never stopped under a
+verification in flight, nor while any camera of the active plan is sending chunks. It needs a
+RunPod API key in a file on the volume:
 
 ```bash
 # on the API pod (the key is never printed, logged or put in an error)
@@ -449,7 +451,40 @@ echo 'RULECAM_IDLE_STOP_GPU_AFTER_S=1800' >> /workspace/rulecam/.env
 Its state is in `cost.idle_stop` (`idle_s`, `stopped`, `last_error`). Nothing starts the pods
 again automatically: run `scripts/deploy/runpod_up.sh` before the next session. While they are
 stopped the runtime falls back to hosted SAM (and its bill, which the dollar budget then limits)
-and the planner skips its Glimmer audit.
+and the planner skips its Glimmer audit. A candidate is never dropped meanwhile: see "When Tier 1
+fails" below.
+
+## When Tier 1 fails (verifier down)
+
+A Tier 1 verification that gives no verdict (the Glimmer pod is stopped or unreachable, a timeout,
+a 5xx, a reply that is not the schema twice, an unreadable strip) is **never silent**
+(`verify.guard`, P3-05):
+
+1. **Bounded retry.** A transient failure (no answer, 429/5xx, timeout) is retried
+   `RULECAM_VERIFY_RETRIES` times (default 1) with backoff, and not at all once the first attempt
+   took 10 s or more. The Glimmer client's own retry (2 attempts, 60 s timeout) runs inside each.
+2. **An explicit decision.** The candidate gets a `verdict` record with verdict `unsure` and a
+   reason starting `verifier_error: ` (no contract change), then a decision record: **human
+   queue**, alert on, reason `verifier unavailable — <error>`, whatever the severity. HIGH rules
+   already acted first; a person now reviews them. LOW and MEDIUM are never suppressed on a failed
+   verification. The human-queue notification is titled `Needs review: verifier unavailable — …`
+   (the rule's notify/escalate roles, or `site_lead` when the rule has neither). With Tier 2
+   configured and a rule that allows it (`spark-open-on-disagree`), Spark Open reviews the
+   candidate first: if it confirms, the alert goes out (`auto`); anything else still goes to a
+   person.
+3. **Circuit breaker.** After `RULECAM_VERIFY_BREAKER_FAILURES` (3) transient failures in a row the
+   circuit opens: candidates go straight to the human queue (no call, no timeout) for
+   `RULECAM_VERIFY_BREAKER_COOLDOWN_S` (30 s, doubling on each failed trial up to 5 minutes). Then
+   one candidate is let through as a trial; while open, the API also probes llama-server's
+   `/health` every 10 s and a healthy answer lets the next candidate through. A successful verdict
+   closes the circuit.
+
+`/runtime/metrics` shows `verifications_failed` (candidates decided without a Tier 1 verdict),
+`verifier_down` and `verifier` (`state`, `consecutive_failures`, `failures`, `fast_failures`,
+`opens`, `last_error`, `retry_in_s`); Prometheus has `rulecam_runtime_verifier_down` and
+`rulecam_runtime_verifications_failed`. The UI header shows a red **VERIFIER DOWN** badge while the
+circuit is not closed, and the monitor's verifier panel marks each such event "Needs review:
+verifier unavailable — …".
 
 ## Runtime perception modes (image keyframes + tracker)
 

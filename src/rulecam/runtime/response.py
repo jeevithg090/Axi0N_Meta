@@ -8,6 +8,10 @@
   when `BASETEN_API_KEY` is set (or in replay mode, where recorded reviews replay). Without it
   the policy decides on Tier 1 alone, unresolved candidates go to the human queue and disputes
   stay pending for a person (`TIER2_ABSENT`): never a silent pass.
+- **Tier 1 failures.** The Tier 1 verifier is a `verify.guard.GuardedVerifier` (retry, circuit
+  breaker): a candidate it cannot verify is recorded with a `verifier_error` verdict and the
+  policy sends it to the human queue (Tier 2 may confirm it first). The API's ticker runs its
+  health probe while the circuit is open.
 - **Scene-text firewall.** `SceneTextFirewall` with Llama Prompt Guard 2 when `HF_TOKEN` is set
   and the `ml` extra (transformers) is installed; the model loads at start-up. Otherwise the
   firewall is **degraded**: logged once (`firewall_degraded`), shown in `/runtime/metrics`
@@ -47,6 +51,7 @@ from rulecam.verify.firewall import (
     SceneTextFirewall,
     TextClassifier,
 )
+from rulecam.verify.guard import GuardedVerifier
 from rulecam.verify.policy import Tier2, VerificationPolicy
 from rulecam.verify.tier2 import SparkOpenVerifier
 
@@ -123,7 +128,9 @@ class Response:
 
     @property
     def tickers(self) -> tuple[Callable[[], object], ...]:
-        """What the API calls once a second: the escalation timers."""
+        """What the API calls once a second: the escalation timers, and Tier 1's health probe."""
+        if isinstance(self.tier1, GuardedVerifier):
+            return (self.escalation.tick, self.tier1.tick)
         return (self.escalation.tick,)
 
     def router(self, roles: Collection[str] | None = None) -> APIRouter:

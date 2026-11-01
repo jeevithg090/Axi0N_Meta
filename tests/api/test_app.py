@@ -351,7 +351,7 @@ def test_plans_create_list_get_approve(services: AppServices) -> None:
     with TestClient(create_app(services), **TUNNEL) as remote:  # type: ignore[arg-type]
         assert remote.post("/plans", json=body).status_code == 403
         assert remote.post("/plans/main-st/approve").status_code == 403
-        assert remote.get("/plans").status_code == 200
+        assert remote.get("/plans").status_code == 403  # plans hold request text (W-01)
 
 
 def test_plan_registry_is_bounded() -> None:
@@ -455,6 +455,7 @@ PUBLIC_UI = "https://rulecam.vercel.app"
 
 def test_public_ui_can_watch_ws_but_not_change_state(services: AppServices) -> None:
     services.viewer_origins = viewer_origins(PUBLIC_UI + "/worker")
+    services.public_demo = True
     app = create_app(services)
     with TestClient(app, **TUNNEL) as client:  # type: ignore[arg-type]
         client.headers["Origin"] = PUBLIC_UI
@@ -483,3 +484,48 @@ def test_viewer_origins_from_public_ui_url(url: str | None, expected: frozenset[
 def test_viewer_origins_rejects_non_http_urls() -> None:
     with pytest.raises(ValueError, match="PUBLIC_UI_URL"):
         viewer_origins("javascript:alert(1)")
+
+
+def test_public_ui_origin_alone_cannot_watch_ws(services: AppServices) -> None:
+    """Without PUBLIC_DEMO an Origin header (easy to forge outside a browser) grants nothing."""
+    services.viewer_origins = viewer_origins(PUBLIC_UI)
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        client.headers["Origin"] = PUBLIC_UI
+        with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws") as ws:
+            ws.receive_json()
+
+
+def test_plan_reads_are_owner_only_unless_public_demo(services: AppServices) -> None:
+    EventChain(services.chain_root, "site", clock=FakeClock()).append("plan", {"p": 1})
+    services.plans.put(site_plan("p1"))
+    plans = ("/plans", "/plans/p1")
+    chain = "/evidence/2026-10-30/chain"
+
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        assert [client.get(path).status_code for path in plans] == [403, 403]
+    with owner(create_app(services)) as client:
+        assert [client.get(path).status_code for path in plans] == [200, 200]
+
+    services.public_demo = True
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        assert [client.get(path).status_code for path in plans] == [200, 200]
+        assert client.get(chain).status_code == 403  # the chain stays owner-only
+
+
+def test_correction_is_owner_only_through_the_tunnel(tmp_path: Path) -> None:
+    services = services_from_settings(
+        Settings(_env_file=None, rulecam_data_dir=tmp_path, public_demo=True), "s"
+    )
+    body = {"event_id": "ev-1", "frame_idx": 0, "x": 1.0, "y": 1.0}
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        assert client.post("/correction", json=body).status_code == 403
+    with owner(create_app(services)) as client:
+        assert client.post("/correction", json=body).status_code == 404
+
+
+def test_public_demo_setting_reaches_the_app(tmp_path: Path) -> None:
+    off = services_from_settings(Settings(_env_file=None, rulecam_data_dir=tmp_path), "s")
+    on = services_from_settings(
+        Settings(_env_file=None, rulecam_data_dir=tmp_path, public_demo=True), "s"
+    )
+    assert (off.public_demo, on.public_demo) == (False, True)

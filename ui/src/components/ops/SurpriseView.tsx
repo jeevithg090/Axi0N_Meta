@@ -7,17 +7,19 @@ const H = 120;
 const Z_MAX = 6;
 const Z_ALERT = 3;
 
-/** Surprise Lens: the z-score curve with its alert line, the SAM labels and the peak location. */
+/**
+ * Surprise Lens: the z-score curve with its alert line, the SAM labels and the peak location.
+ * Without `onSuggest` (no backend route drafts a rule from a surprise yet) the button is disabled
+ * and says so.
+ */
 export function SurpriseView({
   event,
   heatmapUrl,
   onSuggest,
-  busy,
 }: {
   event: SurpriseEvent;
   heatmapUrl: string | null;
-  onSuggest: () => void;
-  busy: boolean;
+  onSuggest: (() => void) | null;
 }) {
   const peak = Math.max(...event.windows.map((w) => w.z));
   const alertY = H - (Z_ALERT / Z_MAX) * H;
@@ -66,9 +68,21 @@ export function SurpriseView({
         ))}
       </p>
       <p className="muted">Surprise is notify-only: it never cuts power.</p>
-      <button type="button" className="primary" onClick={onSuggest} disabled={busy}>
+      <button
+        type="button"
+        className="primary"
+        onClick={onSuggest ?? undefined}
+        disabled={!onSuggest}
+        aria-describedby={onSuggest ? undefined : `suggest-off-${event.event_id}`}
+      >
         Draft a rule from this
       </button>
+      {!onSuggest && (
+        <p className="muted" id={`suggest-off-${event.event_id}`}>
+          Drafting a rule from a surprise is not available on this server yet; only the demo shows
+          it.
+        </p>
+      )}
     </article>
   );
 }

@@ -20,7 +20,7 @@ export default function CardGalleryPage() {
           </h3>
           <div className="gallery">
             {latest.rules.map((rule) => (
-              <RuleCardTile key={rule.id} rule={rule} report={state.ci[rule.id]} />
+              <RuleCardTile key={rule.id} rule={rule} ci={state.ci[rule.id]} />
             ))}
             {latest.feasibility
               .filter((v) => v.verdict === "declined")

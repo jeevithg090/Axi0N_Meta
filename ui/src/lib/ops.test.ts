@@ -1,28 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { demoAlerts, demoCiReports, demoOpsFrames, demoSurprise } from "@/fixtures/demo-ops";
+import { demoAlerts, demoCiResults, demoOpsFrames, demoSurprise } from "@/fixtures/demo-ops";
 
-import { ciVerdict, curvePoints, stationCountdown } from "./ops";
+import { curvePoints, lookalikeFooled, stationCountdown } from "./ops";
 import { initialState, reducer, type UiState } from "./store";
 
 const fold = (frames: typeof demoOpsFrames, start: UiState = initialState): UiState =>
   frames.reduce((s, frame) => reducer(s, { type: "frame", frame }), start);
 
 describe("ops helpers", () => {
-  it("summarises Rule CI the way the rule card shows it", () => {
-    const wash = ciVerdict(demoCiReports[0]!);
-    expect(wash).toMatchObject({
-      green: true,
-      boundary: "boundary 3/3",
-      mutations: "mutations 5/5",
-    });
-    const harness = ciVerdict(demoCiReports[1]!);
-    expect(harness.lookalikes).toBe("18 lookalikes, fooled 1");
-    expect(harness.fooled.map((l) => l.name)).toEqual(["backpack strap"]);
-    expect(harness.green).toBe(false); // 6/7 mutants killed is under the 90% bar
-    const noMutants = ciVerdict({ ...demoCiReports[0]!, mutants_total: 0, mutants_killed: 0 });
-    expect(noMutants.green).toBe(true);
-    expect(ciVerdict({ ...demoCiReports[0]!, traces_passed: 2 }).green).toBe(false);
+  it("reads lookalike findings in the serialised Rule CI shape", () => {
+    const findings = demoCiResults[1]!.report.red_team!.lookalikes!.findings;
+    expect(findings).toHaveLength(18);
+    expect(findings.filter(lookalikeFooled).map((f) => f.lookalike)).toEqual(["backpack strap"]);
+    expect(lookalikeFooled({ ...findings[0]!, tier1_fooled: true })).toBe(true);
   });
 
   it("drives the station countdown from live progress, else the last failure", () => {
@@ -67,6 +58,7 @@ describe("ops state", () => {
     expect(state.alerts.map((a) => a.alert_id)).toEqual(["al-1"]);
     expect(state.station.cam1?.coach?.text).toContain("Lávate");
     expect(Object.keys(state.ci)).toEqual(["wash-before-line", "harness-at-height"]);
+    expect(state.ci["harness-at-height"]?.ci_green).toBe(false);
     expect(state.surprises[0]?.labels).toEqual(["cardboard box", "shelf"]);
   });
 

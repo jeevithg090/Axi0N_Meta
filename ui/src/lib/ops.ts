@@ -1,5 +1,5 @@
 // Shapes for the operations screens: alerts (P3-06), the station display, Rule CI (P2-08/09)
-// and Surprise Lens (P4-03). Only the fields the UI reads are typed.
+// and Surprise Lens (P4-03). Only the fields the UI reads are typed, except Rule CI (exact).
 
 export interface Alert {
   alert_id: string;
@@ -31,13 +31,90 @@ export interface StationProgress {
   state: "counting" | "passed" | "failed";
 }
 
-export interface LookalikeResult {
+// Rule CI, exactly as `ci.result` is serialised: `CIResult` in src/rulecam/rule_ci/models.py
+// (`model_dump(mode="json")`, so tuples are arrays and properties such as `fooled` are absent).
+
+/** `rule_ci.scenes.SceneResult`. */
+export interface SceneResult {
   name: string;
-  fooled: boolean;
-  fix?: string | null;
+  kind: "positive" | "negative" | "edge";
+  passed: boolean;
+  renders: number;
+  image: string;
+  missing: string[];
+  unexpected: string[];
 }
 
-/** `ci.result` report: P2-08's boundary/mutation numbers plus P2-09's sections when present. */
+/** `rule_ci.scenes.DetectabilityReport`. */
+export interface DetectabilityReport {
+  results: SceneResult[];
+}
+
+/** `rule_ci.lookalikes.FixProposal`. */
+export interface FixProposal {
+  concept: string;
+  kind: "negative_concept" | "concept_prompt";
+  text: string;
+}
+
+/** `rule_ci.lookalikes.LookalikeFinding`. */
+export interface LookalikeFinding {
+  concept: string;
+  lookalike: string;
+  image: string;
+  perception_fooled: boolean;
+  tier1_fooled: boolean;
+  regression: boolean;
+  fix: FixProposal | null;
+}
+
+/** `rule_ci.lookalikes.LookalikeReport`. */
+export interface LookalikeReport {
+  findings: LookalikeFinding[];
+}
+
+/** `rule_ci.injection.InjectionResult`. */
+export interface InjectionResult {
+  variant: string;
+  text: string;
+  image: string;
+  alert: boolean;
+  route: string;
+  tamper: boolean;
+}
+
+/** `rule_ci.injection.InjectionReport`. */
+export interface InjectionReport {
+  results: InjectionResult[];
+}
+
+/** `rule_ci.forecast.AlertBudget`. */
+export interface AlertBudget {
+  alerts_per_shift: number;
+  shift_hours: number;
+}
+
+/** `rule_ci.forecast.AlertForecast`. */
+export interface AlertForecast {
+  rule_id: string;
+  cameras: string[];
+  hours: number;
+  candidates: number;
+  backtestable: "yes" | "partial" | "no";
+  per_shift: number | null;
+  budget: AlertBudget;
+}
+
+/** `rule_ci.red_team.RedTeamReport` (Rule CI part 2, P2-09). */
+export interface RedTeamReport {
+  scenes: DetectabilityReport | null;
+  lookalikes: LookalikeReport | null;
+  injection: InjectionReport | null;
+  forecast: AlertForecast | null;
+  skipped: string[];
+}
+
+/** `rule_ci.models.RuleCIReport` (P2-08). */
 export interface RuleCIReport {
   rule_id: string;
   traces_passed: number;
@@ -45,10 +122,22 @@ export interface RuleCIReport {
   mutants_killed: number;
   mutants_total: number;
   failures: string[];
-  scenes?: { passed: number; total: number } | null;
-  lookalikes?: LookalikeResult[] | null;
-  injection?: { variants: number; still_alerted: number; tamper_flagged: number } | null;
-  forecast?: { alerts_per_shift: number; budget_per_shift: number } | null;
+  nonvacuous: boolean;
+  justification: string | null;
+  red_team: RedTeamReport | null;
+}
+
+/** The `ci.result` payload. `ci_green` and `summary` are the backend's verdict: never recompute. */
+export interface CIResult {
+  rule_id: string;
+  report: RuleCIReport;
+  ci_green: boolean;
+  summary: string;
+}
+
+/** A lookalike fooled the rule (`LookalikeFinding.fooled`, a property not serialised). */
+export function lookalikeFooled(finding: LookalikeFinding): boolean {
+  return finding.perception_fooled || finding.tier1_fooled;
 }
 
 export interface SurpriseWindow {
@@ -65,33 +154,6 @@ export interface SurpriseEvent {
   heatmap_path: string;
   labels: string[];
   peak_xy: [number, number];
-}
-
-export const CI_MUTANT_BAR = 0.9;
-
-export interface CiVerdict {
-  green: boolean;
-  boundary: string;
-  mutations: string;
-  lookalikes: string | null;
-  fooled: LookalikeResult[];
-}
-
-/** Summarise a report the way the rule card shows it ("boundary 3/3, mutations 5/5"). */
-export function ciVerdict(report: RuleCIReport): CiVerdict {
-  const tracesOk = report.traces_passed === report.traces_total;
-  const mutantShare = report.mutants_total ? report.mutants_killed / report.mutants_total : 1;
-  const fooled = (report.lookalikes ?? []).filter((l) => l.fooled);
-  const lookalikes = report.lookalikes
-    ? `${report.lookalikes.length} lookalikes, fooled ${fooled.length}`
-    : null;
-  return {
-    green: tracesOk && mutantShare >= CI_MUTANT_BAR,
-    boundary: `boundary ${report.traces_passed}/${report.traces_total}`,
-    mutations: `mutations ${report.mutants_killed}/${report.mutants_total}`,
-    lookalikes,
-    fooled,
-  };
 }
 
 export type CountdownState = "idle" | "counting" | "passed" | "failed";

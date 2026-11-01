@@ -29,7 +29,7 @@ const DispatchContext = createContext<Dispatch<Action>>(() => undefined);
 // undefined until the URL has been read; then the golden run the page replays, or null for live.
 const DemoContext = createContext<GoldenRun | null | undefined>(undefined);
 const MAX_BACKOFF_MS = 10_000;
-const DEMO_STEP_MS = 250;
+const DEMO_STEP_MS = 600;
 
 function playDemo(dispatch: Dispatch<Action>, frames: Frame[]): () => void {
   dispatch({ type: "connection", connection: "open" });

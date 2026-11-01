@@ -1,11 +1,10 @@
 "use client";
 
-import { ciVerdict, type RuleCIReport } from "@/lib/ops";
+import type { CIResult } from "@/lib/ops";
 import { ruleSentence, type FeasibilityVerdict, type Rule } from "@/lib/plan";
 
 /** A rule card as P2-10 renders it: plain language, citation, Rule CI numbers and who checks it. */
-export function RuleCardTile({ rule, report }: { rule: Rule; report?: RuleCIReport }) {
-  const v = report ? ciVerdict(report) : null;
+export function RuleCardTile({ rule, ci }: { rule: Rule; ci?: CIResult }) {
   return (
     <article className="gallery-card" data-testid="gallery-rule">
       <p className="gallery-kind">Rule · {rule.severity}</p>
@@ -13,10 +12,8 @@ export function RuleCardTile({ rule, report }: { rule: Rule; report?: RuleCIRepo
       {rule.source.standard.length > 0 && (
         <p className="muted">{rule.source.standard.join(" · ")}</p>
       )}
-      <p className="gallery-ci">
-        {v
-          ? [v.boundary, v.mutations, v.lookalikes].filter(Boolean).join(" · ")
-          : "Rule CI pending"}
+      <p className="gallery-ci" data-green={ci?.ci_green}>
+        {ci ? `${ci.ci_green ? "CI green" : "CI red"} · ${ci.summary}` : "Rule CI pending"}
       </p>
       <p className="muted">Checked by Glimmer + Spark Open</p>
       <p className="visually-hidden">{ruleSentence(rule)}</p>

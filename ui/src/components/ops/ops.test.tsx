@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { demoAlerts, demoCiReports, demoSurprise } from "@/fixtures/demo-ops";
+import { demoAlerts, demoCiResults, demoSurprise } from "@/fixtures/demo-ops";
 import { demoPlanV1 } from "@/fixtures/demo-plan";
 
 import { AlertCard } from "./AlertCard";
@@ -83,20 +83,94 @@ describe("station display", () => {
 
 describe("Rule CI panel and card gallery", () => {
   it("shows the CI numbers, the fooled lookalike and its fix", () => {
-    render(<CiReportCard report={demoCiReports[1]!} />);
+    render(<CiReportCard result={demoCiResults[1]!} />);
     const card = screen.getByTestId("ci-card");
     expect(card.dataset.green).toBe("false");
+    expect(card.textContent).toContain("CI red");
+    expect(card.textContent).toContain(demoCiResults[1]!.summary);
     expect(card.textContent).toContain("18 lookalikes, fooled 1");
-    expect(card.textContent).toContain("Fooled by backpack strap → Add the negative concept");
-    expect(card.textContent).toContain("alert still raised 6/6");
+    expect(card.textContent).toContain(
+      'Fooled by backpack strap → negative concept "backpack strap" on harness',
+    );
+    expect(card.textContent).toContain("alert still raised 6/6, tamper flagged 6");
+    expect(card.textContent).toContain("not run: scenes");
     expect(card.querySelector(".over")?.textContent).toContain("7.1 alerts/shift (budget 5)");
   });
 
-  it("renders a rule card with its CI numbers", () => {
-    render(<RuleCardTile rule={demoPlanV1.rules[0]!} report={demoCiReports[0]} />);
+  it("renders the scene, injection and forecast lines of a green report", () => {
+    render(<CiReportCard result={demoCiResults[0]!} />);
+    const card = screen.getByTestId("ci-card");
+    expect(card.dataset.green).toBe("true");
+    expect(card.textContent).toContain("detectability scenes 11/12");
+    expect(card.textContent).toContain("6 lookalikes, fooled 0");
+    expect(card.textContent).toContain("alert still raised 6/6, tamper flagged 5");
+    expect(card.textContent).toContain("forecast 2.4 alerts/shift (budget 5)");
+    expect(card.querySelector(".over")).toBeNull();
+  });
+
+  it("shows red when the backend says so, even with every trace and mutant passing", () => {
+    const wash = demoCiResults[0]!;
+    const redTeam = wash.report.red_team!;
+    const strap = { ...redTeam.lookalikes!.findings[0]!, perception_fooled: true };
+    const fooled = {
+      ...wash,
+      ci_green: false,
+      report: { ...wash.report, red_team: { ...redTeam, lookalikes: { findings: [strap] } } },
+    };
+    render(<CiReportCard result={fooled} />);
+    const card = screen.getByTestId("ci-card");
+    expect(card.dataset.green).toBe("false");
+    expect(card.textContent).toContain("CI red");
+    expect(card.textContent).toContain("boundary 3/3");
+    expect(card.textContent).toContain("mutations 5/5");
+    expect(card.textContent).toContain(`Fooled by ${strap.lookalike}`);
+  });
+
+  it("follows ci_green for zero traces and zero mutants instead of guessing", () => {
+    const wash = demoCiResults[0]!;
+    const empty = {
+      ...wash,
+      report: {
+        ...wash.report,
+        traces_passed: 0,
+        traces_total: 0,
+        mutants_killed: 0,
+        mutants_total: 0,
+      },
+    };
+    render(
+      <CiReportCard
+        result={{ ...empty, ci_green: false, summary: "boundary 0/0, mutations 0/0" }}
+      />,
+    );
+    expect(screen.getByTestId("ci-card").dataset.green).toBe("false");
+    expect(screen.getByTestId("ci-card").textContent).toContain("boundary 0/0, mutations 0/0");
+    cleanup();
+    const justified = {
+      ...empty,
+      report: { ...empty.report, justification: "operator-only rule" },
+    };
+    render(
+      <CiReportCard
+        result={{ ...justified, ci_green: true, summary: "boundary 0/0, mutations 0/0" }}
+      />,
+    );
+    expect(screen.getByTestId("ci-card").dataset.green).toBe("true");
+    expect(screen.getByTestId("ci-card").textContent).toContain(
+      "Justification: operator-only rule",
+    );
+  });
+
+  it("renders a rule card with the backend's CI verdict", () => {
+    render(<RuleCardTile rule={demoPlanV1.rules[0]!} ci={demoCiResults[0]} />);
     const card = screen.getByTestId("gallery-rule");
-    expect(card.textContent).toContain("boundary 3/3 · mutations 5/5");
+    expect(card.textContent).toContain("CI green · boundary 3/3, mutations 5/5");
     expect(card.textContent).toContain("Checked by Glimmer + Spark Open");
+    cleanup();
+    render(
+      <RuleCardTile rule={demoPlanV1.rules[0]!} ci={{ ...demoCiResults[0]!, ci_green: false }} />,
+    );
+    expect(screen.getByTestId("gallery-rule").textContent).toContain("CI red");
     cleanup();
     render(<RuleCardTile rule={demoPlanV1.rules[1]!} />);
     expect(screen.getByTestId("gallery-rule").textContent).toContain("Rule CI pending");
@@ -119,9 +193,7 @@ describe("Rule CI panel and card gallery", () => {
 describe("surprise view", () => {
   it("plots the curve, names what SAM sees and drafts a rule", () => {
     const onSuggest = vi.fn();
-    render(
-      <SurpriseView event={demoSurprise} heatmapUrl={null} busy={false} onSuggest={onSuggest} />,
-    );
+    render(<SurpriseView event={demoSurprise} heatmapUrl={null} onSuggest={onSuggest} />);
     const view = screen.getByTestId("surprise-view");
     expect(view.textContent).toContain("peak z 5.6");
     expect(view.textContent).toContain("cardboard box");
@@ -131,12 +203,20 @@ describe("surprise view", () => {
     expect(onSuggest).toHaveBeenCalledOnce();
   });
 
+  it("disables drafting, with a reason, when no backend route exists", () => {
+    render(<SurpriseView event={demoSurprise} heatmapUrl={null} onSuggest={null} />);
+    const button = screen.getByRole("button", { name: "Draft a rule from this" });
+    expect(button).toHaveProperty("disabled", true);
+    expect(screen.getByTestId("surprise-view").textContent).toContain(
+      "not available on this server yet",
+    );
+  });
+
   it("shows the heatmap only from a URL", () => {
     render(
       <SurpriseView
         event={demoSurprise}
         heatmapUrl="https://x.test/h.png"
-        busy={false}
         onSuggest={() => undefined}
       />,
     );

@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import { SurpriseView } from "@/components/ops/SurpriseView";
-import { api, ApiError } from "@/lib/api";
 import { useDemo, useStream } from "@/lib/stream";
 
 /** Only http(s) URLs are shown as images; a server-side file path is never fetched blindly. */
@@ -14,24 +13,11 @@ function heatmapUrl(path: string): string | null {
 export default function SurprisePage() {
   const state = useStream();
   const demo = useDemo();
-  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-
-  const suggest = async (id: string): Promise<void> => {
-    setBusy(true);
-    try {
-      if (demo) {
-        setMessage("Demo: the drafted rule is backtested, then waits for your approval.");
-      } else {
-        const { rule_id } = await api.suggestRule(id);
-        setMessage(`Drafted ${rule_id}: open the plan to review and approve it.`);
-      }
-    } catch (e) {
-      setMessage(e instanceof ApiError ? `Not drafted: ${e.message}` : "Not drafted");
-    } finally {
-      setBusy(false);
-    }
-  };
+  // No backend route drafts a rule from a surprise yet, so only the demo offers it.
+  const suggest = demo
+    ? () => setMessage("Demo: the drafted rule is backtested, then waits for your approval.")
+    : null;
 
   return (
     <section aria-label="Surprise Lens">
@@ -49,8 +35,7 @@ export default function SurprisePage() {
           key={event.event_id}
           event={event}
           heatmapUrl={heatmapUrl(event.heatmap_path)}
-          busy={busy}
-          onSuggest={() => void suggest(event.event_id)}
+          onSuggest={suggest}
         />
       ))}
     </section>

@@ -2,7 +2,9 @@
 // sink station, UC2 Rule CI ("18 lookalikes, fooled 1 (strap)") and a UC4 surprise (stack topple).
 
 import type { Frame } from "@/lib/events";
-import type { Alert, RuleCIReport, SurpriseEvent } from "@/lib/ops";
+import type { Alert, CIResult, SurpriseEvent } from "@/lib/ops";
+
+import ciResults from "./ci-results.json";
 
 const T = (s: number): string => new Date(Date.UTC(2026, 10, 1, 22, 0, s)).toISOString();
 
@@ -21,56 +23,9 @@ export const demoAlerts: Alert[] = [
   },
 ];
 
-const lookalikes = [
-  "shadow",
-  "poster person",
-  "backpack strap",
-  "wet glove",
-  "reflective vest on a chair",
-  "mannequin",
-  "hard hat on a shelf",
-  "safety cone",
-  "coat on a hook",
-  "ladder in storage",
-  "person on a monitor",
-  "orange bucket",
-  "hi-vis bag",
-  "glove on a table",
-  "harness on a hook",
-  "rope coil",
-  "broom",
-  "child's drawing",
-].map((name) => ({
-  name,
-  fooled: name === "backpack strap",
-  fix: name === "backpack strap" ? 'Add the negative concept "backpack strap"' : null,
-}));
-
-export const demoCiReports: RuleCIReport[] = [
-  {
-    rule_id: "wash-before-line",
-    traces_passed: 3,
-    traces_total: 3,
-    mutants_killed: 5,
-    mutants_total: 5,
-    failures: [],
-    scenes: { passed: 11, total: 12 },
-    lookalikes: lookalikes.slice(0, 6).map((l) => ({ ...l, fooled: false, fix: null })),
-    injection: { variants: 6, still_alerted: 6, tamper_flagged: 5 },
-    forecast: { alerts_per_shift: 2.4, budget_per_shift: 5 },
-  },
-  {
-    rule_id: "harness-at-height",
-    traces_passed: 4,
-    traces_total: 4,
-    mutants_killed: 6,
-    mutants_total: 7,
-    failures: ["mutant drop_not survived"],
-    lookalikes,
-    injection: { variants: 6, still_alerted: 6, tamper_flagged: 6 },
-    forecast: { alerts_per_shift: 7.1, budget_per_shift: 5 },
-  },
-];
+// Two real `ci.result` payloads: `CIResult.of(report).model_dump(mode="json")` from the Python
+// models (tests/rule_ci/test_ui_fixture.py checks they still validate and round-trip).
+export const demoCiResults = ciResults as CIResult[];
 
 export const demoSurprise: SurpriseEvent = {
   event_id: "sp-uc4-0001",
@@ -112,8 +67,6 @@ export const demoOpsFrames: Frame[] = [
       lang: "es",
     },
   },
-  ...demoCiReports.map(
-    (report): Frame => ({ topic: "ci.result", payload: { rule_id: report.rule_id, report } }),
-  ),
+  ...demoCiResults.map((payload): Frame => ({ topic: "ci.result", payload })),
   { topic: "surprise.new", payload: demoSurprise },
 ];

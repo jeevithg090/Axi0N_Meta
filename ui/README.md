@@ -44,9 +44,13 @@ npm run lint && npm run typecheck && npm test -- --run
 - **Station display** (`/station/<camera>`, the sink tablet): a huge countdown driven by
   `station.progress` ("12 / 20 s"), frozen red at "8 / 20 s · Too short" on a failed wash, plus the
   coaching line from `station.coach`.
-- **Rule CI** (`/ci`): per rule, from `ci.result` — boundary traces, mutations, scenes, lookalikes
-  (and what fooled it, with the fix), injection signs, the alert forecast against the budget.
-- **Card gallery** (`/cards`): rule cards with their CI numbers, and declined cards that show the
+- **Rule CI** (`/ci`): per rule, from `ci.result` (`CIResult{rule_id, report, ci_green, summary}`)
+  — green/red and the summary exactly as the backend computed them, then boundary traces,
+  mutations and `report.red_team`: scenes, lookalikes (and what fooled it, with the fix), injection
+  signs, the alert forecast against the budget. Demo payloads (`src/fixtures/ci-results.json`) are
+  real serialised `CIResult`s, checked by `tests/rule_ci/test_ui_fixture.py`.
+- **Card gallery** (`/cards`): rule cards with their CI verdict and summary, and declined cards that show the
   reason and alternative but **never the request text**.
 - **Surprise Lens** (`/surprise`): the z-score curve with its alert line, the SAM labels at the hot
-  spot, and *Draft a rule from this* (`POST /surprise/{id}/suggest`). Surprise never cuts power.
+  spot, and *Draft a rule from this*, which only the demo offers: no backend route drafts a rule
+  from a surprise yet, so live it is disabled and says so. Surprise never cuts power.

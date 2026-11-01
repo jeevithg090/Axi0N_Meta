@@ -191,10 +191,6 @@ export const api = {
       `/alerts/${encodeURIComponent(alertId)}/respond`,
       json({ button, role }),
     ),
-  suggestRule: (surpriseId: string) =>
-    call<{ rule_id: string }>(`/surprise/${encodeURIComponent(surpriseId)}/suggest`, {
-      method: "POST",
-    }),
   advice: () => call<AdviceCard[]>("/advice"),
   acceptAdvice: (id: string) =>
     call<{ preregistered_seq: number }>(`/advice/${encodeURIComponent(id)}/accept`, {

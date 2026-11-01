@@ -11,7 +11,7 @@ import type {
   VerdictNew,
   VerifierVerdict,
 } from "./events";
-import type { Alert, RuleCIReport, StationCoach, StationProgress, SurpriseEvent } from "./ops";
+import type { Alert, CIResult, StationCoach, StationProgress, SurpriseEvent } from "./ops";
 import type { PlannerStepFrame, SitePlan, StepStatus } from "./plan";
 import { emptyRelay, reduceRelay, type RelayState } from "./relay";
 
@@ -46,7 +46,7 @@ export interface UiState {
   plans: Record<string, PlanEntry>;
   planner: PlannerProgress;
   alerts: Alert[]; // newest first
-  ci: Record<string, RuleCIReport>; // rule_id → latest report
+  ci: Record<string, CIResult>; // rule_id → latest `ci.result` payload
   surprises: SurpriseEvent[]; // newest first
   station: Record<string, { coach?: StationCoach; progress?: StationProgress }>; // camera_id →
 }
@@ -171,8 +171,8 @@ function reduceFrame(state: UiState, frame: Frame): UiState {
       return withStation(state, progress.camera_id, { progress });
     }
     case "ci.result": {
-      const { rule_id, report } = frame.payload as { rule_id: string; report: RuleCIReport };
-      return { ...state, ci: { ...state.ci, [rule_id]: report } };
+      const result = frame.payload as CIResult;
+      return { ...state, ci: { ...state.ci, [result.rule_id]: result } };
     }
     case "surprise.new": {
       const event = frame.payload as SurpriseEvent;

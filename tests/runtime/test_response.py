@@ -21,6 +21,7 @@ from rulecam.runtime.response import (
     build_response,
     sign_boxes,
 )
+from rulecam.verify.decision import Decision
 from rulecam.verify.firewall import TextClassifier
 from rulecam.verify.policy import NO_TIER2_REASONING
 from tests.fakes import EPOCH, FakeClock, FakeVerifier, InMemoryTrackStore, make_chunk, make_verdict
@@ -414,8 +415,6 @@ def test_escalation_ticks_through_the_api_ticker(tmp_path: Path) -> None:
             "actions": [{"kind": "escalate", "role": "aide,charge_nurse", "after_s": 60}],
         }
     )
-    from rulecam.verify.decision import Decision  # noqa: PLC0415
-
     alert = Decision(alert=True, route="auto", act_first=False, reason="t")
     response.actions.run(make_candidate(), rule, alert)
     (tick,) = response.tickers

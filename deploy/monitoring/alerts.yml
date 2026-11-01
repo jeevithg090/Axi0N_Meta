@@ -38,6 +38,12 @@ groups:
         labels: {severity: warning}
         annotations:
           summary: "Hosted SAM spend {{ $value | printf \"%.2f\" }} $/h (target <= $0.60 per active camera-hour)."
+      - alert: RulecamBudgetAlarm
+        expr: rulecam_cost_budget_alarm == 1
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: A camera is over its dollar budget (RULECAM_BUDGET_USD_PER_CAMERA_HOUR); it is degraded while hosted SAM is billing.
       - alert: RulecamSamMemoryGuard
         expr: increase(rulecam_sam_memory_guard_trips_total[15m]) > 2
         labels: {severity: warning}

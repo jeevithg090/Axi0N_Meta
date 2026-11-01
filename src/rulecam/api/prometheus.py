@@ -35,6 +35,7 @@ from rulecam.perception.metrics import (
     CameraPerceptionMetrics,
     PerceptionMetricsReport,
 )
+from rulecam.runtime.cost import CostReport
 from rulecam.runtime.loop import LoopMetrics
 
 PREFIX = "rulecam"
@@ -170,12 +171,14 @@ class MetricsSources:
         perception: The perception cost report.
         verdicts: Verdict counts.
         probes: Dependency health probes.
+        cost: The dollar budget's report, when the runtime runs one (WS3).
     """
 
     runtime: Callable[[], LoopMetrics | None]
     perception: Callable[[], PerceptionMetricsReport]
     verdicts: VerdictCounter
     probes: Sequence[HealthProbe] = ()
+    cost: Callable[[], CostReport | None] = lambda: None
 
 
 def _gauge(name: str, doc: str, value: float) -> GaugeMetricFamily:
@@ -268,6 +271,35 @@ def perception_metrics(report: PerceptionMetricsReport) -> Iterator[Metric]:
     yield cost
 
 
+def cost_metrics(report: CostReport) -> Iterator[Metric]:
+    """Yield the dollar budget, its alarm, spend rates and the cost per camera-hour (WS3)."""
+    yield _gauge(
+        "cost_budget_usd_per_camera_hour",
+        "Dollar budget per camera.",
+        report.budget_usd_per_camera_hour,
+    )
+    yield _gauge("cost_budget_alarm", "1 while a camera is over its dollar budget.", report.alarm)
+    yield _counter("cost_usd", "Model and GPU spend so far.", report.usd)
+    if report.usd_per_camera_hour is not None:
+        yield _gauge(
+            "cost_usd_per_camera_hour",
+            "Spend per camera-hour, all cameras.",
+            report.usd_per_camera_hour,
+        )
+    rate = GaugeMetricFamily(
+        f"{PREFIX}_cost_usd_per_hour", "Each camera's current spend rate.", labels=["camera"]
+    )
+    for camera in report.cameras:
+        rate.add_metric([camera.camera_id], camera.usd_per_hour)
+    yield rate
+    if report.idle_stop is not None:
+        yield _gauge(
+            "cost_gpu_idle_stopped",
+            "1 after the idle stop stopped the GPU pods.",
+            report.idle_stop.stopped,
+        )
+
+
 def verdict_metrics(counts: Mapping[tuple[str, str], int]) -> Iterator[Metric]:
     """Yield verifier verdict counts by tier and verdict."""
     family = CounterMetricFamily(
@@ -326,6 +358,9 @@ class RulecamCollector(Collector):
         if loop is not None:
             yield from runtime_metrics(loop)
         yield from perception_metrics(self._sources.perception())
+        cost = self._sources.cost()
+        if cost is not None:
+            yield from cost_metrics(cost)
         yield from verdict_metrics(self._sources.verdicts.counts())
         yield from dependency_metrics(self._sources.probes)
 

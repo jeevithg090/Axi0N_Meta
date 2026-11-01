@@ -29,6 +29,8 @@ from rulecam.bus import Bus, Topic
 from rulecam.contracts.events import VerifierVerdict
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.replay.cache import ReplayCache
+from rulecam.runtime.cost import CameraSpend, CostReport
+from rulecam.runtime.idle_stop import IdleStopStatus
 from rulecam.runtime.loop import LoopMetrics, VerdictNew
 from tests.fakes import FakeClock
 
@@ -259,6 +261,9 @@ def test_monitoring_config_only_uses_exported_metrics() -> None:
             perception=perception().report,
             verdicts=verdicts,
             probes=[HealthProbe("sam", "s", fetch=lambda _: sam_health)],
+            cost=lambda: CostReport(
+                budget_usd_per_camera_hour=12.0, gpu_usd_per_hour=0, alarm=False
+            ),
         )
     ).decode()
     exported = {name for name, _ in samples(text)}
@@ -271,3 +276,41 @@ def test_monitoring_config_only_uses_exported_metrics() -> None:
     exprs = {rule["alert"]: rule["expr"] for rule in alerts["groups"][0]["rules"]}
     assert exprs["RulecamLagHigh"] == "rulecam_runtime_lag_seconds > 10"
     assert exprs["RulecamDependencyDown"] == "rulecam_dependency_up == 0"
+
+
+def test_cost_metrics_expose_the_dollar_budget_and_alarm() -> None:
+    spend = CameraSpend(
+        camera_id="cam1",
+        usd_per_hour=14.0,
+        hosted_usd_per_hour=14.0,
+        gpu_usd_per_hour=0.0,
+        usd=0.5,
+        camera_hours=0.1,
+        usd_per_camera_hour=5.0,
+        over_budget=True,
+        degraded=True,
+    )
+    report = CostReport(
+        budget_usd_per_camera_hour=12.0,
+        gpu_usd_per_hour=0.0,
+        alarm=True,
+        over_budget=("cam1",),
+        usd=0.5,
+        camera_hours=0.1,
+        usd_per_camera_hour=5.0,
+        cameras=(spend,),
+        idle_stop=IdleStopStatus(enabled=True, after_s=600, stopped=True),
+    )
+    sources = MetricsSources(
+        runtime=lambda: None,
+        perception=PerceptionMetrics().report,
+        verdicts=VerdictCounter(),
+        cost=lambda: report,
+    )
+    text = render(sources).decode()
+    assert value(text, "rulecam_cost_budget_alarm") == 1.0
+    assert value(text, "rulecam_cost_budget_usd_per_camera_hour") == 12.0
+    assert value(text, "rulecam_cost_usd_per_camera_hour") == 5.0
+    assert value(text, "rulecam_cost_usd_per_hour", camera="cam1") == 14.0
+    assert value(text, "rulecam_cost_usd_total") == 0.5
+    assert value(text, "rulecam_cost_gpu_idle_stopped") == 1.0

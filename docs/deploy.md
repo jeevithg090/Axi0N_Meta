@@ -10,6 +10,8 @@ expose site content (events, reasoning, the owner's request text), so they are o
 the API pod sets `PUBLIC_DEMO=true`. Set it only on a demo site with staged, consenting data, never
 on a real site. Without it, logged-out visitors get 403 on the monitor and plans pages; the owner
 still sees everything after logging in. The evidence chain stays owner-only either way.
+`scripts/deploy/runpod_up.sh --public-demo` sets it on the API pod; without the flag the pod's
+env leaves it unset, so a value in `/workspace/rulecam/.env` still applies.
 
 ```
 browser ──► https://rulecam.vercel.app  (Next.js, ui/)
@@ -63,6 +65,7 @@ its id as `--registry <id>`.
 scripts/deploy/runpod_up.sh --dry-run      # reads the account, prints every write it would make
 scripts/deploy/runpod_up.sh                # does it, waits for every /health, prints the URLs
 scripts/deploy/runpod_up.sh --vercel       # also sets NEXT_PUBLIC_RULECAM_API and redeploys the UI
+scripts/deploy/runpod_up.sh --public-demo  # demo site only: logged-out visitors can watch /ws and plans
 scripts/deploy/runpod_status.sh            # state, $/h and health of each pod (exit 1 if not all ok)
 scripts/deploy/runpod_down.sh              # stop all pods (volumes kept; --only sam to stop one)
 ```

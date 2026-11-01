@@ -2,9 +2,11 @@
 # `rulecam eval run|score`) read this file. Each entry: `passed: true|false` (or `value:` for a
 # number compared with its target) and `evidence:` (a PR, a log, a command). Leave an entry
 # empty until it has been checked: the scorecard then shows NOT MEASURED, never PASS.
+# `rulecam scorecard --checks auto` fills the keys marked (auto) from observed evidence and
+# writes the result to reports/eval/checks-<date>.yaml (eval/README.md).
 
 # Cost
-budget_alarm: {}              # the hourly dollar budget alarms on the UI and degrades (WS3)
+budget_alarm: {}              # the hourly dollar budget alarms on the UI and degrades (WS3) (auto)
 
 # Perception
 sam_agreement: {}             # value: detection agreement with hosted SAM (scripts/sam_pod/compare.py)
@@ -13,16 +15,16 @@ sam_agreement: {}             # value: detection agreement with hosted SAM (scri
 planner_determinism: {}       # passed: same request -> same canonical rule hash 20/20 (WS1e)
 
 # Safety and privacy (WS4)
-owner_login: {}
-evidence_routes_private: {}   # /evidence/* read routes need owner login; verify page gets roots only
-guardrail_tests: {}           # `uv run pytest tests/guardrails` green on main
-scene_text_firewall: {}       # SceneTextFirewall wired in the runtime (WS1b)
+owner_login: {}               # (auto) login_enabled on the public API
+evidence_routes_private: {}   # /evidence/* read routes need owner login; verify page gets roots only (auto)
+guardrail_tests: {}           # `uv run pytest tests/guardrails` green on main (auto)
+scene_text_firewall: {}       # SceneTextFirewall wired in the runtime (WS1b) (auto)
 
 # Deployment and ops (WS5)
-one_command_deploy: {}
-survives_restart: {}
-metrics_dashboard: {}
+one_command_deploy: {}        # (auto) dry run; the real run waits on GHCR visibility
+survives_restart: {}          # (auto) scripts/ops/restart_check.sh
+metrics_dashboard: {}         # (auto) GET /metrics, Prometheus rulecam_* series
 
 # Demo (WS6)
-golden_replay_live: {}
+golden_replay_live: {}        # (auto) the site serves /demo, /verify and the committed chain
 live_demo_rehearsed: {}       # 3 dry runs on the deployed stack, each within the §2 latency targets

@@ -21,7 +21,18 @@ uv run rulecam eval fetch                    # download + sha256-check URL clips
 uv run rulecam eval run                      # play the set into a running API, score, write the scorecard
 uv run rulecam eval score eval/baseline/2026-10-31-live   # replay: re-score recorded runs, no network
 uv run rulecam scorecard --report reports/eval/2026-10-31.json --live-api http://localhost:8000
+uv run rulecam scorecard --checks auto --api https://<api-pod>-8000.proxy.runpod.net \
+  --restart-evidence restart.json --budget-evidence budget.json --out reports/eval/card.md
 ```
+
+`--checks auto` runs the checks a script can make (`src/rulecam/eval/autochecks.py`) on top of
+`checks.yaml` and writes the merged checks, each with what was observed, to
+`checks-<date>.yaml` next to the markdown. A check passes only on observed evidence; one that
+could not run, or that waits on a decision (the owner's passphrase, GHCR visibility for the real
+deploy), stays NOT MEASURED with its reason. The two that change the deployment run on the API
+pod and hand back a JSON line: `scripts/ops/restart_check.sh` (restart through `start.sh`, the
+approved plan restored) and `scripts/ops/budget_alarm_check.sh <feeding command>` (a low budget
+raises `cost.alarm`, then the `.env` is restored and checked).
 
 `eval run` must run **on the API pod** (owner calls only work over loopback), against
 `http://localhost:8000`, with `RULECAM_RUNTIME=true`. Approving a plan replaces the runtime's
@@ -71,7 +82,13 @@ every push (`make eval-replay`).
   (`clients/meta_hosted/sam_cost.py`) + GPU $/h ÷ cameras sharing the GPUs. Clips without
   positive events count as idle, clips with events as active.
 - **Tracking**: HOTA (TrackEval's algorithm), IDF1, ID switches (py-motmetrics) per concept, on
-  the frames the runtime tracked.
+  the frames the runtime tracked. ID switches per minute divide by the real time those frames
+  span (first to last, plus one sampling step), not by their count over the label frame rate,
+  which overstated the rate about 10x at keyframe rates (3 Hz samples on 30 fps labels).
+- **Which candidates count**: those whose episode overlaps the scored pass, clamped to it. The
+  runtime can stamp a candidate a few milliseconds before the pass's first chunk (the feeder and
+  the API stamp chunks separately); before 1 Nov such a candidate was dropped, which hid the
+  driver false alert of the 1 Nov live run.
 
 ## Clip format (`clips/<name>/clip.yaml`)
 

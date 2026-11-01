@@ -119,3 +119,74 @@ breaker opens after 3 transient failures in a row, so later candidates fail fast
 until a trial after the cooldown, or a healthy `/health` probe, gets through. Its state is in
 `/runtime/metrics` (`verifier`, `verifier_down`) and the UI header. Details: docs/deploy.md,
 "When Tier 1 fails".
+
+## Rule health: measured precision and SPRT auto-pause (P4-09, `health.py`)
+
+A rule that fires wrongly costs more than a rule that does not fire, because people stop
+trusting the system and then stop reading any of it. So each rule's precision is tracked from
+the labels humans gave, and a rule whose precision has dropped is paused automatically, with a
+reason, instead of running until somebody notices.
+
+```python
+from rulecam.verify.health import RuleHealthMonitor, read_labels
+
+monitor = RuleHealthMonitor(chain)  # publishes `rule_change` records
+labels = read_labels(read_chain(chain.path_for(today)))
+monitor.assess_all(labels, alerts={"forklift_2m": 120})
+loop.set_plan(plan.with_paused(monitor.paused_rules()))  # paused rules stop being evaluated
+monitor.resume("forklift_2m", role="owner", note="zone redrawn")  # a person's decision
+```
+
+### What counts as evidence
+
+| Record | Meaning |
+|---|---|
+| `label` with `label: false_alarm` | False positive (the "False alarm" button, `act/api.py`) |
+| `label` with `label: confirmed` | True positive — **nothing writes this yet** (see the gap below) |
+| `dispute`, outcome `upheld` | A reviewer agreed with the worker: false positive |
+| `dispute`, outcome `rejected` | A reviewer looked and kept the alert: true positive |
+| `dispute`, outcome `pending` | Nobody has reviewed it, so it says nothing either way |
+| `label` with `drill: true` | A rehearsal, not a real alert: skipped |
+
+**An alert nobody labelled is not evidence and is not counted.** Counting unlabelled alerts as
+correct is the obvious way to make precision look good, so `RulePrecision` reports `unlabelled`
+and `label_share` next to the estimate: a precision of 1.0 from two labels and four hundred
+unlabelled alerts should reassure nobody. One alert judged twice (a false-alarm label and then
+an upheld dispute) is one trial, and the latest judgement wins.
+
+The interval is Wilson 95% over the labelled alerts. It accounts for how few labels there are
+and for nothing else: not for who labelled them, not for labellers seeing each other's
+decisions, not for a label that is itself wrong.
+
+### The test
+
+A Wald SPRT on precision, H0 `p = p0` (healthy, default 0.80) against H1 `p = p1` (unhealthy,
+default 0.50), with `alpha` 0.05 and `beta` 0.10. The statistic is the log-likelihood ratio in
+favour of H0, so it moves down on each false positive, and the boundaries are
+`log((1 - alpha) / beta)` above (healthy, stop) and `log(alpha / (1 - beta))` below (**pause**).
+At the defaults, four wrong alerts in a row cross the lower boundary. Between the boundaries the
+test keeps going and nothing happens: a rule with three labels is left alone.
+
+The test stops at the label that crossed, and later labels are not read — that is what keeps the
+error rates true. A rule is paused once, publishing one `rule_change` record; resuming is always
+a person's call, because whatever made the rule wrong is still there until someone changes it.
+
+### What this does not tell you
+
+- The SPRT assumes each labelled alert is an independent draw at a fixed precision. Neither
+  holds exactly: alerts cluster (one confusing scene makes several), and precision changes when
+  the site changes. **Treat a pause as "look at this rule now", not as a measurement.**
+- The error rates are about the test, not about the labels. Systematically wrong labels give a
+  confidently wrong answer.
+- Not firing is invisible here. Precision says nothing about recall, so a rule can be paused for
+  being wrong and a rule that never fires at all looks perfectly healthy.
+
+### Known gaps
+
+- **Nothing writes `label: confirmed` yet.** Today only the "False alarm" button writes a label,
+  so the only evidence is negative and a busy, correct rule accumulates no true positives. Until
+  the acknowledgement path records a confirmation, precision is measured on disputes plus false
+  alarms alone, which biases it down. The vocabulary is in place for whoever adds it.
+- Nothing calls `assess_all` on a schedule yet. The monitor is built and the runtime honours
+  `ActivePlan.paused`, but wiring the periodic read of the chain into the runtime or the API is
+  not done.

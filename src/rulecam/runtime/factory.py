@@ -4,7 +4,8 @@
 self-hosted worker (our own GPU pod when `SAM_BASE_URL` is set, otherwise Modal),
 `SegmenterRouter`, `PerceptionMetrics`, and a thread-safe
 `ParquetTrackStore` shared by the runtime loop and the correction loop. `build_runtime` adds the
-`Tracker`, the Tier 1 Glimmer verifier and the evidence chain around them.
+`Tracker`, the Tier 1 Glimmer verifier, the response side (`runtime.response`: the
+safety-asymmetric policy, the scene-text firewall and the actions) and the evidence chain.
 
 `RULECAM_RUNTIME_SAM_MODE` picks the runtime perception. `image` (the default, PLAN-9.5 WS2b):
 `KeyframeTracker` segments 2 to 4 keyframes per second per camera (`RULECAM_KEYFRAME_FPS`,
@@ -26,8 +27,8 @@ wait for one more SAM round trip in order, so identities are handed off by IoU.
 
 Each candidate gets its evidence strip from `EpisodeStrips` (P4-05): keyframes across the
 episode from the chunks on disk, with the rule's boxes, zones and distance ruler, in the plan's
-privacy mode, under `<data dir>/strips`. The policy (P3-05) and actions (P3-06) have not landed
-yet, so those defaults are deliberately conservative: nothing acts first and nothing is executed.
+privacy mode, under `<data dir>/strips`. The policy is P3-05's `VerificationPolicy` and the
+actions P3-06's `ActionExecutor`, dry-run by default (`RULECAM_ACTIONS_DRY_RUN`).
 """
 
 from __future__ import annotations
@@ -46,16 +47,7 @@ from rulecam.clients.meta_hosted.sam_wire import SAM_MODEL
 from rulecam.clients.open_weights.glimmer import GlimmerClient
 from rulecam.clients.transport import HttpxTransport, Transport
 from rulecam.config import Settings
-from rulecam.contracts import (
-    ActionRecord,
-    CandidateEvent,
-    Chunk,
-    Clock,
-    EventRecord,
-    RuleIR,
-    Track,
-    VerifierVerdict,
-)
+from rulecam.contracts import Chunk, Clock, EventRecord, Track
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.log import get_logger
 from rulecam.perception.errors import SamRuntimeError
@@ -92,10 +84,10 @@ from rulecam.runtime.loop import (
     chunk_end,
     video_bill_estimate,
 )
+from rulecam.runtime.response import Response, build_response
 from rulecam.runtime.sampling import SamplingPolicy
 from rulecam.runtime.strips import EpisodeStrips, face_detector
 from rulecam.runtime.timings import StageTimings
-from rulecam.verify.decision import Decision
 from rulecam.verify.tier1 import GlimmerVerifier
 
 _log = get_logger(__name__)
@@ -180,36 +172,6 @@ def _candidate_event_id(record: EventRecord) -> object:
     """The event id of a candidate record written by `candidate_payload` (P3-07b)."""
     candidate = record.payload.get("candidate")
     return candidate.get("event_id") if isinstance(candidate, dict) else None
-
-
-class VerifyOnlyPolicy:
-    """Placeholder for P3-05: never acts first; alerts only on a Tier 1 violation, via a human."""
-
-    def act_first(self, candidate: CandidateEvent, rule: RuleIR) -> bool:  # noqa: ARG002 - protocol signature
-        """Nothing acts before verification until the real policy lands."""
-        return False
-
-    def decide(self, candidate: CandidateEvent, rule: RuleIR, tier1: VerifierVerdict) -> Decision:  # noqa: ARG002 - protocol signature
-        """Alert on a Tier 1 violation and route it to the human queue."""
-        return Decision(
-            alert=tier1.verdict == "violation",
-            route="human_queue",
-            act_first=False,
-            reason=f"tier1 {tier1.verdict} (placeholder policy, P3-05 pending)",
-        )
-
-
-class NoActions:
-    """Placeholder for P3-06: runs nothing."""
-
-    def run(
-        self,
-        candidate: CandidateEvent,  # noqa: ARG002 - protocol signature
-        rule: RuleIR,  # noqa: ARG002 - protocol signature
-        decision: Decision,  # noqa: ARG002 - protocol signature
-    ) -> list[ActionRecord]:
-        """Run no action."""
-        return []
 
 
 def _offline(request: Mapping[str, object]) -> Mapping[str, object]:  # noqa: ARG001 - protocol signature
@@ -307,6 +269,13 @@ def build_perception(
     )
 
 
+def build_tier1(
+    settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus
+) -> GlimmerVerifier:
+    """The Tier 1 verifier: Glimmer through the replay cache."""
+    return GlimmerVerifier(GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus))
+
+
 def build_runtime(
     settings: Settings,
     perception: Perception,
@@ -315,6 +284,7 @@ def build_runtime(
     clock: Clock,
     bus: Bus,
     chain: EventChain,
+    response: Response | None = None,
 ) -> RuntimeLoop:
     """Build the real runtime loop: router segmenter → `Tracker` → Parquet store → Glimmer.
 
@@ -325,9 +295,10 @@ def build_runtime(
         clock: Time source.
         bus: The event bus.
         chain: The evidence chain.
+        response: Policy, actions and Tier 1 (default: `build_tier1` + `build_response`).
 
     Returns:
-        The loop, with placeholder policy and actions until P3-05 and P3-06.
+        The loop.
     """
     timings = StageTimings()
     picked = (
@@ -336,17 +307,24 @@ def build_runtime(
         else _video_tracker(settings, perception, bus=bus, timings=timings)
     )
     _log.info("runtime_perception", mode=settings.rulecam_runtime_sam_mode)
-    verifier = GlimmerVerifier(
-        GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
-    )
+    if response is None:
+        response = build_response(
+            settings,
+            tier1=build_tier1(settings, cache=cache, clock=clock, bus=bus),
+            segmenter=perception.hosted,
+            cache=cache,
+            clock=clock,
+            bus=bus,
+            chain=chain,
+        )
     return RuntimeLoop(
         bus=bus,
         clock=clock,
         tracker=picked.tracker,
         store=perception.store,
-        verifier=verifier,
-        policy=VerifyOnlyPolicy(),
-        actions=NoActions(),
+        verifier=response.tier1,
+        policy=response.policy,
+        actions=response.actions,
         strips=EpisodeStrips(
             chunks=perception.chunks,
             store=perception.store,

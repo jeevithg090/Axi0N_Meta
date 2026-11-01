@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from pydantic import SecretStr
 
+from rulecam.act import ActionExecutor
 from rulecam.bus import Bus
 from rulecam.clients.errors import ClientConfigError
 from rulecam.config import Settings
@@ -25,9 +26,7 @@ from rulecam.runtime.factory import (
     ChainEventSource,
     ChunkIndex,
     LockedTrackStore,
-    NoActions,
     Perception,
-    VerifyOnlyPolicy,
     build_perception,
     build_runtime,
     hosted_sam,
@@ -35,7 +34,8 @@ from rulecam.runtime.factory import (
 )
 from rulecam.runtime.loop import RuntimeLoop
 from rulecam.runtime.strips import EpisodeStrips
-from tests.fakes import EPOCH, FakeClock, make_chunk, make_track, make_verdict
+from rulecam.verify.policy import VerificationPolicy
+from tests.fakes import EPOCH, FakeClock, make_chunk, make_track
 from tests.rules.helpers import CAL, make_rule
 from tests.verify.helpers import make_candidate
 
@@ -89,17 +89,6 @@ def test_locked_track_store_delegates(tmp_path: Path) -> None:
     assert [t.track_id for t in got] == [track.track_id]
 
 
-def test_placeholders_never_act() -> None:
-    rule = make_rule({"op": "inside", "object": "person", "zone": "z"})
-    candidate = make_candidate().model_copy(update={"strip_paths": ("raw/frame.png",)})
-    policy = VerifyOnlyPolicy()
-    assert policy.act_first(candidate, rule) is False
-    decision = policy.decide(candidate, rule, make_verdict(verdict="violation"))
-    assert (decision.alert, decision.route) == (True, "human_queue")
-    assert not policy.decide(candidate, rule, make_verdict(verdict="no_violation")).alert
-    assert NoActions().run(candidate, rule, decision) == []
-
-
 def test_hosted_sam_is_offline_without_keys(tmp_path: Path) -> None:
     bus = Bus()
     clock = FakeClock()
@@ -143,6 +132,9 @@ def test_build_perception_and_runtime(
     assert loop.plan is None
     assert loop.handle_chunk(make_chunk()) == []
     assert isinstance(loop._strips, EpisodeStrips)  # the real renderer, not a placeholder
+    assert isinstance(loop._policy, VerificationPolicy)  # the real P3-05 policy
+    assert isinstance(loop._actions, ActionExecutor)  # the real P3-06 actions
+    assert loop._actions.dry_run  # dry run until the owner turns it off
 
 
 MODAL = {"modal_token_id": SecretStr("a"), "modal_token_secret": SecretStr("b")}

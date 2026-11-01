@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from rulecam.contracts import Chunk, Detection, EventRecord, Mask, RuleIR, Track
-from rulecam.perception.correction import CorrectionService
+from rulecam.perception.correction import CorrectionService, FalsePositiveSink
 from rulecam.rules.backtest import DecisionContext, candidate_payload
 from tests.fakes import FakeSegmenter, InMemoryTrackStore, make_chunk
 from tests.rules.helpers import at, box_track, make_rule
@@ -93,7 +93,11 @@ class Harness:
     events: Events
 
 
-def build(segmenter: FakeSegmenter | None = None, rule: RuleIR = UNCLIPPED) -> Harness:
+def build(
+    segmenter: FakeSegmenter | None = None,
+    rule: RuleIR = UNCLIPPED,
+    hard_negatives: FalsePositiveSink | None = None,
+) -> Harness:
     tracks = scene_tracks()
     context = DecisionContext(rule=rule, t0=at(0), t1=at(6))
     (candidate,) = context.evaluate(tracks)
@@ -117,5 +121,6 @@ def build(segmenter: FakeSegmenter | None = None, rule: RuleIR = UNCLIPPED) -> H
         events=events,
         chunks=Chunks([make_chunk("cam1", 0), make_chunk("cam1", 1), make_chunk("cam1", 2)]),
         record_label=labels,
+        hard_negatives=hard_negatives,
     )
     return Harness(service, fake, labels, record, context, events)

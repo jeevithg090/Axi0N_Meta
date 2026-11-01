@@ -58,6 +58,7 @@ from pydantic import BaseModel, ValidationError
 
 from rulecam.act.drills import DrillRunner, drills_router
 from rulecam.advisor.api import AdviceStore, PlanFactory, advice_router
+from rulecam.api.ask import ask_router
 from rulecam.api.auth import ClientAddress, OwnerAuth
 from rulecam.api.plans import PlannerRunner, PlanRegistry, QuestionsService, plans_router
 from rulecam.api.prometheus import (
@@ -68,6 +69,7 @@ from rulecam.api.prometheus import (
     metrics_router,
 )
 from rulecam.api.ws import mirror_bus
+from rulecam.ask import AskAgent, FrameGrabber, open_tables
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
 from rulecam.clients.errors import ClientConfigError
@@ -797,8 +799,43 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 hard_negatives=hard_negatives,
             ),
             owner_alerts_router(response),
+            ask_router(
+                build_ask(settings, cache=cache, clock=clock, bus=bus, perception=perception),
+                dependencies=_OWNER,
+            ),
             *((webhook,) if (webhook := response.webhook_router()) is not None else ()),
         ),
+    )
+
+
+def build_ask(
+    settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus, perception: Perception
+) -> AskAgent | None:
+    """The `POST /ask` agent: Spark plans, SAM 3.1 (hosted) counts, Glimmer looks.
+
+    Served in prototype mode only: it reads per-track spans (dwell time per tracked person).
+
+    Returns:
+        The agent, or `None` (logged) outside prototype mode or without a Spark key; `/ask`
+        then answers 503.
+    """
+    if not settings.rulecam_prototype_mode:
+        return None
+    try:
+        spark = SparkClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
+    except ClientConfigError as exc:
+        _log.warning("ask_disabled", error=str(exc))
+        return None
+    glimmer = GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+    return AskAgent(
+        spark=spark,
+        segmenter=perception.hosted,
+        glimmer=glimmer,
+        glimmer_model=glimmer.model,
+        tables=open_tables(settings.rulecam_data_dir / "tracks"),
+        frames=FrameGrabber(perception.chunks, settings.rulecam_data_dir / "ask_frames"),
+        clock=clock,
+        timezone=settings.rulecam_site_timezone,
     )
 
 

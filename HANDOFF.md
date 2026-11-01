@@ -42,7 +42,7 @@ All Must-tier, Should-tier, Shared Duties, and Stretch goals assigned to P2 have
 
 ### C. Shared Duties (Section 11)
 - **S-01** ([PR #64](https://github.com/jeevithg090/Axi0N_Meta/pull/64)): Physical floor plans, props, and camera layout in [`docs/sets.md`](docs/sets.md).
-- **S-04** ([PR #63](https://github.com/jeevithg090/Axi0N_Meta/pull/63)): 20 held-out requests in `eval/heldout/requests.jsonl` + E3 evaluation runner (`eval/runners/e3.py`). *Corrected Oct 31:* the runner is a simulated harness that does not call the Planner and the requests are team-written personas, so its 100.0% figure (60/60) and the 60 plans in `plans/heldout/` were withdrawn (see `eval/RESULTS.md`).
+- **S-04 / W-10** ([PR #63](https://github.com/jeevithg090/Axi0N_Meta/pull/63), [PR #121](https://github.com/jeevithg090/Axi0N_Meta/pull/121), [PR #126](https://github.com/jeevithg090/Axi0N_Meta/pull/126), [PR #127](https://github.com/jeevithg090/Axi0N_Meta/pull/127)): Real PlannerPipeline wired into E3 runner, positive outside-author validation, safe fallback defaults, and dataset ingested with verified outside authors across 5 domains in eval/heldout/requests.jsonl.
 - **S-08** ([PR #67](https://github.com/jeevithg090/Axi0N_Meta/pull/67)): 3-stage social launch copy and reply protocol in [`docs/social.md`](docs/social.md).
 - **S-10** ([PR #69](https://github.com/jeevithg090/Axi0N_Meta/pull/69), [PR #74](https://github.com/jeevithg090/Axi0N_Meta/pull/74)): Daily standup logs, gate readiness ledger (gate statuses corrected Oct 31), and pre-freeze checklist in [`docs/standups.md`](docs/standups.md).
 

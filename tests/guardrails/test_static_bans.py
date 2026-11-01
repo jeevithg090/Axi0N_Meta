@@ -11,6 +11,10 @@ from pathlib import Path
 import pytest
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "rulecam"
+# Exempt on the team lead's decision (1 Nov 2026): owner analytics in prototype mode. `POST /ask`
+# lets a store owner ask about dwell time, which needs one row per track (`track_spans`); the
+# route is served only when RULECAM_PROTOTYPE_MODE is on. Nothing else is exempt.
+PROTOTYPE_EXEMPT = frozenset({"ask/data.py"})
 
 BANNED_IMPORTS = re.compile(
     r"^\s*(?:import|from)\s+(face_recognition|deepface|insightface|arcface|facenet_pytorch)\b",
@@ -35,7 +39,9 @@ def scan(text: str) -> list[str]:
 
 
 def python_sources() -> list[Path]:
-    return sorted(SRC.rglob("*.py"))
+    return sorted(
+        p for p in SRC.rglob("*.py") if p.relative_to(SRC).as_posix() not in PROTOTYPE_EXEMPT
+    )
 
 
 def test_source_tree_exists() -> None:

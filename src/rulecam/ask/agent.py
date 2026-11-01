@@ -91,7 +91,8 @@ camera is calibrated.
 per track.
    Tracks come from SAM 3.1 plus a tracker: one real person can be split into several track_ids \
 (occlusion, leaving and re-entering), so distinct track_id counts over a period are an upper \
-bound; the number of objects present at one instant (count per ts) is reliable.
+bound; the number of objects present at one instant (count per ts) is reliable. Each concept \
+is a separate SAM prompt and concepts can overlap: a cashier can also be tracked as a person.
 2. count_objects: SAM 3.1 counts any noun phrase you choose ("person", "shopping cart", "cashier \
 in black uniform") on the recorded frames of camera_id at up to 6 instants (times). Use it for \
 things that are not tracked, or to check a count.

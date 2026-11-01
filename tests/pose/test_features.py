@@ -19,6 +19,7 @@ from tests.pose.helpers import (
     LIFTING,
     LYING,
     LYING_BOX,
+    SQUAT,
     STANDING,
     STANDING_BOX,
     keypoints,
@@ -56,10 +57,17 @@ def test_hands_above_shoulder() -> None:
     assert hands_above_shoulder(keypoints(raised)) is True
 
 
-def test_hands_above_shoulder_uses_the_known_side_only() -> None:
+def test_a_raised_hand_counts_even_if_the_other_side_is_unknown() -> None:
     raised = {**STANDING, "l_wrist": (85, 70)}
     assert hands_above_shoulder(keypoints(raised, r_wrist=0.1)) is True
+
+
+def test_one_side_known_false_and_the_other_unknown_is_unknown_not_false() -> None:
+    # The unknown wrist could still be raised, so "False" would be a guess.
+    assert hands_above_shoulder(keypoints(STANDING, r_wrist=0.1)) is None
+    assert hands_above_shoulder(keypoints(STANDING, l_shoulder=0.1)) is None
     assert hands_above_shoulder(keypoints(STANDING, l_wrist=0.1, r_wrist=0.1)) is None
+    assert hands_above_shoulder(keypoints(STANDING)) is False
 
 
 def test_ladder_three_point_lost() -> None:
@@ -80,6 +88,17 @@ def test_ladder_unknown_limbs_decide_only_when_they_cannot_change_the_answer() -
 def test_bent_back_lift() -> None:
     assert bent_back_lift(keypoints(LIFTING)) is True
     assert bent_back_lift(keypoints(STANDING)) is False
+
+
+def test_a_correct_squat_lift_is_not_a_bent_back() -> None:
+    # Hips and knees are bent and the hands are low, but the torso stays upright.
+    assert bent_back_lift(keypoints(SQUAT)) is False
+    assert bent_back_lift(keypoints(SQUAT), min_torso_angle_deg=0.0) is True
+
+
+def test_the_torso_angle_threshold_is_adjustable() -> None:
+    assert bent_back_lift(keypoints(LIFTING), min_torso_angle_deg=70.0) is False
+    assert bent_back_lift(keypoints(LIFTING), min_torso_angle_deg=30.0) is True
 
 
 def test_bent_back_lift_needs_hands_below_knees() -> None:
@@ -109,9 +128,7 @@ def test_every_feature_is_unknown_when_all_keypoints_score_low(scores: list[floa
     assert is_down(kps, STANDING_BOX) is None
     assert hands_above_shoulder(kps) is None
     assert bent_back_lift(kps) is None
-    assert ladder_three_point_lost(kps, (0.0, 0.0, 10.0, 10.0)) is None or (
-        ladder_three_point_lost(kps, (0.0, 0.0, 10.0, 10.0)) is True
-    )
+    assert ladder_three_point_lost(kps, (0.0, 0.0, 10.0, 10.0)) is None
 
 
 def test_adapter_dispatches_each_state_and_handles_missing_keypoints() -> None:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from rulecam.contracts import Keypoint, TrackPoint
 
@@ -37,6 +37,15 @@ BENDING = {
 }  # fmt: skip
 BENDING_BOX = (90.0, 170.0, 210.0, 265.0)
 
+# A correct squat: hips and knees bend, hands go low, but the back stays upright.
+SQUAT = {
+    **STANDING,
+    "l_shoulder": (112, 110), "r_shoulder": (120, 110),
+    "l_hip": (110, 170), "r_hip": (118, 170),
+    "l_knee": (150, 190), "r_knee": (158, 190),
+    "l_wrist": (130, 215), "r_wrist": (138, 215),
+}  # fmt: skip
+
 LIFTING = {
     **STANDING,
     "l_shoulder": (150, 185), "r_shoulder": (158, 185),
@@ -64,4 +73,14 @@ def track_point(
         frame_idx=frame_idx,
         box_xyxy=box,
         foot_px=((box[0] + box[2]) / 2, box[3]),
+    )
+
+
+def timed_point(seconds: float, frame_idx: int = 0) -> TrackPoint:
+    """A track point at `seconds` into the window, with its own (possibly restarted) frame index."""
+    return TrackPoint(
+        ts=datetime(2026, 10, 31, 12, 0, 0, tzinfo=UTC) + timedelta(seconds=seconds),
+        frame_idx=frame_idx,
+        box_xyxy=STANDING_BOX,
+        foot_px=(100.0, 265.0),
     )

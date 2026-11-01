@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -21,7 +22,7 @@ from rulecam.pose.keypoints import (
     sample_indices,
     to_image_keypoints,
 )
-from tests.pose.helpers import track_point
+from tests.pose.helpers import timed_point, track_point
 
 K = 17
 SIMCC_W, SIMCC_H = int(INPUT_W * SIMCC_SPLIT_RATIO), int(INPUT_H * SIMCC_SPLIT_RATIO)
@@ -141,22 +142,45 @@ def test_fill_keypoints_interpolates_between_estimates() -> None:
 
 def test_fill_keypoints_leaves_edges_and_wide_gaps_empty() -> None:
     points = [track_point(i) for i in range(10)]
-    filled = fill_keypoints(points, {2: kps(2.0), 3: kps(3.0), 9: kps(9.0)}, max_gap_frames=4)
+    filled = fill_keypoints(points, {2: kps(2.0), 3: kps(3.0), 9: kps(9.0)}, max_gap_s=0.4)
     assert filled[0].keypoints is None  # before the first estimate
-    assert filled[5].keypoints is None  # gap of 6 frames is wider than 4
+    assert filled[5].keypoints is None  # 0.6 s between estimates is wider than 0.4 s
     assert filled[3].keypoints == kps(3.0)
     assert fill_keypoints(points, {}) == tuple(points)
 
 
-def test_fill_keypoints_weights_by_frame_index_not_list_position() -> None:
-    points = [track_point(0), track_point(2), track_point(8)]
-    filled = fill_keypoints(points, {0: kps(0.0), 2: kps(80.0)}, max_gap_frames=20)
+def test_fill_keypoints_weights_by_time_not_list_position() -> None:
+    points = [timed_point(0.0), timed_point(0.2), timed_point(0.8)]
+    filled = fill_keypoints(points, {0: kps(0.0), 2: kps(80.0)}, max_gap_s=1.0)
     middle = filled[1].keypoints
     assert middle is not None
-    assert middle[0].x == pytest.approx(20.0)  # frame 2 of 0..8 is a quarter of the way
-    assert (
-        fill_keypoints(points, {0: kps(0.0), 2: kps(80.0)}, max_gap_frames=7)[1].keypoints is None
-    )
+    assert middle[0].x == pytest.approx(20.0)  # 0.2 s of 0.8 s is a quarter of the way
+    assert fill_keypoints(points, {0: kps(0.0), 2: kps(80.0)}, max_gap_s=0.7)[1].keypoints is None
+
+
+def test_interpolation_crosses_a_chunk_boundary_where_frame_indices_restart() -> None:
+    # Chunks are 3 s long and frame_idx restarts at 0 in each. Bracketing estimates at frame 28 and
+    # frame 1 had a negative frame span, so by frame_idx these points got no pose at all; with a
+    # positive span the weight could fall outside [0, 1] and extrapolate far past the estimates.
+    points = [
+        timed_point(2.8, frame_idx=28),
+        timed_point(2.9, frame_idx=29),
+        timed_point(3.0, frame_idx=0),
+        timed_point(3.1, frame_idx=1),
+    ]
+    filled = fill_keypoints(points, {0: kps(0.0), 3: kps(30.0)})
+    xs = [p.keypoints[0].x for p in filled if p.keypoints is not None]
+    assert xs == pytest.approx([0.0, 10.0, 20.0, 30.0])
+
+
+def test_the_weight_never_leaves_zero_to_one() -> None:
+    # A point whose time falls outside its bracketing estimates (out-of-order input) is clamped to
+    # the nearer estimate rather than extrapolated.
+    points = [timed_point(0.0), timed_point(0.9), timed_point(0.5)]
+    filled = fill_keypoints(points, {0: kps(0.0), 2: kps(50.0)})
+    clamped = filled[1].keypoints
+    assert clamped is not None
+    assert clamped[0].x == 50.0
 
 
 def test_fill_keypoints_rejects_mismatched_keypoint_counts() -> None:
@@ -183,7 +207,7 @@ def test_estimate_track_samples_then_fills_and_keeps_the_input_unchanged() -> No
     )
     estimator = CountingEstimator()
     frame = np.zeros((10, 10, 3), dtype=np.uint8)
-    result = estimate_track(track, lambda _idx: frame, estimator, stride=3)
+    result = estimate_track(track, lambda _ts: frame, estimator, stride=3)
     assert len(estimator.calls) == 3  # indices 0, 3, 6
     assert all(p.keypoints is not None for p in result.points)
     assert all(p.keypoints is None for p in track.points)
@@ -198,7 +222,41 @@ def test_estimate_track_skips_frames_that_are_gone() -> None:
     )
     estimator = CountingEstimator()
     frame = np.zeros((10, 10, 3), dtype=np.uint8)
-    result = estimate_track(track, lambda idx: frame if idx == 0 else None, estimator, stride=3)
+    first = track.points[0].ts
+    result = estimate_track(track, lambda ts: frame if ts == first else None, estimator, stride=3)
     assert len(estimator.calls) == 1
     assert result.points[0].keypoints is not None
     assert result.points[3].keypoints is None
+
+
+def test_estimate_track_looks_frames_up_by_timestamp() -> None:
+    track = Track(
+        track_id="t1",
+        camera_id="cam1",
+        concept="person",
+        points=tuple(timed_point(2.8 + 0.1 * i, frame_idx=(28 + i) % 30) for i in range(4)),
+    )
+    asked = []
+    frame = np.zeros((10, 10, 3), dtype=np.uint8)
+
+    def frame_at(ts: object) -> np.ndarray:
+        asked.append(ts)
+        return frame
+
+    estimate_track(track, frame_at, CountingEstimator(), stride=3)
+    assert asked == [track.points[0].ts, track.points[3].ts]
+
+
+def test_prepare_input_converts_bgr_frames_to_rgb_for_the_model() -> None:
+    blue_in_bgr = np.zeros((300, 400, 3), dtype=np.uint8)
+    blue_in_bgr[..., 0] = 255  # OpenCV order: channel 0 is blue
+    tensor = prepare_input(blue_in_bgr, CropWindow(50.0, 40.0, 192.0, 256.0))
+    assert tensor[0, 0, 5, 5] == pytest.approx(-123.675 / 58.395, rel=1e-4)  # red: absent
+    assert tensor[0, 2, 5, 5] == pytest.approx((255 - 103.53) / 57.375, rel=1e-4)  # blue: full
+
+
+def test_load_refuses_weights_that_do_not_match_the_pinned_hash(tmp_path: Path) -> None:
+    weights = tmp_path / "model.onnx"
+    weights.write_bytes(b"not the pinned weights")
+    with pytest.raises(ValueError, match="sha256"):
+        RtmposeOnnx.load(weights, sha256="0" * 64)

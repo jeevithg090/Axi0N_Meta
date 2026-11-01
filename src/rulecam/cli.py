@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
@@ -617,7 +618,10 @@ def scorecard(
         sources=sources,
     )
     text = render_markdown(card)
-    typer.echo(text)
+    try:
+        typer.echo(text)
+    except UnicodeEncodeError:
+        sys.stdout.buffer.write(text.encode("utf-8", errors="replace") + b"\n")
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(text, encoding="utf-8")

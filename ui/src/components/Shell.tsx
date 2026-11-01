@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { useAuth } from "@/lib/auth";
-import { useDemo, useStream } from "@/lib/stream";
+import { useDemoQuery, useStream } from "@/lib/stream";
 
 import { CostBadge, useRuntimeMetrics } from "./CostBadge";
 import { ModeBadge } from "./ModeBadge";
@@ -12,6 +12,7 @@ import { RelayHud } from "./RelayHud";
 import { VerifierBadge } from "./VerifierBadge";
 
 const LINKS = [
+  { href: "/demo", label: "Golden run" },
   { href: "/planner", label: "Planner" },
   { href: "/plans", label: "Plans" },
   { href: "/monitor", label: "Live monitor" },
@@ -42,7 +43,7 @@ export function OwnerControl() {
 export function Shell({ children }: { children: ReactNode }) {
   const state = useStream();
   const metrics = useRuntimeMetrics();
-  const query = useDemo() ? "?demo=1" : "";
+  const query = useDemoQuery();
   return (
     <>
       <header className="shell-header">

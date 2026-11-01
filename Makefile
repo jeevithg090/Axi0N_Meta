@@ -1,6 +1,6 @@
 # Rulecam developer commands (task book §3.3). `make check` must pass before every push.
 .PHONY: setup fmt lint type test check ui-check api ui openapi preflight golden live-test \
-	eval-replay
+	eval-replay golden-verify verify-page-sync
 
 UI_EXISTS := $(wildcard ui/package.json)
 
@@ -60,3 +60,12 @@ live-test:
 eval-replay:
 	uv run rulecam eval validate
 	uv run rulecam eval score eval/baseline/2026-10-31-live --out $(or $(EVAL_OUT),reports/eval)
+
+# WS6 golden runs: replay every scenarios/<name>.yaml from its committed recording (no network,
+# no model); CI runs this on every push. `make verify-page-sync` copies the evidence verify page
+# into the site (ui/public/verify), where the golden demo's chain is checked in the browser.
+golden-verify:
+	@for s in scenarios/*.yaml; do uv run rulecam golden verify "$$(basename "$$s" .yaml)" || exit 1; done
+
+verify-page-sync:
+	cp src/rulecam/evidence/verify_page/index.html src/rulecam/evidence/verify_page/chain.js ui/public/verify/

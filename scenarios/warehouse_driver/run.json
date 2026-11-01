@@ -1,0 +1,1781 @@
+{
+  "clip": "warehouse_45848",
+  "rule": "forklift_2m",
+  "camera_id": "phone-25",
+  "plan_id": "plan-5cdb5eed5405",
+  "plan_version_hash": "1784db28181d6855d13243ce810a115729fd04924559088a9b536b8eb5ba0d5d",
+  "activated": [
+    "keep-people-2m-from-moving-forklift"
+  ],
+  "rule_hashes": [
+    "89676193996fe35291bd4952aed2e98aabe1033b9cf2ba7e7128eedb1e133b75"
+  ],
+  "refused": null,
+  "error": null,
+  "speed": 1.0,
+  "started_at": "2026-11-01T01:48:49.720143Z",
+  "finished_at": "2026-11-01T01:55:33.409347Z",
+  "chunk_width": 1280,
+  "chunk_height": 720,
+  "chunks": [
+    {
+      "index": 0,
+      "chunk_id": "phone-25_000118",
+      "clip_start_s": 0.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-11-01T01:54:45.515665Z"
+    },
+    {
+      "index": 1,
+      "chunk_id": "phone-25_000119",
+      "clip_start_s": 3.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-11-01T01:54:48.515665Z"
+    },
+    {
+      "index": 2,
+      "chunk_id": "phone-25_000120",
+      "clip_start_s": 6.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-11-01T01:54:51.819964Z"
+    },
+    {
+      "index": 3,
+      "chunk_id": "phone-25_000121",
+      "clip_start_s": 9.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-11-01T01:54:54.819964Z"
+    },
+    {
+      "index": 4,
+      "chunk_id": "phone-25_000122",
+      "clip_start_s": 12.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-11-01T01:54:57.819964Z"
+    },
+    {
+      "index": 5,
+      "chunk_id": "phone-25_000123",
+      "clip_start_s": 15.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-11-01T01:55:00.819964Z"
+    },
+    {
+      "index": 6,
+      "chunk_id": "phone-25_000124",
+      "clip_start_s": 18.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-11-01T01:55:03.819964Z"
+    },
+    {
+      "index": 7,
+      "chunk_id": "phone-25_000125",
+      "clip_start_s": 21.0,
+      "duration_s": 0.9,
+      "cam_start": "2026-11-01T01:55:08.394277Z"
+    }
+  ],
+  "chain": [
+    {
+      "hash": "b73ee23469a04f5c80a68ada61f9f224ed6d35632d253087153be6f41f772cdb",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-25",
+          "event_id": "ev-86fe839b744f2f026c25404c",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m",
+            "value": 0.025025
+          },
+          "plan_version_hash": "1784db28181d6855d13243ce810a115729fd04924559088a9b536b8eb5ba0d5d",
+          "predicate_trace": {
+            "all": true,
+            "all.0.distance_m": true,
+            "all.0.distance_m.value": 0.025025,
+            "all.1.moving": true,
+            "all.1.moving.value": 2.44471,
+            "all.value": 0.025025,
+            "episode_s": 1.1,
+            "subject": "phone-25:person:409a2c97"
+          },
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "rule_ir_hash": "89676193996fe35291bd4952aed2e98aabe1033b9cf2ba7e7128eedb1e133b75",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "48e29541ce85ba5e23a89a8d7c06f5e393a575ee2c04b15e36b1ea72141c1b2e",
+          "ts_end": "2026-11-01T01:54:46.513867Z",
+          "ts_start": "2026-11-01T01:54:45.513867Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-25",
+            "err_m": 0.0969269132375965,
+            "homography": [
+              [
+                0.005486241729051363,
+                0.0004220185945424167,
+                -4.175029955808087
+              ],
+              [
+                -3.102079079558648e-19,
+                0.05522316095296006,
+                5.908614624992072e-16
+              ],
+              [
+                -0.00037807183364839365,
+                -0.00046691273871012545,
+                0.9999999999999999
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "pallet_48x40in"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "operator_exclusion": true,
+          "plan_version_hash": "1784db28181d6855d13243ce810a115729fd04924559088a9b536b8eb5ba0d5d",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-25",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-2m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 2,
+                  "op": "distance_m"
+                },
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.2
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-5cdb5eed5405",
+              "standard": [],
+              "text": "Keep people at least 2 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-11-01T01:54:18.513867Z",
+          "t1": "2026-11-01T01:54:48.513867Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "40fe17bcfa57c69a90a269e4d73206650b95837eb17c16112c552c5bb6a60856",
+      "seq": 16,
+      "site": "demo",
+      "ts": "2026-11-01T01:54:52.572911Z"
+    },
+    {
+      "hash": "af325c237e9412cfaecb9e36329c87675d227be4bfc4f7ecf9112a107dd2726b",
+      "kind": "action",
+      "payload": {
+        "approved_by_role": null,
+        "detail": "dry-run: would notify supervisor",
+        "event_id": "ev-86fe839b744f2f026c25404c",
+        "gate": "auto",
+        "kind": "notify",
+        "ok": true,
+        "role": "supervisor",
+        "ts": "2026-11-01T01:54:53.900791Z"
+      },
+      "prev_hash": "b73ee23469a04f5c80a68ada61f9f224ed6d35632d253087153be6f41f772cdb",
+      "seq": 17,
+      "site": "demo",
+      "ts": "2026-11-01T01:54:53.900852Z"
+    },
+    {
+      "hash": "784fddacc28decb0bcff5bf9fab7bdea46307e994b51f69e7fa1b8f07a71af17",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-86fe839b744f2f026c25404c",
+        "latency_ms": 23068,
+        "model_version": "muse-glimmer-30b",
+        "reason": "The visible person is seated in the operator’s seat of the forklift and is operating it; there is no separate person near a moving forklift in the frames.",
+        "reasoning": null,
+        "scene_text": "1/6 t-1.0s keep-people-2m-from-moving-forklift measured 0.03 m\n2/6 t-0.6s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n3/6 t-0.2s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n4/6 t+0.2s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n5/6 t+0.6s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n5.0 m\n6/6 t+1.0s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n4.9 m",
+        "score": 0.05,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "no_violation"
+      },
+      "prev_hash": "af325c237e9412cfaecb9e36329c87675d227be4bfc4f7ecf9112a107dd2726b",
+      "seq": 18,
+      "site": "demo",
+      "ts": "2026-11-01T01:55:17.288985Z"
+    },
+    {
+      "hash": "eb651023a778d973ab62865d3785f9c4a76c02eb9ad8fe76423a18045816cc8d",
+      "kind": "verdict",
+      "payload": {
+        "decision": {
+          "act_first": true,
+          "alert": true,
+          "reason": "acted first; verifier did not confirm, so a person reviews it",
+          "route": "human_queue"
+        },
+        "event_id": "ev-86fe839b744f2f026c25404c"
+      },
+      "prev_hash": "784fddacc28decb0bcff5bf9fab7bdea46307e994b51f69e7fa1b8f07a71af17",
+      "seq": 19,
+      "site": "demo",
+      "ts": "2026-11-01T01:55:17.379895Z"
+    },
+    {
+      "hash": "0222a2576ce2fe123f3779b20b2cc487ffd799dfd9bdc2731fe66d0560e3d406",
+      "kind": "action",
+      "payload": {
+        "approved_by_role": null,
+        "detail": "dry-run: would notify supervisor (needs review)",
+        "event_id": "ev-86fe839b744f2f026c25404c",
+        "gate": "human",
+        "kind": "notify",
+        "ok": true,
+        "role": "supervisor",
+        "ts": "2026-11-01T01:55:17.533135Z"
+      },
+      "prev_hash": "eb651023a778d973ab62865d3785f9c4a76c02eb9ad8fe76423a18045816cc8d",
+      "seq": 20,
+      "site": "demo",
+      "ts": "2026-11-01T01:55:17.533179Z"
+    }
+  ],
+  "bus": [
+    {
+      "at": "2026-11-01T01:50:22.361689Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "understand",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-01T01:50:22.365988Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "understand",
+        "status": "done",
+        "detail": "1 concerns"
+      }
+    },
+    {
+      "at": "2026-11-01T01:50:22.366446Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "survey",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-01T01:51:12.390514Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "survey",
+        "status": "done",
+        "detail": "11 things seen; phone-25 calibrated from pallet_48x40in (0.10 m)"
+      }
+    },
+    {
+      "at": "2026-11-01T01:51:12.391472Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "probe",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:12.467655Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "probe",
+        "status": "done",
+        "detail": "3 probes"
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:12.469135Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "gauge",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:14.544192Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "gauge",
+        "status": "done",
+        "detail": "1 observable"
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:14.545543Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "ask",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:19.353795Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "ask",
+        "status": "done",
+        "detail": "4 questions"
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:19.354968Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "compile",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:25.728266Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "compile",
+        "status": "done",
+        "detail": "1 rules"
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:25.728369Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "lint",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:25.747649Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "lint",
+        "status": "done",
+        "detail": "no lint errors"
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:25.747733Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "accept",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:25.753502Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "accept",
+        "status": "done",
+        "detail": "7/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:25.754300Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "audit",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:33.634096Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "audit",
+        "status": "done",
+        "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:33.634230Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "prove",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:33.690562Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-5cdb5eed5405",
+        "step": "prove",
+        "status": "done",
+        "detail": "Rule CI green for 1/1 rules"
+      }
+    },
+    {
+      "at": "2026-11-01T01:54:52.669747Z",
+      "topic": "candidate.new",
+      "payload": {
+        "event_id": "ev-86fe839b744f2f026c25404c",
+        "rule_id": "keep-people-2m-from-moving-forklift",
+        "camera_id": "phone-25",
+        "ts_start": "2026-11-01T01:54:45.513867Z",
+        "ts_end": "2026-11-01T01:54:46.513867Z",
+        "severity": "high",
+        "measurement": {
+          "value": 0.025025,
+          "lo": null,
+          "hi": null,
+          "unit": "m"
+        },
+        "predicate_trace": {
+          "subject": "phone-25:person:409a2c97",
+          "episode_s": 1.1,
+          "all": true,
+          "all.value": 0.025025,
+          "all.0.distance_m": true,
+          "all.0.distance_m.value": 0.025025,
+          "all.1.moving": true,
+          "all.1.moving.value": 2.44471
+        },
+        "strip_paths": [],
+        "track_window_hash": "48e29541ce85ba5e23a89a8d7c06f5e393a575ee2c04b15e36b1ea72141c1b2e",
+        "plan_version_hash": "1784db28181d6855d13243ce810a115729fd04924559088a9b536b8eb5ba0d5d",
+        "rule_ir_hash": "89676193996fe35291bd4952aed2e98aabe1033b9cf2ba7e7128eedb1e133b75"
+      }
+    },
+    {
+      "at": "2026-11-01T01:55:17.379901Z",
+      "topic": "verdict.new",
+      "payload": {
+        "event_id": "ev-86fe839b744f2f026c25404c",
+        "verdict": {
+          "tier": "glimmer",
+          "verdict": "no_violation",
+          "score": 0.05,
+          "reason": "The visible person is seated in the operator’s seat of the forklift and is operating it; there is no separate person near a moving forklift in the frames.",
+          "reasoning": null,
+          "scene_text": "1/6 t-1.0s keep-people-2m-from-moving-forklift measured 0.03 m\n2/6 t-0.6s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n3/6 t-0.2s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n4/6 t+0.2s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n5/6 t+0.6s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n5.0 m\n6/6 t+1.0s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n4.9 m",
+          "tamper": false,
+          "latency_ms": 23068,
+          "model_version": "muse-glimmer-30b"
+        }
+      }
+    }
+  ],
+  "metrics": [
+    {
+      "at": "2026-11-01T01:54:45.657098Z",
+      "lag_s": 0.0,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 0,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 0,
+      "segment_latency_p95_s": 0.0
+    },
+    {
+      "at": "2026-11-01T01:54:48.342246Z",
+      "lag_s": -0.173,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 0,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 0,
+      "segment_latency_p95_s": 0.0
+    },
+    {
+      "at": "2026-11-01T01:54:51.382350Z",
+      "lag_s": -0.133,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 0,
+      "in_flight": 1,
+      "verify_pending": 0,
+      "chunks_processed": 0,
+      "segment_latency_p95_s": 0.0
+    },
+    {
+      "at": "2026-11-01T01:54:54.821670Z",
+      "lag_s": 0.001,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 1,
+      "in_flight": 1,
+      "verify_pending": 1,
+      "chunks_processed": 1,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:54:57.457391Z",
+      "lag_s": -0.362,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 2,
+      "in_flight": 1,
+      "verify_pending": 1,
+      "chunks_processed": 2,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:00.550051Z",
+      "lag_s": -0.27,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 3,
+      "in_flight": 1,
+      "verify_pending": 1,
+      "chunks_processed": 3,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:03.451158Z",
+      "lag_s": -0.369,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 4,
+      "in_flight": 1,
+      "verify_pending": 1,
+      "chunks_processed": 4,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:06.447312Z",
+      "lag_s": -0.373,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 1,
+      "verify_pending": 1,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:09.296047Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 6,
+      "in_flight": 1,
+      "verify_pending": 1,
+      "chunks_processed": 6,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:09.297171Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 6,
+      "in_flight": 1,
+      "verify_pending": 1,
+      "chunks_processed": 6,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:10.305833Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 7,
+      "in_flight": 2,
+      "verify_pending": 1,
+      "chunks_processed": 7,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:11.307625Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:12.309477Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:13.311015Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:14.312411Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:15.314377Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:16.315650Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:17.317490Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:18.319382Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:19.321297Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:20.323153Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:21.325378Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:22.327313Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:23.329471Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:24.331363Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:25.332911Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:26.334816Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:27.336874Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:28.338873Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:29.341001Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:30.342149Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:31.343213Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:32.344593Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    },
+    {
+      "at": "2026-11-01T01:55:33.345666Z",
+      "lag_s": 0.002,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 8,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 8,
+      "segment_latency_p95_s": 3.926
+    }
+  ],
+  "predicted": [
+    {
+      "clip_s": 0.498202,
+      "track": "phone-25:forklift:f762bfdb",
+      "concept": "forklift",
+      "box_xyxy": [
+        255.81597900390625,
+        0.6849288940429688,
+        821.988037109375,
+        716.4475708007812
+      ]
+    },
+    {
+      "clip_s": 0.998202,
+      "track": "phone-25:forklift:f762bfdb",
+      "concept": "forklift",
+      "box_xyxy": [
+        330.78466796875,
+        1.0081887245178223,
+        828.8245849609375,
+        718.2852783203125
+      ]
+    },
+    {
+      "clip_s": 0.498202,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.080930233001709,
+        648.5467529296875,
+        717.736328125
+      ]
+    },
+    {
+      "clip_s": 0.998202,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.8240175247192383,
+        656.2647094726562,
+        717.5770874023438
+      ]
+    },
+    {
+      "clip_s": 1.498202,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.3710379600524902,
+        665.12158203125,
+        717.7312622070312
+      ]
+    },
+    {
+      "clip_s": 1.998202,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.887296199798584,
+        671.4364624023438,
+        717.5133056640625
+      ]
+    },
+    {
+      "clip_s": 2.498202,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.136763095855713,
+        683.2214965820312,
+        717.5314331054688
+      ]
+    },
+    {
+      "clip_s": 2.998202,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.3657674789428711,
+        689.1484375,
+        716.1561279296875
+      ]
+    },
+    {
+      "clip_s": 3.498202,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        698.6407470703125,
+        715.86083984375
+      ]
+    },
+    {
+      "clip_s": 3.998202,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        703.6524658203125,
+        712.1727294921875
+      ]
+    },
+    {
+      "clip_s": 4.498202,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        712.3037719726562,
+        708.0164794921875
+      ]
+    },
+    {
+      "clip_s": 4.998202,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        718.31787109375,
+        703.9537963867188
+      ]
+    },
+    {
+      "clip_s": 5.498202,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        722.5245361328125,
+        705.9063110351562
+      ]
+    },
+    {
+      "clip_s": 6.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        732.7603149414062,
+        710.7064819335938
+      ]
+    },
+    {
+      "clip_s": 6.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        737.8956298828125,
+        711.2120361328125
+      ]
+    },
+    {
+      "clip_s": 7.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        735.775390625,
+        708.0589599609375
+      ]
+    },
+    {
+      "clip_s": 7.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        741.2401123046875,
+        714.0086669921875
+      ]
+    },
+    {
+      "clip_s": 8.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        730.584228515625,
+        711.3798828125
+      ]
+    },
+    {
+      "clip_s": 8.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        727.864990234375,
+        712.331298828125
+      ]
+    },
+    {
+      "clip_s": 9.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        728.7315673828125,
+        714.8334350585938
+      ]
+    },
+    {
+      "clip_s": 9.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        723.9617309570312,
+        710.06884765625
+      ]
+    },
+    {
+      "clip_s": 10.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        711.8839111328125,
+        709.9697875976562
+      ]
+    },
+    {
+      "clip_s": 10.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.5987763404846191,
+        704.1168212890625,
+        716.5741577148438
+      ]
+    },
+    {
+      "clip_s": 11.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.1756739616394043,
+        692.315185546875,
+        715.7512817382812
+      ]
+    },
+    {
+      "clip_s": 11.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.4261493682861328,
+        683.0048217773438,
+        717.2633056640625
+      ]
+    },
+    {
+      "clip_s": 12.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.3827323913574219,
+        671.5750732421875,
+        718.430908203125
+      ]
+    },
+    {
+      "clip_s": 12.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.3521981239318848,
+        659.31591796875,
+        718.6386108398438
+      ]
+    },
+    {
+      "clip_s": 13.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.396315097808838,
+        651.9528198242188,
+        718.3982543945312
+      ]
+    },
+    {
+      "clip_s": 13.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.5928030014038086,
+        643.4813232421875,
+        718.4954223632812
+      ]
+    },
+    {
+      "clip_s": 14.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.4020442962646484,
+        631.9983520507812,
+        718.2129516601562
+      ]
+    },
+    {
+      "clip_s": 14.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.8669676780700684,
+        627.6947021484375,
+        718.2781372070312
+      ]
+    },
+    {
+      "clip_s": 15.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.8721470832824707,
+        631.5038452148438,
+        717.4236450195312
+      ]
+    },
+    {
+      "clip_s": 15.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.9214138984680176,
+        624.950927734375,
+        717.7401733398438
+      ]
+    },
+    {
+      "clip_s": 16.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.831291675567627,
+        621.9867553710938,
+        718.0126953125
+      ]
+    },
+    {
+      "clip_s": 16.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.9995412826538086,
+        624.2239990234375,
+        717.18798828125
+      ]
+    },
+    {
+      "clip_s": 17.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.2160062789916992,
+        622.9022827148438,
+        717.9181518554688
+      ]
+    },
+    {
+      "clip_s": 17.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        625.8548583984375,
+        716.4810180664062
+      ]
+    },
+    {
+      "clip_s": 18.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.0217499732971191,
+        625.676025390625,
+        716.9557495117188
+      ]
+    },
+    {
+      "clip_s": 18.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.43172025680542,
+        626.5027465820312,
+        717.472900390625
+      ]
+    },
+    {
+      "clip_s": 19.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.4083313941955566,
+        630.5806274414062,
+        718.41162109375
+      ]
+    },
+    {
+      "clip_s": 19.998378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.8792710304260254,
+        620.7806396484375,
+        717.4573364257812
+      ]
+    },
+    {
+      "clip_s": 20.498378,
+      "track": "phone-25:person:409a2c97",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        0.25762081146240234,
+        622.0215454101562,
+        717.0670776367188
+      ]
+    },
+    {
+      "clip_s": 0.998202,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        1.3631415367126465,
+        830.010986328125,
+        717.9556884765625
+      ]
+    },
+    {
+      "clip_s": 1.998202,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        5.2771759033203125,
+        1.14058256149292,
+        841.0293579101562,
+        718.0216674804688
+      ]
+    },
+    {
+      "clip_s": 2.498202,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        4.281463623046875,
+        1.0066866874694824,
+        851.7916259765625,
+        717.3246459960938
+      ]
+    },
+    {
+      "clip_s": 2.998202,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.062713623046875,
+        0.716557502746582,
+        863.8570556640625,
+        717.3403930664062
+      ]
+    },
+    {
+      "clip_s": 3.498202,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        0.14333724975585938,
+        875.0977783203125,
+        717.4061279296875
+      ]
+    },
+    {
+      "clip_s": 3.998202,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        0.6039690971374512,
+        885.8453369140625,
+        717.5709228515625
+      ]
+    },
+    {
+      "clip_s": 4.498202,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        0.16239166259765625,
+        898.0477905273438,
+        717.287353515625
+      ]
+    },
+    {
+      "clip_s": 4.998202,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        0.6501030921936035,
+        906.0317993164062,
+        717.5576171875
+      ]
+    },
+    {
+      "clip_s": 5.498202,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        0.9822678565979004,
+        915.5538940429688,
+        717.7693481445312
+      ]
+    },
+    {
+      "clip_s": 6.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        0.9937477111816406,
+        930.0908813476562,
+        718.00244140625
+      ]
+    },
+    {
+      "clip_s": 6.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        0.8481144905090332,
+        935.7266845703125,
+        717.9365234375
+      ]
+    },
+    {
+      "clip_s": 7.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        0.5241250991821289,
+        932.0294799804688,
+        717.5299072265625
+      ]
+    },
+    {
+      "clip_s": 7.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        1.0522842407226562,
+        929.2941284179688,
+        718.2802734375
+      ]
+    },
+    {
+      "clip_s": 8.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        1.0037899017333984,
+        925.9725952148438,
+        718.08154296875
+      ]
+    },
+    {
+      "clip_s": 8.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        1.515491008758545,
+        924.3618774414062,
+        718.2909545898438
+      ]
+    },
+    {
+      "clip_s": 9.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        0.8410120010375977,
+        921.2896728515625,
+        717.9889526367188
+      ]
+    },
+    {
+      "clip_s": 9.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        0.8560967445373535,
+        913.7836303710938,
+        717.6889038085938
+      ]
+    },
+    {
+      "clip_s": 10.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        1.045997142791748,
+        900.7716064453125,
+        717.8238525390625
+      ]
+    },
+    {
+      "clip_s": 11.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.0,
+        0.0,
+        865.6697998046875,
+        717.1729736328125
+      ]
+    },
+    {
+      "clip_s": 11.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        0.7024383544921875,
+        0.49953460693359375,
+        850.8281860351562,
+        717.72216796875
+      ]
+    },
+    {
+      "clip_s": 12.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        268.69873046875,
+        0.569465160369873,
+        833.5245361328125,
+        718.2371215820312
+      ]
+    },
+    {
+      "clip_s": 13.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        212.4698486328125,
+        1.1835193634033203,
+        822.5914306640625,
+        717.716796875
+      ]
+    },
+    {
+      "clip_s": 14.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        179.22079467773438,
+        1.13508939743042,
+        813.224609375,
+        717.585693359375
+      ]
+    },
+    {
+      "clip_s": 14.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        165.28793334960938,
+        1.2037968635559082,
+        810.8197021484375,
+        717.6318359375
+      ]
+    },
+    {
+      "clip_s": 15.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        182.45028686523438,
+        1.0582709312438965,
+        815.4043579101562,
+        717.5491943359375
+      ]
+    },
+    {
+      "clip_s": 15.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        148.3045654296875,
+        1.446826457977295,
+        812.77880859375,
+        717.7861938476562
+      ]
+    },
+    {
+      "clip_s": 16.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        140.20877075195312,
+        1.2322711944580078,
+        814.320068359375,
+        717.6176147460938
+      ]
+    },
+    {
+      "clip_s": 16.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        146.76368713378906,
+        1.2395882606506348,
+        817.0093383789062,
+        717.0130004882812
+      ]
+    },
+    {
+      "clip_s": 17.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        155.94406127929688,
+        0.9814953804016113,
+        817.256591796875,
+        717.519775390625
+      ]
+    },
+    {
+      "clip_s": 17.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        108.39290618896484,
+        0.9576559066772461,
+        815.698974609375,
+        717.1156005859375
+      ]
+    },
+    {
+      "clip_s": 18.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        114.4064712524414,
+        1.259908676147461,
+        813.66943359375,
+        717.561767578125
+      ]
+    },
+    {
+      "clip_s": 18.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        124.94823455810547,
+        1.2070798873901367,
+        812.5283813476562,
+        717.5650634765625
+      ]
+    },
+    {
+      "clip_s": 19.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        178.72544860839844,
+        0.8820605278015137,
+        815.1484375,
+        717.639404296875
+      ]
+    },
+    {
+      "clip_s": 19.998378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        184.43711853027344,
+        1.1959433555603027,
+        817.51318359375,
+        717.7081298828125
+      ]
+    },
+    {
+      "clip_s": 20.498378,
+      "track": "phone-25:forklift:e877e75d",
+      "concept": "forklift",
+      "box_xyxy": [
+        186.70718383789062,
+        1.3602876663208008,
+        817.3424072265625,
+        717.5466918945312
+      ]
+    },
+    {
+      "clip_s": 21.497975,
+      "track": "phone-25:forklift:806c3623",
+      "concept": "forklift",
+      "box_xyxy": [
+        194.0831756591797,
+        0.953986644744873,
+        812.6978149414062,
+        717.1621704101562
+      ]
+    },
+    {
+      "clip_s": 21.497975,
+      "track": "phone-25:person:303dd544",
+      "concept": "person",
+      "box_xyxy": [
+        0.0,
+        1.5780186653137207,
+        620.6743774414062,
+        717.4434204101562
+      ]
+    }
+  ]
+}

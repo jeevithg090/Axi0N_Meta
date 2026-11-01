@@ -62,6 +62,37 @@ def test_timeline_maps_camera_time_both_ways() -> None:
     assert not Timeline(())
 
 
+def test_clip_span_clamps_an_overlapping_episode_into_the_pass() -> None:
+    timeline = Timeline(slots(3))  # three 3 s chunks: camera seconds 0-9 are clip seconds 0-9
+    assert timeline.clip_span(at(4), at(5)) == (4.0, 5.0)
+    assert timeline.clip_span(at(-0.002), at(1)) == (0.0, 1.0)  # stamped 2 ms early
+    assert timeline.clip_span(at(8), at(12)) == (8.0, 9.0)
+    assert timeline.clip_span(at(-5), at(-1)) is None
+    assert timeline.clip_span(at(10), at(11)) is None
+    assert timeline.clip_span(at(5), at(4)) is None
+    assert Timeline(()).clip_span(at(0), at(1)) is None
+
+
+def test_clip_span_maps_a_gap_between_chunks_to_the_earlier_chunk() -> None:
+    first, second = slots(2)
+    later = second.model_copy(update={"cam_start": second.cam_start + timedelta(seconds=2)})
+    timeline = Timeline((first, later))  # chunk 1 ends at 3 s, chunk 2 starts at 5 s
+    assert timeline.clip_span(at(4), at(6)) == (3.0, 4.0)
+
+
+def test_a_candidate_stamped_just_before_the_pass_is_still_scored() -> None:
+    """Regression: the 1 Nov live run's driver candidate began 2 ms before chunk 0 and was lost."""
+    chain = [
+        candidate_record(1, "driver", at(-0.002), at(1.1)),
+        verdict_record(2, "driver", "no_violation", at(30)),
+        decision_record(3, "driver", alert=True, at=at(30)),
+    ]
+    (obs,) = observe(run_record(chain))
+    assert obs.start_s == 0.0
+    assert obs.end_s == pytest.approx(1.1)
+    assert obs.alert  # HIGH acted first: a false alert on a negative clip
+
+
 def test_observe_folds_verdicts_and_filters_camera_plan_and_pass() -> None:
     chain = [
         candidate_record(1, "e1", at(6), at(7)),

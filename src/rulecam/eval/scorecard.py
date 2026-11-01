@@ -135,8 +135,9 @@ def _check_row(
 ) -> Row:
     check = inputs.checks.get(key)
     if check is None or (check.passed is None and check.value is None):
+        measured = f"pending: {check.evidence}" if check and check.evidence else "not checked"
         return Row(
-            area=area, target=target, measured=f"not checked (`{key}`)", status="not measured"
+            area=area, target=target, measured=f"{measured} (`{key}`)", status="not measured"
         )
     if check.value is not None and at_least is not None:
         status = _at_least(check.value, at_least)

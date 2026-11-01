@@ -2,26 +2,25 @@
 
 import { useEffect, useState } from "react";
 
-import { demoPlanV1 } from "@/fixtures/demo-plan";
-
 import { api, ApiError } from "./api";
-import { useDemo, useDispatch, useStream } from "./stream";
+import { useDemo, useDispatch, useGolden, useStream } from "./stream";
 
 /**
- * Loads every plan into the store once (from `/plans`, or the recorded UC1 plan in demo mode)
- * and returns the store's plans plus any load error. `plan.updated` frames keep them current.
+ * Loads every plan into the store once (from `/plans`, or the golden run's approved plan in demo
+ * mode) and returns the store's plans plus any load error. `plan.updated` frames keep them current.
  */
 export function usePlans() {
   const state = useStream();
   const dispatch = useDispatch();
   const demo = useDemo();
+  const golden = useGolden();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setError(null);
     if (demo === null) return undefined;
     if (demo) {
-      dispatch({ type: "plan-loaded", plan: demoPlanV1, approved: true });
+      if (golden) dispatch({ type: "plan-loaded", plan: golden.plan, approved: true });
       return undefined;
     }
     let cancelled = false;
@@ -40,7 +39,7 @@ export function usePlans() {
     return () => {
       cancelled = true;
     };
-  }, [demo, dispatch]);
+  }, [demo, golden, dispatch]);
 
   return { plans: state.plans, error };
 }

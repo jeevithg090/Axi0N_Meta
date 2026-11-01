@@ -22,6 +22,7 @@ from rulecam.eval.tracking import (
     parse_mot,
     predicted_frames,
     score_tracking,
+    scored_minutes,
 )
 
 A = [(0.0, 0.0, 10.0, 10.0), (1.0, 0.0, 11.0, 10.0), (2.0, 0.0, 12.0, 10.0)]
@@ -103,6 +104,40 @@ def test_score_tracking_per_concept() -> None:
     assert scores.hota == pytest.approx(1.0)
     assert scores.id_switches_per_min == 0
     assert score_tracking(gt, [], fps=10)[0].id_switches_per_min is None
+
+
+def test_scored_minutes_is_the_real_time_span() -> None:
+    assert scored_minutes([], fps=30) == 0.0
+    assert scored_minutes([5], fps=30) == pytest.approx(1 / 30 / 60)
+    # Keyframes at 3 Hz on 30 fps ground truth for 60 s: every 10th frame, 180 frames scored.
+    keyframes = range(1, 1801, 10)
+    assert scored_minutes(keyframes, fps=30) == pytest.approx(1.0)
+    assert scored_minutes(range(1, 1801), fps=30) == pytest.approx(1.0)
+
+
+def test_id_switches_per_minute_at_keyframe_rate() -> None:
+    """Regression (#106 follow-up): 3 Hz keyframes on 30 fps labels for 60 s, 2 switches."""
+    gt = {
+        f: FrameBoxes(["a", "b"], [(0.0, 0.0, 10.0, 10.0), (20.0, 20.0, 30.0, 30.0)])
+        for f in range(1, 1801)
+    }
+    predicted = []
+    for f in range(1, 1801, 10):
+        first, second = ("p1", "p2") if f < 901 else ("p2", "p1")  # one swap at 30 s
+        predicted += [
+            PredictedBox(
+                clip_s=(f - 1) / 30, track=first, concept="person", box_xyxy=gt[f].boxes[0]
+            ),
+            PredictedBox(
+                clip_s=(f - 1) / 30, track=second, concept="person", box_xyxy=gt[f].boxes[1]
+            ),
+        ]
+    (scores,) = score_tracking({"person": gt}, predicted, fps=30)
+    assert scores.frames == 180
+    assert scores.id_switches == 2
+    assert scores.minutes == pytest.approx(1.0)
+    # Counting frames would give 180 / 30 / 60 = 0.1 min and 20 switches per minute.
+    assert scores.id_switches_per_min == pytest.approx(2.0)
 
 
 def test_a_run_with_labelled_tracks_is_scored(tmp_path: Path) -> None:

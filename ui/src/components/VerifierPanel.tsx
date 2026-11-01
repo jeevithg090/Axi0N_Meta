@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import type { EventView } from "@/lib/store";
 
 const VERDICT_TEXT = {
@@ -17,6 +19,37 @@ export function verifierError(view: EventView): string | null {
     (v) => v.verdict === "unsure" && v.reason.startsWith(VERIFIER_ERROR_PREFIX),
   );
   return failed ? failed.reason.slice(VERIFIER_ERROR_PREFIX.length) : null;
+}
+
+/** Public prefix of the golden runs' strip copies (`rulecam golden export`). */
+export const GOLDEN_STRIP_PREFIX = "/golden/";
+
+/**
+ * Strip frames this browser can load: the golden runs' public copies. A live candidate's
+ * `strip_paths` are files on the API pod, so live strips are not shown here.
+ */
+export function stripUrls(paths: readonly string[]): string[] {
+  return paths.filter((p) => p.startsWith(GOLDEN_STRIP_PREFIX) && !p.includes(".."));
+}
+
+/** The frames Tier 1 was shown, in order, with the rule's boxes and the distance ruler drawn on. */
+export function StripFrames({ paths }: { paths: readonly string[] }) {
+  const urls = stripUrls(paths);
+  if (urls.length === 0) return null;
+  return (
+    <div className="strip" data-testid="strip">
+      {urls.map((url, index) => (
+        <Image
+          key={url}
+          src={url}
+          alt={`Strip frame ${index + 1} of ${urls.length}`}
+          width={640}
+          height={360}
+          unoptimized
+        />
+      ))}
+    </div>
+  );
 }
 
 /** Predicate trace plus each verifier tier's verdict, with Spark Open's reasoning expandable. */
@@ -40,6 +73,7 @@ export function VerifierPanel({ view }: { view: EventView }) {
           </div>
         ))}
       </dl>
+      <StripFrames paths={candidate.strip_paths} />
       {error !== null && (
         <p className="needs-review" data-testid="needs-review" role="status">
           Needs review: verifier unavailable — {error}

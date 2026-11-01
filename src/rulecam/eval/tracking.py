@@ -59,7 +59,7 @@ class TrackingScores:
 
     @property
     def id_switches_per_min(self) -> float | None:
-        """ID switches per minute of scored frames."""
+        """ID switches per minute of the real time the scored frames span."""
         return self.id_switches / self.minutes if self.minutes > 0 else None
 
 
@@ -222,6 +222,29 @@ def clear_and_id(
     return (0.0 if np.isnan(idf1) else idf1), int(row["num_switches"]), float(row["mota"])
 
 
+def scored_minutes(frames: Iterable[int], *, fps: float) -> float:
+    """Real time the scored frames span, in minutes, whatever rate the runtime tracked at.
+
+    Counting frames (`len(frames) / fps`) understates time when the runtime samples keyframes
+    (2-4 per second against 30 fps ground truth), which overstates ID switches per minute
+    10x. The span runs from the first to the last scored frame plus one typical sampling step
+    (the median gap), so the last sample's interval counts too; one frame counts `1 / fps`.
+
+    Args:
+        frames: The scored ground-truth frame numbers.
+        fps: The ground truth's frame rate.
+
+    Returns:
+        Minutes (0 when nothing was scored).
+    """
+    ordered = sorted(set(frames))
+    if not ordered:
+        return 0.0
+    gaps = np.diff(ordered)
+    step = float(np.median(gaps)) if gaps.size else 1.0
+    return (ordered[-1] - ordered[0] + step) / fps / 60.0
+
+
 def score_tracking(
     gt: Mapping[str, Mapping[int, FrameBoxes]],
     predicted: Sequence[PredictedBox],
@@ -231,7 +254,7 @@ def score_tracking(
 ) -> list[TrackingScores]:
     """Score every labelled concept on the frames the runtime tracked."""
     pred, frames = predicted_frames(predicted, fps=fps, scale=scale)
-    minutes = len(frames) / fps / 60.0 if frames else 0.0
+    minutes = scored_minutes(frames, fps=fps)
     out = []
     for concept in sorted(gt):
         g, p = gt[concept], pred.get(concept, {})

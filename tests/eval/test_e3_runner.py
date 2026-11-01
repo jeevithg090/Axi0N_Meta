@@ -2,20 +2,31 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
+import yaml
 from eval.runners.e3 import (
     E3Summary,
     HeldoutRequest,
     RequestRunRecord,
     aggregate_e3,
     load_heldout_requests,
+    plan_for_request,
     render_e3_markdown_table,
     run_e3_evaluation,
     simulate_plan_for_request,
 )
 
-from rulecam.contracts.plan import SitePlan
+from rulecam.contracts.core import PrivacyMode
+from rulecam.contracts.plan import (
+    AcceptanceCheck,
+    AcceptanceResult,
+    FeasibilityVerdict,
+    SitePlan,
+)
+from rulecam.contracts.rule_ir import RuleIR
 
 HELDOUT_FIXTURE = Path(__file__).resolve().parents[2] / "eval" / "heldout" / "requests.jsonl"
 
@@ -216,3 +227,295 @@ def test_run_e3_evaluation_end_to_end(tmp_path: Path) -> None:
     assert results_path.exists()
     assert len(list(plans_dir.glob("*.json"))) == 4
     assert len(list(plans_dir.glob("*.yaml"))) == 4
+
+
+class FakePipeline:
+    def __init__(self, plan_fn: Callable[[Any], SitePlan] | None = None) -> None:
+        self._plan_fn = plan_fn
+
+    def run(self, inputs: Any) -> SitePlan:
+        if self._plan_fn:
+            return self._plan_fn(inputs)
+        raise RuntimeError("simulated pipeline failure")
+
+
+def test_plan_for_request_guardrail_decline() -> None:
+    req = HeldoutRequest(
+        id="req-dec",
+        domain="warehouse",
+        author="Manager",
+        text="Rank workers by speed",
+        expected_outcome="declined",
+        expected_category="per_person_productivity",
+    )
+    fake_pipe = FakePipeline()
+    plan, record = plan_for_request(req, run_idx=0, pipeline=fake_pipe)  # type: ignore[arg-type]
+    assert record.outcome == "declined"
+    assert record.is_valid_or_honest is True
+    assert record.first_pass_accepted is True
+    assert record.duration_s >= 0.0
+    assert len(plan.feasibility) == 1
+    assert plan.feasibility[0].verdict == "declined"
+
+
+def test_plan_for_request_real_pipeline_valid_rule() -> None:
+
+    rule_yaml = (
+        Path(__file__).resolve().parents[2]
+        / "tests"
+        / "fixtures"
+        / "rules"
+        / "wash-before-line.rule.yaml"
+    )
+    raw_rule = yaml.safe_load(rule_yaml.read_text(encoding="utf-8"))
+
+    def make_valid_plan(inputs: Any) -> SitePlan:
+        rule = RuleIR.model_validate({**raw_rule, "id": f"rule-{inputs.plan_id}"})
+        return SitePlan(
+            plan_id=inputs.plan_id,
+            site_name=inputs.site_name,
+            setting_inferred="kitchen",
+            languages=("en",),
+            request=inputs.request,
+            inventory=(),
+            feasibility=(
+                FeasibilityVerdict(
+                    concern=inputs.request[0].text,
+                    verdict="observable",
+                    says="Observable on camera.",
+                ),
+            ),
+            rules=(rule,),
+            privacy_mode=PrivacyMode.STANDARD,
+            acceptance=AcceptanceResult(
+                checks=(AcceptanceCheck(item="rule", check="rule_valid", passed=True),),
+                rounds=0,
+            ),
+        )
+
+    req = HeldoutRequest(
+        id="req-valid",
+        domain="kitchen",
+        author="Chef",
+        text="Make sure staff wash hands for 20 seconds",
+        expected_outcome="observable",
+        expected_category="valid_rule",
+    )
+    fake_pipe = FakePipeline(make_valid_plan)
+    _plan, record = plan_for_request(req, run_idx=0, pipeline=fake_pipe)  # type: ignore[arg-type]
+    assert record.outcome == "valid_rule"
+    assert record.is_valid_or_honest is True
+    assert record.first_pass_accepted is True
+    assert record.rule_ids == ["rule-plan-req-valid-r0"]
+    assert record.duration_s >= 0.0
+
+
+def test_plan_for_request_real_pipeline_failure() -> None:
+    req = HeldoutRequest(
+        id="req-fail",
+        domain="kitchen",
+        author="Chef",
+        text="Make sure staff wash hands for 20 seconds",
+        expected_outcome="observable",
+        expected_category="valid_rule",
+    )
+    fake_pipe = FakePipeline()
+    _plan, record = plan_for_request(req, run_idx=0, pipeline=fake_pipe)  # type: ignore[arg-type]
+    assert record.outcome == "failed"
+    assert record.is_valid_or_honest is False
+
+
+def test_run_e3_evaluation_with_real_pipeline(tmp_path: Path) -> None:
+
+    rule_yaml = (
+        Path(__file__).resolve().parents[2]
+        / "tests"
+        / "fixtures"
+        / "rules"
+        / "wash-before-line.rule.yaml"
+    )
+    raw_rule = yaml.safe_load(rule_yaml.read_text(encoding="utf-8"))
+
+    def make_valid_plan(inputs: Any) -> SitePlan:
+        rule = RuleIR.model_validate({**raw_rule, "id": f"rule-{inputs.plan_id}"})
+        return SitePlan(
+            plan_id=inputs.plan_id,
+            site_name=inputs.site_name,
+            setting_inferred="kitchen",
+            languages=("en",),
+            request=inputs.request,
+            inventory=(),
+            feasibility=(
+                FeasibilityVerdict(
+                    concern=inputs.request[0].text,
+                    verdict="observable",
+                    says="Observable on camera.",
+                ),
+            ),
+            rules=(rule,),
+            privacy_mode=PrivacyMode.STANDARD,
+            acceptance=AcceptanceResult(
+                checks=(AcceptanceCheck(item="rule", check="rule_valid", passed=True),),
+                rounds=0,
+            ),
+        )
+
+    reqs_file = tmp_path / "reqs.jsonl"
+    reqs = [
+        HeldoutRequest(
+            id="req-1",
+            domain="kitchen",
+            author="Chef",
+            text="Make cooks wash hands for 20 seconds",
+            expected_outcome="observable",
+            expected_category="valid_rule",
+        ),
+        HeldoutRequest(
+            id="req-2",
+            domain="kitchen",
+            author="Owner",
+            text="Rank workers by speed",
+            expected_outcome="declined",
+            expected_category="per_person_productivity",
+        ),
+    ]
+    reqs_file.write_text("\n".join(r.model_dump_json() for r in reqs), encoding="utf-8")
+
+    plans_dir = tmp_path / "plans"
+    results_path = tmp_path / "results" / "e3.json"
+    fake_pipe = FakePipeline(make_valid_plan)
+
+    summary = run_e3_evaluation(
+        reqs_file,
+        plans_dir,
+        results_path,
+        runs_per_request=2,
+        pipeline=fake_pipe,  # type: ignore[arg-type]
+    )
+
+    assert summary.total_requests == 2
+    assert summary.total_runs == 4
+    assert summary.valid_or_honest_rate == 1.0
+    assert summary.simulated is False
+    assert summary.gate_passed is True
+    assert summary.mean_duration_s >= 0.0
+    assert results_path.exists()
+
+
+def test_plan_for_request_observable_declined_counts_as_miss() -> None:
+    req = HeldoutRequest(
+        id="req-obs-declined",
+        domain="kitchen",
+        author="Chef",
+        text="Make sure staff wash hands for 20 seconds",
+        expected_outcome="observable",
+        expected_category="valid_rule",
+    )
+
+    def make_declined_plan(inputs: Any) -> SitePlan:
+        return SitePlan(
+            plan_id=inputs.plan_id,
+            site_name=inputs.site_name,
+            setting_inferred="kitchen",
+            languages=("en",),
+            request=inputs.request,
+            inventory=(),
+            feasibility=(
+                FeasibilityVerdict(
+                    concern=inputs.request[0].text,
+                    verdict="declined",
+                    says="Declined by policy.",
+                    reason="custom policy",
+                ),
+            ),
+            rules=(),
+            privacy_mode=PrivacyMode.STANDARD,
+            acceptance=AcceptanceResult(checks=(), rounds=0),
+        )
+
+    fake_pipe = FakePipeline(make_declined_plan)
+    _plan, record = plan_for_request(req, run_idx=0, pipeline=fake_pipe)  # type: ignore[arg-type]
+    assert record.outcome == "declined"
+    assert record.is_valid_or_honest is False
+
+
+def test_plan_for_request_observable_punted_not_observable_counts_as_miss() -> None:
+    req = HeldoutRequest(
+        id="req-obs-not-obs",
+        domain="kitchen",
+        author="Chef",
+        text="Make sure staff wash hands for 20 seconds",
+        expected_outcome="observable",
+        expected_category="valid_rule",
+    )
+
+    def make_not_obs_plan(inputs: Any) -> SitePlan:
+        return SitePlan(
+            plan_id=inputs.plan_id,
+            site_name=inputs.site_name,
+            setting_inferred="kitchen",
+            languages=("en",),
+            request=inputs.request,
+            inventory=(),
+            feasibility=(
+                FeasibilityVerdict(
+                    concern=inputs.request[0].text,
+                    verdict="not_observable",
+                    says="Camera cannot see this.",
+                ),
+            ),
+            rules=(),
+            privacy_mode=PrivacyMode.STANDARD,
+            acceptance=AcceptanceResult(checks=(), rounds=0),
+        )
+
+    fake_pipe = FakePipeline(make_not_obs_plan)
+    _plan, record = plan_for_request(req, run_idx=0, pipeline=fake_pipe)  # type: ignore[arg-type]
+    assert record.outcome == "not_observable"
+    assert record.is_valid_or_honest is False
+
+
+def test_plan_for_request_guardrail_decline_on_observable_counts_as_miss() -> None:
+    # A request that triggers deterministic guardrail but was labeled observable is a miss
+    req = HeldoutRequest(
+        id="req-guardrail-mismatch",
+        domain="warehouse",
+        author="Auditor",
+        text="Tell me who is the slowest worker in the packaging line",
+        expected_outcome="observable",
+        expected_category="per_person_productivity",
+    )
+    fake_pipe = FakePipeline()
+    _plan, record = plan_for_request(req, run_idx=0, pipeline=fake_pipe)  # type: ignore[arg-type]
+    assert record.outcome == "declined"
+    assert record.is_valid_or_honest is False
+
+
+def test_aggregate_e3_team_written_requests_never_pass_gate() -> None:
+    records = [
+        RequestRunRecord(
+            request_id="req-1",
+            run_index=0,
+            outcome="valid_rule",
+            is_valid_or_honest=True,
+            first_pass_accepted=True,
+            repair_rounds=0,
+            duration_s=0.5,
+        ),
+    ]
+    summary = aggregate_e3(
+        records,
+        total_requests=1,
+        simulated=False,
+        has_outside_requests=False,
+        any_team_written=True,
+    )
+    assert summary.simulated is False
+    assert summary.any_team_written is True
+    assert summary.has_outside_requests is False
+    assert summary.valid_or_honest_rate == 1.0
+    assert summary.gate_passed is False
+
+    md = render_e3_markdown_table(summary)
+    assert "TEAM-WRITTEN" in md
+    assert "BLOCKED: team-written requests" in md

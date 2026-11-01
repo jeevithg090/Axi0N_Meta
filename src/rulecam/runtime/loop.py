@@ -131,6 +131,8 @@ DEFAULT_WINDOW_S = 30.0
 DEFAULT_MAX_LAG_S = 6.0
 DEFAULT_KEYFRAME_STRIDE = 3
 EPISODE_MERGE_S = 2.0
+WINDOW_END_MARGIN = timedelta(microseconds=1)
+"""An evaluation window ends this much before its chunk's end, where the next chunk begins."""
 RATE_HISTORY_S = 60.0
 DEFAULT_PIPELINE_DEPTH = 1
 DEFAULT_VERIFY_WORKERS = 4
@@ -946,7 +948,10 @@ class RuntimeLoop:
 
     def _evaluate(self, rule: RuleIR, job: _Job) -> list[tuple[CandidateEvent, DecisionContext]]:
         chunk, plan = job.chunk, job.plan
-        t1 = chunk_end(chunk)
+        # The window ends just before the next chunk starts: that chunk's first keyframe is
+        # stamped exactly at this chunk's end, and the store's window is inclusive, so the audit
+        # would otherwise re-read a point the engine never saw and no decision would reproduce.
+        t1 = chunk_end(chunk) - WINDOW_END_MARGIN
         t0 = t1 - self._window
         self._forget_before(chunk.camera_id, t0)
         gaps = [self._state.gap_end.get((chunk.camera_id, p)) for p in job.rule_prompts[rule.id]]

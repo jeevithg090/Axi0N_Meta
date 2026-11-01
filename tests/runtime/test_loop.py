@@ -253,6 +253,27 @@ def test_candidate_records_rederive_in_the_audit(tmp_path: Path) -> None:
     assert report.summary().endswith("1/1 decisions reproduced")
 
 
+def test_candidates_still_rederive_after_the_next_chunk_is_stored(tmp_path: Path) -> None:
+    """Live regression (1 Nov): the next chunk's first keyframe lands exactly on this window's end.
+
+    The evaluation window must end before it, or the audit re-reads a window with points the
+    engine never saw and no decision reproduces (0/59 on the 31 Oct live chain).
+    """
+    from rulecam.evidence.audit import audit_chain  # noqa: PLC0415
+
+    clock = at_end_of(FakeClock(), 0)
+    loop, _, chain, _ = make_loop(tmp_path, clock)
+    loop.set_plan(sink_plan())
+    loop.handle_chunk(make_chunk(index=0))
+    at_end_of(clock, 1)
+    loop.handle_chunk(make_chunk(index=1))  # its first point is at chunk 0's end
+    path = chain.path_for(clock.now().date())
+    candidates = [r for r in read_chain(path) if r.kind == "candidate"]
+    assert candidates
+    report = audit_chain(path, loop._store)
+    assert report.reproduced == report.candidates, report.summary()
+
+
 def test_the_owner_operator_override_reaches_the_decision_context(tmp_path: Path) -> None:
     """WS1c: operator exclusion is on by default and off for the rules the owner lists."""
     plan = sink_plan()

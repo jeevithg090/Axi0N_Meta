@@ -65,7 +65,7 @@
       "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)"
     }
   ],
-  "back_translation": "[en]\n- keep-people-2m-from-moving-forklift: Watches for person and forklift objects with ground-plane@phone-25 calibration. Triggers with high severity when a person is less than 2.0 m from a forklift that is moving faster than 0.2 m/s. Action is notify role supervisor in en. No zone restriction, no after_s delay.",
+  "back_translation": "[en]\n- keep-people-2m-from-moving-forklift: Watches for person and forklift objects with ground-plane calibration ground-plane@phone-26. Triggers when a person is within <2.0 m of a forklift AND the forklift is moving with speed >0.2 m/s. On trigger, severity high, speaks to the operator in English. No zone restriction. Verify tier1 glimmer, tier2 spark-open-on-disagree, min_confidence 0.7.",
   "cost_usd_per_cam_hour": null,
   "feasibility": [
     {
@@ -73,7 +73,7 @@
       "concern": "Keep people at least 2 metres away from a moving forklift.",
       "evidence": [
         {
-          "camera_id": "phone-25",
+          "camera_id": "phone-26",
           "concept": "person",
           "detect_lb": 0.862,
           "detect_rate": 1.0,
@@ -81,7 +81,7 @@
           "n_frames": 24
         },
         {
-          "camera_id": "phone-25",
+          "camera_id": "phone-26",
           "concept": "forklift",
           "detect_lb": 0.862,
           "detect_rate": 1.0,
@@ -89,8 +89,8 @@
           "n_frames": 24
         },
         {
-          "camera_id": "phone-25",
-          "concept": "concrete warehouse floor",
+          "camera_id": "phone-26",
+          "concept": "warehouse concrete floor",
           "detect_lb": 0.862,
           "detect_rate": 1.0,
           "median_px_height": 719.0,
@@ -98,82 +98,94 @@
         }
       ],
       "reason": null,
-      "says": "I can see the person, forklift, concrete warehouse floor on phone-25, so I can check Keep people at least 2 metres away from a moving forklift..",
+      "says": "I can see the person, forklift, warehouse concrete floor on phone-26, so I can check Keep people at least 2 metres away from a moving forklift..",
       "verdict": "observable"
     }
   ],
   "inventory": [
     {
-      "camera_id": "phone-25",
+      "camera_id": "phone-26",
       "concept": "person",
       "count": 1,
       "mean_confidence": 0.9785
     },
     {
-      "camera_id": "phone-25",
+      "camera_id": "phone-26",
       "concept": "forklift",
       "count": 1,
       "mean_confidence": 0.8402
     },
     {
-      "camera_id": "phone-25",
+      "camera_id": "phone-26",
       "concept": "steering wheel",
       "count": 1,
-      "mean_confidence": 0.9443
+      "mean_confidence": 0.9438
     },
     {
-      "camera_id": "phone-25",
+      "camera_id": "phone-26",
       "concept": "forklift seat",
       "count": 1,
-      "mean_confidence": 0.6919
+      "mean_confidence": 0.693
     },
     {
-      "camera_id": "phone-25",
-      "concept": "clipboard paper",
+      "camera_id": "phone-26",
+      "concept": "forklift mast",
       "count": 1,
-      "mean_confidence": 0.5039
+      "mean_confidence": 0.5923
     },
     {
-      "camera_id": "phone-25",
-      "concept": "concrete warehouse floor",
+      "camera_id": "phone-26",
+      "concept": "seat belt",
       "count": 1,
-      "mean_confidence": 0.9488
+      "mean_confidence": 0.7403
     },
     {
-      "camera_id": "phone-25",
+      "camera_id": "phone-26",
+      "concept": "blue work uniform",
+      "count": 1,
+      "mean_confidence": 0.9487
+    },
+    {
+      "camera_id": "phone-26",
+      "concept": "warehouse concrete floor",
+      "count": 1,
+      "mean_confidence": 0.9048
+    },
+    {
+      "camera_id": "phone-26",
       "concept": "wooden pallet",
       "count": 3,
       "mean_confidence": 0.8325
     },
     {
-      "camera_id": "phone-25",
-      "concept": "white sack stack",
-      "count": 3,
-      "mean_confidence": 0.6119
+      "camera_id": "phone-26",
+      "concept": "large white bulk bag",
+      "count": 2,
+      "mean_confidence": 0.8438
     },
     {
-      "camera_id": "phone-25",
-      "concept": "metal floor stand",
-      "count": 3,
-      "mean_confidence": 0.7409
-    },
-    {
-      "camera_id": "phone-25",
-      "concept": "forklift mast",
+      "camera_id": "phone-26",
+      "concept": "clipboard",
       "count": 1,
-      "mean_confidence": 0.5928
+      "mean_confidence": 0.68
     },
     {
-      "camera_id": "phone-25",
-      "concept": "blue work uniform",
-      "count": 1,
-      "mean_confidence": 0.9482
+      "camera_id": "phone-26",
+      "concept": "white paper sheet",
+      "count": 2,
+      "mean_confidence": 0.686
+    },
+    {
+      "camera_id": "phone-26",
+      "concept": "metal stand base",
+      "count": 2,
+      "mean_confidence": 0.7673
     }
   ],
   "languages": [
     "en"
   ],
-  "plan_id": "plan-5cdb5eed5405",
+  "plan_id": "plan-098d7b6fb193",
   "privacy_mode": "standard",
   "protected_two_key": [],
   "request": [
@@ -193,13 +205,13 @@
       "actions": [
         {
           "after_s": null,
-          "kind": "notify",
+          "kind": "speak",
           "lang": "en",
-          "role": "supervisor"
+          "role": "operator"
         }
       ],
       "backtestable": "yes",
-      "calibration": "ground-plane@phone-25",
+      "calibration": "ground-plane@phone-26",
       "concepts": {
         "forklift": {
           "prompt": "forklift",
@@ -233,7 +245,7 @@
       "source": {
         "kind": "text",
         "lang": "en",
-        "plan_id": "plan-5cdb5eed5405",
+        "plan_id": "plan-098d7b6fb193",
         "standard": [],
         "text": "Keep people at least 2 metres away from a moving forklift."
       },

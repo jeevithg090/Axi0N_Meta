@@ -1,12 +1,12 @@
 {
   "windows": [
     {
-      "camera_id": "phone-25",
-      "t0": "2026-11-01T01:54:18.513867Z",
-      "t1": "2026-11-01T01:54:48.513867Z",
+      "camera_id": "phone-26",
+      "t0": "2026-11-01T02:29:05.012767Z",
+      "t1": "2026-11-01T02:29:35.012767Z",
       "tracks": [
         {
-          "camera_id": "phone-25",
+          "camera_id": "phone-26",
           "concept": "forklift",
           "points": [
             {
@@ -24,7 +24,7 @@
               ],
               "frame_idx": 0,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:45.513867Z"
+              "ts": "2026-11-01T02:29:32.012768Z"
             },
             {
               "box_xyxy": [
@@ -41,7 +41,7 @@
               ],
               "frame_idx": 5,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:46.013867Z"
+              "ts": "2026-11-01T02:29:32.512768Z"
             },
             {
               "box_xyxy": [
@@ -58,13 +58,13 @@
               ],
               "frame_idx": 10,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:46.513867Z"
+              "ts": "2026-11-01T02:29:33.012768Z"
             }
           ],
-          "track_id": "phone-25:forklift:f762bfdb"
+          "track_id": "phone-26:forklift:b01844d0"
         },
         {
-          "camera_id": "phone-25",
+          "camera_id": "phone-26",
           "concept": "person",
           "points": [
             {
@@ -82,7 +82,7 @@
               ],
               "frame_idx": 0,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:45.513867Z"
+              "ts": "2026-11-01T02:29:32.012768Z"
             },
             {
               "box_xyxy": [
@@ -99,7 +99,7 @@
               ],
               "frame_idx": 5,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:46.013867Z"
+              "ts": "2026-11-01T02:29:32.512768Z"
             },
             {
               "box_xyxy": [
@@ -116,7 +116,7 @@
               ],
               "frame_idx": 10,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:46.513867Z"
+              "ts": "2026-11-01T02:29:33.012768Z"
             },
             {
               "box_xyxy": [
@@ -133,7 +133,7 @@
               ],
               "frame_idx": 15,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:47.013867Z"
+              "ts": "2026-11-01T02:29:33.512768Z"
             },
             {
               "box_xyxy": [
@@ -150,7 +150,7 @@
               ],
               "frame_idx": 20,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:47.513867Z"
+              "ts": "2026-11-01T02:29:34.012768Z"
             },
             {
               "box_xyxy": [
@@ -167,30 +167,13 @@
               ],
               "frame_idx": 25,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:48.013867Z"
-            },
-            {
-              "box_xyxy": [
-                0.0,
-                0.3657674789428711,
-                689.1484375,
-                716.1561279296875
-              ],
-              "confidence": 0.9766578674316406,
-              "foot_m": null,
-              "foot_px": [
-                344.57421875,
-                716.1561279296875
-              ],
-              "frame_idx": 0,
-              "keypoints": null,
-              "ts": "2026-11-01T01:54:48.513867Z"
+              "ts": "2026-11-01T02:29:34.512768Z"
             }
           ],
-          "track_id": "phone-25:person:409a2c97"
+          "track_id": "phone-26:person:6eb3ec88"
         },
         {
-          "camera_id": "phone-25",
+          "camera_id": "phone-26",
           "concept": "forklift",
           "points": [
             {
@@ -208,7 +191,7 @@
               ],
               "frame_idx": 10,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:46.513867Z"
+              "ts": "2026-11-01T02:29:33.012768Z"
             },
             {
               "box_xyxy": [
@@ -225,7 +208,7 @@
               ],
               "frame_idx": 20,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:47.513867Z"
+              "ts": "2026-11-01T02:29:34.012768Z"
             },
             {
               "box_xyxy": [
@@ -242,27 +225,10 @@
               ],
               "frame_idx": 25,
               "keypoints": null,
-              "ts": "2026-11-01T01:54:48.013867Z"
-            },
-            {
-              "box_xyxy": [
-                0.062713623046875,
-                0.716557502746582,
-                863.8570556640625,
-                717.3403930664062
-              ],
-              "confidence": 0.7579687833786011,
-              "foot_m": null,
-              "foot_px": [
-                431.9598846435547,
-                717.3403930664062
-              ],
-              "frame_idx": 0,
-              "keypoints": null,
-              "ts": "2026-11-01T01:54:48.513867Z"
+              "ts": "2026-11-01T02:29:34.512768Z"
             }
           ],
-          "track_id": "phone-25:forklift:e877e75d"
+          "track_id": "phone-26:forklift:3b36a0e8"
         }
       ]
     }

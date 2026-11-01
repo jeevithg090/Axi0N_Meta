@@ -163,12 +163,14 @@ def survives_restart(config: AutoConfig) -> Check:
         return _unmeasured(data)
     checks = data.get("checks") if isinstance(data.get("checks"), dict) else {}
     restored = checks.get("plan_restored") if isinstance(checks, dict) else None
-    passed = data.get("passed") is True and restored is True
+    listed = checks.get("plan_listed_approved") if isinstance(checks, dict) else None
+    passed = data.get("passed") is True and restored is True and listed is not False
     return Check(
         passed=passed,
         evidence=(
             f"restart_check.sh {data.get('started_at')}: up after {data.get('up_after_s')} s, "
-            f"plan {data.get('plan_restored')} restored={restored} ({data.get('note', '')})"
+            f"plan {data.get('plan_restored')} restored={restored}, listed approved={listed} "
+            f"({data.get('note', '')})"
         ),
     )
 

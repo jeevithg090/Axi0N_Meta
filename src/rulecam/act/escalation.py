@@ -7,6 +7,9 @@ someone acknowledges it, so the final role's ack is still recorded.
 
 The manager is driven by `tick()` against the injected clock (the API calls it every second),
 so a test advances a `FakeClock` and calls `tick()` to replay a 60 s timeline instantly.
+
+Each step is decided under the manager's lock and sent after it is released, so a slow notifier
+(a WhatsApp call over the network) never blocks acks, other chains or the timers.
 """
 
 from __future__ import annotations
@@ -41,6 +44,19 @@ class _Chain:
     next_at: datetime | None = None
     acked_by: str | None = None
     records: list[ActionRecord] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class _Step:
+    """One notification decided under the lock, to send after releasing it."""
+
+    event_id: str
+    rule_id: str | None
+    role: str
+    title: str
+    body: str
+    clip_path: str | None
+    record: ActionRecord
 
 
 class EscalationManager:
@@ -96,15 +112,13 @@ class EscalationManager:
         state = _Chain(event_id, tuple(roles), after_s, title, body, clip_path, rule_id)
         with self._lock:
             self._open[event_id] = state
-            return self._notify_next(state)
+            step = self._advance(state)
+        return self._deliver(step)
 
-    def _notify_next(self, state: _Chain) -> ActionRecord:
+    def _advance(self, state: _Chain) -> _Step:
+        """Move `state` to its next role and arm the next timer (call with the lock held)."""
         role = state.roles[state.step]
         now = self._clock.now()
-        with for_event(state.event_id, state.rule_id):
-            self._notifier.send(
-                role, state.title, state.body, clip_path=state.clip_path, buttons=ALERT_BUTTONS
-            )
         record = ActionRecord(
             kind="notify" if state.step == 0 else "escalate",
             role=role,
@@ -116,8 +130,18 @@ class EscalationManager:
         state.step += 1
         last = state.step >= len(state.roles)
         state.next_at = None if last else now + timedelta(seconds=state.after_s)
-        self._emit(state.event_id, record)
-        return record
+        return _Step(
+            state.event_id, state.rule_id, role, state.title, state.body, state.clip_path, record
+        )
+
+    def _deliver(self, step: _Step) -> ActionRecord:
+        """Send a decided step and chain it (call without the lock: the send may be slow)."""
+        with for_event(step.event_id, step.rule_id):
+            self._notifier.send(
+                step.role, step.title, step.body, clip_path=step.clip_path, buttons=ALERT_BUTTONS
+            )
+        self._emit(step.event_id, step.record)
+        return step.record
 
     def _emit(self, event_id: str, record: ActionRecord) -> None:
         self._chain.append("action", {"event_id": event_id, **record.model_dump(mode="json")})
@@ -132,7 +156,8 @@ class EscalationManager:
         now = self._clock.now()
         with self._lock:
             due = [s for s in self._open.values() if s.next_at is not None and s.next_at <= now]
-            return [self._notify_next(state) for state in due]
+            steps = [self._advance(state) for state in due]
+        return [self._deliver(step) for step in steps]
 
     def escalate_now(self, event_id: str) -> ActionRecord | None:
         """Skip the wait and notify the next role (the "Escalate" button)."""
@@ -140,7 +165,8 @@ class EscalationManager:
             state = self._open.get(event_id)
             if state is None or state.step >= len(state.roles):
                 return None
-            return self._notify_next(state)
+            step = self._advance(state)
+        return self._deliver(step)
 
     def ack(self, event_id: str, role: str) -> Ack | None:
         """Acknowledge an alert, cancelling the rest of its chain.

@@ -797,6 +797,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 hard_negatives=hard_negatives,
             ),
             owner_alerts_router(response),
+            *((webhook,) if (webhook := response.webhook_router()) is not None else ()),
         ),
     )
 

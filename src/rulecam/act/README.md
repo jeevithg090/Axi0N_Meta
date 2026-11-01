@@ -72,6 +72,25 @@ interlock.connect()  # at start-up: discovery now, so the first cut is one round
 uv run pytest tests/act
 ```
 
+## WhatsApp escalation (P3-S1)
+
+Set `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` and `WHATSAPP_RECIPIENTS`
+(`aide=15551234567,charge_nurse=…`, kept only in `.env`). `build_response` then sends escalations
+and notifications through `WhatsAppNotifier`:
+
+- **The LAN app always gets the alert** (it is the fallback and holds the alert id).
+- A role whose phone messaged "start" in the last **24 hours** also gets an interactive
+  **reply-button** message. The skeleton clip or still is uploaded as WhatsApp media and used as
+  the header, never exposed at a public URL. Outside the window the Cloud API allows only
+  templates, so the LAN app carries it alone.
+- **Webhook:** with `WHATSAPP_APP_SECRET` and `WHATSAPP_VERIFY_TOKEN` set,
+  `/whatsapp/webhook` is mounted outside owner auth, because Meta calls it.
+  - The `GET` handshake checks the verify token.
+  - Every `POST` must carry a valid `X-Hub-Signature-256`.
+  - Taps run the same `handle_button` as the app (ack, false-alarm label, escalate).
+  - Numbers that aren't a configured role are ignored.
+- Phone numbers are never logged or chained: only roles are.
+
 ## Response drills (P3-S2)
 
 `POST /drills {roles, after_s, scenario}` (owner-only, under the alerts router) starts a **labelled

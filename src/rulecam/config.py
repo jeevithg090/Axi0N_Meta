@@ -92,6 +92,11 @@ class Settings(BaseSettings):
     kasa_light_host: str | None = None
     whatsapp_token: SecretStr | None = None
     whatsapp_phone_number_id: str | None = None
+    whatsapp_app_secret: SecretStr | None = None  # verifies X-Hub-Signature-256 on the webhook
+    whatsapp_verify_token: SecretStr | None = None  # the webhook subscription handshake
+    # role=E.164 pairs, e.g. "aide=15551234567,charge_nurse=15557654321" (kept only in .env)
+    whatsapp_recipients: SecretStr | None = None
+    whatsapp_api_base: str = "https://graph.facebook.com/v21.0"
     public_tunnel_url: str | None = None
     public_ui_url: str | None = None  # public origin of the web UI (worker page QR on posters)
     # Owner login (docs/deploy.md "Owner login"): `rulecam owner set-passphrase` prints the hash.

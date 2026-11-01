@@ -15,10 +15,12 @@ from rulecam.capture import Chunker
 from rulecam.clock import SystemClock
 from rulecam.config import get_settings
 from rulecam.contracts import CONTRACTS_VERSION
+from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.replay.cache import ReplayCache
 from rulecam.replay.golden import GoldenRunner
 
 if TYPE_CHECKING:
+    from rulecam.advisor.seal import SealBox
     from rulecam.eval.schema import EvalSet
     from rulecam.eval.score import EvalReport
     from rulecam.eval.scorecard import Checks
@@ -617,6 +619,55 @@ def openapi(
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(openapi_json(api_app), encoding="utf-8")
     typer.echo(f"wrote {out}")
+
+
+advisor_app = typer.Typer(help="Site Advisor: sealed causes for blind sessions (SA §9).")
+app.add_typer(advisor_app, name="advisor")
+
+
+def _seal_box(site: str) -> SealBox:
+    from rulecam.advisor.seal import SealBox  # noqa: PLC0415 - only for these commands
+
+    settings = get_settings()
+    chain = EventChain(settings.rulecam_data_dir / "evidence" / "chain", site, clock=SystemClock())
+    return SealBox(chain, settings.rulecam_data_dir / "seals")
+
+
+@advisor_app.command("seal")
+def advisor_seal(
+    cause: Annotated[str, typer.Argument(help="The hidden cause, in plain words")],
+    *,
+    site: Annotated[str, typer.Option(help="Site name of the chain")] = "demo",
+) -> None:
+    """Append sha256(cause + salt) to the chain; the cause and salt stay in data/seals/."""
+    seal_id, record = _seal_box(site).seal(cause)
+    typer.echo(f"sealed {seal_id} at event {record.seq}; keep data/seals/ offline until reveal")
+
+
+@advisor_app.command("reveal")
+def advisor_reveal(
+    seal_id: Annotated[str, typer.Argument(help="The seal id printed by `seal`")],
+    *,
+    site: Annotated[str, typer.Option(help="Site name of the chain")] = "demo",
+) -> None:
+    """Append the cause and salt so anyone can recompute the sealed hash."""
+    record = _seal_box(site).reveal(seal_id)
+    typer.echo(f"revealed {seal_id} at event {record.seq}")
+
+
+@advisor_app.command("seal-status")
+def advisor_seal_status(
+    day: Annotated[str, typer.Argument(help="UTC day of the chain, YYYY-MM-DD")],
+    *,
+    site: Annotated[str, typer.Option(help="Site name of the chain")] = "demo",
+) -> None:
+    """Show every seal in a day's chain and whether its reveal matches."""
+    from rulecam.advisor.seal import dumps_status, seal_ids, seal_status  # noqa: PLC0415
+
+    path = get_settings().rulecam_data_dir / "evidence" / "chain" / site / f"{day}.jsonl"
+    records = read_chain(path)
+    for seal_id in seal_ids(records):
+        typer.echo(dumps_status(seal_status(records, seal_id)))
 
 
 @app.callback()

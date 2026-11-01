@@ -34,7 +34,9 @@ export function decisionText(v: GoldenVerification): string {
     ? `Severity ${v.severity.toUpperCase()} acts before verification; Glimmer then said ${verdict}`
     : `Glimmer said ${verdict} before anything ran`;
   const route =
-    decision.route === "human_queue" ? "a person reviews it (human queue)" : "handled automatically";
+    decision.route === "human_queue"
+      ? "a person reviews it (human queue)"
+      : "handled automatically";
   return `${first}, so ${route}: “${decision.reason}”.`;
 }
 

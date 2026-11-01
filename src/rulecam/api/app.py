@@ -53,6 +53,7 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
+from rulecam.advisor.api import AdviceStore, PlanFactory, advice_router
 from rulecam.api.auth import ClientAddress, OwnerAuth
 from rulecam.api.plans import PlannerRunner, PlanRegistry, QuestionsService, plans_router
 from rulecam.api.prometheus import (
@@ -138,6 +139,8 @@ class AppServices:
         health_probes: Dependencies (Glimmer, the SAM pod) whose health `GET /metrics` shows.
         response: How the policy, firewall and actions are configured (`/runtime/metrics`).
         cost: The dollar budget's report (`/runtime/metrics` → `cost`, `/metrics`).
+        advice: Checked Site Advisor cards served at `/advice` (P3-10).
+        plan_factory: P4's measurement-plan builder; `POST /advice/{id}/accept` needs it.
     """
 
     bus: Bus
@@ -164,6 +167,8 @@ class AppServices:
     health_probes: Sequence[HealthProbe] = ()
     response: ResponseStatus | None = None
     cost: Callable[[], CostReport] | None = None
+    advice: AdviceStore = field(default_factory=AdviceStore)
+    plan_factory: PlanFactory | None = None
 
 
 class RuntimeReport(LoopMetrics):
@@ -404,6 +409,16 @@ def _routers(services: AppServices, auth: OwnerAuth) -> list[APIRouter]:
             questions=services.questions,
         ),
     ]
+    clock = SystemClock()
+    routers.append(
+        advice_router(
+            services.advice,
+            EventChain(services.chain_root, services.site, clock=clock),
+            services.bus,
+            clock,
+            plan_factory=services.plan_factory,
+        )
+    )
     if services.pair is not None:
         routers.append(build_router(services.pair))
     if services.correction is not None:

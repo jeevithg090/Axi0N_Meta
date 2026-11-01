@@ -1,0 +1,51 @@
+# Alert thresholds for Rulecam (docs/deploy.md "Monitoring"). The two that page: lag above 10 s
+# and an unhealthy pod. The rest are warnings that the cost or perception path degraded.
+groups:
+  - name: rulecam
+    rules:
+      - alert: RulecamApiDown
+        expr: up{job="rulecam"} == 0
+        for: 1m
+        labels: {severity: page}
+        annotations:
+          summary: The API pod's /metrics is unreachable (pod stopped, crashed or proxy down).
+      - alert: RulecamLagHigh
+        expr: rulecam_runtime_lag_seconds > 10
+        for: 1m
+        labels: {severity: page}
+        annotations:
+          summary: "Runtime lag {{ $value | humanizeDuration }} (target p95 <= 6 s)."
+      - alert: RulecamDependencyDown
+        expr: rulecam_dependency_up == 0
+        for: 2m
+        labels: {severity: page}
+        annotations:
+          summary: "{{ $labels.service }} pod fails its health check (Glimmer verdicts or self-hosted SAM are off)."
+      - alert: RulecamKeyframeMode
+        expr: rulecam_runtime_keyframe_mode == 1
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: A camera fell behind and is in keyframe mode (coverage is thinned).
+      - alert: RulecamSamFallback
+        expr: increase(rulecam_perception_sam_fallbacks_total[10m]) > 0
+        labels: {severity: warning}
+        annotations:
+          summary: Self-hosted SAM failed and runtime calls went to hosted SAM (billed).
+      - alert: RulecamHostedSpendHigh
+        expr: rulecam_runtime_hosted_sam_usd_per_hour > 1.2
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Hosted SAM spend {{ $value | printf \"%.2f\" }} $/h (target <= $0.60 per active camera-hour)."
+      - alert: RulecamBudgetAlarm
+        expr: rulecam_cost_budget_alarm == 1
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: A camera is over its dollar budget (RULECAM_BUDGET_USD_PER_CAMERA_HOUR); it is degraded while hosted SAM is billing.
+      - alert: RulecamSamMemoryGuard
+        expr: increase(rulecam_sam_memory_guard_trips_total[15m]) > 2
+        labels: {severity: warning}
+        annotations:
+          summary: The SAM pod keeps tripping its GPU memory guard; restart it and report the log.

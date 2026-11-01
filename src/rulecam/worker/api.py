@@ -9,7 +9,8 @@
 Everything is read-only except the dispute. The dispute takes JSON only (a cross-site form
 cannot send it without a CORS preflight, which the API never answers), at most 4 KiB, and is
 bounded per client, per site and per event (`worker.disputes`). The client address is used only
-for that in-memory limit; it is never logged or stored.
+for that in-memory limit; it is never logged or stored. Behind the UI's proxy the API app passes
+`client_address` (`api.auth.ClientAddress`), so the limit is per browser, not per proxy.
 """
 
 from __future__ import annotations
@@ -54,6 +55,9 @@ def _small_body(content_length: Annotated[str | None, Header()] = None) -> None:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "dispute too large")
 
 
+ClientAddress = Callable[[Request], str]
+
+
 def _get_client_ip(request: Request) -> str:
     return request.client.host if request.client else ""
 
@@ -62,11 +66,12 @@ def _register_dispute_routes(
     router: APIRouter,
     disputes: DisputeService,
     transcriber: Transcriber | None,
+    client_address: ClientAddress = _get_client_ip,
 ) -> None:
     @router.post("/dispute", dependencies=[Depends(_small_body)])
     def dispute(body: DisputeRequest, request: Request) -> DisputeResult:
         try:
-            return disputes.submit(body, _get_client_ip(request))
+            return disputes.submit(body, client_address(request))
         except DisputeLimitError as exc:
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(exc)) from exc
         except UnknownEventError as exc:
@@ -87,7 +92,7 @@ def _register_dispute_routes(
             raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "audio exceeds limit")
         try:
             return disputes.submit_voice(
-                event_code, audio, _get_client_ip(request), transcriber=transcriber, lang_hint=lang
+                event_code, audio, client_address(request), transcriber=transcriber, lang_hint=lang
             )
         except DisputeLimitError as exc:
             raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, str(exc)) from exc
@@ -133,6 +138,7 @@ def worker_router(
     clock: Clock,
     public_base_url: str | None = None,
     transcriber: Transcriber | None = None,
+    client_address: ClientAddress = _get_client_ip,
 ) -> APIRouter:
     """Build the worker API router.
 
@@ -143,11 +149,12 @@ def worker_router(
         clock: Time source (today's chain file).
         public_base_url: Public base URL of the worker page for the poster's QR code.
         transcriber: Voice transcriber service for speech dispute intake.
+        client_address: The address a dispute is rate-limited under (the TCP peer by default).
 
     Returns:
         The `/worker` router.
     """
     router = APIRouter(prefix="/worker", tags=["worker"])
-    _register_dispute_routes(router, disputes, transcriber)
+    _register_dispute_routes(router, disputes, transcriber, client_address)
     _register_page_routes(router, plans, chain, clock, public_base_url)
     return router

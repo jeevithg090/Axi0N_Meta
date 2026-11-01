@@ -88,6 +88,8 @@ class SampledTrack:
         foot_px: Interpolated foot point in pixels, shape (L, 2); NaN when absent.
         foot_m: Interpolated ground position in metres, shape (L, 2); NaN when unknown.
         src: Index into `track.points` of the latest point at or before each sample, or -1.
+        seen_stop: One past the last timeline index at or before the track's last point; the
+            samples from there to `stop` only hold that point (`HOLD_S`), they observe nothing.
     """
 
     track: Track
@@ -97,6 +99,7 @@ class SampledTrack:
     foot_px: FloatArray
     foot_m: FloatArray
     src: IntArray
+    seen_stop: int
 
     @property
     def stop(self) -> int:
@@ -213,6 +216,7 @@ def resample(track: Track, timeline: Timeline, calibration: Calibration | None) 
         foot_px=lerp(feet),
         foot_m=lerp(ground),
         src=np.where(present, src, -1),
+        seen_stop=max(start, min(stop, math.floor(times[-1] * timeline.hz + _EPS) + 1)),
     )
 
 

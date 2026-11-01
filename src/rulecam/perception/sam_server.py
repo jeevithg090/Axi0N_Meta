@@ -9,7 +9,13 @@ The API pod reaches it through `sam_runtime.HttpSamWorker`. Routes:
   return to the same level after every session;
 - `POST /segment`: needs `Authorization: Bearer <SAM_API_KEY>`. The body is JSON
   `{"request": <SamRequest JSON>, "video_b64": "<base64 MP4 bytes>"}`, the same two arguments
-  `ModalWorker` passes to the Modal method; the answer is the `SamResponse` JSON.
+  `ModalWorker` passes to the Modal method; the answer is the `SamResponse` JSON. Video mode is
+  for offline uses (probes, Rule CI scenes, evidence re-checks);
+- `POST /segment_image`: the runtime's keyframes (image mode), same key. The body is
+  `{"request": <SamImageRequest JSON>, "images_b64": ["<base64 JPEG>", ...]}` and the answer the
+  `SamImageResponse` JSON. `Sam31ImageEngine` runs the detector of the already loaded model, so
+  it needs no extra weights and keeps no session state. 404 when the server runs without it
+  (`SAM_IMAGE=0`).
 
 Errors are `{"error": {"message": ...}}` with 400 (malformed body), 401 (missing or wrong key),
 404, 411 (no `Content-Length`), 413 (body over the limit), 500 (the engine failed) or 503 (the
@@ -34,6 +40,7 @@ import logging
 import os
 import threading
 import time
+from collections.abc import Callable
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Protocol
@@ -43,11 +50,15 @@ from rulecam.perception.sam_worker import MODEL_VERSION
 DEFAULT_PORT = 8090
 DEFAULT_MAX_BODY_BYTES = 32 * 1024 * 1024  # a 3 s chunk is well under 1 MB; base64 adds a third
 DEFAULT_MAX_WAITING = 2
+DEFAULT_IMAGE_MAX_WAITING = 8  # cameras x pipeline depth; one keyframe batch takes about a second
 API_KEY_ENV = "SAM_API_KEY"
 MAX_BODY_ENV = "SAM_MAX_BODY_BYTES"
 MAX_WAITING_ENV = "SAM_MAX_WAITING"
+IMAGE_MAX_WAITING_ENV = "SAM_IMAGE_MAX_WAITING"
+IMAGE_ENV = "SAM_IMAGE"
 HEALTH_PATH = "/health"
 SEGMENT_PATH = "/segment"
+SEGMENT_IMAGE_PATH = "/segment_image"
 
 _log = logging.getLogger("rulecam.sam_server")
 
@@ -64,6 +75,18 @@ class Engine(Protocol):
         ...
 
 
+class ImageEngine(Protocol):
+    """What the server needs from `Sam31ImageEngine` (a fake in tests)."""
+
+    def segment_images(self, images: list[bytes], request: dict[str, Any]) -> dict[str, Any]:
+        """Return a `SamImageResponse` dict for a `SamImageRequest` dict and its images."""
+        ...
+
+    def memory_stats(self) -> dict[str, Any]:
+        """Return the image engine's counters for `/health`."""
+        ...
+
+
 class BadRequestError(ValueError):
     """The request body is not a valid `/segment` payload."""
 
@@ -71,14 +94,15 @@ class BadRequestError(ValueError):
 class GpuSlot:
     """Lets one call use the GPU at a time and at most `max_waiting` calls wait for it."""
 
-    def __init__(self, max_waiting: int) -> None:
+    def __init__(self, max_waiting: int, gpu: threading.Lock | None = None) -> None:
         """Create a free slot.
 
         Args:
             max_waiting: Calls allowed to wait while one runs (0 refuses any overlap).
+            gpu: The GPU lock, shared by every slot (queue) of one GPU; a new one by default.
         """
         self._max_waiting = max_waiting
-        self._gpu = threading.Lock()
+        self._gpu = gpu or threading.Lock()
         self._state = threading.Lock()
         self._admitted = 0
 
@@ -103,8 +127,12 @@ class GpuSlot:
 
     def run(self, engine: Engine, video: bytes, request: dict[str, Any]) -> dict[str, Any]:
         """Run one admitted call on the GPU, waiting for the previous one to finish."""
+        return self.run_call(lambda: engine.segment(video, request))
+
+    def run_call(self, work: Callable[[], dict[str, Any]]) -> dict[str, Any]:
+        """Run one admitted piece of GPU work, waiting for the previous one to finish."""
         with self._gpu:
-            return engine.segment(video, request)
+            return work()
 
     def release(self) -> None:
         """Leave the queue."""
@@ -124,6 +152,39 @@ def parse_segment_body(body: bytes) -> tuple[bytes, dict[str, Any]]:
     Raises:
         BadRequestError: If the body is not JSON, or lacks a `request` object or `video_b64`.
     """
+    payload = _json_object(body)
+    request, video_b64 = payload.get("request"), payload.get("video_b64")
+    if not isinstance(request, dict) or not isinstance(video_b64, str):
+        msg = "body needs a `request` object and a `video_b64` string"
+        raise BadRequestError(msg)
+    return _b64(video_b64, "video_b64"), request
+
+
+def parse_segment_image_body(body: bytes) -> tuple[list[bytes], dict[str, Any]]:
+    """Decode a `/segment_image` body into the images and the request dict.
+
+    Args:
+        body: The raw JSON body.
+
+    Returns:
+        `(images, request)`.
+
+    Raises:
+        BadRequestError: If the body is not JSON, or lacks a `request` object or a non-empty
+            `images_b64` list of base64 strings.
+    """
+    payload = _json_object(body)
+    request, encoded = payload.get("request"), payload.get("images_b64")
+    if not isinstance(request, dict) or not isinstance(encoded, list) or not encoded:
+        msg = "body needs a `request` object and a non-empty `images_b64` list"
+        raise BadRequestError(msg)
+    if not all(isinstance(item, str) for item in encoded):
+        msg = "`images_b64` must hold base64 strings"
+        raise BadRequestError(msg)
+    return [_b64(item, "images_b64") for item in encoded], request
+
+
+def _json_object(body: bytes) -> dict[str, Any]:
     try:
         payload = json.loads(body)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -132,16 +193,15 @@ def parse_segment_body(body: bytes) -> tuple[bytes, dict[str, Any]]:
     if not isinstance(payload, dict):
         msg = "body must be a JSON object"
         raise BadRequestError(msg)
-    request, video_b64 = payload.get("request"), payload.get("video_b64")
-    if not isinstance(request, dict) or not isinstance(video_b64, str):
-        msg = "body needs a `request` object and a `video_b64` string"
-        raise BadRequestError(msg)
+    return payload
+
+
+def _b64(value: str, name: str) -> bytes:
     try:
-        video = base64.b64decode(video_b64, validate=True)
+        return base64.b64decode(value, validate=True)
     except (binascii.Error, ValueError) as exc:
-        msg = "`video_b64` is not valid base64"
+        msg = f"`{name}` is not valid base64"
         raise BadRequestError(msg) from exc
-    return video, request
 
 
 def bearer_matches(header: str | None, api_key: str) -> bool:
@@ -172,6 +232,8 @@ class SamHTTPServer(ThreadingHTTPServer):
         api_key: str,
         max_body_bytes: int = DEFAULT_MAX_BODY_BYTES,
         max_waiting: int = DEFAULT_MAX_WAITING,
+        image_engine: ImageEngine | None = None,
+        image_max_waiting: int = DEFAULT_IMAGE_MAX_WAITING,
     ) -> None:
         """Bind the server.
 
@@ -180,7 +242,9 @@ class SamHTTPServer(ThreadingHTTPServer):
             engine: The loaded engine.
             api_key: Bearer key every route except `/health` requires; must not be empty.
             max_body_bytes: Largest accepted body.
-            max_waiting: Calls allowed to wait for the GPU.
+            max_waiting: Video calls allowed to wait for the GPU.
+            image_engine: Serves `/segment_image` (runtime keyframes); `None` answers 404 there.
+            image_max_waiting: Image calls allowed to wait for the GPU.
 
         Raises:
             ValueError: If `api_key` is empty.
@@ -192,7 +256,10 @@ class SamHTTPServer(ThreadingHTTPServer):
         self.engine = engine
         self.api_key = api_key
         self.max_body_bytes = max_body_bytes
-        self.slot = GpuSlot(max_waiting)
+        gpu = threading.Lock()
+        self.slot = GpuSlot(max_waiting, gpu)
+        self.image_engine = image_engine
+        self.image_slot = GpuSlot(image_max_waiting, gpu)
 
     def handle_error(self, request: Any, client_address: Any) -> None:  # noqa: ARG002
         """Log a failed connection instead of printing a traceback to stderr.
@@ -204,7 +271,7 @@ class SamHTTPServer(ThreadingHTTPServer):
 
 
 class SamRequestHandler(BaseHTTPRequestHandler):
-    """Serves `/health` and `/segment`."""
+    """Serves `/health`, `/segment` and `/segment_image`."""
 
     server: SamHTTPServer
     server_version = "rulecam-sam"
@@ -223,6 +290,7 @@ class SamRequestHandler(BaseHTTPRequestHandler):
                     "busy": slot.busy,
                     "waiting": slot.waiting,
                     "memory": self.server.engine.memory_stats(),
+                    "image": self._image_health(),
                 },
             )
             return
@@ -230,8 +298,11 @@ class SamRequestHandler(BaseHTTPRequestHandler):
             self._error(HTTPStatus.NOT_FOUND, "not found")
 
     def do_POST(self) -> None:
-        """Serve `/segment`."""
+        """Serve `/segment` and `/segment_image`."""
         if not self._authorized():
+            return
+        if self.path == SEGMENT_IMAGE_PATH and self.server.image_engine is not None:
+            self._segment_images(self.server.image_engine)
             return
         if self.path != SEGMENT_PATH:
             self._error(HTTPStatus.NOT_FOUND, "not found")
@@ -244,25 +315,48 @@ class SamRequestHandler(BaseHTTPRequestHandler):
         except BadRequestError as exc:
             self._error(HTTPStatus.BAD_REQUEST, str(exc))
             return
-        slot = self.server.slot
+        engine = self.server.engine
+        self._run(self.server.slot, lambda: engine.segment(video, request), "sam_segment")
+
+    def _segment_images(self, engine: ImageEngine) -> None:
+        body = self._read_body()
+        if body is None:
+            return
+        try:
+            images, request = parse_segment_image_body(body)
+        except BadRequestError as exc:
+            self._error(HTTPStatus.BAD_REQUEST, str(exc))
+            return
+        self._run(
+            self.server.image_slot, lambda: engine.segment_images(images, request), "sam_images"
+        )
+
+    def _run(self, slot: GpuSlot, work: Callable[[], dict[str, Any]], name: str) -> None:
         if not slot.try_admit():
             self._error(HTTPStatus.SERVICE_UNAVAILABLE, "GPU queue is full", retry_after=True)
             return
         started = time.perf_counter()
         try:
-            response = slot.run(self.server.engine, video, request)
+            response = slot.run_call(work)
         except Exception as exc:
-            _log.exception("sam_segment_failed")
+            _log.exception("%s_failed", name)
             self._error(HTTPStatus.INTERNAL_SERVER_ERROR, f"engine failed: {type(exc).__name__}")
             return
         finally:
             slot.release()
         _log.info(
-            "sam_segment objects=%d ms=%d",
+            "%s objects=%d ms=%d",
+            name,
             len(response.get("objects", ())),
             round((time.perf_counter() - started) * 1000),
         )
         self._send(HTTPStatus.OK, response)
+
+    def _image_health(self) -> dict[str, Any]:
+        engine = self.server.image_engine
+        if engine is None:
+            return {"loaded": False}
+        return {"loaded": True, "waiting": self.server.image_slot.waiting, **engine.memory_stats()}
 
     def log_message(self, format: str, *args: Any) -> None:
         """Route the stdlib access log to `logging` (never prints headers)."""
@@ -315,7 +409,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
     Args:
         argv: Command-line arguments (defaults to `sys.argv[1:]`).
     """
-    from rulecam.perception.sam_worker import Sam31Engine  # noqa: PLC0415
+    from rulecam.perception.sam_worker import Sam31Engine, Sam31ImageEngine  # noqa: PLC0415
 
     parser = argparse.ArgumentParser(description="Serve self-hosted SAM 3.1 over HTTP.")
     parser.add_argument("--host", default="0.0.0.0")  # noqa: S104 - the pod's proxy needs it
@@ -328,12 +422,15 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
         raise SystemExit(msg)
     _log.info("sam_loading model=%s", MODEL_VERSION)
     engine = Sam31Engine.load()
+    image_on = os.environ.get(IMAGE_ENV, "1").strip().lower() not in {"0", "false", "no"}
     server = SamHTTPServer(
         (args.host, args.port),
         engine,
         api_key=api_key,
         max_body_bytes=int(os.environ.get(MAX_BODY_ENV, DEFAULT_MAX_BODY_BYTES)),
         max_waiting=int(os.environ.get(MAX_WAITING_ENV, DEFAULT_MAX_WAITING)),
+        image_engine=Sam31ImageEngine.from_video_engine(engine) if image_on else None,
+        image_max_waiting=int(os.environ.get(IMAGE_MAX_WAITING_ENV, DEFAULT_IMAGE_MAX_WAITING)),
     )
     _log.info("sam_serving port=%d", args.port)
     server.serve_forever()

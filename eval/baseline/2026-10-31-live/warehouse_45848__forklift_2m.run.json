@@ -1,0 +1,1808 @@
+{
+  "clip": "warehouse_45848",
+  "rule": "forklift_2m",
+  "camera_id": "phone-18",
+  "plan_id": "plan-ffe868b5cb41",
+  "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+  "activated": [
+    "keep-people-2m-from-moving-forklift"
+  ],
+  "rule_hashes": [
+    "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419"
+  ],
+  "refused": null,
+  "error": null,
+  "speed": 1.0,
+  "started_at": "2026-10-31T21:54:35.060556Z",
+  "finished_at": "2026-10-31T22:04:08.686600Z",
+  "chunk_width": null,
+  "chunk_height": null,
+  "chunks": [
+    {
+      "index": 0,
+      "chunk_id": "phone-18_reconstructed_000",
+      "clip_start_s": 0.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:54:35.060556Z"
+    },
+    {
+      "index": 1,
+      "chunk_id": "phone-18_reconstructed_001",
+      "clip_start_s": 3.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:54:38.060556Z"
+    },
+    {
+      "index": 2,
+      "chunk_id": "phone-18_reconstructed_002",
+      "clip_start_s": 6.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:54:41.060556Z"
+    },
+    {
+      "index": 3,
+      "chunk_id": "phone-18_reconstructed_003",
+      "clip_start_s": 9.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:54:44.060556Z"
+    },
+    {
+      "index": 4,
+      "chunk_id": "phone-18_reconstructed_004",
+      "clip_start_s": 12.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:54:47.060556Z"
+    },
+    {
+      "index": 5,
+      "chunk_id": "phone-18_reconstructed_005",
+      "clip_start_s": 15.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:54:50.060556Z"
+    },
+    {
+      "index": 6,
+      "chunk_id": "phone-18_reconstructed_006",
+      "clip_start_s": 18.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:54:53.060556Z"
+    },
+    {
+      "index": 7,
+      "chunk_id": "phone-18_reconstructed_007",
+      "clip_start_s": 21.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:54:56.060556Z"
+    },
+    {
+      "index": 8,
+      "chunk_id": "phone-18_reconstructed_008",
+      "clip_start_s": 24.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:54:59.060556Z"
+    },
+    {
+      "index": 9,
+      "chunk_id": "phone-18_reconstructed_009",
+      "clip_start_s": 27.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:02.060556Z"
+    },
+    {
+      "index": 10,
+      "chunk_id": "phone-18_reconstructed_010",
+      "clip_start_s": 30.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:05.060556Z"
+    },
+    {
+      "index": 11,
+      "chunk_id": "phone-18_reconstructed_011",
+      "clip_start_s": 33.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:08.060556Z"
+    },
+    {
+      "index": 12,
+      "chunk_id": "phone-18_reconstructed_012",
+      "clip_start_s": 36.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:11.060556Z"
+    },
+    {
+      "index": 13,
+      "chunk_id": "phone-18_reconstructed_013",
+      "clip_start_s": 39.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:14.060556Z"
+    },
+    {
+      "index": 14,
+      "chunk_id": "phone-18_reconstructed_014",
+      "clip_start_s": 42.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:17.060556Z"
+    },
+    {
+      "index": 15,
+      "chunk_id": "phone-18_reconstructed_015",
+      "clip_start_s": 45.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:20.060556Z"
+    },
+    {
+      "index": 16,
+      "chunk_id": "phone-18_reconstructed_016",
+      "clip_start_s": 48.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:23.060556Z"
+    },
+    {
+      "index": 17,
+      "chunk_id": "phone-18_reconstructed_017",
+      "clip_start_s": 51.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:26.060556Z"
+    },
+    {
+      "index": 18,
+      "chunk_id": "phone-18_reconstructed_018",
+      "clip_start_s": 54.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:29.060556Z"
+    },
+    {
+      "index": 19,
+      "chunk_id": "phone-18_reconstructed_019",
+      "clip_start_s": 57.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:32.060556Z"
+    },
+    {
+      "index": 20,
+      "chunk_id": "phone-18_reconstructed_020",
+      "clip_start_s": 60.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:35.060556Z"
+    },
+    {
+      "index": 21,
+      "chunk_id": "phone-18_reconstructed_021",
+      "clip_start_s": 63.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:38.060556Z"
+    },
+    {
+      "index": 22,
+      "chunk_id": "phone-18_reconstructed_022",
+      "clip_start_s": 66.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:41.060556Z"
+    },
+    {
+      "index": 23,
+      "chunk_id": "phone-18_reconstructed_023",
+      "clip_start_s": 69.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:44.060556Z"
+    },
+    {
+      "index": 24,
+      "chunk_id": "phone-18_reconstructed_024",
+      "clip_start_s": 72.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:47.060556Z"
+    },
+    {
+      "index": 25,
+      "chunk_id": "phone-18_reconstructed_025",
+      "clip_start_s": 75.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:50.060556Z"
+    },
+    {
+      "index": 26,
+      "chunk_id": "phone-18_reconstructed_026",
+      "clip_start_s": 78.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:53.060556Z"
+    },
+    {
+      "index": 27,
+      "chunk_id": "phone-18_reconstructed_027",
+      "clip_start_s": 81.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:56.060556Z"
+    },
+    {
+      "index": 28,
+      "chunk_id": "phone-18_reconstructed_028",
+      "clip_start_s": 84.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:55:59.060556Z"
+    },
+    {
+      "index": 29,
+      "chunk_id": "phone-18_reconstructed_029",
+      "clip_start_s": 87.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:02.060556Z"
+    },
+    {
+      "index": 30,
+      "chunk_id": "phone-18_reconstructed_030",
+      "clip_start_s": 90.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:05.060556Z"
+    },
+    {
+      "index": 31,
+      "chunk_id": "phone-18_reconstructed_031",
+      "clip_start_s": 93.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:08.060556Z"
+    },
+    {
+      "index": 32,
+      "chunk_id": "phone-18_reconstructed_032",
+      "clip_start_s": 96.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:11.060556Z"
+    },
+    {
+      "index": 33,
+      "chunk_id": "phone-18_reconstructed_033",
+      "clip_start_s": 99.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:14.060556Z"
+    },
+    {
+      "index": 34,
+      "chunk_id": "phone-18_reconstructed_034",
+      "clip_start_s": 102.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:17.060556Z"
+    },
+    {
+      "index": 35,
+      "chunk_id": "phone-18_reconstructed_035",
+      "clip_start_s": 105.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:20.060556Z"
+    },
+    {
+      "index": 36,
+      "chunk_id": "phone-18_reconstructed_036",
+      "clip_start_s": 108.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:23.060556Z"
+    },
+    {
+      "index": 37,
+      "chunk_id": "phone-18_reconstructed_037",
+      "clip_start_s": 111.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:26.060556Z"
+    },
+    {
+      "index": 38,
+      "chunk_id": "phone-18_reconstructed_038",
+      "clip_start_s": 114.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:29.060556Z"
+    },
+    {
+      "index": 39,
+      "chunk_id": "phone-18_reconstructed_039",
+      "clip_start_s": 117.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:32.060556Z"
+    },
+    {
+      "index": 40,
+      "chunk_id": "phone-18_reconstructed_040",
+      "clip_start_s": 120.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:35.060556Z"
+    },
+    {
+      "index": 41,
+      "chunk_id": "phone-18_reconstructed_041",
+      "clip_start_s": 123.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:38.060556Z"
+    },
+    {
+      "index": 42,
+      "chunk_id": "phone-18_reconstructed_042",
+      "clip_start_s": 126.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-10-31T21:56:41.060556Z"
+    }
+  ],
+  "chain": [
+    {
+      "hash": "35b4ece9d2bd7d03d196c63618a19923cdadced84599cddb05aadc36f20de560",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-18",
+          "event_id": "ev-2200233e931e049e3ceb0eab",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m/s",
+            "value": 1.364082
+          },
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "predicate_trace": {
+            "all": true,
+            "all.0.moving": true,
+            "all.0.moving.value": 1.364082,
+            "all.1.distance_m": true,
+            "all.1.distance_m.value": 1.690734,
+            "all.value": 1.364082,
+            "episode_s": 0.4,
+            "subject": "phone-18:forklift:41bc5860"
+          },
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "rule_ir_hash": "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "6fb2bcc7e64ef2f85e4a61c591f9397934fc7fbc832cd158bc84af95b861ffd2",
+          "ts_end": "2026-10-31T21:54:37.189783Z",
+          "ts_start": "2026-10-31T21:54:36.889783Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-18",
+            "err_m": 0.07091206300829384,
+            "homography": [
+              [
+                0.008406896426759925,
+                0.0012933686810399833,
+                -6.406055077191063
+              ],
+              [
+                4.8173030957244e-19,
+                0.07599788040950382,
+                -9.484049933073098e-17
+              ],
+              [
+                9.83718386345007e-19,
+                -0.00212201591511937,
+                0.9999999999999999
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "pallet_48x40in"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-18",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-2m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.3
+                },
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 2,
+                  "op": "distance_m"
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-ffe868b5cb41",
+              "standard": [],
+              "text": "Keep people at least 2 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-10-31T21:54:07.889783Z",
+          "t1": "2026-10-31T21:54:37.889783Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "5ca73ae78e24bf18514b2853053b8001c26cd597725b4eeed388ba005bdf6373",
+      "seq": 35,
+      "site": "demo",
+      "ts": "2026-10-31T21:57:33.405680Z"
+    },
+    {
+      "hash": "6d4db70a6c9d6ad5669bb38a11f5b19f671689044a1ec1853278b547c755361d",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-2200233e931e049e3ceb0eab",
+        "latency_ms": 9277,
+        "model_version": "muse-glimmer-30b",
+        "reason": "No frames are provided from camera phone-18 for the requested interval, so the visual content cannot be inspected to confirm a person near a moving forklift.",
+        "reasoning": null,
+        "scene_text": "",
+        "score": 0.5,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "unsure"
+      },
+      "prev_hash": "35b4ece9d2bd7d03d196c63618a19923cdadced84599cddb05aadc36f20de560",
+      "seq": 36,
+      "site": "demo",
+      "ts": "2026-10-31T21:57:42.770288Z"
+    },
+    {
+      "hash": "3036d1182bdf28cf0d96889b54cae3c5707eb58fdea3567a5f41eee65f1cd454",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-18",
+          "event_id": "ev-f363d8b935d9f6725f22c96b",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m/s",
+            "value": 0.458386
+          },
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "predicate_trace": {
+            "all": true,
+            "all.0.moving": true,
+            "all.0.moving.value": 0.458386,
+            "all.1.distance_m": true,
+            "all.1.distance_m.value": 0.013577,
+            "all.value": 0.458386,
+            "episode_s": 1,
+            "subject": "phone-18:forklift:f54ab98a"
+          },
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "rule_ir_hash": "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "ef94b8fd47d7db4d0266d19d188050cc7fc5ce2f68608d2aa33572f8c5a18d28",
+          "ts_end": "2026-10-31T21:54:40.489783Z",
+          "ts_start": "2026-10-31T21:54:39.589783Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-18",
+            "err_m": 0.07091206300829384,
+            "homography": [
+              [
+                0.008406896426759925,
+                0.0012933686810399833,
+                -6.406055077191063
+              ],
+              [
+                4.8173030957244e-19,
+                0.07599788040950382,
+                -9.484049933073098e-17
+              ],
+              [
+                9.83718386345007e-19,
+                -0.00212201591511937,
+                0.9999999999999999
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "pallet_48x40in"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-18",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-2m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.3
+                },
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 2,
+                  "op": "distance_m"
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-ffe868b5cb41",
+              "standard": [],
+              "text": "Keep people at least 2 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-10-31T21:54:10.889783Z",
+          "t1": "2026-10-31T21:54:40.889783Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "6d4db70a6c9d6ad5669bb38a11f5b19f671689044a1ec1853278b547c755361d",
+      "seq": 37,
+      "site": "demo",
+      "ts": "2026-10-31T21:57:43.185313Z"
+    },
+    {
+      "hash": "eb1bb0482faecb4f810b62073acb543ab81350f1dfe3176074dc786fc5d99315",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-f363d8b935d9f6725f22c96b",
+        "latency_ms": 8766,
+        "model_version": "muse-glimmer-30b",
+        "reason": "No frames are provided from camera phone-18 for the requested interval, so the visual content cannot be inspected to confirm a person near a moving forklift.",
+        "reasoning": null,
+        "scene_text": "",
+        "score": 0.5,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "unsure"
+      },
+      "prev_hash": "3036d1182bdf28cf0d96889b54cae3c5707eb58fdea3567a5f41eee65f1cd454",
+      "seq": 38,
+      "site": "demo",
+      "ts": "2026-10-31T21:57:52.016189Z"
+    },
+    {
+      "hash": "c87c531986e260c1eaa56b019f343ba94cfc7941e04d26ccae0d84fa0b6ae213",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-18",
+          "event_id": "ev-2fb367b0946e255fefad6f06",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m/s",
+            "value": 0.368837
+          },
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "predicate_trace": {
+            "all": true,
+            "all.0.moving": true,
+            "all.0.moving.value": 0.368837,
+            "all.1.distance_m": true,
+            "all.1.distance_m.value": 0,
+            "all.value": 0.368837,
+            "episode_s": 0.9,
+            "subject": "phone-18:forklift:00ff3639"
+          },
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "rule_ir_hash": "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "f87632adbdab0c5efa13b860ef71a3f0815dfcef498e2b66abc4c5b6d1ad9012",
+          "ts_end": "2026-10-31T21:54:49.871584Z",
+          "ts_start": "2026-10-31T21:54:49.071584Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-18",
+            "err_m": 0.07091206300829384,
+            "homography": [
+              [
+                0.008406896426759925,
+                0.0012933686810399833,
+                -6.406055077191063
+              ],
+              [
+                4.8173030957244e-19,
+                0.07599788040950382,
+                -9.484049933073098e-17
+              ],
+              [
+                9.83718386345007e-19,
+                -0.00212201591511937,
+                0.9999999999999999
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "pallet_48x40in"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-18",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-2m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.3
+                },
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 2,
+                  "op": "distance_m"
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-ffe868b5cb41",
+              "standard": [],
+              "text": "Keep people at least 2 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-10-31T21:54:19.971584Z",
+          "t1": "2026-10-31T21:54:49.971584Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "eb1bb0482faecb4f810b62073acb543ab81350f1dfe3176074dc786fc5d99315",
+      "seq": 39,
+      "site": "demo",
+      "ts": "2026-10-31T21:58:01.965887Z"
+    },
+    {
+      "hash": "cdd741e44d74b5f26ac22df8a851f38c0810b299ba7012850ceee0c50b8b39a3",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-2fb367b0946e255fefad6f06",
+        "latency_ms": 7699,
+        "model_version": "muse-glimmer-30b",
+        "reason": "No frames are provided from camera phone-18 for the requested interval, so the visual content cannot be verified.",
+        "reasoning": null,
+        "scene_text": "",
+        "score": 0.5,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "unsure"
+      },
+      "prev_hash": "c87c531986e260c1eaa56b019f343ba94cfc7941e04d26ccae0d84fa0b6ae213",
+      "seq": 40,
+      "site": "demo",
+      "ts": "2026-10-31T21:58:09.725219Z"
+    },
+    {
+      "hash": "148fc1b8f90a213a781fcaa8b4171ce2fdb97f85e7538572f44b2d8d699a6c75",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-18",
+          "event_id": "ev-6a37346ec64ffe2ecb89a22a",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m/s",
+            "value": 0.358
+          },
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "predicate_trace": {
+            "all": true,
+            "all.0.moving": true,
+            "all.0.moving.value": 0.358,
+            "all.1.distance_m": true,
+            "all.1.distance_m.value": 0,
+            "all.value": 0.358,
+            "episode_s": 2.7,
+            "subject": "phone-18:forklift:9e62ecb1"
+          },
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "rule_ir_hash": "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "0a743db8bd98bb3c1db1de202fad87d7535e32ecdfcf12f010e49504fc714849",
+          "ts_end": "2026-10-31T21:55:10.976037Z",
+          "ts_start": "2026-10-31T21:55:08.376037Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-18",
+            "err_m": 0.07091206300829384,
+            "homography": [
+              [
+                0.008406896426759925,
+                0.0012933686810399833,
+                -6.406055077191063
+              ],
+              [
+                4.8173030957244e-19,
+                0.07599788040950382,
+                -9.484049933073098e-17
+              ],
+              [
+                9.83718386345007e-19,
+                -0.00212201591511937,
+                0.9999999999999999
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "pallet_48x40in"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-18",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-2m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.3
+                },
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 2,
+                  "op": "distance_m"
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-ffe868b5cb41",
+              "standard": [],
+              "text": "Keep people at least 2 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-10-31T21:55:07.676037Z",
+          "t1": "2026-10-31T21:55:11.280194Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "cdd741e44d74b5f26ac22df8a851f38c0810b299ba7012850ceee0c50b8b39a3",
+      "seq": 41,
+      "site": "demo",
+      "ts": "2026-10-31T22:01:10.322789Z"
+    },
+    {
+      "hash": "0a30dee24006cbdb488999326ac02c30b676b0dce8fc02a5ec2c2dc5a32b8365",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-6a37346ec64ffe2ecb89a22a",
+        "latency_ms": 10701,
+        "model_version": "muse-glimmer-30b",
+        "reason": "No frames are provided from camera phone-18 for the requested interval, so the visual content cannot be inspected to confirm a person near a moving forklift.",
+        "reasoning": null,
+        "scene_text": "",
+        "score": 0.5,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "unsure"
+      },
+      "prev_hash": "148fc1b8f90a213a781fcaa8b4171ce2fdb97f85e7538572f44b2d8d699a6c75",
+      "seq": 42,
+      "site": "demo",
+      "ts": "2026-10-31T22:01:23.453980Z"
+    },
+    {
+      "hash": "aea6ee5ba7ec6f67451cfd0b2f12a50dcfe98852ef646082e02e11e681e96958",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-18",
+          "event_id": "ev-91ca8413ff09eb44ef55bb56",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m/s",
+            "value": 1.050894
+          },
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "predicate_trace": {
+            "all": true,
+            "all.0.moving": true,
+            "all.0.moving.value": 1.050894,
+            "all.1.distance_m": true,
+            "all.1.distance_m.value": 0,
+            "all.value": 1.050894,
+            "episode_s": 0.5,
+            "subject": "phone-18:forklift:927a8f09"
+          },
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "rule_ir_hash": "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "dec1896414ea51f982264ee400490bc973034c639eecedd607f66c2ced2a0351",
+          "ts_end": "2026-10-31T21:55:27.465662Z",
+          "ts_start": "2026-10-31T21:55:27.065662Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-18",
+            "err_m": 0.07091206300829384,
+            "homography": [
+              [
+                0.008406896426759925,
+                0.0012933686810399833,
+                -6.406055077191063
+              ],
+              [
+                4.8173030957244e-19,
+                0.07599788040950382,
+                -9.484049933073098e-17
+              ],
+              [
+                9.83718386345007e-19,
+                -0.00212201591511937,
+                0.9999999999999999
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "pallet_48x40in"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-18",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-2m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.3
+                },
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 2,
+                  "op": "distance_m"
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-ffe868b5cb41",
+              "standard": [],
+              "text": "Keep people at least 2 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-10-31T21:55:23.965662Z",
+          "t1": "2026-10-31T21:55:28.919570Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "0a30dee24006cbdb488999326ac02c30b676b0dce8fc02a5ec2c2dc5a32b8365",
+      "seq": 43,
+      "site": "demo",
+      "ts": "2026-10-31T22:01:58.519250Z"
+    },
+    {
+      "hash": "4d01b3be3d6cda5866d5771bb03522f19e8d4a61857301df608e55c494564032",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-91ca8413ff09eb44ef55bb56",
+        "latency_ms": 8640,
+        "model_version": "muse-glimmer-30b",
+        "reason": "No frames are provided from camera phone-18 for the requested interval, so the visual content cannot be verified.",
+        "reasoning": null,
+        "scene_text": "",
+        "score": 0.5,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "unsure"
+      },
+      "prev_hash": "aea6ee5ba7ec6f67451cfd0b2f12a50dcfe98852ef646082e02e11e681e96958",
+      "seq": 44,
+      "site": "demo",
+      "ts": "2026-10-31T22:02:07.234310Z"
+    },
+    {
+      "hash": "d10dd95456d254bf3cf8db4873da54ca2cba76835c2ff59da4f1bf692dd1aa7b",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-18",
+          "event_id": "ev-069f70ae5cf9728ec7014802",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m/s",
+            "value": 1.304203
+          },
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "predicate_trace": {
+            "all": true,
+            "all.0.moving": true,
+            "all.0.moving.value": 1.304203,
+            "all.1.distance_m": true,
+            "all.1.distance_m.value": 1.596432,
+            "all.value": 1.304203,
+            "episode_s": 1,
+            "subject": "phone-18:forklift:40da08f8"
+          },
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "rule_ir_hash": "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "c7cf5a7bfd745ca6d85325dd2c6b5323749296d301f2aeb3f4f2a9f23c3394c8",
+          "ts_end": "2026-10-31T21:55:41.478995Z",
+          "ts_start": "2026-10-31T21:55:40.578995Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-18",
+            "err_m": 0.07091206300829384,
+            "homography": [
+              [
+                0.008406896426759925,
+                0.0012933686810399833,
+                -6.406055077191063
+              ],
+              [
+                4.8173030957244e-19,
+                0.07599788040950382,
+                -9.484049933073098e-17
+              ],
+              [
+                9.83718386345007e-19,
+                -0.00212201591511937,
+                0.9999999999999999
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "pallet_48x40in"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-18",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-2m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.3
+                },
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 2,
+                  "op": "distance_m"
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-ffe868b5cb41",
+              "standard": [],
+              "text": "Keep people at least 2 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-10-31T21:55:38.378995Z",
+          "t1": "2026-10-31T21:55:41.546205Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "4d01b3be3d6cda5866d5771bb03522f19e8d4a61857301df608e55c494564032",
+      "seq": 45,
+      "site": "demo",
+      "ts": "2026-10-31T22:02:07.649489Z"
+    },
+    {
+      "hash": "e03401eccb4b471fc80b50b0d2e2f2baa90e1eb1d79fd2c9f99985626271098f",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-069f70ae5cf9728ec7014802",
+        "latency_ms": 7040,
+        "model_version": "muse-glimmer-30b",
+        "reason": "No frames are provided from camera phone-18 for the specified interval, so the visual content cannot be verified.",
+        "reasoning": null,
+        "scene_text": "",
+        "score": 0.5,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "unsure"
+      },
+      "prev_hash": "d10dd95456d254bf3cf8db4873da54ca2cba76835c2ff59da4f1bf692dd1aa7b",
+      "seq": 46,
+      "site": "demo",
+      "ts": "2026-10-31T22:02:14.764362Z"
+    },
+    {
+      "hash": "2cb7641ae7f0f3c7f10cc856895a42d24f52f4007c51d20742b7b698b83cbba1",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-18",
+          "event_id": "ev-720b2ba31e9793d9cf3f559e",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m/s",
+            "value": 0.465339
+          },
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "predicate_trace": {
+            "all": true,
+            "all.0.moving": true,
+            "all.0.moving.value": 0.465339,
+            "all.1.distance_m": true,
+            "all.1.distance_m.value": 0.544952,
+            "all.value": 0.465339,
+            "episode_s": 2.9,
+            "subject": "phone-18:forklift:d562b40a"
+          },
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "rule_ir_hash": "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "fc6a768e3005b5da2ac0772d0e753003d82bc146f2dfc52357828a4c37ac3665",
+          "ts_end": "2026-10-31T21:55:55.333418Z",
+          "ts_start": "2026-10-31T21:55:52.533418Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-18",
+            "err_m": 0.07091206300829384,
+            "homography": [
+              [
+                0.008406896426759925,
+                0.0012933686810399833,
+                -6.406055077191063
+              ],
+              [
+                4.8173030957244e-19,
+                0.07599788040950382,
+                -9.484049933073098e-17
+              ],
+              [
+                9.83718386345007e-19,
+                -0.00212201591511937,
+                0.9999999999999999
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "pallet_48x40in"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-18",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-2m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.3
+                },
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 2,
+                  "op": "distance_m"
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-ffe868b5cb41",
+              "standard": [],
+              "text": "Keep people at least 2 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-10-31T21:55:50.633418Z",
+          "t1": "2026-10-31T21:55:55.531713Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "e03401eccb4b471fc80b50b0d2e2f2baa90e1eb1d79fd2c9f99985626271098f",
+      "seq": 47,
+      "site": "demo",
+      "ts": "2026-10-31T22:03:21.363618Z"
+    },
+    {
+      "hash": "d410e48db3c3e212071eab8049f166d671bcd7f3e4e762d4859b6ff1a43ece65",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-720b2ba31e9793d9cf3f559e",
+        "latency_ms": 10097,
+        "model_version": "muse-glimmer-30b",
+        "reason": "No frames are provided from camera phone-18 for the requested interval, so the visual content cannot be inspected to confirm a person near a moving forklift.",
+        "reasoning": null,
+        "scene_text": "",
+        "score": 0.5,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "unsure"
+      },
+      "prev_hash": "2cb7641ae7f0f3c7f10cc856895a42d24f52f4007c51d20742b7b698b83cbba1",
+      "seq": 48,
+      "site": "demo",
+      "ts": "2026-10-31T22:03:37.980440Z"
+    },
+    {
+      "hash": "2b0741d58de51021a4480117fcb9d8b813e906c7ae2dd04bff854fb84cdf6e2e",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-18",
+          "event_id": "ev-394f9147709dedc0e437122a",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m/s",
+            "value": 1.279212
+          },
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "predicate_trace": {
+            "all": true,
+            "all.0.moving": true,
+            "all.0.moving.value": 1.279212,
+            "all.1.distance_m": true,
+            "all.1.distance_m.value": 0.566563,
+            "all.value": 1.279212,
+            "episode_s": 0.6,
+            "subject": "phone-18:forklift:853a6476"
+          },
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "rule_ir_hash": "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "367f91860df544a1322b047a0221c0c0d1c67ad8a4ce35e39a728c36fcbc1d69",
+          "ts_end": "2026-10-31T21:56:09.859724Z",
+          "ts_start": "2026-10-31T21:56:09.359724Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-18",
+            "err_m": 0.07091206300829384,
+            "homography": [
+              [
+                0.008406896426759925,
+                0.0012933686810399833,
+                -6.406055077191063
+              ],
+              [
+                4.8173030957244e-19,
+                0.07599788040950382,
+                -9.484049933073098e-17
+              ],
+              [
+                9.83718386345007e-19,
+                -0.00212201591511937,
+                0.9999999999999999
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "pallet_48x40in"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-18",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-2m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.3
+                },
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 2,
+                  "op": "distance_m"
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-ffe868b5cb41",
+              "standard": [],
+              "text": "Keep people at least 2 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-10-31T21:56:06.159724Z",
+          "t1": "2026-10-31T21:56:12.264057Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "d410e48db3c3e212071eab8049f166d671bcd7f3e4e762d4859b6ff1a43ece65",
+      "seq": 49,
+      "site": "demo",
+      "ts": "2026-10-31T22:03:40.352203Z"
+    },
+    {
+      "hash": "2e3b81235e275d48a218ca860bc311316aff4edfffea0e3dfaf75375b24d34da",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-394f9147709dedc0e437122a",
+        "latency_ms": 6985,
+        "model_version": "muse-glimmer-30b",
+        "reason": "No frames are provided from camera phone-18 for the time window, so the visual content cannot be verified.",
+        "reasoning": null,
+        "scene_text": "",
+        "score": 0.5,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "unsure"
+      },
+      "prev_hash": "2b0741d58de51021a4480117fcb9d8b813e906c7ae2dd04bff854fb84cdf6e2e",
+      "seq": 50,
+      "site": "demo",
+      "ts": "2026-10-31T22:03:47.401070Z"
+    },
+    {
+      "hash": "45c30e6eb6ee908fba0b4a43cb4200f5b91d44bc4744a336e79a5c5f9ceba2f0",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-18",
+          "event_id": "ev-985a394d803117e07651a41c",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m/s",
+            "value": 0.316283
+          },
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "predicate_trace": {
+            "all": true,
+            "all.0.moving": true,
+            "all.0.moving.value": 0.316283,
+            "all.1.distance_m": true,
+            "all.1.distance_m.value": 0,
+            "all.value": 0.316283,
+            "episode_s": 1.1,
+            "subject": "phone-18:forklift:eb65ea8d"
+          },
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "rule_ir_hash": "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "239eaa87ee7762e20ffd1944f243dce582ec679a23893f2809e1ff89a16546cd",
+          "ts_end": "2026-10-31T21:56:28.292841Z",
+          "ts_start": "2026-10-31T21:56:27.292841Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-18",
+            "err_m": 0.07091206300829384,
+            "homography": [
+              [
+                0.008406896426759925,
+                0.0012933686810399833,
+                -6.406055077191063
+              ],
+              [
+                4.8173030957244e-19,
+                0.07599788040950382,
+                -9.484049933073098e-17
+              ],
+              [
+                9.83718386345007e-19,
+                -0.00212201591511937,
+                0.9999999999999999
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "pallet_48x40in"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-18",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-2m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.3
+                },
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 2,
+                  "op": "distance_m"
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-ffe868b5cb41",
+              "standard": [],
+              "text": "Keep people at least 2 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-10-31T21:56:22.692841Z",
+          "t1": "2026-10-31T21:56:28.349295Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "2e3b81235e275d48a218ca860bc311316aff4edfffea0e3dfaf75375b24d34da",
+      "seq": 51,
+      "site": "demo",
+      "ts": "2026-10-31T22:03:47.832588Z"
+    },
+    {
+      "hash": "4a314602ebefaf8c706868d4243bce2fb25a7711b01349a43c5593650d93fc72",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-985a394d803117e07651a41c",
+        "latency_ms": 9613,
+        "model_version": "muse-glimmer-30b",
+        "reason": "No frames are provided from camera phone-18 for the requested interval, so the visual content cannot be verified.",
+        "reasoning": null,
+        "scene_text": "",
+        "score": 0.5,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "unsure"
+      },
+      "prev_hash": "45c30e6eb6ee908fba0b4a43cb4200f5b91d44bc4744a336e79a5c5f9ceba2f0",
+      "seq": 52,
+      "site": "demo",
+      "ts": "2026-10-31T22:03:57.507895Z"
+    },
+    {
+      "hash": "1cd3f050d62adbc6ba0119b6879a9c1e98a08f999b0a86163e5082a3ed00f6bf",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-18",
+          "event_id": "ev-22ba74bf87fb9dfacbdb7161",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m/s",
+            "value": 0.302899
+          },
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "predicate_trace": {
+            "all": true,
+            "all.0.moving": true,
+            "all.0.moving.value": 0.302899,
+            "all.1.distance_m": true,
+            "all.1.distance_m.value": 0.528719,
+            "all.value": 0.302899,
+            "episode_s": 0.8,
+            "subject": "phone-18:forklift:1cf5ca5d"
+          },
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "rule_ir_hash": "4eaba2161f70daaf2ebafa3be6a6345f0333bf2c230dfb6613a9b257ef226419",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "47e01d74dba3f8b491660cb350d61ffdb96c14c63e68e3086496945cd33b964d",
+          "ts_end": "2026-10-31T21:56:38.295415Z",
+          "ts_start": "2026-10-31T21:56:37.595415Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-18",
+            "err_m": 0.07091206300829384,
+            "homography": [
+              [
+                0.008406896426759925,
+                0.0012933686810399833,
+                -6.406055077191063
+              ],
+              [
+                4.8173030957244e-19,
+                0.07599788040950382,
+                -9.484049933073098e-17
+              ],
+              [
+                9.83718386345007e-19,
+                -0.00212201591511937,
+                0.9999999999999999
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "pallet_48x40in"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "plan_version_hash": "dc234814286067d450be70676176c635646e431737a14da1fd5433d266e7aa16",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-18",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-2m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.3
+                },
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 2,
+                  "op": "distance_m"
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-ffe868b5cb41",
+              "standard": [],
+              "text": "Keep people at least 2 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-10-31T21:56:35.195415Z",
+          "t1": "2026-10-31T21:56:38.400048Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "4a314602ebefaf8c706868d4243bce2fb25a7711b01349a43c5593650d93fc72",
+      "seq": 53,
+      "site": "demo",
+      "ts": "2026-10-31T22:03:57.833871Z"
+    },
+    {
+      "hash": "1f15a4f4a3604424798da7df2ec4b49fed6c04a80673f453c1ce63d9ccc4da1f",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-22ba74bf87fb9dfacbdb7161",
+        "latency_ms": 10779,
+        "model_version": "muse-glimmer-30b",
+        "reason": "No frames are available from camera phone-18 for the requested interval, so the visual content cannot be verified.",
+        "reasoning": null,
+        "scene_text": "",
+        "score": 0.5,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "unsure"
+      },
+      "prev_hash": "1cd3f050d62adbc6ba0119b6879a9c1e98a08f999b0a86163e5082a3ed00f6bf",
+      "seq": 54,
+      "site": "demo",
+      "ts": "2026-10-31T22:04:08.686600Z"
+    }
+  ],
+  "bus": [],
+  "metrics": [],
+  "predicted": []
+}

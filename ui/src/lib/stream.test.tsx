@@ -1,8 +1,10 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DEFAULT_GOLDEN, GOLDEN_RUNS } from "@/fixtures/golden";
+
 import { badgeLabel } from "./store";
-import { StreamProvider, useStream } from "./stream";
+import { StreamProvider, useDemoQuery, useGolden, useStream } from "./stream";
 import { usePlans } from "./usePlans";
 
 let search = "";
@@ -41,6 +43,7 @@ function Probe() {
   );
 }
 
+const goldenEvents = GOLDEN_RUNS[0]!.frames.filter((f) => f.topic === "candidate.new").length;
 const probe = (): string => screen.getByTestId("probe").textContent ?? "";
 const latest = (): FakeSocket => FakeSocket.all[FakeSocket.all.length - 1]!;
 
@@ -135,7 +138,7 @@ describe("StreamProvider", () => {
     expect(live.closed).toBe(true);
     act(() => live.drop()); // a late close from the old socket
     act(() => vi.advanceTimersByTime(60_000));
-    expect(probe()).toBe("REPLAY|open|1"); // only the recorded UC1 event
+    expect(probe()).toBe(`REPLAY|open|${goldenEvents}`); // only the golden run's events
     expect(FakeSocket.all).toHaveLength(1);
   });
 
@@ -148,7 +151,36 @@ describe("StreamProvider", () => {
     );
     act(() => vi.advanceTimersByTime(60_000));
     expect(FakeSocket.all).toHaveLength(0);
-    expect(probe()).toBe("REPLAY|open|1");
+    expect(probe()).toBe(`REPLAY|open|${goldenEvents}`);
+  });
+
+  it("selects a golden run by name, and treats an unknown name as live", () => {
+    function Which() {
+      return (
+        <p data-testid="which">
+          {useGolden()?.name ?? "live"}|{useDemoQuery()}
+        </p>
+      );
+    }
+    search = `demo=${DEFAULT_GOLDEN}`;
+    const view = render(
+      <StreamProvider>
+        <Which />
+      </StreamProvider>,
+    );
+    expect(screen.getByTestId("which").textContent).toBe(
+      `${DEFAULT_GOLDEN}|?demo=${DEFAULT_GOLDEN}`,
+    );
+    expect(FakeSocket.all).toHaveLength(0);
+    view.unmount();
+    search = "demo=no-such-run";
+    render(
+      <StreamProvider>
+        <Which />
+      </StreamProvider>,
+    );
+    expect(screen.getByTestId("which").textContent).toBe("live|");
+    expect(FakeSocket.all).toHaveLength(1);
   });
 
   it("keeps the plans a screen loads for the demo (the switch's reset happens first)", () => {
@@ -166,8 +198,11 @@ describe("StreamProvider", () => {
       </StreamProvider>,
     );
     act(() => vi.advanceTimersByTime(60_000));
-    // The recorded v1 (approved) loaded on mount survives; v2 arrives later on the stream.
-    expect(screen.getByTestId("plans").textContent).toBe("main-st-kitchen:v2:approved v1");
+    // The golden run's approved plan, loaded on mount, survives the replayed `plan.updated`.
+    const plan = GOLDEN_RUNS[0]!.plan;
+    expect(screen.getByTestId("plans").textContent).toBe(
+      `${plan.plan_id}:v${plan.version}:approved v${plan.version}`,
+    );
     expect(fetch).not.toHaveBeenCalled();
   });
 });

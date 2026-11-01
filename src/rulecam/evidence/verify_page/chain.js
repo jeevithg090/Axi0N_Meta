@@ -167,3 +167,18 @@ export async function compareToCommitted(hashes, committedRoot, committedN) {
   if ((await merkleRoot(hashes.slice(0, committedN))) !== committedRoot) return "mismatch";
   return committedN === hashes.length ? "match" : "extended";
 }
+
+const HEX64 = /^[0-9a-f]{64}$/;
+
+/**
+ * Validate the public `GET /evidence/{day}/hashes` body ({n, hashes}) and return the hashes.
+ * The public sees record hashes only (the records are the site owner's); they are enough to
+ * check that the day's log reproduces the Merkle root committed to git.
+ */
+export function parseHashList(body) {
+  const hashes = body && Array.isArray(body.hashes) ? body.hashes : null;
+  if (hashes === null || body.n !== hashes.length || !hashes.every((h) => HEX64.test(h))) {
+    throw new Error("the server sent a malformed hash list");
+  }
+  return hashes;
+}

@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { acceptanceSummary } from "@/lib/plan";
-import { useDemo } from "@/lib/stream";
+import { useDemoQuery } from "@/lib/stream";
 import { usePlans } from "@/lib/usePlans";
 
 export default function PlansPage() {
   const { plans, error } = usePlans();
-  const query = useDemo() ? "?demo=1" : "";
+  const query = useDemoQuery();
   const entries = Object.values(plans);
 
   return (

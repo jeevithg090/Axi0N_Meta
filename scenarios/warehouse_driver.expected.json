@@ -1,0 +1,189 @@
+{
+  "scenario": "warehouse_driver",
+  "steps": {
+    "evidence": {
+      "candidates": 0,
+      "event_ids": [],
+      "n": 35,
+      "ok": true,
+      "reason": "",
+      "reproduced": 0,
+      "root": "6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e",
+      "run_kinds": [],
+      "run_seqs": [],
+      "site": "demo"
+    },
+    "plan": {
+      "acceptance": [
+        {
+          "check": "concern_covered",
+          "detail": "rule 'keep-people-2m-from-moving-forklift'",
+          "item": "Keep people at least 2 metres away from a moving forklift.",
+          "passed": true
+        },
+        {
+          "check": "zone_in_view",
+          "detail": "the rule uses no zones",
+          "item": "keep-people-2m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "detect_lb>=0.8",
+          "detail": "lowest detect_lb 0.86 (forklift)",
+          "item": "keep-people-2m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "calibration_err<=tol",
+          "detail": "calibrated within 0.10 m",
+          "item": "keep-people-2m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "privacy_consistent",
+          "detail": "consistent with standard mode",
+          "item": "keep-people-2m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "citation_text_match",
+          "detail": "the rule cites no standard",
+          "item": "keep-people-2m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "no_private_spaces",
+          "detail": "no private-space zones",
+          "item": "keep-people-2m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "ci_green",
+          "detail": "boundary 16/16, mutations 6/6",
+          "item": "keep-people-2m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "nonvacuous",
+          "detail": "fires on its positive boundary trace and not on its negative one",
+          "item": "keep-people-2m-from-moving-forklift",
+          "passed": true
+        }
+      ],
+      "feasibility": [
+        {
+          "concern": "Keep people at least 2 metres away from a moving forklift.",
+          "verdict": "observable"
+        }
+      ],
+      "plan_id": "plan-4f9ee0094e29",
+      "planner_steps": [
+        {
+          "detail": "1 concerns",
+          "status": "done",
+          "step": "understand"
+        },
+        {
+          "detail": "11 things seen; phone-27 calibrated from pallet_48x40in (0.09 m)",
+          "status": "done",
+          "step": "survey"
+        },
+        {
+          "detail": "3 probes",
+          "status": "done",
+          "step": "probe"
+        },
+        {
+          "detail": "1 observable",
+          "status": "done",
+          "step": "gauge"
+        },
+        {
+          "detail": "3 questions",
+          "status": "done",
+          "step": "ask"
+        },
+        {
+          "detail": "1 rules",
+          "status": "done",
+          "step": "compile"
+        },
+        {
+          "detail": "no lint errors",
+          "status": "done",
+          "step": "lint"
+        },
+        {
+          "detail": "7/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)",
+          "status": "done",
+          "step": "accept"
+        },
+        {
+          "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)",
+          "status": "done",
+          "step": "audit"
+        },
+        {
+          "detail": "Rule CI green for 1/1 rules",
+          "status": "done",
+          "step": "prove"
+        }
+      ],
+      "request": "Keep people at least 2 metres away from a moving forklift.",
+      "rule_hashes_match_run": true,
+      "rules": [
+        {
+          "canonical": true,
+          "canonical_rule_hash": "56b64866fbabe89dca53a21299424d519fc359f1b9fbfe6f83675a599bc63bc8",
+          "id": "keep-people-2m-from-moving-forklift",
+          "predicate": {
+            "of": [
+              {
+                "a": "person",
+                "b": "forklift",
+                "gt": null,
+                "lt": 2.0,
+                "op": "distance_m"
+              },
+              {
+                "object": "forklift",
+                "op": "moving",
+                "speed_mps_gt": 0.2
+              }
+            ],
+            "op": "all"
+          },
+          "rule_ir_hash": "bb2c77e6844995b5ec0122eb37546f86213b3c42997882b1750d10f009522a26",
+          "severity": "high"
+        }
+      ],
+      "version": 1
+    },
+    "rule_ci": [
+      {
+        "ci_green": true,
+        "failures": [],
+        "matches_plan": true,
+        "nonvacuous": true,
+        "rule_id": "keep-people-2m-from-moving-forklift",
+        "summary": "boundary 16/16, mutations 6/6"
+      }
+    ],
+    "score": {
+      "alerts": 0,
+      "candidates": 0,
+      "clip": "warehouse_45848",
+      "decisive": 0,
+      "events": 0,
+      "false_alerts_on_negative": 0,
+      "fn": 0,
+      "fp": 0,
+      "outcome": "activated",
+      "rule": "forklift_2m",
+      "status": "negative",
+      "tier1": [],
+      "tp": 0
+    },
+    "verify": []
+  }
+}

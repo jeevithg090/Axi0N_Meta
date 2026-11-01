@@ -13,13 +13,17 @@ from rulecam.contracts import (
     PrivacyMode,
     RuleIR,
     Track,
+    Verifier,
     VerifierVerdict,
 )
 from rulecam.evidence.chain import EventChain
 from rulecam.perception.tracking import SegmentedChunk
 from rulecam.replay.errors import ReplayMiss
-from rulecam.runtime.loop import ActivePlan, ChunkTracker, RuntimeLoop
+from rulecam.rules.backtest import DecisionContext
+from rulecam.runtime.loop import ActivePlan, ChunkTracker, RuntimeLoop, StripRenderer
 from rulecam.verify.decision import Decision
+from rulecam.verify.guard import verifier_error
+from rulecam.verify.policy import decide_unverified
 from tests.fakes import FakeClock, FakeVerifier, InMemoryTrackStore
 from tests.rules.helpers import CAL, INSIDE_M, SINK_ZONE, make_rule, walk_track
 
@@ -115,6 +119,9 @@ class FakePolicy:
         return candidate.severity == "high"
 
     def decide(self, candidate: CandidateEvent, rule: RuleIR, tier1: VerifierVerdict) -> Decision:
+        error = verifier_error(tier1)
+        if error is not None:  # as the real policy: a failed verification goes to a person
+            return decide_unverified(candidate, rule, error)
         alert = tier1.verdict == "violation"
         return Decision(
             alert=alert, route="auto", act_first=self.act_first(candidate, rule), reason="fake"
@@ -139,9 +146,17 @@ class FakeActions:
 class FakeStrips:
     def __init__(self) -> None:
         self.modes: list[PrivacyMode] = []
+        self.contexts: list[DecisionContext] = []
 
-    def render(self, candidate: CandidateEvent, chunk: Chunk, mode: PrivacyMode) -> CandidateEvent:
+    def render(
+        self,
+        candidate: CandidateEvent,
+        chunk: Chunk,
+        mode: PrivacyMode,
+        context: DecisionContext,
+    ) -> CandidateEvent:
         self.modes.append(mode)
+        self.contexts.append(context)
         return candidate.model_copy(update={"strip_paths": ("strip/f0.png",)})
 
 
@@ -194,9 +209,9 @@ def sequence_plan() -> ActivePlan:
 def make_loop(
     tmp_path: Path,
     clock: FakeClock,
-    verifier: FakeVerifier | None = None,
+    verifier: Verifier | None = None,
     *,
-    strips: FakeStrips | None = None,
+    strips: StripRenderer | None = None,
     tracker: ChunkTracker | None = None,
     store: InMemoryTrackStore | None = None,
     **kwargs: object,

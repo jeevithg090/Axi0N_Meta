@@ -15,7 +15,8 @@ from hypothesis import strategies as st
 from rulecam.contracts import CandidateEvent, Dispute, RuleIR, Severity, VerifierVerdict
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.verify.firewall import BoxStripBlurrer, PromptGuard2, SceneTextFirewall
-from rulecam.verify.policy import VerificationPolicy, decide, needs_tier2
+from rulecam.verify.guard import error_verdict
+from rulecam.verify.policy import VerificationPolicy, decide, decide_unverified, needs_tier2
 from tests.fakes import FakeClock, FakeVerifier, make_verdict
 from tests.verify.helpers import load_rule, make_candidate
 
@@ -373,3 +374,104 @@ def test_score_at_threshold_is_flagged(tmp_path: Path) -> None:
     tier1 = v("C", text="anything")
     assert tier1 is not None
     assert fw.screen(make_candidate(), load_rule(), tier1).flagged
+
+
+# --- a failed Tier 1 verification (P3-05: never silent) ---------------------------------------
+
+FAILED = error_verdict("ModelTransportError: POST /chat/completions failed: ConnectError")
+
+# (severity, tier2) -> route; the alert is always on and never suppressed.
+UNVERIFIED = {
+    ("high", None): "human_queue",
+    ("high", "C"): "auto",
+    ("high", "R"): "human_queue",
+    ("high", "U"): "human_queue",
+    ("medium", None): "human_queue",
+    ("medium", "C"): "auto",
+    ("medium", "R"): "human_queue",
+    ("medium", "U"): "human_queue",
+}
+
+
+@pytest.mark.parametrize(("key", "route"), sorted(UNVERIFIED.items(), key=str))
+@pytest.mark.parametrize("low_severity", ["medium", "low"])
+def test_a_failed_verification_goes_to_a_person(
+    key: tuple[str, str | None], route: str, low_severity: str
+) -> None:
+    severity, t2 = key
+    sev = Severity.HIGH if severity == "high" else Severity(low_severity)
+    for decision in (
+        decide(candidate(sev), load_rule(), FAILED, v(t2, "spark_open")),
+        decide_unverified(candidate(sev), load_rule(), "ConnectError", v(t2, "spark_open")),
+    ):
+        assert (decision.alert, decision.route) == (True, route)
+        assert decision.act_first is (sev == Severity.HIGH)
+    if route == "human_queue":
+        assert decision.reason.startswith("verifier unavailable — ConnectError")
+
+
+@given(tier2=st.none() | verdicts, tau=st.floats(0.5, 0.99))
+def test_a_failed_verification_is_never_suppressed(
+    tier2: VerifierVerdict | None, tau: float
+) -> None:
+    for severity in Severity:
+        decision = decide(candidate(severity), load_rule(), FAILED, tier2, threshold=tau)
+        assert decision.alert
+        confirmed = tier2 is not None and tier2.verdict == "violation" and tier2.score >= tau
+        assert decision.route == ("auto" if confirmed else "human_queue")
+
+
+@pytest.mark.parametrize("severity", [Severity.LOW, Severity.MEDIUM, Severity.HIGH])
+def test_policy_sends_a_failed_verification_to_the_human_queue(severity: Severity) -> None:
+    policy = VerificationPolicy(tier1=FakeVerifier())  # no Tier 2
+    decision = policy.decide(candidate(severity), disagree_rule(), FAILED)
+    assert (decision.alert, decision.route) == (True, "human_queue")
+    assert decision.act_first is (severity == Severity.HIGH)
+    assert decision.reason == (
+        "verifier unavailable — ModelTransportError: POST /chat/completions failed: ConnectError"
+    )
+
+
+def test_a_failed_verification_escalates_to_tier2_when_the_rule_allows() -> None:
+    tier2 = FakeTier2(make_verdict(tier="spark_open", score=0.95))
+    policy = VerificationPolicy(tier1=FakeVerifier(), tier2=tier2)
+    decision = policy.decide(candidate(Severity.MEDIUM), disagree_rule(), FAILED)
+    assert (decision.alert, decision.route) == (True, "auto")
+    assert decision.reason.startswith("Tier 2 confirmed; Tier 1 unavailable (ModelTransportError")
+    assert tier2.calls[0][1] is None  # an error verdict is no description of the frames
+    rejected = FakeTier2(make_verdict(tier="spark_open", verdict="no_violation", score=0.05))
+    policy = VerificationPolicy(tier1=FakeVerifier(), tier2=rejected)
+    decision = policy.decide(candidate(Severity.LOW), disagree_rule(), FAILED)
+    assert (decision.alert, decision.route) == (True, "human_queue")  # one tier never suppresses
+    assert decision.reason.endswith("; Tier 2 said no_violation (0.05)")
+
+
+def test_a_failed_verification_skips_tier2_when_the_rule_does_not_allow_it() -> None:
+    tier2 = FakeTier2(make_verdict(tier="spark_open"))
+    policy = VerificationPolicy(tier1=FakeVerifier(), tier2=tier2)
+    decision = policy.decide(candidate(Severity.MEDIUM), load_rule(), FAILED)  # on-dispute only
+    assert (decision.alert, decision.route) == (True, "human_queue")
+    assert tier2.calls == []
+
+
+def test_a_failed_verification_with_tier2_down_goes_to_a_person() -> None:
+    policy = VerificationPolicy(tier1=FakeVerifier(), tier2=BrokenTier2(make_verdict()))
+    decision = policy.decide(candidate(Severity.MEDIUM), disagree_rule(), FAILED)
+    assert (decision.alert, decision.route) == (True, "human_queue")
+    assert decision.reason.startswith("verifier unavailable — ")
+
+
+def test_tier2_confirming_an_unverified_alert_is_screened(tmp_path: Path) -> None:
+    tier2 = FakeTier2(
+        make_verdict(tier="spark_open", score=0.95).model_copy(update={"scene_text": INJECTION})
+    )
+    fw, blurrer, _, _ = firewall(tmp_path, FAILED, tier2)
+    policy = VerificationPolicy(tier1=FakeVerifier(), tier2=tier2, firewall=fw)
+    decision = policy.decide(candidate(Severity.MEDIUM), disagree_rule(), FAILED)
+    assert (decision.alert, decision.route) == (True, "human_queue")
+    assert blurrer.calls == 1
+    clean = FakeTier2(make_verdict(tier="spark_open", score=0.95))
+    fw, blurrer, _, _ = firewall(tmp_path / "clean", FAILED, clean)
+    policy = VerificationPolicy(tier1=FakeVerifier(), tier2=clean, firewall=fw)
+    decision = policy.decide(candidate(Severity.MEDIUM), disagree_rule(), FAILED)
+    assert (decision.alert, decision.route, blurrer.calls) == (True, "auto", 0)

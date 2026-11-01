@@ -1,4 +1,4 @@
-// Recorded-style UC1 plan for `?demo=1` and screen tests. Version 1 is the approved plan;
+// Recorded-style UC1 plan for screen tests. Version 1 is the approved plan;
 // version 2 is a proposal from the self-repair loop (tighter glove rule, one suggested rule).
 
 import type { AcceptanceCheck, PlannerStepFrame, Rule, SitePlan } from "@/lib/plan";

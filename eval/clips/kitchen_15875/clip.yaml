@@ -1,0 +1,18 @@
+# Mixkit stock clip 15875: a commercial kitchen. There is no forklift, so it is a NEGATIVE for the
+# proximity rule. Hand washing was never labelled on it (the clip is 5 s), so that rule is only
+# used for Glimmer decisiveness (`rulecam eval run --include-unlabelled`).
+name: kitchen_15875
+description: Commercial kitchen, staff at work; no vehicles.
+camera_id: kitchen
+source:
+  url: https://assets.mixkit.co/videos/15875/15875-720.mp4
+  sha256: 4f668703d1d88f6457c7c863a1e9eacb6df3b133a8abe97d4485854920efcd19
+duration_s: 5.14
+license: Mixkit Stock Video Free License (https://mixkit.co/license/#videoFree)
+rules:
+  - id: forklift_2m
+    request: Keep people at least 2 metres away from a moving forklift.
+    status: negative
+  - id: handwash_20s
+    request: Staff must wash their hands for at least 20 seconds.
+    status: unlabelled

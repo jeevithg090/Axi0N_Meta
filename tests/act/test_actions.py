@@ -146,6 +146,23 @@ def test_suppressed_runs_nothing_and_human_queue_only_notifies(tmp_path: Path) -
     assert rig.notifier.list()[0].title.startswith("Needs review")
 
 
+def test_the_human_queue_always_reaches_a_person_and_says_why(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    why = Decision(
+        alert=True,
+        route="human_queue",
+        act_first=False,
+        reason="verifier unavailable — ModelTransportError",
+    )
+    r = rule([{"kind": "speak"}, {"kind": "log"}])  # no notify or escalate of its own
+    (record,) = rig.executor.run(make_candidate(), r, why)
+    assert (record.kind, record.role, record.gate) == ("notify", "site_lead", "human")
+    (alert,) = rig.notifier.list("site_lead")
+    assert alert.title == "Needs review: verifier unavailable — ModelTransportError"
+    assert alert.body.startswith(f"{r.source.text or r.id}. Camera cam1 at ")
+    assert rig.speaker.played == []
+
+
 def test_missing_devices_record_failure_without_stopping(tmp_path: Path) -> None:
     rig = Rig(tmp_path)
     bare = ActionExecutor(clock=rig.clock, notifier=rig.notifier, escalation=rig.escalation)
@@ -547,3 +564,52 @@ def test_phrase_book_matches_unicode_normal_forms() -> None:
     ]
     book = PhraseBook.from_prerendered({"hat": unicodedata.normalize("NFD", nfc)}, rendered, ["es"])
     assert book.wavs_for("hat", "es") == [Path("tts/es.wav")]
+
+
+def test_dry_run_records_what_would_run_and_touches_nothing(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    executor = ActionExecutor(
+        clock=rig.clock,
+        notifier=rig.notifier,
+        escalation=rig.escalation,
+        interlock=rig.interlock,
+        speaker=rig.speaker,
+        light=StrobeLight(rig.light_plug, flashes=1, sleep=lambda s: None),
+        phrases=rig.phrases,
+        bus=rig.bus,
+        dry_run=True,
+    )
+    assert executor.dry_run
+    r = rule(
+        [
+            {"kind": "speak", "lang": "es"},
+            {"kind": "visual_signal"},
+            {"kind": "coach_station"},
+            {"kind": "notify", "role": "dock_lead"},
+            {"kind": "escalate", "role": "aide,charge_nurse"},
+            {"kind": "interlock_cut"},
+            {"kind": "log"},
+        ]
+    )
+    records = executor.run(make_candidate(), r, ALERT)
+    assert [x.detail for x in records] == [
+        "dry-run: would cut power",
+        "dry-run: would notify dock_lead",
+        "dry-run: would escalate aide → charge_nurse",
+        "dry-run: would strobe the light",
+        "dry-run: would play the warning (es)",
+        "dry-run: would show the station display and play the warning (crew)",
+        "dry-run: logged",
+    ]
+    assert all(x.ok and x.gate == "auto" for x in records)
+    assert rig.plug.events == []
+    assert rig.light_plug.events == []
+    assert rig.speaker.played == []
+    assert rig.notifier.list() == []
+    assert not rig.escalation.is_open(make_candidate().event_id)
+    human = executor.run(make_candidate(), r, HUMAN)
+    assert [x.detail for x in human] == [
+        "dry-run: would notify dock_lead (needs review)",
+        "dry-run: would escalate aide → charge_nurse (needs review)",
+    ]
+    assert executor.run(make_candidate(), r, SUPPRESSED) == []

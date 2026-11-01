@@ -4,9 +4,12 @@
 record it returns.
 
 - **Suppressed** (`alert=False`, route `auto`): nothing runs.
-- **Human queue:** only `notify` and `escalate` run, worded as "needs review", so a person decides.
-  Nothing speaks, flashes or cuts power on an unconfirmed LOW/MEDIUM alert. For HIGH the runtime
-  calls this again after a verifier demoted an alert it already acted on.
+- **Human queue:** only `notify` and `escalate` run, worded as "needs review" with the policy's
+  reason in the title ("Needs review: verifier unavailable — …"), so a person decides. A rule
+  with neither still reaches a person: `site_lead` is notified (`REVIEW_ROLE`), so a human-queue
+  decision is never silent. Nothing speaks, flashes or cuts power on an unconfirmed LOW/MEDIUM
+  alert. For HIGH the runtime calls this again after a verifier demoted an alert it already acted
+  on (or could not verify it).
 - **Alert:** every action runs. `interlock_cut` goes **first**, then `notify`/`escalate`, then the
   slow, blocking outputs (strobe, speaker, station). The plug is off within milliseconds of the
   candidate for HIGH rules (the runtime calls this before verification), and people are told before
@@ -14,6 +17,11 @@ record it returns.
   role.
 
 A failing device never stops the other actions: its record says `ok=False`.
+
+**Dry run** (`RULECAM_ACTIONS_DRY_RUN`, on until the owner turns it off): nothing is executed (no
+power cut, light, speaker, station, notification or escalation chain), but every action the
+decision allows is still recorded, with `detail` starting `dry-run: would …`, so the evidence
+chain shows exactly what a live site would have done.
 """
 
 from __future__ import annotations
@@ -47,7 +55,9 @@ from rulecam.voice_out.prerender import PrerenderedPhrase, normalize_phrase
 _log = get_logger(__name__)
 
 DEFAULT_ESCALATE_AFTER_S = 60.0
+DRY_RUN_PREFIX = "dry-run: "
 HUMAN_QUEUE_KINDS = frozenset({"notify", "escalate"})
+REVIEW_ROLE = "site_lead"
 _ORDER = {
     "interlock_cut": 0,
     "notify": 1,
@@ -222,6 +232,7 @@ class ActionExecutor:
         phrases: PhraseBook | None = None,
         bus: Bus | None = None,
         monotonic: Callable[[], float] = time.perf_counter,
+        dry_run: bool = False,
     ) -> None:
         """Create the executor; missing devices make their actions record `ok=False`.
 
@@ -235,6 +246,7 @@ class ActionExecutor:
             phrases: Pre-rendered warnings.
             bus: Bus for the coaching station display (`station.coach`, mirrored on `/ws`).
             monotonic: Timer for the interlock latency detail.
+            dry_run: Record what would run without running it (module docstring).
         """
         self._clock = clock
         self._notifier = notifier
@@ -245,6 +257,12 @@ class ActionExecutor:
         self._phrases = phrases
         self._bus = bus
         self._monotonic = monotonic
+        self._dry_run = dry_run
+
+    @property
+    def dry_run(self) -> bool:
+        """Whether actions are only recorded, never executed."""
+        return self._dry_run
 
     def run(
         self, candidate: CandidateEvent, rule: RuleIR, decision: Decision
@@ -263,15 +281,33 @@ class ActionExecutor:
             return []
         human = decision.route == "human_queue"
         specs = [s for s in rule.actions if not human or s.kind in HUMAN_QUEUE_KINDS]
+        if human and not specs:  # the human queue always reaches a person
+            specs = [ActionSpec(kind="notify", role=REVIEW_ROLE)]
         specs.sort(key=lambda s: _ORDER.get(s.kind, 3))
+        why = decision.reason if human else ""
         with for_event(candidate.event_id, rule.id):
-            return [self._one(spec, candidate, rule, human=human) for spec in specs]
+            return [self._one(spec, candidate, rule, human=human, why=why) for spec in specs]
 
     def _one(
-        self, spec: ActionSpec, candidate: CandidateEvent, rule: RuleIR, *, human: bool
+        self,
+        spec: ActionSpec,
+        candidate: CandidateEvent,
+        rule: RuleIR,
+        *,
+        human: bool,
+        why: str = "",
     ) -> ActionRecord:
+        if self._dry_run:
+            return ActionRecord(
+                kind=spec.kind,
+                role=spec.role,
+                gate="human" if human else "auto",
+                ts=self._clock.now(),
+                ok=True,
+                detail=DRY_RUN_PREFIX + would(spec, human=human),
+            )
         try:
-            detail = self._dispatch(spec, candidate, rule, human=human)
+            detail = self._dispatch(spec, candidate, rule, human=human, why=why)
             ok = True
         except (ActionError, OSError, KeyError) as exc:
             detail, ok = f"{type(exc).__name__}: {exc}", False
@@ -286,15 +322,15 @@ class ActionExecutor:
         )
 
     def _dispatch(
-        self, spec: ActionSpec, candidate: CandidateEvent, rule: RuleIR, *, human: bool
+        self, spec: ActionSpec, candidate: CandidateEvent, rule: RuleIR, *, human: bool, why: str
     ) -> str:
         handlers: dict[str, Callable[[], str]] = {
             "interlock_cut": self._cut,
             "visual_signal": self._strobe,
             "speak": lambda: self._speak(rule.id, spec.lang),
             "coach_station": lambda: self._coach(candidate, rule, spec.lang),
-            "notify": lambda: self._notify(spec, candidate, rule, human=human),
-            "escalate": lambda: self._escalate(spec, candidate, rule, human=human),
+            "notify": lambda: self._notify(spec, candidate, rule, human=human, why=why),
+            "escalate": lambda: self._escalate(spec, candidate, rule, human=human, why=why),
             "log": lambda: "logged",
         }
         return handlers[spec.kind]()
@@ -343,27 +379,32 @@ class ActionExecutor:
         return "station display; " + self._speak(rule.id, lang)
 
     @staticmethod
-    def _message(candidate: CandidateEvent, rule: RuleIR, *, human: bool) -> tuple[str, str]:
-        title = f"{'Needs review' if human else 'Alert'}: {rule.source.text or rule.id}"
-        body = (
+    def _message(
+        candidate: CandidateEvent, rule: RuleIR, *, human: bool, why: str = ""
+    ) -> tuple[str, str]:
+        """The alert's title and body; a human-queue alert with a reason leads with the reason."""
+        text = rule.source.text or rule.id
+        where = (
             f"Camera {candidate.camera_id} at {candidate.ts_start:%H:%M:%S} UTC ({rule.severity})"
         )
-        return title, body
+        if human and why:
+            return f"Needs review: {why}", f"{text}. {where}"
+        return f"{'Needs review' if human else 'Alert'}: {text}", where
 
     def _notify(
-        self, spec: ActionSpec, candidate: CandidateEvent, rule: RuleIR, *, human: bool
+        self, spec: ActionSpec, candidate: CandidateEvent, rule: RuleIR, *, human: bool, why: str
     ) -> str:
-        role = spec.role or "site_lead"
-        title, body = self._message(candidate, rule, human=human)
+        role = spec.role or REVIEW_ROLE
+        title, body = self._message(candidate, rule, human=human, why=why)
         clip = candidate.strip_paths[0] if candidate.strip_paths else None
         alert_id = self._notifier.send(role, title, body, clip_path=clip, buttons=ALERT_BUTTONS)
         return f"notified {role} ({alert_id})"
 
     def _escalate(
-        self, spec: ActionSpec, candidate: CandidateEvent, rule: RuleIR, *, human: bool
+        self, spec: ActionSpec, candidate: CandidateEvent, rule: RuleIR, *, human: bool, why: str
     ) -> str:
-        roles = tuple(r.strip() for r in (spec.role or "site_lead").split(",") if r.strip())
-        title, body = self._message(candidate, rule, human=human)
+        roles = tuple(r.strip() for r in (spec.role or REVIEW_ROLE).split(",") if r.strip())
+        title, body = self._message(candidate, rule, human=human, why=why)
         self._escalation.start(
             candidate.event_id,
             roles,
@@ -374,3 +415,20 @@ class ActionExecutor:
             rule_id=rule.id,
         )
         return f"escalation {' → '.join(roles)}"
+
+
+def would(spec: ActionSpec, *, human: bool) -> str:
+    """Describe what `spec` would do, for a dry-run record (`would notify site_lead`)."""
+    review = " (needs review)" if human else ""
+    roles = " → ".join(r.strip() for r in (spec.role or "site_lead").split(",") if r.strip())
+    lang = spec.lang or "crew"
+    text = {
+        "interlock_cut": "would cut power",
+        "visual_signal": "would strobe the light",
+        "speak": f"would play the warning ({lang})",
+        "coach_station": f"would show the station display and play the warning ({lang})",
+        "notify": f"would notify {spec.role or 'site_lead'}{review}",
+        "escalate": f"would escalate {roles}{review}",
+        "log": "logged",
+    }
+    return text[spec.kind]

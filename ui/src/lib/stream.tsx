@@ -1,7 +1,8 @@
 "use client";
 
-// Connects the UI to `/ws` (or to the recorded demo frames with `?demo=1`) and shares the folded
-// state through React context. Reconnects with a capped backoff; the badge shows OFFLINE meanwhile.
+// Connects the UI to `/ws` (or to a recorded golden run with `?demo=1` / `?demo=<name>`) and shares
+// the folded state through React context. Reconnects with a capped backoff; the badge shows OFFLINE
+// meanwhile.
 
 import { useSearchParams } from "next/navigation";
 import {
@@ -17,22 +18,22 @@ import {
   type ReactNode,
 } from "react";
 
-import { demoFrames } from "@/fixtures/demo-frames";
+import { goldenRun, type GoldenRun } from "@/fixtures/golden";
 
 import { API_PROXY, wsUrl } from "./config";
-import { parseFrame, type ModeChanged } from "./events";
+import { parseFrame, type Frame, type ModeChanged } from "./events";
 import { initialState, reducer, type Action, type UiState } from "./store";
 
 const StreamContext = createContext<UiState>(initialState);
 const DispatchContext = createContext<Dispatch<Action>>(() => undefined);
-// null until the URL has been read; then whether the page runs on the recorded demo frames.
-const DemoContext = createContext<boolean | null>(null);
+// undefined until the URL has been read; then the golden run the page replays, or null for live.
+const DemoContext = createContext<GoldenRun | null | undefined>(undefined);
 const MAX_BACKOFF_MS = 10_000;
 const DEMO_STEP_MS = 600;
 
-function playDemo(dispatch: Dispatch<Action>): () => void {
+function playDemo(dispatch: Dispatch<Action>, frames: Frame[]): () => void {
   dispatch({ type: "connection", connection: "open" });
-  const timers = demoFrames.map((frame, index) =>
+  const timers = frames.map((frame, index) =>
     setTimeout(() => dispatch({ type: "frame", frame }), index * DEMO_STEP_MS),
   );
   return () => timers.forEach(clearTimeout);
@@ -82,22 +83,22 @@ function connect(dispatch: Dispatch<Action>): () => void {
   };
 }
 
-/** Reports whether the URL asks for the recorded demo, on first load and on client navigation. */
-function DemoParam({ onChange }: { onChange: (demo: boolean) => void }) {
-  const demo = useSearchParams().get("demo") === "1";
+/** Reports which golden run the URL asks for (or none), on first load and on navigation. */
+function DemoParam({ onChange }: { onChange: (demo: GoldenRun | null) => void }) {
+  const demo = goldenRun(useSearchParams().get("demo"));
   useEffect(() => onChange(demo), [demo, onChange]);
   return null;
 }
 
 export function StreamProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
-  const [demo, setDemo] = useState<boolean | null>(null);
-  const demoRef = useRef<boolean | null>(null);
+  const [demo, setDemo] = useState<GoldenRun | null | undefined>(undefined);
+  const demoRef = useRef<GoldenRun | null | undefined>(undefined);
   const stopRef = useRef<(() => void) | null>(null);
   // Switching between the live socket and the recording never mixes their events, modes or
   // plans: the old source stops and the state resets before any screen sees the new `demo`, so
   // screens that load data for the new source (usePlans) are not wiped by the reset.
-  const onDemo = useCallback((next: boolean) => {
+  const onDemo = useCallback((next: GoldenRun | null) => {
     if (demoRef.current === next) return;
     demoRef.current = next;
     stopRef.current?.();
@@ -106,8 +107,8 @@ export function StreamProvider({ children }: { children: ReactNode }) {
     setDemo(next);
   }, []);
   useEffect(() => {
-    if (demo === null) return undefined;
-    const stop = demo ? playDemo(dispatch) : connect(dispatch);
+    if (demo === undefined) return undefined;
+    const stop = demo ? playDemo(dispatch, demo.frames) : connect(dispatch);
     stopRef.current = stop;
     return () => {
       stop();
@@ -137,9 +138,21 @@ export function useDispatch(): Dispatch<Action> {
 }
 
 /**
- * Whether the page runs on recorded demo frames (`?demo=1`), so no API calls are made; `null`
- * until the URL has been read. Follows client-side navigation between demo and live.
+ * Whether the page replays a golden run (`?demo=1` or `?demo=<name>`), so no API calls are made;
+ * `null` until the URL has been read. Follows client-side navigation between demo and live.
  */
 export function useDemo(): boolean | null {
-  return useContext(DemoContext);
+  const demo = useContext(DemoContext);
+  return demo === undefined ? null : demo !== null;
+}
+
+/** The golden run being replayed, or `null` (live, or the URL not read yet). */
+export function useGolden(): GoldenRun | null {
+  return useContext(DemoContext) ?? null;
+}
+
+/** The query string that keeps links on the same golden run (`?demo=<name>`), else "". */
+export function useDemoQuery(): string {
+  const golden = useGolden();
+  return golden ? `?demo=${golden.name}` : "";
 }

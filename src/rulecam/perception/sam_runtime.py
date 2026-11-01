@@ -48,6 +48,9 @@ MODEL_NAME = "sam3.1-self-hosted"
 RELAY_SEGMENT = "perception"
 MAX_PROMPTED_OBJECTS = 16
 HTTP_SEGMENT_PATH = "/segment"  # sam_server.SEGMENT_PATH (that module stays free of pydantic)
+HTTP_SEGMENT_IMAGE_PATH = "/segment_image"  # sam_server.SEGMENT_IMAGE_PATH
+MAX_IMAGES_PER_CALL = 32  # keyframes of one chunk: 3 s at up to 10 fps
+MAX_IMAGE_CONCEPTS = 16
 HTTP_TIMEOUT_S = 60.0
 HTTP_RETRY = RetryPolicy(max_attempts=2, base_delay_s=0.25, max_delay_s=1.0)
 HTTP_RATE_PER_MINUTE = 1200.0  # far above what one GPU serves; the server's queue pushes back
@@ -125,6 +128,87 @@ class SamWorker(Protocol):
     def segment(self, video: bytes, request: dict[str, Any]) -> dict[str, Any]:
         """Return a `SamResponse` dict for a `SamRequest` dict and the chunk's MP4 bytes."""
         ...
+
+
+class SamImageRequest(Frozen):
+    """One self-hosted SAM 3.1 image call: a chunk's keyframes, every concept on every image.
+
+    The server runs the image encoder once per image and the text-conditioned detector once per
+    concept on it, so one call for all of a chunk's concepts costs far less GPU than one per
+    concept. `masks` false returns boxes only (the runtime needs foot points, not masks).
+    """
+
+    concepts: tuple[str, ...] = Field(min_length=1, max_length=MAX_IMAGE_CONCEPTS)
+    n_images: int = Field(gt=0, le=MAX_IMAGES_PER_CALL)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    include_confidence: bool = True
+    masks: bool = False
+
+    @model_validator(mode="after")
+    def _check_concepts(self) -> Self:
+        if any(not concept.strip() for concept in self.concepts):
+            msg = "an image request's concepts must be non-empty noun phrases"
+            raise ValueError(msg)
+        if len(set(self.concepts)) != len(self.concepts):
+            msg = "an image request's concepts must be distinct"
+            raise ValueError(msg)
+        return self
+
+
+class SamImageObject(Frozen):
+    """One object of one concept in one image, as returned by the server."""
+
+    image_idx: int = Field(ge=0)
+    concept: str
+    object_id: int
+    rle: str
+    box_xyxy: BoxXYXY
+    confidence: float | None = None
+
+
+class SamImageResponse(Frozen):
+    """The server's answer to one `SamImageRequest`."""
+
+    objects: tuple[SamImageObject, ...] = ()
+    images_processed: int = Field(ge=0)
+    gpu_seconds: float = Field(ge=0)
+    model_version: str
+
+
+class SamImageWorker(Protocol):
+    """Runs SAM 3.1 image detection on a few keyframes (JPEG bytes); JSON-shaped dicts."""
+
+    def segment_images(self, images: list[bytes], request: dict[str, Any]) -> dict[str, Any]:
+        """Return a `SamImageResponse` dict for a `SamImageRequest` dict and the images."""
+        ...
+
+
+def parse_image_response(raw: object, request: SamImageRequest) -> SamImageResponse:
+    """Validate the server's answer to an image request.
+
+    Args:
+        raw: What the server returned.
+        request: The request it answers.
+
+    Returns:
+        The validated response.
+
+    Raises:
+        SamResponseError: If the answer is malformed, names an image that was not sent or a
+            concept that was not asked for.
+    """
+    try:
+        response = SamImageResponse.model_validate(raw)
+    except ValidationError as exc:
+        msg = "malformed SAM image response"
+        raise SamResponseError(msg) from exc
+    concepts = set(request.concepts)
+    for obj in response.objects:
+        if obj.image_idx >= request.n_images or obj.concept not in concepts:
+            msg = f"SAM image response names image {obj.image_idx} / concept {obj.concept!r}"
+            raise SamResponseError(msg)
+    return response
 
 
 def prompt_batches(
@@ -323,7 +407,8 @@ class ModalWorker:
 class HttpSamWorker:
     """`SamWorker` that calls `sam_server` on our own GPU pod (`SAM_BASE_URL`, `SAM_API_KEY`).
 
-    Sends `{"request": ..., "video_b64": ...}` to `POST /segment` with a Bearer key. A busy GPU
+    Sends `{"request": ..., "video_b64": ...}` to `POST /segment`, and a chunk's keyframes as
+    `{"request": ..., "images_b64": [...]}` to `POST /segment_image`, with a Bearer key. A busy GPU
     (503) or a dropped connection is retried once after a short backoff; every other failure
     becomes a `SamRuntimeError`, so the router falls back to hosted SAM at once rather than add
     lag: `SamRuntimeUnavailableError` when the server is unreachable or refuses the call (auth,
@@ -389,10 +474,31 @@ class HttpSamWorker:
             SamResponseError: If the answer is not a JSON object.
         """
         payload = {"request": request, "video_b64": base64.b64encode(video).decode("ascii")}
+        return self._post(HTTP_SEGMENT_PATH, payload)
+
+    def segment_images(self, images: list[bytes], request: dict[str, Any]) -> dict[str, Any]:
+        """Run one keyframe batch on the GPU pod (`POST /segment_image`).
+
+        Args:
+            images: JPEG bytes of the keyframes, in request order.
+            request: A `SamImageRequest` dict.
+
+        Returns:
+            The server's response dict (validated by the caller, `parse_image_response`).
+
+        Raises:
+            SamRuntimeUnavailableError: If the server is unreachable or answers with an error.
+            SamResponseError: If the answer is not a JSON object.
+        """
+        payload = {
+            "request": request,
+            "images_b64": [base64.b64encode(image).decode("ascii") for image in images],
+        }
+        return self._post(HTTP_SEGMENT_IMAGE_PATH, payload)
+
+    def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         try:
-            result = self._sender.send(
-                {"method": "POST", "path": HTTP_SEGMENT_PATH, "json": payload}
-            )
+            result = self._sender.send({"method": "POST", "path": path, "json": payload})
         except ModelClientError as exc:
             msg = f"self-hosted SAM server call failed: {exc}"
             raise SamRuntimeUnavailableError(msg) from exc

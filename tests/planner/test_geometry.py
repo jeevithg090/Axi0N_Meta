@@ -12,6 +12,7 @@ from rulecam.contracts.rule_ir import (
     ActionSpec,
     All,
     ConceptSpec,
+    DistanceM,
     Inside,
     Moving,
     RuleIR,
@@ -269,7 +270,15 @@ def test_the_compiler_sees_real_zones_and_repairs_an_invented_polygon() -> None:
 
     rule = compile_rule(FORKLIFT, spark=spark, geometry=_geometry(calibrated=True))
 
-    assert rule.zones["forklift_zone"].polygon_px is None
+    # Grounded (the invented polygon repaired), then canonicalised (WS1e): the buffer form of
+    # "keep people 2 m from a moving forklift" becomes the one distance form, with no zone.
+    assert rule.zones == {}
+    assert rule.predicate == All(
+        of=(
+            DistanceM(a="person", b="forklift", lt=2.0),
+            Moving(object="forklift", speed_mps_gt=0.2),
+        )
+    )
     assert rule.calibration == "ground-plane@dock"
     prompt = str(spark.compile_calls[0]["messages"])
     assert "Candidate zones: sink (polygon on dock, seen by the camera)" in prompt

@@ -5,6 +5,8 @@ site_name: Dock 3 warehouse
 privacy_mode: standard          # standard | anonymous | strict
 retention_days: 30
 languages: [en, es]             # crew languages, listed before any the planner infers
+cameras_per_gpu: 6              # cameras sharing this site's one GPU pod (cost per camera-hour;
+                                # docs/deploy.md "One GPU per site"; 4-8 is the sizing assumption)
 roles:                          # role -> alert channel
   dock_lead: web_push
   shift_lead: whatsapp

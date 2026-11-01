@@ -75,6 +75,18 @@ rule = compile_rule(
   `RuleCompilationError`. Transport errors are not retried as "invalid output".
 - `apply_static_hints` marks fixed objects (sink, door, racks, shelving, exits) static by whole
   word, plus any names in `static_concepts`.
+- The compile call always uses `reasoning_effort="low"` (`COMPILE_EFFORT`) behind the same fixed
+  system prompt, which says the predicate is the violation (`lt=d` for "at least d m") and gives
+  the one form for keeping people away from a vehicle.
+- `planner.canonical.canonicalize_rule` (WS1e) then rewrites every person-vehicle separation rule
+  (`distance_m` lt or gt, `not(...)`, a buffer `inside`, either `all` order or argument order) into
+  `[persist] all(distance_m(person, vehicle, lt=d), moving(vehicle, speed_mps_gt=0.2))`: `d` from
+  the request when it names one distance (metres or feet), `moving` kept or added when the request
+  says the vehicle moves, its threshold 0.2 m/s unless the request names a speed, concepts keyed
+  by their prompts, unused concepts and zones dropped. An inverted bound is only flipped when the
+  request reads as a separation ("at least", "keep ... away"). `canonical_rule_hash(rule)` hashes
+  predicate, concepts, zones and calibration: the same request gives the same hash whatever form
+  the model wrote (`tests/planner/test_canonical.py`, 20 compiles in rotating forms, one hash).
 
 ## Survey, Probe and Gauge API
 

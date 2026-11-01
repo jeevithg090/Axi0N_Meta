@@ -2,7 +2,8 @@
 
 `create_app(services)` builds the app from injected services, so tests and the demo wire exactly
 what they need. It mounts `/pair` (P1-09) and `/correction` (P1-10) when those services are set,
-plus `/plans`, `/cameras`, `/metrics/perception` and the static `/verify` page. Routers owned by
+plus `/plans`, `/cameras`, `/metrics/perception`, the Prometheus `/metrics` (WS5) and the static
+`/verify` page. Routers owned by
 tasks still in flight (`/ack`, `/interlock`, `/advice`, `/surprise`) are passed in through
 `AppServices.routers` as they land; `services_from_settings` passes the public `/worker` router
 (P2-11) that way.
@@ -11,10 +12,26 @@ Approving a plan (`POST /plans/{id}/approve`) activates it in the runtime throug
 `AppServices.activator` (`rulecam.runtime.activate`); `services_from_settings` persists the active
 plan under `<data>/runtime/active_plan.json` and restores it at start-up.
 
-Anything that changes state (`PUT /mode`, `PUT /runtime/plan`, plan create/approve) is owner-only:
-both the target host and the client must be loopback, because the same app is reachable through
-the Pair-a-Phone tunnel. The read-only `/ws` mirror is owner-only too, except for a browser whose
-`Origin` is the public web UI (`PUBLIC_UI_URL`).
+Anything that changes state (`PUT /mode`, `PUT /runtime/plan`, plan create/approve/answers,
+`POST /correction`, pairing) is owner-only: the request comes from this machine (loopback host
+and client), or carries a signed owner session from `POST /auth/login` plus, for writes, an
+allowed `Origin` and the CSRF header (`rulecam.api.auth`). The read-only `/ws` mirror is
+owner-only too, except for a browser whose `Origin` is the public web UI (`PUBLIC_UI_URL`).
+
+Evidence: the chain itself (`GET /evidence/{day}/chain`, every record and payload) is owner-only.
+The public verify page gets `GET /evidence/{day}/hashes` (record hashes only) and
+`GET /evidence/{day}/root` (the current and the committed Merkle root), so anyone can check that
+the day's log still reproduces the root committed to git without seeing a single record.
+
+Response (WS1b): `services_from_settings` builds the policy, firewall and actions once
+(`runtime.response`), mounts the alerts PWA routes (`/alerts`, `/ack`, `/interlock/{device}/resume`,
+owner-only), ticks the escalation timers once a second, and serves how the response side is
+configured (Tier 2, firewall, dry run, interlock) in `GET /runtime/metrics` under `response`.
+Upheld disputes and owner corrections become permanent Rule CI regressions (WS1f).
+
+Cost (WS3): with the runtime on, a `CostWatch` ticks once a second: the per-camera dollar budget
+(alarm and degrade, `runtime.cost`), the cost per camera-hour, and the optional idle GPU stop
+(`runtime.idle_stop`), all served under `cost` in `GET /runtime/metrics` and in `GET /metrics`.
 
 `make api` serves the module-level `app`, built from settings with the replay cache, the bus, the
 evidence chain, perception and Pair-a-Phone; `RULECAM_RUNTIME=true` also starts the runtime loop.
@@ -34,9 +51,17 @@ from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket, status
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
-from rulecam.api.plans import PlannerRunner, PlanRegistry, plans_router
+from rulecam.api.auth import ClientAddress, OwnerAuth
+from rulecam.api.plans import PlannerRunner, PlanRegistry, QuestionsService, plans_router
+from rulecam.api.prometheus import (
+    HealthProbe,
+    MetricsSources,
+    VerdictCounter,
+    dependency_probes,
+    metrics_router,
+)
 from rulecam.api.ws import mirror_bus
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
@@ -47,7 +72,7 @@ from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
 from rulecam.config import Settings, get_settings
 from rulecam.contracts import Calibration, Chunk, Clock, SitePlan
-from rulecam.evidence.chain import ChainReport, EventChain, verify_chain
+from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
 from rulecam.evidence.merkle import chain_root, read_day_roots
 from rulecam.log import get_logger
 from rulecam.perception.correction import CorrectionService
@@ -62,17 +87,23 @@ from rulecam.planner.standards import StandardsLibrary
 from rulecam.planner.steps.audit import audit_hook
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
 from rulecam.rule_ci import prove_plan_hook
-from rulecam.runtime.activate import PlanActivator, restore_activation
+from rulecam.rule_ci.hard_negatives import HardNegatives
+from rulecam.runtime.activate import Activation, PlanActivator, restore_activation
+from rulecam.runtime.cost import CostMeter, CostReport, CostSettings, CostWatch
 from rulecam.runtime.factory import (
     ChainEventSource,
     ChunkIndex,
     Perception,
     build_perception,
     build_runtime,
+    build_tier1,
 )
+from rulecam.runtime.idle_stop import IdleGpuStop
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
+from rulecam.runtime.response import Response, ResponseStatus, build_response
 from rulecam.verify.tier2 import SparkOpenVerifier
 from rulecam.worker import DisputeService, worker_router
+from rulecam.worker.disputes import DisputeReviewer
 
 _log = get_logger(__name__)
 
@@ -101,6 +132,12 @@ class AppServices:
         activator: Activates approved plans in the runtime; approval answers 503 without one.
         viewer_origins: Browser origins (e.g. the public web UI) that may watch the read-only
             `/ws` mirror without being the owner. Nothing that changes state accepts them.
+        auth: Owner login (`rulecam.api.auth`); `None` means loopback only, with login off.
+        questions: The planner's questions and re-runs (`PlannerService`).
+        verdicts: Verdict counts for `GET /metrics`, fed from `verdict.new`.
+        health_probes: Dependencies (Glimmer, the SAM pod) whose health `GET /metrics` shows.
+        response: How the policy, firewall and actions are configured (`/runtime/metrics`).
+        cost: The dollar budget's report (`/runtime/metrics` → `cost`, `/metrics`).
     """
 
     bus: Bus
@@ -121,6 +158,19 @@ class AppServices:
     planner: PlannerRunner | None = None
     activator: PlanActivator | None = None
     viewer_origins: frozenset[str] = frozenset()
+    auth: OwnerAuth | None = None
+    questions: QuestionsService | None = None
+    verdicts: VerdictCounter = field(default_factory=VerdictCounter)
+    health_probes: Sequence[HealthProbe] = ()
+    response: ResponseStatus | None = None
+    cost: Callable[[], CostReport] | None = None
+
+
+class RuntimeReport(LoopMetrics):
+    """Body of `GET /runtime/metrics`: the loop's metrics, the response side and the spend."""
+
+    response: ResponseStatus | None = None
+    cost: CostReport | None = None
 
 
 TICK_S = 1.0
@@ -151,6 +201,13 @@ class DayRoot(BaseModel):
     n: int
     committed_root: str | None
     committed_n: int | None
+
+
+class DayHashes(BaseModel):
+    """Body of `GET /evidence/{day}/hashes`: the day's record hashes in order, nothing else."""
+
+    n: int
+    hashes: list[str]
 
 
 class ModeRequest(BaseModel):
@@ -187,7 +244,7 @@ def _chain_file(services: AppServices, day: date) -> Path:
 _OWNER = [Depends(require_owner)]
 
 
-def _core_router(services: AppServices) -> APIRouter:
+def _core_router(services: AppServices, auth: OwnerAuth) -> APIRouter:
     router = APIRouter()
 
     @router.get("/health")
@@ -213,7 +270,7 @@ def _core_router(services: AppServices) -> APIRouter:
     async def ws(websocket: WebSocket) -> None:
         if websocket.headers.get("origin") not in services.viewer_origins:
             try:
-                require_owner(websocket)
+                auth.require_owner(websocket)
             except HTTPException:
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                 return
@@ -266,10 +323,20 @@ def _evidence_router(services: AppServices) -> APIRouter:
     def days() -> list[date]:
         return _chain_days(services.chain_root / services.site)
 
-    @router.get("/{day}/chain", response_class=PlainTextResponse)
+    @router.get("/{day}/chain", response_class=PlainTextResponse, dependencies=_OWNER)
     def chain(day: date) -> PlainTextResponse:
         text = _chain_file(services, day).read_text(encoding="utf-8")
-        return PlainTextResponse(text, media_type="application/x-ndjson")
+        return PlainTextResponse(
+            text, media_type="application/x-ndjson", headers={"Cache-Control": "no-store"}
+        )
+
+    @router.get("/{day}/hashes")
+    def hashes(day: date) -> DayHashes:
+        try:
+            found = [record.hash for record in read_chain(_chain_file(services, day))]
+        except (ValidationError, ValueError) as exc:
+            raise HTTPException(status.HTTP_409_CONFLICT, "the chain file is unreadable") from exc
+        return DayHashes(n=len(found), hashes=found)
 
     @router.get("/{day}/verify")
     def verify(day: date) -> ChainReport:
@@ -304,15 +371,28 @@ def _runtime_router(services: AppServices) -> APIRouter:
         return {"rules": len(plan.rules)}
 
     @router.get("/metrics")
-    def metrics() -> LoopMetrics:
-        return runtime().metrics
+    def metrics() -> RuntimeReport:
+        cost = services.cost() if services.cost is not None else None
+        return RuntimeReport(**dict(runtime().metrics), response=services.response, cost=cost)
 
     return router
 
 
-def _routers(services: AppServices) -> list[APIRouter]:
+def _metrics_sources(services: AppServices) -> MetricsSources:
+    return MetricsSources(
+        runtime=lambda: services.runtime.metrics if services.runtime is not None else None,
+        perception=services.perception_metrics.report,
+        verdicts=services.verdicts,
+        probes=services.health_probes,
+        cost=lambda: services.cost() if services.cost is not None else None,
+    )
+
+
+def _routers(services: AppServices, auth: OwnerAuth) -> list[APIRouter]:
     routers = [
-        _core_router(services),
+        auth.router(),
+        _core_router(services, auth),
+        metrics_router(_metrics_sources(services)),
         _evidence_router(services),
         _runtime_router(services),
         plans_router(
@@ -321,12 +401,15 @@ def _routers(services: AppServices) -> list[APIRouter]:
             uploads_dir=services.uploads_dir,
             planner=services.planner,
             activator=services.activator,
+            questions=services.questions,
         ),
     ]
     if services.pair is not None:
         routers.append(build_router(services.pair))
     if services.correction is not None:
-        routers.append(correction_router(services.correction, services.bus))
+        correction = APIRouter(dependencies=_OWNER)
+        correction.include_router(correction_router(services.correction, services.bus))
+        routers.append(correction)
     return [*routers, *services.routers]
 
 
@@ -336,7 +419,9 @@ def _lifespan(
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         services.bus.bind_loop(asyncio.get_running_loop())
-        tasks: list[asyncio.Task[None]] = []
+        tasks: list[asyncio.Task[None]] = [
+            asyncio.create_task(services.verdicts.consume(services.bus))
+        ]
         if services.chunks is not None:
             tasks.append(asyncio.create_task(_index_chunks(services.bus, services.chunks)))
         if services.runtime is not None:
@@ -362,14 +447,17 @@ def create_app(services: AppServices) -> FastAPI:
     """Build the API around `services`.
 
     Args:
-        services: The injected bus, cache, chain location, runtime and extra routers.
+        services: The injected bus, cache, chain location, runtime, owner login and extra routers.
 
     Returns:
-        The FastAPI app. On start-up it binds the bus to the event loop (so worker threads can
+        The FastAPI app; every owner route takes `services.auth` (loopback, or an owner
+        session). On start-up it binds the bus to the event loop (so worker threads can
         publish) and starts the runtime loop if there is one; on shutdown it stops it.
     """
     app = FastAPI(title="Rulecam", version="0.1.0", lifespan=_lifespan(services))
-    for router in _routers(services):
+    auth = services.auth or OwnerAuth(clock=SystemClock(), allowed_origins=services.viewer_origins)
+    app.dependency_overrides[require_owner] = auth.require_owner
+    for router in _routers(services, auth):
         app.include_router(router)
     if services.verify_dir is not None:
         services.verify_dir.mkdir(parents=True, exist_ok=True)
@@ -473,7 +561,40 @@ def build_planner(
         out_dir=settings.rulecam_data_dir / "planner_frames",
         window_s=settings.planner_survey_window_s,
     )
-    return PlannerService(pipeline, site=site_config, frames=frames, on_plan=plans.put)
+    return PlannerService(pipeline, site=site_config, frames=frames, on_plan=plans.put, clock=clock)
+
+
+def restore_approved(
+    plans: PlanRegistry, store: PlanStore, activation: Activation | None
+) -> SitePlan | None:
+    """After a restart, list the plan the runtime enforces again, as approved (`GET /plans`).
+
+    The registry lives in memory; without this, a restarted API keeps enforcing the approved
+    plan (`restore_activation`) while `/plans` and the UI show no plan at all.
+
+    Returns:
+        The restored plan, or `None` when there is no activation or its saved plan is missing,
+        invalid or a different version (logged).
+    """
+    if activation is None:
+        return None
+    try:
+        plan = store.load_plan(activation.plan_id)
+    except (PipelineError, ValueError) as exc:
+        _log.warning("approved_plan_unreadable", plan_id=activation.plan_id, error=str(exc))
+        return None
+    if plan is None or plan.version != activation.version:
+        _log.warning(
+            "approved_plan_not_restored",
+            plan_id=activation.plan_id,
+            version=activation.version,
+            saved_version=plan.version if plan is not None else None,
+        )
+        return None
+    plans.put(plan)
+    plans.approve(plan.plan_id)
+    _log.info("approved_plan_restored", plan_id=plan.plan_id, version=plan.version)
+    return plan
 
 
 def find_plan(plans: PlanRegistry, store: PlanStore) -> Callable[[str], SitePlan | None]:
@@ -505,15 +626,27 @@ def build_worker_router(
     bus: Bus,
     chain: EventChain,
     plans: PlanRegistry,
+    client_address: ClientAddress | None = None,
+    reviewer: DisputeReviewer | None = None,
+    hard_negatives: HardNegatives | None = None,
 ) -> APIRouter:
-    """Build `/worker` (P2-11): disputes are re-reviewed by Spark Open through the replay cache."""
-    spark_open = SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+    """Build `/worker` (P2-11).
+
+    Disputes are re-reviewed by `reviewer` (the runtime's policy, which sends them to Tier 2 and
+    leaves them pending for a person without it), else by Spark Open through the replay cache.
+    Upheld ones become Rule CI regressions through `hard_negatives`.
+    """
+    if reviewer is None:
+        spark_open = SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+        reviewer = SparkOpenVerifier(spark_open)
+    disputes = DisputeService(chain, reviewer, clock=clock, hard_negatives=hard_negatives)
     return worker_router(
         plans=find_plan(plans, PlanStore(PLANS_DIR)),
         chain=chain,
-        disputes=DisputeService(chain, SparkOpenVerifier(spark_open), clock=clock),
+        disputes=disputes,
         clock=clock,
         public_base_url=settings.public_ui_url,
+        client_address=client_address or ClientAddress(),
     )
 
 
@@ -538,11 +671,32 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     chain_root = settings.rulecam_data_dir / "evidence" / "chain"
     chain = EventChain(chain_root, site, clock=clock)
     perception = build_perception(settings, cache=cache, clock=clock, bus=bus)
+    response = build_response(
+        settings,
+        tier1=build_tier1(settings, cache=cache, clock=clock, bus=bus),
+        segmenter=perception.hosted,
+        cache=cache,
+        clock=clock,
+        bus=bus,
+        chain=chain,
+    )
+    meter = CostMeter(CostSettings.from_settings(settings), usage=perception.metrics.hosted_usage)
     runtime = (
-        build_runtime(settings, perception, cache=cache, clock=clock, bus=bus, chain=chain)
+        build_runtime(
+            settings,
+            perception,
+            cache=cache,
+            clock=clock,
+            bus=bus,
+            chain=chain,
+            response=response,
+            cost=meter,
+        )
         if settings.rulecam_runtime
         else None
     )
+    watch = cost_watch(settings, meter, runtime, perception.chunks, clock=clock)
+    hard_negatives = HardNegatives(settings.regressions_dir)
 
     def concepts() -> list[str]:
         plan = runtime.plan if runtime is not None else None
@@ -557,10 +711,10 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         events=ChainEventSource(chain_root, site),
         chunks=perception.chunks,
         record_label=chain.append,
+        hard_negatives=hard_negatives,
     )
     active_plan_path = settings.rulecam_data_dir / ACTIVE_PLAN_FILE
-    if runtime is not None:
-        restore_activation(runtime, active_plan_path)
+    restored = restore_activation(runtime, active_plan_path) if runtime is not None else None
     activator = PlanActivator(
         runtime=runtime,
         chain=chain,
@@ -568,8 +722,14 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         calibrations=run_calibrations(PlanStore(PLANS_DIR)),
     )
     plans = PlanRegistry()
+    restore_approved(plans, PlanStore(PLANS_DIR), restored)
     planner = build_planner(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, plans=plans, site=site
+    )
+    origins = viewer_origins(settings.public_ui_url)
+    auth = OwnerAuth.from_settings(settings, clock=clock, allowed_origins=origins)
+    client_address = ClientAddress(
+        settings.ui_proxy_secret.get_secret_value() if settings.ui_proxy_secret else None
     )
     return AppServices(
         bus=bus,
@@ -585,14 +745,61 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         uploads_dir=settings.rulecam_data_dir / "uploads",
         plans=plans,
         planner=planner,
+        questions=planner,
         activator=activator,
-        viewer_origins=viewer_origins(settings.public_ui_url),
+        viewer_origins=origins,
+        auth=auth,
+        health_probes=dependency_probes(settings.glimmer_base_url, settings.sam_base_url),
+        tickers=(*response.tickers, *((watch.tick,) if watch is not None else ())),
+        response=response.status,
+        cost=watch.report if watch is not None else None,
         routers=(
             build_worker_router(
-                settings, cache=cache, clock=clock, bus=bus, chain=chain, plans=plans
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                chain=chain,
+                plans=plans,
+                client_address=client_address,
+                reviewer=response.policy,
+                hard_negatives=hard_negatives,
             ),
+            owner_alerts_router(response),
         ),
     )
+
+
+def cost_watch(
+    settings: Settings,
+    meter: CostMeter,
+    runtime: RuntimeLoop | None,
+    chunks: ChunkIndex,
+    *,
+    clock: Clock,
+) -> CostWatch | None:
+    """The cost ticker (dollar budget, cost per camera-hour, idle GPU stop); runtime only."""
+    if runtime is None:
+        return None
+    return CostWatch(
+        meter,
+        clock=clock,
+        plan=lambda: runtime.plan,
+        last_seen=chunks.last_seen,
+        idle_stop=IdleGpuStop.from_settings(settings),
+        busy=lambda: runtime.verify_pending > 0,
+    )
+
+
+def owner_alerts_router(response: Response) -> APIRouter:
+    """The alerts PWA routes (`/alerts`, `/ack`, interlock resume), owner-only (P3-06).
+
+    They show alert titles and clips and can restore power, so they need the owner (loopback or
+    an owner session), like every other route that reads traces or changes state.
+    """
+    router = APIRouter(dependencies=_OWNER)
+    router.include_router(response.router())
+    return router
 
 
 def viewer_origins(public_ui_url: str | None) -> frozenset[str]:

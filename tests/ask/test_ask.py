@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from rulecam.ask import AskAgent, FrameGrabber, SqlError, TrackTables, open_tables
+from rulecam.clients.errors import StructuredOutputError
 from rulecam.contracts import Detection, Mask, Track, TrackPoint
 from rulecam.rules.store import ParquetTrackStore
 from tests.fakes import EPOCH, FakeClock, FakeLLM, make_chunk
@@ -183,3 +184,14 @@ def test_the_loop_is_bounded(tracks_root: Path, tmp_path: Path) -> None:
     assert len(reply.steps) == 9
     assert reply.answer == "best effort"
     assert spark.calls[-1]["messages"][-1]["content"] == "Steps used up: answer now."  # type: ignore[index]
+
+
+class BrokenSpark(FakeLLM):
+    def structured(self, **kwargs: object) -> object:  # type: ignore[override]
+        raise StructuredOutputError("bad JSON twice")
+
+
+def test_a_broken_spark_reply_ends_with_an_apology(tracks_root: Path, tmp_path: Path) -> None:
+    reply = agent(BrokenSpark(), FakeLLM(), tracks_root, tmp_path, Sam()).ask("q")
+    assert reply.answer.startswith("Sorry")
+    assert "StructuredOutputError" in reply.steps[-1].action.thought

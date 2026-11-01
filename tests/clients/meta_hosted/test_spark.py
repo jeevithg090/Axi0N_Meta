@@ -125,6 +125,16 @@ def test_invalid_json_then_valid_retry_succeeds() -> None:
     assert "failed schema validation" in retry_input[3]["content"]
 
 
+def test_prose_around_the_json_object_is_read_without_a_retry() -> None:
+    transport = ScriptedTransport(
+        responses_reply('Switching to a visual check. {"title": "Seen", "score": 70} Done.')
+    )
+    client = SparkClient(transport, clock=FakeClock())
+
+    assert client.structured(messages=_messages(), schema=SampleOutput).title == "Seen"
+    assert len(transport.bodies()) == 1
+
+
 def test_two_invalid_responses_raise_structured_output_error() -> None:
     transport = ScriptedTransport(
         responses_reply("invalid"), responses_reply('{"title": "x", "score": -1}')

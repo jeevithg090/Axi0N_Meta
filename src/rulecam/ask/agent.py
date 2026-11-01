@@ -164,9 +164,7 @@ class AskAgent:
                 last = turn == MAX_STEPS
                 if last:
                     messages.append({"role": "user", "content": "Steps used up: answer now."})
-                action = self._spark.structured(
-                    model=SPARK_MODEL, messages=messages, schema=AskAction
-                )
+                action = self._next(messages)
                 if action.action == "answer" or last:
                     reply = action.answer or action.thought
                     steps.append(AskStep(action=action, result=None, seconds=0.0))
@@ -195,6 +193,18 @@ class AskAgent:
             tables.close()
         msg = "unreachable: the loop always answers on its last turn"
         raise AssertionError(msg)
+
+    def _next(self, messages: list[dict[str, object]]) -> AskAction:
+        """Spark's next action; a reply that is not a valid action ends with an apology."""
+        try:
+            return self._spark.structured(model=SPARK_MODEL, messages=messages, schema=AskAction)
+        except RulecamError as exc:
+            _log.warning("ask_spark_failed", error=str(exc)[:200])
+            return AskAction(
+                thought=f"Muse Spark did not return a valid step ({type(exc).__name__}).",
+                action="answer",
+                answer="Sorry, I could not finish working that out. Please ask again.",
+            )
 
     def _opening(self, question: str, tables: TrackTables) -> list[dict[str, object]]:
         width, height = self._frame_size

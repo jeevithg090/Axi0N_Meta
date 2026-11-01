@@ -169,13 +169,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.cause == CAUSE_REPLENISHMENT
         else None
     )
+    if cause is not None:
+        validate_cause(cause, args.duration_min)
     if args.print_cause:
         if cause is None:
             raise SystemExit("--print-cause needs --cause replenishment")
         print(describe_cause(cause))
         return 0
-    if cause is not None:
-        validate_cause(cause, args.duration_min)
     arrivals = generate_arrivals(args.seed, args.rate_per_hour, args.duration_min)
     print(render_card(args.session, args.seed, args.duration_min, arrivals, cause))
     return 0

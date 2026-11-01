@@ -136,3 +136,23 @@ uv run pytest tests/advisor tests/guardrails/test_process_log_people.py \
 - **UI** `/advice`: the six-part card, clickable numbers (Glimmer's SQL, result and ✓/✗), source
   badges, "considered and not recommended", *Accept* → "pre-registered at event N", the verdict dot
   plot with CI, and the sealed-cause badge.
+
+## `brief.py`: the 60-second morning brief (P3-S3)
+
+`BriefService(rates=RatesStore(data/owner_rates.json), tts=MmsTts, notifier=…, writer=glimmer,
+out_dir=data/briefs)`. The brief follows SA §7:
+
+- **Order:** what was watched, yesterday's load, three numbers against the same weekday, the biggest
+  leak, the safety/flow overlap, checks in progress, one decision, and what it couldn't see.
+- **Length:** at most **150 words**. Lines are dropped from the end, but the watched line and the
+  decision always stay.
+- **Nothing to report:** it says "Nothing worth your time today."
+- **Unit-level sites** (`unit_level`) get 7-day figures only.
+- **Money:** the leak appears in dollars **only with the owner's own rate** for that leak kind;
+  otherwise it is "hours a week of capacity".
+- **Language:** Glimmer translates into the owner's language, and a translation that changes or
+  drops a number is refused.
+- **Voice note:** MMS-TTS speaks it, and a note over **60 s is refused**. It goes to the `owner`
+  role through the notifier (LAN app, or WhatsApp with P3-S1).
+- **Routes** (owner-only, mount with `brief_router(service, rates)`): `GET`/`PUT /brief/rates`,
+  `POST /brief/preview`, `POST /brief/send`.

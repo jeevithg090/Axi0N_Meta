@@ -119,3 +119,97 @@ breaker opens after 3 transient failures in a row, so later candidates fail fast
 until a trial after the cooldown, or a healthy `/health` probe, gets through. Its state is in
 `/runtime/metrics` (`verifier`, `verifier_down`) and the UI header. Details: docs/deploy.md,
 "When Tier 1 fails".
+
+## Rule health: measured precision and SPRT auto-pause (P4-09, `health.py`)
+
+A rule that fires wrongly costs more than a rule that does not fire, because people stop
+trusting the system and then stop reading any of it. So each rule's precision is tracked from
+the labels humans gave, and a rule whose precision has dropped is paused automatically, with a
+reason, instead of running until somebody notices.
+
+```python
+from rulecam.verify.health import RuleHealthMonitor, read_labels
+
+monitor = RuleHealthMonitor(chain)  # publishes `rule_change` records
+labels = read_labels(read_chain(chain.path_for(today)))
+severities = {rule.id: rule.severity for rule in plan.rules}  # missing = treated as HIGH
+monitor.assess_all(labels, severities=severities, alerts={"forklift_2m": 120})
+loop.set_plan(plan.with_paused(monitor.paused_rules()))  # paused rules stop being evaluated
+monitor.review_rules()  # HIGH rules whose test failed: still running, waiting for a person
+monitor.status("forklift_2m"), monitor.reason("forklift_2m")  # running/paused/needs_review
+monitor.resume("forklift_2m", role="owner", note="zone redrawn")  # a person's decision
+```
+
+### What counts as evidence
+
+| Record | Meaning |
+|---|---|
+| `label` with `label: false_alarm` | False positive (the "False alarm" button, `act/api.py`) |
+| `label` with `label: confirmed` | True positive — **nothing writes this yet** (see the gap below) |
+| `dispute`, outcome `upheld` | The reviewer agreed with the worker: false positive (model-decided) |
+| `dispute`, outcome `rejected` | The reviewer looked and kept the alert: true positive (model-decided) |
+| `label` with `source: worker_dispute` | The label an upheld dispute writes: false positive (model-decided) |
+| `label` or `dispute` with no `rule_id` | Says nothing about any rule: logged and skipped |
+| `dispute`, outcome `pending` | Nobody has reviewed it, so it says nothing either way |
+| `label` with `drill: true` | A rehearsal, not a real alert: skipped |
+
+**An alert nobody labelled is not evidence and is not counted.** Counting unlabelled alerts as
+correct is the obvious way to make precision look good, so `RulePrecision` reports `unlabelled`
+and `label_share` next to the estimate: a precision of 1.0 from two labels and four hundred
+unlabelled alerts should reassure nobody. One alert judged twice (a false-alarm label and then
+an upheld dispute) is one trial, and the latest judgement wins.
+
+Disputes are reviewed by the Tier 2 model (Spark Open, `worker/disputes.py`), not by a person.
+Those judgements still count, but each label carries `decided_by: model`, `RulePrecision`
+reports `model_decided`, and a pause reason says how many of its judgements the model made.
+
+The interval is Wilson 95% over the labelled alerts. It accounts for how few labels there are
+and for nothing else: not for who labelled them, not for labellers seeing each other's
+decisions, not for a label that is itself wrong.
+
+### The test
+
+A Wald SPRT on precision, H0 `p = p0` (healthy, default 0.80) against H1 `p = p1` (unhealthy,
+default 0.50), with `alpha` 0.05 and `beta` 0.10. The statistic is the log-likelihood ratio in
+favour of H0, so it moves down on each false positive, and the boundaries are
+`log((1 - alpha) / beta)` above (healthy, stop) and `log(alpha / (1 - beta))` below (**pause**).
+At the defaults, four wrong alerts in a row cross the lower boundary. Between the boundaries the
+test keeps going and nothing happens: a rule with three labels is left alone.
+
+One run of the test stops at the label that crossed — that is what keeps its error rates true.
+So that an early "healthy" does not hide what comes after it, the test **restarts** from the next
+label each time it calls a rule healthy (`sequential_sprt`): five confirmed alerts and then a
+hundred false alarms pause the rule at the ninth judgement. Each run keeps Wald's error rates;
+over many runs the chance of some false pause grows, which is the price of still looking.
+
+A LOW or MEDIUM rule is paused once, publishing one `rule_change` record (`change: paused`).
+**A HIGH rule is never paused**: it acts first, and pausing it on four "False alarm" taps would
+silently switch a safety rule off on every camera. Its failing test publishes one `rule_change`
+with `change: needs_review` and a `rule_needs_review` warning, the rule keeps running, and a
+person decides. `RuleHealth.status` and `monitor.status()` / `reason()` show which.
+
+Resuming (or clearing a review flag) is always a person's call, because whatever made the rule
+wrong is still there until someone changes it. The `resumed` record carries `resumed_at`, and
+the test starts again from labels recorded after it, so the evidence behind the pause cannot
+pause the rule a second time; new false alarms after the resume can. Precision and its interval
+are still measured over every label.
+
+### What this does not tell you
+
+- The SPRT assumes each labelled alert is an independent draw at a fixed precision. Neither
+  holds exactly: alerts cluster (one confusing scene makes several), and precision changes when
+  the site changes. **Treat a pause as "look at this rule now", not as a measurement.**
+- The error rates are about the test, not about the labels. Systematically wrong labels give a
+  confidently wrong answer.
+- Not firing is invisible here. Precision says nothing about recall, so a rule can be paused for
+  being wrong and a rule that never fires at all looks perfectly healthy.
+
+### Known gaps
+
+- **Nothing writes `label: confirmed` yet.** Today only the "False alarm" button writes a label,
+  so the only evidence is negative and a busy, correct rule accumulates no true positives. Until
+  the acknowledgement path records a confirmation, precision is measured on disputes plus false
+  alarms alone, which biases it down. The vocabulary is in place for whoever adds it.
+- Nothing calls `assess_all` on a schedule yet. The monitor is built and the runtime honours
+  `ActivePlan.paused`, but wiring the periodic read of the chain into the runtime or the API is
+  not done.

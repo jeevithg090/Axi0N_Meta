@@ -227,6 +227,10 @@ class ActivePlan(Frozen):
     `rule_cameras` maps a rule id to the cameras it runs on (derived at approval from the plan's
     feasibility evidence and the rule's zones, `runtime.activate`). A rule that is not listed
     runs on every camera.
+
+    `paused` holds rules that rule health has auto-paused (`verify.health`, P4-09). A paused rule
+    is left out of `rules_on`, so it is never evaluated and produces no candidates, on any
+    camera. It stays in `rules` so the plan still says what was approved.
     """
 
     rules: tuple[RuleIR, ...]
@@ -235,14 +239,20 @@ class ActivePlan(Frozen):
     calibration: Calibration | None = None
     plan_version_hash: str = ""
     rule_cameras: dict[str, tuple[str, ...]] = Field(default_factory=dict)
+    paused: frozenset[str] = frozenset()
 
     def rules_on(self, camera_id: str) -> tuple[RuleIR, ...]:
-        """The rules that run on `camera_id`."""
+        """The rules that run on `camera_id`, leaving out any that are paused."""
         return tuple(
             rule
             for rule in self.rules
-            if rule.id not in self.rule_cameras or camera_id in self.rule_cameras[rule.id]
+            if rule.id not in self.paused
+            and (rule.id not in self.rule_cameras or camera_id in self.rule_cameras[rule.id])
         )
+
+    def with_paused(self, paused: frozenset[str]) -> ActivePlan:
+        """Return the same plan with `paused` replaced, for the runtime to swap in."""
+        return self.model_copy(update={"paused": paused})
 
 
 class LoopMetrics(Frozen):

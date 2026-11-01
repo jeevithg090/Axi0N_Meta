@@ -4,7 +4,8 @@
 # Stops the API process and starts it again through the pod's boot path (`start.sh`, which
 # `boot.sh` runs when the container starts), keeping everything under the data dir. Then it
 # checks that the API is healthy, the runtime loop runs, and the approved plan was restored
-# (`active_plan_restored` in the log, same plan id). It does not stop or start the pod itself.
+# (`active_plan_restored` in the log, same plan id) and is listed as approved by `GET /plans`.
+# It does not stop or start the pod itself.
 # Prints one JSON line (the evidence) and exits 1 when any check fails.
 #
 #   bash scripts/ops/restart_check.sh            # defaults below; override with env vars
@@ -38,6 +39,7 @@ for i in $(seq 1 "$WAIT_S"); do
 done
 health=$(curl -fs -m 5 "$API/health" || echo '{}')
 metrics_ok=$(curl -fs -m 5 -o /dev/null -w '%{http_code}' "$API/runtime/metrics" || echo 000)
+plans=$(curl -fs -m 5 "$API/plans" || echo '[]')
 restored=$(tail -n +"$((mark + 1))" "$API_LOG" | grep active_plan_restored | python3 -c '
 import json, sys
 for line in sys.stdin:
@@ -47,18 +49,20 @@ for line in sys.stdin:
         pass
 ' || true)
 
-python3 - "$started" "$stopped" "$up_after_s" "$health" "$metrics_ok" "$plan_before" "$restored" <<'PY'
+python3 - "$started" "$stopped" "$up_after_s" "$health" "$metrics_ok" "$plan_before" "$restored" "$plans" <<'PY'
 import json
 import sys
 
-started, stopped, up_s, health, metrics, before, restored = sys.argv[1:]
+started, stopped, up_s, health, metrics, before, restored, plans = sys.argv[1:]
 body = json.loads(health or "{}")
+listed = any(p.get("plan_id") == before and p.get("approved") for p in json.loads(plans or "[]"))
 checks = {
     "process_stopped": stopped == "true",
     "healthy": body.get("ok") is True,
     "runtime": body.get("runtime") is True,
     "runtime_metrics_200": metrics == "200",
     "plan_restored": (restored == before) if before else None,
+    "plan_listed_approved": listed if before else None,
 }
 passed = all(v is not False for v in checks.values()) and checks["healthy"]
 print(json.dumps({

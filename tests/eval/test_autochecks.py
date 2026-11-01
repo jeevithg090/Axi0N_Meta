@@ -121,7 +121,10 @@ def test_failures_are_failures_with_evidence(tmp_path: Path) -> None:
         f"{API}/auth/me": httpx.Response(200, json={"login_enabled": True}),
         f"{API}/runtime/metrics": httpx.Response(200, json={"response": {"firewall": "on"}}),
     })  # fmt: skip
-    restart = write_json(tmp_path / "r.json", {"passed": True, "checks": {"plan_restored": False}})
+    restart = write_json(
+        tmp_path / "r.json",
+        {"passed": True, "checks": {"plan_restored": True, "plan_listed_approved": False}},
+    )
     budget = write_json(tmp_path / "b.json", {"passed": False, "alarm_seen": False})
     checks = run_auto_checks(
         config(tmp_path, restart_evidence=restart, budget_evidence=budget),

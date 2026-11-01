@@ -88,7 +88,7 @@ from rulecam.planner.steps.audit import audit_hook
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
 from rulecam.rule_ci import prove_plan_hook
 from rulecam.rule_ci.hard_negatives import HardNegatives
-from rulecam.runtime.activate import PlanActivator, restore_activation
+from rulecam.runtime.activate import Activation, PlanActivator, restore_activation
 from rulecam.runtime.cost import CostMeter, CostReport, CostSettings, CostWatch
 from rulecam.runtime.factory import (
     ChainEventSource,
@@ -564,6 +564,39 @@ def build_planner(
     return PlannerService(pipeline, site=site_config, frames=frames, on_plan=plans.put, clock=clock)
 
 
+def restore_approved(
+    plans: PlanRegistry, store: PlanStore, activation: Activation | None
+) -> SitePlan | None:
+    """After a restart, list the plan the runtime enforces again, as approved (`GET /plans`).
+
+    The registry lives in memory; without this, a restarted API keeps enforcing the approved
+    plan (`restore_activation`) while `/plans` and the UI show no plan at all.
+
+    Returns:
+        The restored plan, or `None` when there is no activation or its saved plan is missing,
+        invalid or a different version (logged).
+    """
+    if activation is None:
+        return None
+    try:
+        plan = store.load_plan(activation.plan_id)
+    except (PipelineError, ValueError) as exc:
+        _log.warning("approved_plan_unreadable", plan_id=activation.plan_id, error=str(exc))
+        return None
+    if plan is None or plan.version != activation.version:
+        _log.warning(
+            "approved_plan_not_restored",
+            plan_id=activation.plan_id,
+            version=activation.version,
+            saved_version=plan.version if plan is not None else None,
+        )
+        return None
+    plans.put(plan)
+    plans.approve(plan.plan_id)
+    _log.info("approved_plan_restored", plan_id=plan.plan_id, version=plan.version)
+    return plan
+
+
 def find_plan(plans: PlanRegistry, store: PlanStore) -> Callable[[str], SitePlan | None]:
     """Look a plan up in the registry first, then among the saved plans (`plans/`).
 
@@ -681,8 +714,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         hard_negatives=hard_negatives,
     )
     active_plan_path = settings.rulecam_data_dir / ACTIVE_PLAN_FILE
-    if runtime is not None:
-        restore_activation(runtime, active_plan_path)
+    restored = restore_activation(runtime, active_plan_path) if runtime is not None else None
     activator = PlanActivator(
         runtime=runtime,
         chain=chain,
@@ -690,6 +722,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         calibrations=run_calibrations(PlanStore(PLANS_DIR)),
     )
     plans = PlanRegistry()
+    restore_approved(plans, PlanStore(PLANS_DIR), restored)
     planner = build_planner(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, plans=plans, site=site
     )

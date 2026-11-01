@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -37,7 +38,12 @@ with open(os.environ["RECORD_TO"], "w") as out:
 def write_recorder(bin_dir: Path, name: str) -> Path:
     bin_dir.mkdir(exist_ok=True)
     path = bin_dir / name
-    path.write_text(RECORDER.replace("#!/usr/bin/env python3", f"#!{shutil.which('python3')}"))
+    script = bin_dir / f"{name}.py"
+    script.write_text(RECORDER)
+    # A shebang can't quote, so a python path with a space (e.g. a checkout under "Meta Hack")
+    # breaks `#!<python>`; a tiny sh wrapper quotes it instead.
+    python = shutil.which("python3") or sys.executable
+    path.write_text(f'#!/bin/sh\nexec "{python}" "{script}" "$@"\n')
     path.chmod(0o755)
     return path
 

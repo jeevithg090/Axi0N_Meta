@@ -74,7 +74,7 @@ def test_the_live_buffer_rule_passes_rule_ci_with_its_calibration() -> None:
     assert report.ci_green, report.failures
     assert report.nonvacuous
     assert report.failures == ()
-    assert report.summary() == "boundary 15/15, mutations 5/5"  # + kinematic and operator
+    assert report.summary() == "boundary 17/17, mutations 5/5"  # + kinematic and operator
     assert [m.name for m in generate_mutations(rule)] == [
         "scale_threshold_0.1",
         "scale_threshold_10",
@@ -101,6 +101,9 @@ def test_the_live_buffer_rule_passes_rule_ci_with_its_calibration() -> None:
         "operator_riding_0.5m": False,
         "pedestrian_beside_0.5m": True,
         "pedestrian_in_front_0.5m": True,
+        # slow close-up vehicle (live P1-07, phone-23)
+        "operator_riding_slow_0.5m": False,
+        "pedestrian_slow_approach_0.5m": True,
     }
     assert {t.kind for t in traces.values()} >= {"zone_edge", "boundary", "interruption", "id_swap"}
     assert len({t.tracks[0].track_id for t in traces.values()}) == 1

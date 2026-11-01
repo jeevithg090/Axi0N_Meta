@@ -1,31 +1,42 @@
-"""Operator exclusion: a forklift's driver is not a pedestrian (WS1c, live finding 1c).
+"""Operator exclusion: a forklift's driver is not a pedestrian (WS1c, live findings 1c, P1-07).
 
 Live: "keep people >= 2 m from a moving forklift" fired with distance 0-0.8 m on a warehouse clip
 whose only person was the driver. The engine now derives, per person-vehicle pair, whether the
-person rides the vehicle (box containment >= 0.5 and co-moving over the window) and ignores that
-vehicle for them.
+person rides the vehicle (box containment and co-moving over the window) and ignores that
+vehicle for them. P1-07 (01 Nov, phone-23): a slow close-up forklift moved under the image-speed
+gate while `moving(forklift, 0.2)` was true, so the seated driver was never linked; the real
+tracks are `tests/fixtures/rules/live_driver_only.json`.
 """
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Callable
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
 
-from rulecam.contracts import CandidateEvent, RuleIR, Track
+from rulecam.contracts import Calibration, CandidateEvent, RuleIR, Track, TrackPoint
 from rulecam.rules import OperatorExclusion, evaluate
 from rulecam.rules.backtest import DecisionContext
+from rulecam.rules.geometry import norm
 from rulecam.rules.operators import (
+    STILL_HEIGHTS_PER_S,
     has_operator_pair,
     image_velocity,
     is_operator_pair,
     is_person_like,
     is_vehicle_like,
+    operator_mask,
+    reshape_rate,
+    slopes,
 )
-from tests.rules.helpers import CAL, at, make_rule, walk_track
+from rulecam.rules.timeline import Timeline, resample
+from tests.rules.helpers import CAL, HZ, at, box_track, make_rule, walk_track
 
 CONCEPTS = {"person": "person", "forklift": "forklift"}
 NEAR_MOVING: dict[str, object] = {
@@ -241,3 +252,218 @@ def test_image_velocity_is_a_centred_least_squares_slope() -> None:
     velocity = image_velocity(boxes, 10.0)
     assert velocity[3] == pytest.approx((100.0, 0.0))
     assert math.isnan(image_velocity(boxes[:1], 10.0)[0, 0])
+
+
+# --- slow and close-up vehicles (P1-07) ---------------------------------------------------------
+
+SLOW = 0.25  # m/s: above `moving(forklift, 0.2)`
+CLOSE_UP_PX = (400.0, 720.0)  # a box that fills the 720 px frame, as on phone-23
+DISTANCE_ONLY = make_rule(
+    {"op": "distance_m", "a": "person", "b": "forklift", "lt": 2.0}, concepts=CONCEPTS
+)
+
+
+def slow_forklift(steps: int = STEPS, *, start_s: float = 0.0, **kwargs: Any) -> Track:
+    path = [(2.0 + SLOW * i / 10, 5.0) for i in range(steps)]
+    return walk_track(
+        "cam1:forklift:1",
+        path,
+        concept="forklift",
+        size_px=CLOSE_UP_PX,
+        start_s=start_s,
+        **kwargs,
+    )
+
+
+def slow_driver(steps: int = STEPS, *, start_s: float = 0.0, **kwargs: Any) -> Track:
+    path = [(2.0 + SLOW * i / 10, 4.5) for i in range(steps)]
+    return walk_track("cam1:person:1", path, size_px=PERSON_PX, start_s=start_s, **kwargs)
+
+
+def mask(
+    person: Track, vehicle: Track, *, calibration: Calibration | None = CAL, steps: int = STEPS
+) -> np.ndarray[Any, np.dtype[np.bool_]]:
+    """`operator_mask` over the test window, aligned to the person's samples."""
+    timeline = Timeline.build(at(0), at(steps / 10), HZ)
+    one, two = (resample(t, timeline, calibration) for t in (person, vehicle))
+    return operator_mask(one, two, HZ, timeline.n)
+
+
+def test_a_slow_close_up_forklift_moves_under_the_old_image_speed_gate() -> None:
+    """The live geometry: ground speed 0.25 m/s is 25 px/s, 3.5% of a 720 px box per second."""
+    boxes = np.array([p.box_xyxy for p in slow_forklift().points])
+    speed = norm(image_velocity(boxes, HZ))[5:-5]
+    assert (speed < STILL_HEIGHTS_PER_S * CLOSE_UP_PX[1]).all()
+
+
+def test_the_seated_driver_of_a_slow_close_up_forklift_does_not_fire() -> None:
+    assert run(RULE, [slow_forklift(), slow_driver()]) == []
+    assert run(DISTANCE_ONLY, [slow_forklift(), slow_driver()]) == []
+    assert len(run(RULE, [slow_forklift(), slow_driver()], operator_exclusion=False)) == 1
+
+
+def test_the_ground_test_needs_a_calibration() -> None:
+    """Without one only image speed says the vehicle moves: the slow driver is not linked."""
+    vehicle, person = slow_forklift(with_foot_m=False), slow_driver(with_foot_m=False)
+    assert mask(person, vehicle).all()
+    assert not mask(person, vehicle, calibration=None).any()
+
+
+@pytest.mark.parametrize("size_px", [CLOSE_UP_PX, FORKLIFT_PX], ids=["close-up", "normal"])
+def test_a_slow_forklift_driving_up_to_a_standing_pedestrian_fires(
+    size_px: tuple[float, float],
+) -> None:
+    """Safe side: outside the box first, then inside it, never moving with it."""
+    steps = 120
+    vehicle = walk_track(
+        "cam1:forklift:1",
+        [(2.0 + SLOW * i / 10, 5.0) for i in range(steps)],
+        concept="forklift",
+        size_px=size_px,
+    )
+    front = 2.0 + size_px[0] / 200 + 0.8  # 0.5 m beyond the front edge, 1.6 s of approach
+    pedestrian = walk_track("cam1:person:3", [(front, 5.5)] * steps, size_px=PERSON_PX)
+    assert not mask(pedestrian, vehicle, steps=steps).any()
+    events = evaluate(
+        RULE, [vehicle, pedestrian], calibration=CAL, zones={}, t0=at(0), t1=at(steps / 10)
+    )
+    assert [e.predicate_trace["subject"] for e in events] == [pedestrian.track_id]
+    assert events[0].ts_end == at(steps / 10)  # still a pedestrian once inside the box
+
+
+def test_a_pedestrian_who_walks_into_a_slow_forklifts_box_fires() -> None:
+    """They cross in front of it (perpendicular), stop inside its box and stay."""
+    walk = [(4.0, 6.5 - 0.1 * i) for i in range(10)] + [(4.0, 5.5)] * (STEPS - 10)
+    pedestrian = walk_track("cam1:person:3", walk, size_px=PERSON_PX)
+    assert not mask(pedestrian, slow_forklift()).any()
+    assert len(run(DISTANCE_ONLY, [slow_forklift(), pedestrian])) == 1
+
+
+def test_a_driver_stays_linked_while_the_forklift_stops_for_a_moment() -> None:
+    """Drive 2 s, stand 2 s, drive 2 s: the still samples are not judged, the link holds."""
+    xs = [2.0 + SPEED * min(i, 20) / 10 + SPEED * max(i - 40, 0) / 10 for i in range(STEPS)]
+    vehicle = walk_track(
+        "cam1:forklift:1", [(x, 5.0) for x in xs], concept="forklift", size_px=FORKLIFT_PX
+    )
+    person = walk_track("cam1:person:1", [(x, 4.5) for x in xs], size_px=PERSON_PX)
+    assert mask(person, vehicle).all()
+    assert run(DISTANCE_ONLY, [vehicle, person]) == []
+
+
+def test_a_vehicle_track_born_around_its_driver_at_the_window_end_is_pending() -> None:
+    """The tracker re-identified the forklift 0.3 s before the window ends (live 00:00:10)."""
+    late = slow_forklift(4, start_s=5.7)
+    seated = walk_track(
+        "cam1:person:1",
+        [(2.0, 4.5)] * 56 + [(2.0 + SLOW * i / 10, 4.5) for i in range(4)],
+        size_px=PERSON_PX,
+    )
+    seated = Track(
+        track_id=seated.track_id,
+        camera_id="cam1",
+        concept="person",
+        points=seated.points[:56] + slow_driver(4, start_s=5.7).points,
+    )
+    assert run(DISTANCE_ONLY, [late, seated]) == []
+
+
+def test_a_pending_boarding_needs_co_motion() -> None:
+    """A fast forklift track born around a standing person at the window end still fires."""
+    late = walk_track(
+        "cam1:forklift:1",
+        [(5.0 + SPEED * i / 10, 5.0) for i in range(4)],
+        concept="forklift",
+        size_px=FORKLIFT_PX,
+        start_s=5.7,
+    )
+    standing = walk_track("cam1:person:3", [(5.0, 4.5)] * STEPS, size_px=PERSON_PX)
+    assert len(run(DISTANCE_ONLY, [late, standing])) == 1
+
+
+def test_a_box_that_only_changes_shape_is_no_evidence_of_riding() -> None:
+    """Conservative side: the detector grows a parked forklift's box; its centre moves, not it."""
+    grow = [(200.0 - 5.0 * i, -220.0, 600.0, 500.0) for i in range(STEPS)]
+    vehicle = box_track("cam1:forklift:1", grow, concept="forklift")
+    seated = walk_track("cam1:person:1", [(4.0, 4.5)] * STEPS, size_px=PERSON_PX)
+    assert not mask(seated, vehicle).any()
+    assert len(run(DISTANCE_ONLY, [vehicle, seated])) == 1
+
+
+def test_slopes_and_reshape_rate_are_per_column_least_squares() -> None:
+    values = np.array([[2.0 * i, 5.0, -1.0 * i] for i in range(12)])
+    values[4] = np.nan
+    assert slopes(values, 10.0, 1.0)[6] == pytest.approx((20.0, 0.0, -10.0))
+    boxes = np.array([[10.0 - i, 0.0, 20.0 + i, 8.0 + 3 * i] for i in range(12)])
+    assert reshape_rate(boxes, 10.0)[6] == pytest.approx((20.0, 30.0))
+
+
+# --- the live driver-only clip (P1-07) ----------------------------------------------------------
+
+LIVE = Path(__file__).resolve().parents[1] / "fixtures" / "rules" / "live_driver_only.json"
+
+
+def _live() -> tuple[DecisionContext, list[Track], dict[str, Any]]:
+    doc: dict[str, Any] = json.loads(LIVE.read_text("utf-8"))
+    tracks = [
+        Track(
+            track_id=raw["track_id"],
+            camera_id=raw["camera_id"],
+            concept=raw["concept"],
+            points=tuple(
+                TrackPoint(
+                    ts=datetime.fromisoformat(ts),
+                    frame_idx=frame,
+                    box_xyxy=(x1, y1, x2, y2),
+                    foot_px=(fx, fy),
+                )
+                for ts, frame, x1, y1, x2, y2, fx, fy in raw["points"]
+            ),
+        )
+        for raw in doc["tracks"]
+    ]
+    first = doc["recorded_windows"][0]
+    context = DecisionContext.model_validate({**doc["context"], "t0": first[0], "t1": first[1]})
+    return context, tracks, doc
+
+
+def _windows(doc: dict[str, Any]) -> list[tuple[datetime, datetime]]:
+    recorded = [
+        (datetime.fromisoformat(a), datetime.fromisoformat(b)) for a, b in doc["recorded_windows"]
+    ]
+    span = timedelta(seconds=doc["window_s"])
+    sliding = [(end - span, end) for end in map(datetime.fromisoformat, doc["chunk_ends"])]
+    return recorded + sliding
+
+
+def _live_events(
+    context: DecisionContext, tracks: list[Track], doc: dict[str, Any]
+) -> list[CandidateEvent]:
+    found: dict[tuple[object, datetime], CandidateEvent] = {}
+    for t0, t1 in _windows(doc):
+        window = context.model_copy(update={"t0": t0, "t1": t1})
+        for event in window.evaluate(tracks):
+            found.setdefault((event.predicate_trace["subject"], event.ts_start), event)
+    return list(found.values())
+
+
+def test_the_live_driver_only_clip_has_no_candidates() -> None:
+    """Every window the runtime evaluated on phone-23, 23:59:28-00:00:19 UTC: no candidate."""
+    context, tracks, doc = _live()
+    assert len(doc["chunk_ends"]) == 8
+    assert _live_events(context, tracks, doc) == []
+
+
+def test_the_live_fixture_reproduces_the_three_glimmer_candidates_without_exclusion() -> None:
+    """Each recorded window, exclusion off, yields the candidate the runtime sent to Glimmer."""
+    context, tracks, doc = _live()
+    off = context.model_copy(update={"operator_exclusion": False})
+    windows = _windows(doc)[: len(doc["recorded_windows"])]
+    for (t0, t1), candidate in zip(windows, doc["recorded_candidates"], strict=True):
+        events = off.model_copy(update={"t0": t0, "t1": t1}).evaluate(tracks)
+        (event,) = [
+            e for e in events if e.ts_start == datetime.fromisoformat(candidate["ts_start"])
+        ]
+        trace = event.predicate_trace
+        assert trace["subject"] == candidate["subject"]
+        assert trace["all.0.distance_m.value"] == pytest.approx(candidate["distance_m"], abs=1e-5)
+        assert trace["all.1.moving.value"] == pytest.approx(candidate["moving_mps"], abs=1e-5)

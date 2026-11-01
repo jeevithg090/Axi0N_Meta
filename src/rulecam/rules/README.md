@@ -92,11 +92,17 @@ checks them too.
 `count` in a buffer) and the near-miss metrics between a person-like concept (person, worker,
 pedestrian, ...) and a vehicle-like one (forklift, pallet jack, cart, vehicle, truck, ...), a
 vehicle is ignored for the person riding it. A person rides a vehicle during a *boarding*: a run
-of samples where at least 50% of the person's box lies in the vehicle's box (gaps up to 0.5 s
-bridged) in which, on the samples where the vehicle moves (5% of its box height per second), the
-two image velocities co-move (cosine >= 0.9, speeds within 30%) at least 80% of the time, for at
-least 1 s. Pedestrians in front of a moving vehicle overlap its box but do not co-move, so they
-still fire; a driver on a vehicle that does not move is never linked (the conservative side). On
+of samples where at least 40% of the person's box lies in the vehicle's box (gaps up to 0.5 s
+bridged) in which, on the samples where the vehicle moves (5% of its box height per second in the
+image, or 0.1 m/s on the ground with a calibration) and its box keeps its shape, the pair
+co-moves at least 80% of the time, for at least 1 s. Co-moving is either the strict test (cosine
+>= 0.9, speeds within 30%) or a relative image velocity under 5% of the vehicle's box height per
+second, so a slow close-up forklift and its seated driver link (live P1-07). A boarding still
+running at the window's end with less evidence is pending (linked if it co-moves so far). A
+person who was outside the box beside the moving vehicle in the second before the boarding, and
+not moving with it, is a pedestrian for the whole boarding: pedestrians a vehicle drives up to,
+or who walk in front of it, still fire. A driver on a vehicle that does not move is never linked
+(the conservative side). On
 by default; `evaluate(..., operator_exclusion=False)` turns it off, which the runtime does for the
 rule ids in `RULECAM_OPERATOR_EXCLUSION_OFF` (owner override, no Rule IR change).
 

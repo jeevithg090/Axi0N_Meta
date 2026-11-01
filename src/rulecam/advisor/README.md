@@ -173,10 +173,16 @@ For more pairs the power is simulated with a fixed seed (up to 12 pairs).
 
 ### Known limits
 
-- **Forklift metrics need forklift rows that carry a station.** `process.py` currently writes
-  forklift activity with `station = NULL`, so `forklift_active_share`, `concurrent_forklifts` and
-  `near_miss_per_forklift_hour` return `None` on a real log until P1 attributes those rows to the
-  dock zone they are in. The end-to-end test for this is a strict `xfail`.
+- **Forklift metrics measure handling time, not all time at the dock.** `process.py`
+  `_add_activity` writes forklift activity with `station = NULL`, because the active/idle split
+  comes from one forklift's ground speed over the whole site. `_forklift_spans` therefore
+  attributes a station-less span to a dock for the part of it that falls inside that dock's
+  `handling` intervals, and only for a forklift the dock's own visit events link with the
+  `handler` qualifier. So `forklift_active_share`, `concurrent_forklifts` and
+  `near_miss_per_forklift_hour` are read over the dock's handling windows: a forklift waiting in
+  the dock zone with no truck there is not counted, because the log records no dock presence
+  outside a visit. A span that already carries a station is used as it stands, so these metrics
+  need no change if the builder starts attributing activity itself.
 - `aisle_blocked_min` is the mean over the aisles serving the dock, so it stays within 60
   min/h. Aisles are found from the blocked rows, so pass `aisles_for` to include an aisle that was
   never blocked. Blockers are read from the event-object links.

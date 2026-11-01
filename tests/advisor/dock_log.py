@@ -79,6 +79,48 @@ def add_blocker(
     )
 
 
+def add_site_activity(
+    con: duckdb.DuckDBPyConnection,
+    name: str,
+    kind: str,
+    span_s: tuple[float, float],
+    object_id: str,
+    *,
+    provenance: str = "recorded",
+) -> None:
+    """A forklift activity span the way the real builder writes it: with no station.
+
+    `process.py` `_add_activity` derives these from one forklift's ground speed over the whole
+    site, so the row carries an object and no station. The metric queries attribute the span to
+    a dock through that dock's `handling` intervals and `handler` links.
+    """
+    start_s, end_s = span_s
+    con.execute(
+        "INSERT INTO station_intervals VALUES (?, ?, NULL, ?, ?, ?, NULL, ?, ?)",
+        [name, kind, naive(start_s), naive(end_s), end_s - start_s, object_id, provenance],
+    )
+
+
+def add_handler(
+    con: duckdb.DuckDBPyConnection,
+    name: str,
+    station: str,
+    at_s: float,
+    object_id: str,
+    *,
+    provenance: str = "recorded",
+) -> None:
+    """A `handling_started` event at a station linking one forklift as the handler."""
+    con.execute(
+        "INSERT INTO events VALUES (?, 'handling_started', ?, ?, ?)",
+        [f"ev-{name}", naive(at_s), station, provenance],
+    )
+    con.execute(
+        "INSERT INTO event_object VALUES (?, ?, 'handler', ?)",
+        [f"ev-{name}", object_id, provenance],
+    )
+
+
 @dataclass(frozen=True)
 class Visit:
     arrive_s: float

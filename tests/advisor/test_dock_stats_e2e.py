@@ -49,11 +49,27 @@ def test_aisle_blockers_are_counted_from_the_event_links(stats: DockAdvisorStats
     assert blocked.provenance is Provenance.RECORDED
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="the builder writes forklift rows with no station (process.py `_add_activity`); "
-    "waiting on P1 to attribute them to the dock zone they are in",
-)
-def test_forklift_metrics_need_forklift_rows_to_carry_a_station(stats: DockAdvisorStats) -> None:
+def test_forklift_metrics_read_station_less_activity_spans(stats: DockAdvisorStats) -> None:
+    """The builder writes forklift activity with no station, so the query attributes it.
+
+    `_forklift_spans` clips each station-less `forklift_active`/`forklift_idle` span to the
+    dock's own `handling` intervals, for a forklift the dock's visit events link as a handler.
+    Before this, the three forklift metrics returned nothing at all on a builder log.
+
+    Both forklifts in this scenario cross their dock at about 0.07 m/s, under the 0.2 m/s
+    `active_speed_mps` threshold, so the builder writes one long `forklift_idle` span for each
+    and the true active share is 0. `tests/advisor/test_metrics.py` covers active spans.
+    """
     share = stats.metric("forklift_active_share", "dock_1", EPOCH, T1)
-    assert share is not None
+    assert share is not None  # the value exists at all: that is the fix
+    assert share.value == pytest.approx(0.0)
+    assert share.n_tracks == 1  # forklift 1 only, not both site forklifts
+    assert share.provenance is Provenance.RECORDED
+
+
+def test_a_dock_is_not_credited_with_another_dock_s_forklift(stats: DockAdvisorStats) -> None:
+    """Forklift 2 works dock_3 only, so its idle time must not land on dock_1 as well."""
+    for station in ("dock_1", "dock_3"):
+        share = stats.metric("forklift_active_share", station, EPOCH, T1)
+        assert share is not None
+        assert share.n_tracks == 1

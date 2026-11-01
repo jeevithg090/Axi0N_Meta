@@ -134,18 +134,45 @@ def _bins(scope: Scope) -> str:
 OVERLAP: Final = "GREATEST(0, epoch(LEAST(i.end_ts, b.b1)) - epoch(GREATEST(i.start_ts, b.b0)))"
 
 
-def _forklift_join(scope: Scope) -> str:
+FORKLIFT_KINDS: Final = "('forklift_active', 'forklift_idle')"
+
+
+def _forklift_spans(scope: Scope) -> str:
+    """Build the CTE of forklift activity spans attributed to the scope's dock station.
+
+    `process.py` `_add_activity` writes `forklift_active` and `forklift_idle` with no station,
+    because they come from one forklift's ground speed over the whole site. A span with no
+    station is attributed to this dock for the part of it that falls inside a `handling`
+    interval at the dock, and only for a forklift that the dock's own visit events link with
+    the `handler` qualifier. So the forklift metrics read the time a forklift was in this dock
+    zone with a truck, which is the only forklift-at-this-station time the log records.
+
+    A span that already carries the station is taken as it stands, so these metrics keep
+    working unchanged if the builder starts attributing activity spans itself.
+    """
+    station = station_literal(scope.station)
     return (
-        f"FROM bins b JOIN station_intervals i ON i.station = {station_literal(scope.station)} "
-        "AND i.kind IN ('forklift_active', 'forklift_idle') "
-        "AND i.start_ts < b.b1 AND i.end_ts > b.b0"
+        "handlers AS (SELECT DISTINCT eo.object_id FROM event_object eo "
+        "JOIN events e ON e.event_id = eo.event_id "
+        f"WHERE eo.qualifier = 'handler' AND e.station = {station}), "
+        "forklift_spans AS (SELECT object_id, kind, provenance, start_ts, end_ts "
+        f"FROM station_intervals WHERE kind IN {FORKLIFT_KINDS} AND station = {station} "
+        "UNION ALL SELECT a.object_id, a.kind, a.provenance, "
+        "GREATEST(a.start_ts, h.start_ts) AS start_ts, LEAST(a.end_ts, h.end_ts) AS end_ts "
+        "FROM station_intervals a JOIN handlers hd ON hd.object_id = a.object_id "
+        f"JOIN station_intervals h ON h.kind = 'handling' AND h.station = {station} "
+        "AND a.start_ts < h.end_ts AND a.end_ts > h.start_ts "
+        f"WHERE a.kind IN {FORKLIFT_KINDS} AND a.station IS NULL)"
     )
+
+
+_FORKLIFT_JOIN: Final = "FROM bins b JOIN forklift_spans i ON i.start_ts < b.b1 AND i.end_ts > b.b0"
 
 
 def _forklift_objects(scope: Scope) -> str:
     return (
-        f"WITH {_bins(scope)} SELECT DISTINCT i.object_id {_forklift_join(scope)} "
-        "WHERE i.object_id IS NOT NULL"
+        f"WITH {_bins(scope)}, {_forklift_spans(scope)} "
+        f"SELECT DISTINCT i.object_id {_FORKLIFT_JOIN} WHERE i.object_id IS NOT NULL"
     )
 
 
@@ -155,8 +182,9 @@ def _forklift_bins(value: str) -> Callable[[Scope], Query | None]:
     def build(scope: Scope) -> Query:
         return Query(
             units=(
-                f"WITH {_bins(scope)} SELECT {value} AS value, b.b0 AS ts, "
-                f"string_agg(DISTINCT i.provenance, ',') AS provenance {_forklift_join(scope)} "
+                f"WITH {_bins(scope)}, {_forklift_spans(scope)} SELECT {value} AS value, "
+                f"b.b0 AS ts, string_agg(DISTINCT i.provenance, ',') AS provenance "
+                f"{_FORKLIFT_JOIN} "
                 f"GROUP BY b.b0, b.b1 HAVING SUM({OVERLAP}) > 0 ORDER BY b.b0"
             ),
             objects=_forklift_objects(scope),
@@ -206,10 +234,10 @@ def _near_misses(scope: Scope) -> Query | None:
     hours = f"SUM({OVERLAP}) / 3600.0"
     return Query(
         units=(
-            f"WITH {_bins(scope)} SELECT "
+            f"WITH {_bins(scope)}, {_forklift_spans(scope)} SELECT "
             f"(SELECT COUNT(*) FROM near_miss_events n WHERE n.station = {station} "
             f"AND n.ts >= b.b0 AND n.ts < b.b1) / ({hours}) AS value, b.b0 AS ts, "
-            f"string_agg(DISTINCT i.provenance, ',') AS provenance {_forklift_join(scope)} "
+            f"string_agg(DISTINCT i.provenance, ',') AS provenance {_FORKLIFT_JOIN} "
             f"GROUP BY b.b0, b.b1 HAVING SUM({OVERLAP}) > 0 ORDER BY b.b0"
         ),
         objects=_forklift_objects(scope),
@@ -249,8 +277,9 @@ CATALOGUE: Final[Mapping[str, MetricDef]] = {
         ),
         MetricDef(
             "forklift_active_share",
-            "Share of the time forklifts were seen at the station that they were moving, "
-            "averaged over time bins.",
+            "Share of the time forklifts were handling at the dock that they were moving, "
+            "averaged over time bins. Forklift time is attributed to the dock through the "
+            "dock's handling intervals, so time spent elsewhere on the site is not counted.",
             "share",
             _forklift_bins(
                 f"SUM(CASE WHEN i.kind = 'forklift_active' THEN {OVERLAP} ELSE 0 END) "
@@ -259,8 +288,8 @@ CATALOGUE: Final[Mapping[str, MetricDef]] = {
         ),
         MetricDef(
             "concurrent_forklifts",
-            "Average number of forklifts moving at the station at the same time, averaged over "
-            "time bins in which a forklift was seen.",
+            "Average number of forklifts moving at the dock at the same time, averaged over "
+            "time bins in which a forklift was handling at the dock.",
             "forklifts",
             _forklift_bins(
                 f"SUM(CASE WHEN i.kind = 'forklift_active' THEN {OVERLAP} ELSE 0 END) "
@@ -276,8 +305,8 @@ CATALOGUE: Final[Mapping[str, MetricDef]] = {
         ),
         MetricDef(
             "near_miss_per_forklift_hour",
-            "Near-misses at the station per forklift-hour on the station, averaged over time "
-            "bins. Needs the near-miss events table.",
+            "Near-misses at the station per forklift-hour handling at the dock, averaged over "
+            "time bins. Needs the near-miss events table.",
             "per forklift-hour",
             _near_misses,
         ),

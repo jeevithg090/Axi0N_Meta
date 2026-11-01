@@ -9,7 +9,9 @@ from rulecam.contracts import Provenance
 from tests.advisor.dock_log import (
     Visit,
     add_blocker,
+    add_handler,
     add_interval,
+    add_site_activity,
     add_visits,
     at,
     empty_log,
@@ -121,6 +123,60 @@ def test_forklift_share_and_concurrency_are_means_over_time_bins() -> None:
     assert concurrent.value == pytest.approx(1.0)  # 1.5 forklifts in bin 1, 0.5 in bin 2
     assert (share.n, share.n_tracks) == (2, 2)
     assert share.unit == "share"
+
+
+def builder_shaped_log() -> duckdb.DuckDBPyConnection:
+    """Activity spans the way `process.py` writes them: no station, attributed through handling.
+
+    F1 handles dock_3 for the first 300 s bin, moving for 150 s of it and standing still for
+    150 s. F2 handles dock_4 over the same bin and moves throughout. Both forklifts also run
+    over the rest of the window, away from either dock.
+    """
+    con = empty_log()
+    add_interval(con, "h3", "handling", "dock_3", (0, 300))
+    add_interval(con, "h4", "handling", "dock_4", (0, 300))
+    add_handler(con, "s3", "dock_3", 0, "F1")
+    add_handler(con, "s4", "dock_4", 0, "F2")
+    add_site_activity(con, "a", "forklift_active", (0, 150), "F1")
+    add_site_activity(con, "b", "forklift_idle", (150, 300), "F1")
+    add_site_activity(con, "c", "forklift_active", (300, 900), "F1")  # off the dock
+    add_site_activity(con, "d", "forklift_active", (0, 900), "F2")
+    return con
+
+
+def test_station_less_activity_is_attributed_through_the_dock_s_handling() -> None:
+    stats = stats_for(builder_shaped_log())
+    share = stats.metric("forklift_active_share", "dock_3", T0, T1)
+    assert share is not None
+    assert share.n == 1  # only the bin that overlaps the handling interval
+    assert share.value == pytest.approx(0.5)  # 150 s of the 300 s handling window
+    assert share.n_tracks == 1  # F1; F2 handles dock_4
+
+
+def test_activity_away_from_the_dock_is_not_counted() -> None:
+    """F1's 300-900 s activity falls outside dock_3's handling, so it is left out."""
+    concurrent = stats_for(builder_shaped_log()).metric("concurrent_forklifts", "dock_3", T0, T1)
+    assert concurrent is not None
+    assert concurrent.n == 1
+    assert concurrent.value == pytest.approx(0.5)  # 150 active s in one 300 s bin
+
+
+def test_a_forklift_is_not_credited_to_a_dock_it_never_handled() -> None:
+    four = stats_for(builder_shaped_log()).metric("forklift_active_share", "dock_4", T0, T1)
+    assert four is not None
+    assert four.value == pytest.approx(1.0)  # F2 moved throughout its handling window
+    assert four.n_tracks == 1
+
+
+def test_an_attributed_station_on_the_activity_row_is_used_as_it_stands() -> None:
+    """If the builder ever attributes activity itself, these metrics read it unchanged."""
+    con = empty_log()
+    add_interval(con, "a", "forklift_active", "dock_3", (0, 150), object_id="F1")
+    add_interval(con, "b", "forklift_idle", "dock_3", (150, 300), object_id="F1")
+    share = stats_for(con).metric("forklift_active_share", "dock_3", T0, T1)
+    assert share is not None
+    assert share.value == pytest.approx(0.5)
+    assert share.n_tracks == 1
 
 
 def test_aisle_blocked_minutes_per_hour_counts_empty_bins_as_zero() -> None:

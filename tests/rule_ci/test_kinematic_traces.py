@@ -45,6 +45,8 @@ def test_the_proximity_rule_gets_the_kinematic_and_operator_traces() -> None:
         "pedestrian_in_front_0.5m": True,
         "operator_riding_slow_0.5m": False,
         "pedestrian_slow_approach_0.5m": True,
+        "operator_born_riding_0.5m": False,
+        "pedestrian_born_inside_0.5m": True,
     }
     assert {name: traces[name].expected_violation for name in expected} == expected
     rule = _rule({"op": "all", "of": [DISTANCE, MOVING]})
@@ -133,3 +135,46 @@ def test_operator_traces_only_for_person_vehicle_footprint_rules() -> None:
 def test_a_gt_bound_gets_no_kinematic_traces() -> None:
     names = set(_traces(_rule({**DISTANCE, "lt": None, "gt": 2.0})))
     assert not any(n.startswith(("approach_", "pass_", "co_moving_", "operator_")) for n in names)
+
+
+# --- the warm-up (P1-07, golden run warehouse_driver) ------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "predicate",
+    [
+        {"op": "all", "of": [DISTANCE, MOVING]},
+        DISTANCE,
+        {"op": "persist", "seconds": 1.0, "of": {"op": "all", "of": [DISTANCE, MOVING]}},
+    ],
+    ids=["moving", "distance-only", "persist-1s"],
+)
+def test_a_rider_first_seen_on_board_kills_the_drop_operator_warmup_mutant(
+    predicate: dict[str, Any],
+) -> None:
+    """Born inside the box and re-identified 0.7 s later: only the warm-up keeps it quiet."""
+    rule = _rule(predicate)
+    riding = _traces(rule)["operator_born_riding_0.5m"]
+    assert fires(rule, riding) is False
+    assert fires(rule, riding, operator_warmup_s=0.0) is True
+    assert fires(rule, riding, operator_exclusion=False) is True
+    report = run_rule_ci(rule)
+    assert report.ci_green, report.failures
+    assert "drop_operator_warmup" in {m.name for m in generate_mutations(rule)}
+    assert report.mutants_killed == report.mutants_total
+
+
+def test_a_pedestrian_first_seen_inside_the_box_still_fires() -> None:
+    rule = _rule({"op": "all", "of": [DISTANCE, MOVING]})
+    standing = _traces(rule)["pedestrian_born_inside_0.5m"]
+    assert standing.expected_violation is True
+    assert fires(rule, standing) is True
+
+
+def test_no_warm_up_mutant_under_a_persist_longer_than_the_warm_up() -> None:
+    """The hold is shorter than the persistence: the mutant could never be told apart."""
+    rule = _rule({"op": "persist", "seconds": 3.0, "of": {"op": "all", "of": [DISTANCE, MOVING]}})
+    names = {m.name for m in generate_mutations(rule)}
+    assert "drop_operator_exclusion" in names
+    assert "drop_operator_warmup" not in names
+    assert run_rule_ci(rule).ci_green

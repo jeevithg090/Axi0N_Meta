@@ -2,29 +2,15 @@
   "scenario": "warehouse_driver",
   "steps": {
     "evidence": {
-      "candidates": 1,
-      "event_ids": [
-        "ev-725c63ca121b14653fc2f43e"
-      ],
-      "n": 32,
+      "candidates": 0,
+      "event_ids": [],
+      "n": 35,
       "ok": true,
       "reason": "",
-      "reproduced": 1,
-      "root": "210c33b41e9ef40353f8ae49f00e32040a9a952df0e20e978e94a93b5d58ad11",
-      "run_kinds": [
-        "candidate",
-        "action",
-        "verdict",
-        "verdict",
-        "action"
-      ],
-      "run_seqs": [
-        26,
-        27,
-        28,
-        29,
-        30
-      ],
+      "reproduced": 0,
+      "root": "6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e",
+      "run_kinds": [],
+      "run_seqs": [],
       "site": "demo"
     },
     "plan": {
@@ -73,7 +59,7 @@
         },
         {
           "check": "ci_green",
-          "detail": "boundary 14/14, mutations 5/5",
+          "detail": "boundary 16/16, mutations 6/6",
           "item": "keep-people-2m-from-moving-forklift",
           "passed": true
         },
@@ -90,7 +76,7 @@
           "verdict": "observable"
         }
       ],
-      "plan_id": "plan-098d7b6fb193",
+      "plan_id": "plan-4f9ee0094e29",
       "planner_steps": [
         {
           "detail": "1 concerns",
@@ -98,7 +84,7 @@
           "step": "understand"
         },
         {
-          "detail": "13 things seen; phone-26 calibrated from pallet_48x40in (0.10 m)",
+          "detail": "11 things seen; phone-27 calibrated from pallet_48x40in (0.09 m)",
           "status": "done",
           "step": "survey"
         },
@@ -148,7 +134,7 @@
       "rules": [
         {
           "canonical": true,
-          "canonical_rule_hash": "ac68c5fd4b09ebf0306fdea18d8277eaf46dac1a0bec27632a11394fc179dda7",
+          "canonical_rule_hash": "56b64866fbabe89dca53a21299424d519fc359f1b9fbfe6f83675a599bc63bc8",
           "id": "keep-people-2m-from-moving-forklift",
           "predicate": {
             "of": [
@@ -167,7 +153,7 @@
             ],
             "op": "all"
           },
-          "rule_ir_hash": "ad4b59ab864a8037ecb285f5c353f0e4398080898be7c7d8cb944197facf43e5",
+          "rule_ir_hash": "bb2c77e6844995b5ec0122eb37546f86213b3c42997882b1750d10f009522a26",
           "severity": "high"
         }
       ],
@@ -180,58 +166,24 @@
         "matches_plan": true,
         "nonvacuous": true,
         "rule_id": "keep-people-2m-from-moving-forklift",
-        "summary": "boundary 14/14, mutations 5/5"
+        "summary": "boundary 16/16, mutations 6/6"
       }
     ],
     "score": {
-      "alerts": 1,
-      "candidates": 1,
+      "alerts": 0,
+      "candidates": 0,
       "clip": "warehouse_45848",
-      "decisive": 1,
+      "decisive": 0,
       "events": 0,
-      "false_alerts_on_negative": 1,
+      "false_alerts_on_negative": 0,
       "fn": 0,
-      "fp": 1,
+      "fp": 0,
       "outcome": "activated",
       "rule": "forklift_2m",
       "status": "negative",
-      "tier1": [
-        "no_violation"
-      ],
+      "tier1": [],
       "tp": 0
     },
-    "verify": [
-      {
-        "act_first": true,
-        "decision": {
-          "act_first": true,
-          "alert": true,
-          "reason": "acted first; verifier did not confirm, so a person reviews it",
-          "route": "human_queue"
-        },
-        "decision_matches_chain": true,
-        "event_id": "ev-725c63ca121b14653fc2f43e",
-        "measurement": {
-          "hi": null,
-          "lo": null,
-          "unit": "m",
-          "value": 0.026799
-        },
-        "rule_id": "keep-people-2m-from-moving-forklift",
-        "severity": "high",
-        "strip_frames": 6,
-        "tier1": {
-          "model_version": "muse-glimmer-30b",
-          "reason": "The visible person is seated in the operator\u2019s seat of the forklift and is operating it, so there is no separate person near a moving forklift; the measured proximity is the operator with the vehicle.",
-          "reasoning": null,
-          "scene_text": "1/6 t-1.2s keep-people-2m-from-moving-forklift measured 0.03 m\n2/6 t-0.8s keep-people-2m-from-moving-forklift measured 0.03 m\n3/6 t-0.4s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n4/6 t+0.0s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n5/6 t+0.4s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n5.0 m\n6/6 t+0.8s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n4.9 m",
-          "score": 0.02,
-          "tamper": false,
-          "tier": "glimmer",
-          "verdict": "no_violation"
-        },
-        "tier1_matches_chain": true
-      }
-    ]
+    "verify": []
   }
 }

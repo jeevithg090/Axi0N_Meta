@@ -22,6 +22,11 @@ describe, and the forklift-driver case:
   (`CLOSE_UP_BOX_M`): at 0.2 m/s it moves 3% of its box height per second in the image. A person
   riding it must NOT fire; a pedestrian it drives up to from `APPROACH_S` away, who stands
   inside its box once it arrives, MUST fire.
+- **warm-up operator traces** (live P1-07, golden run warehouse_driver: the keyframe tracker's
+  first second): a person track *born* inside the moving Y's box, riding it, while the tracker
+  re-identifies Y after `REID_AFTER_S` (a second Y track born around the rider) must NOT fire;
+  a person track born inside the box of the passing Y, standing still, MUST fire once the
+  warm-up has run out (`rules.operators` rule 7).
 
 All traces use the synthetic camera (100 px = 1 m, `rule_ci.geometry`), also for a buffer rule
 whose other traces go through a real homography: they test the rule's kinematics and the
@@ -79,6 +84,10 @@ SLOW_SPEED_MPS: Final = 0.25
 """The slow traces' speed for a rule without `moving`."""
 APPROACH_S: Final = 2.0
 """How long the slow vehicle drives before its box reaches the standing pedestrian."""
+BORN_AT_S: Final = 1.0
+"""When the warm-up traces' person track is born (Y is already moving)."""
+REID_AFTER_S: Final = 0.7
+"""How long after the rider's birth the tracker re-identifies the ridden vehicle (below 1 s)."""
 
 
 @dataclass(frozen=True)
@@ -308,7 +317,7 @@ def operator_traces(sep: Separation) -> list[TraceCase]:
     """
     if not sep.operator_pair or not sep.footprint:
         return []
-    return [*_operator_traces(sep), *_slow_operator_traces(sep)]
+    return [*_operator_traces(sep), *_slow_operator_traces(sep), *_warmup_operator_traces(sep)]
 
 
 def _operator_traces(sep: Separation) -> list[TraceCase]:
@@ -416,6 +425,99 @@ def _slow_operator_traces(sep: Separation) -> list[TraceCase]:
             )
         )
     return cases
+
+
+def _warmup_operator_traces(sep: Separation) -> list[TraceCase]:
+    """A person first seen on board: riding through a re-identification, or standing still."""
+    r = _rider_offset(sep)
+    v = max(sep.speed, OPERATOR_SPEED_MPS)
+    n_samples = _hold_samples(sep) + round(BORN_AT_S * HZ)
+    born, reid = round(BORN_AT_S * HZ), round((BORN_AT_S + REID_AFTER_S) * HZ)
+    x0, y0 = ORIGIN
+
+    def vehicle(i: int) -> XY:
+        return (x0 + v * i / HZ, y0)
+
+    def rider(i: int) -> XY:
+        return (x0 + v * i / HZ, y0 - r)
+
+    camera, person, other = sep.camera_id, sep.subject, sep.other
+    riding = Spec(
+        f"operator_born_riding_{r:g}m",
+        f"a person track born at {BORN_AT_S:g} s inside the {other}'s box, riding it at {v:g} m/s "
+        f"{r:g} m from its footprint; the tracker re-identifies the {other} {REID_AFTER_S:g} s "
+        "later (a new track born around the rider): its operator, not a pedestrian",
+        "operator",
+        False,
+        pair="operator_vs_pedestrian",
+    )
+    cases = [
+        finish(
+            riding,
+            [
+                make_track(
+                    f"{camera}:{person}:1",
+                    camera,
+                    person,
+                    _path(rider, born, n_samples),
+                    RIDER_BOX_M,
+                ),
+                make_track(
+                    f"{camera}:{other}:1", camera, other, _path(vehicle, 0, reid), VEHICLE_BOX_M
+                ),
+                make_track(
+                    f"{camera}:{other}:2",
+                    camera,
+                    other,
+                    _path(vehicle, reid, n_samples),
+                    VEHICLE_BOX_M,
+                ),
+            ],
+            camera,
+            n_samples,
+            0.0,
+        )
+    ]
+    if sep.persist_s is None and not sep.moving_subject:
+        standing = Spec(
+            f"pedestrian_born_inside_{r:g}m",
+            f"a person track born at {BORN_AT_S:g} s inside the passing {other}'s box, {r:g} m in "
+            "front of its footprint, standing still while it drives on: a pedestrian once the "
+            "warm-up runs out",
+            "operator",
+            True,
+            pair="operator_vs_pedestrian",
+        )
+        spot = (x0 + v * born / HZ + VEHICLE_BOX_M[0] / 4, y0 + r)
+        cases.append(
+            finish(
+                standing,
+                [
+                    make_track(
+                        f"{camera}:{person}:1",
+                        camera,
+                        person,
+                        _path(_static(spot), born, n_samples),
+                        RIDER_BOX_M,
+                    ),
+                    make_track(
+                        f"{camera}:{other}:1",
+                        camera,
+                        other,
+                        _path(vehicle, 0, n_samples),
+                        VEHICLE_BOX_M,
+                    ),
+                ],
+                camera,
+                n_samples,
+                0.0,
+            )
+        )
+    return cases
+
+
+def _path(path: Path, start: int, stop: int) -> list[tuple[int, XY]]:
+    return [(i, path(i)) for i in range(start, stop)]
 
 
 def _rider_offset(sep: Separation) -> float:

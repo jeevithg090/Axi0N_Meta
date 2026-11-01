@@ -27,6 +27,7 @@ from rulecam.rules.engine import EPISODE_GAP_S, evaluate
 from rulecam.rules.errors import RuleEvaluationError
 from rulecam.rules.hashing import rule_ir_hash
 from rulecam.rules.ir import parse_ref, referenced_concepts, referenced_zones, state_concepts, walk
+from rulecam.rules.operators import MAX_OPERATOR_WARMUP_S, OPERATOR_WARMUP_S
 from rulecam.rules.pose import PoseFeatures
 from rulecam.rules.scene import resolve_zone
 
@@ -52,6 +53,7 @@ class DecisionContext(Frozen):
     cooldown_s: float = 0.0
     plan_version_hash: str = ""
     operator_exclusion: bool = True
+    operator_warmup_s: float = Field(default=OPERATOR_WARMUP_S, ge=0.0, le=MAX_OPERATOR_WARMUP_S)
 
     def evaluate(
         self, tracks: Sequence[Track], *, pose: PoseFeatures | None = None
@@ -70,6 +72,7 @@ class DecisionContext(Frozen):
             plan_version_hash=self.plan_version_hash,
             pose=pose,
             operator_exclusion=self.operator_exclusion,
+            operator_warmup_s=self.operator_warmup_s,
         )
 
 

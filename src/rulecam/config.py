@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # Rule ids whose owner turned operator exclusion off (comma-separated; rules/operators.py):
     # for these, a person riding a forklift counts as a pedestrian next to it.
     rulecam_operator_exclusion_off: str = ""
+    # How long a person first seen on board a vehicle is held as its operator pending before
+    # being judged operator or pedestrian (rules/operators.py rule 7); 0 turns the hold off.
+    rulecam_operator_warmup_s: float = Field(default=1.5, ge=0.0, le=1.5)
     # YuNet face-detector ONNX (opencv_zoo) for blurring faces in evidence strips; without it
     # only the head regions of tracked people are blurred (runtime.strips).
     rulecam_face_model: Path | None = None

@@ -1,5 +1,5 @@
 {
-  "camera_id": "phone-26",
+  "camera_id": "phone-27",
   "chain_url": "/golden/warehouse_driver/chain.jsonl",
   "clip": {
     "description": "Forklift moving through a warehouse aisle; the driver is the only person.",
@@ -7,7 +7,7 @@
     "name": "warehouse_45848",
     "source": "https://assets.mixkit.co/videos/45848/45848-720.mp4"
   },
-  "description": "Warehouse forklift, driver only. The planner compiles \"keep people at least 2 m away from a moving forklift\"; the rule fires on the driver as the scored pass starts, acts first (dry run), Glimmer rejects it (\"the person is the operator\") and the policy sends it to a person.",
+  "description": "Warehouse forklift, driver only. The planner compiles \"keep people at least 2 m away from a moving forklift\"; the seated driver, first seen on board, is the forklift's operator (operator exclusion with its warm-up), so the rule never fires: no candidate, no action, no alert.",
   "frames": [
     {
       "payload": {
@@ -19,7 +19,7 @@
     {
       "payload": {
         "detail": "",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "running",
         "step": "understand"
       },
@@ -28,7 +28,7 @@
     {
       "payload": {
         "detail": "1 concerns",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "done",
         "step": "understand"
       },
@@ -37,7 +37,7 @@
     {
       "payload": {
         "detail": "",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "running",
         "step": "survey"
       },
@@ -45,8 +45,8 @@
     },
     {
       "payload": {
-        "detail": "13 things seen; phone-26 calibrated from pallet_48x40in (0.10 m)",
-        "plan_id": "plan-098d7b6fb193",
+        "detail": "11 things seen; phone-27 calibrated from pallet_48x40in (0.09 m)",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "done",
         "step": "survey"
       },
@@ -55,7 +55,7 @@
     {
       "payload": {
         "detail": "",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "running",
         "step": "probe"
       },
@@ -64,7 +64,7 @@
     {
       "payload": {
         "detail": "3 probes",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "done",
         "step": "probe"
       },
@@ -73,7 +73,7 @@
     {
       "payload": {
         "detail": "",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "running",
         "step": "gauge"
       },
@@ -82,7 +82,7 @@
     {
       "payload": {
         "detail": "1 observable",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "done",
         "step": "gauge"
       },
@@ -91,7 +91,7 @@
     {
       "payload": {
         "detail": "",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "running",
         "step": "ask"
       },
@@ -100,7 +100,7 @@
     {
       "payload": {
         "detail": "3 questions",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "done",
         "step": "ask"
       },
@@ -109,7 +109,7 @@
     {
       "payload": {
         "detail": "",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "running",
         "step": "compile"
       },
@@ -118,7 +118,7 @@
     {
       "payload": {
         "detail": "1 rules",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "done",
         "step": "compile"
       },
@@ -127,7 +127,7 @@
     {
       "payload": {
         "detail": "",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "running",
         "step": "lint"
       },
@@ -136,7 +136,7 @@
     {
       "payload": {
         "detail": "no lint errors",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "done",
         "step": "lint"
       },
@@ -145,7 +145,7 @@
     {
       "payload": {
         "detail": "",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "running",
         "step": "accept"
       },
@@ -154,7 +154,7 @@
     {
       "payload": {
         "detail": "7/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "done",
         "step": "accept"
       },
@@ -163,7 +163,7 @@
     {
       "payload": {
         "detail": "",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "running",
         "step": "audit"
       },
@@ -172,7 +172,7 @@
     {
       "payload": {
         "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "done",
         "step": "audit"
       },
@@ -181,7 +181,7 @@
     {
       "payload": {
         "detail": "",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "running",
         "step": "prove"
       },
@@ -190,7 +190,7 @@
     {
       "payload": {
         "detail": "Rule CI green for 1/1 rules",
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "status": "done",
         "step": "prove"
       },
@@ -244,7 +244,7 @@
             },
             {
               "check": "ci_green",
-              "detail": "boundary 14/14, mutations 5/5",
+              "detail": "boundary 16/16, mutations 6/6",
               "item": "keep-people-2m-from-moving-forklift",
               "passed": true
             },
@@ -264,7 +264,7 @@
             "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)"
           }
         ],
-        "back_translation": "[en]\n- keep-people-2m-from-moving-forklift: Watches for person and forklift objects with ground-plane calibration ground-plane@phone-26. Triggers when a person is within <2.0 m of a forklift AND the forklift is moving with speed >0.2 m/s. On trigger, severity high, speaks to the operator in English. No zone restriction. Verify tier1 glimmer, tier2 spark-open-on-disagree, min_confidence 0.7.",
+        "back_translation": "[en]\n- keep-people-2m-from-moving-forklift: Monitors forklifts and people on the ground-plane@phone-27 calibration. Triggers with high severity when a person is within 2.0 m of a forklift that is moving faster than 0.2 m/s. Action: notify safety_officer in English immediately after 0.0 s.",
         "cost_usd_per_cam_hour": null,
         "feasibility": [
           {
@@ -272,15 +272,7 @@
             "concern": "Keep people at least 2 metres away from a moving forklift.",
             "evidence": [
               {
-                "camera_id": "phone-26",
-                "concept": "person",
-                "detect_lb": 0.862,
-                "detect_rate": 1.0,
-                "median_px_height": 719.0,
-                "n_frames": 24
-              },
-              {
-                "camera_id": "phone-26",
+                "camera_id": "phone-27",
                 "concept": "forklift",
                 "detect_lb": 0.862,
                 "detect_rate": 1.0,
@@ -288,8 +280,16 @@
                 "n_frames": 24
               },
               {
-                "camera_id": "phone-26",
-                "concept": "warehouse concrete floor",
+                "camera_id": "phone-27",
+                "concept": "person",
+                "detect_lb": 0.862,
+                "detect_rate": 1.0,
+                "median_px_height": 719.0,
+                "n_frames": 24
+              },
+              {
+                "camera_id": "phone-27",
+                "concept": "concrete warehouse floor",
                 "detect_lb": 0.862,
                 "detect_rate": 1.0,
                 "median_px_height": 719.0,
@@ -297,85 +297,73 @@
               }
             ],
             "reason": null,
-            "says": "I can see the person, forklift, warehouse concrete floor on phone-26, so I can check Keep people at least 2 metres away from a moving forklift..",
+            "says": "I can see the forklift, person, concrete warehouse floor on phone-27, so I can check Keep people at least 2 metres away from a moving forklift..",
             "verdict": "observable"
           }
         ],
         "inventory": [
           {
-            "camera_id": "phone-26",
-            "concept": "person",
+            "camera_id": "phone-27",
+            "concept": "forklift operator",
             "count": 1,
-            "mean_confidence": 0.9785
+            "mean_confidence": 0.9595
           },
           {
-            "camera_id": "phone-26",
-            "concept": "forklift",
-            "count": 1,
-            "mean_confidence": 0.8402
-          },
-          {
-            "camera_id": "phone-26",
-            "concept": "steering wheel",
-            "count": 1,
-            "mean_confidence": 0.9438
-          },
-          {
-            "camera_id": "phone-26",
-            "concept": "forklift seat",
-            "count": 1,
-            "mean_confidence": 0.693
-          },
-          {
-            "camera_id": "phone-26",
-            "concept": "forklift mast",
-            "count": 1,
-            "mean_confidence": 0.5923
-          },
-          {
-            "camera_id": "phone-26",
-            "concept": "seat belt",
-            "count": 1,
-            "mean_confidence": 0.7403
-          },
-          {
-            "camera_id": "phone-26",
+            "camera_id": "phone-27",
             "concept": "blue work uniform",
             "count": 1,
-            "mean_confidence": 0.9487
+            "mean_confidence": 0.9478
           },
           {
-            "camera_id": "phone-26",
-            "concept": "warehouse concrete floor",
+            "camera_id": "phone-27",
+            "concept": "forklift",
             "count": 1,
-            "mean_confidence": 0.9048
+            "mean_confidence": 0.8407
           },
           {
-            "camera_id": "phone-26",
+            "camera_id": "phone-27",
+            "concept": "steering wheel",
+            "count": 1,
+            "mean_confidence": 0.9443
+          },
+          {
+            "camera_id": "phone-27",
+            "concept": "forklift operator seat",
+            "count": 1,
+            "mean_confidence": 0.7584
+          },
+          {
+            "camera_id": "phone-27",
+            "concept": "clipboard with paper",
+            "count": 1,
+            "mean_confidence": 0.691
+          },
+          {
+            "camera_id": "phone-27",
+            "concept": "concrete warehouse floor",
+            "count": 1,
+            "mean_confidence": 0.9488
+          },
+          {
+            "camera_id": "phone-27",
             "concept": "wooden pallet",
             "count": 3,
             "mean_confidence": 0.8325
           },
           {
-            "camera_id": "phone-26",
+            "camera_id": "phone-27",
             "concept": "large white bulk bag",
             "count": 2,
             "mean_confidence": 0.8438
           },
           {
-            "camera_id": "phone-26",
-            "concept": "clipboard",
+            "camera_id": "phone-27",
+            "concept": "forklift mast",
             "count": 1,
-            "mean_confidence": 0.68
+            "mean_confidence": 0.5916
           },
           {
-            "camera_id": "phone-26",
-            "concept": "white paper sheet",
-            "count": 2,
-            "mean_confidence": 0.686
-          },
-          {
-            "camera_id": "phone-26",
+            "camera_id": "phone-27",
             "concept": "metal stand base",
             "count": 2,
             "mean_confidence": 0.7673
@@ -384,7 +372,7 @@
         "languages": [
           "en"
         ],
-        "plan_id": "plan-098d7b6fb193",
+        "plan_id": "plan-4f9ee0094e29",
         "privacy_mode": "standard",
         "protected_two_key": [],
         "request": [
@@ -400,17 +388,19 @@
         "roles": {},
         "rules": [
           {
-            "accept": [],
+            "accept": [
+              "person within 2 m of a moving forklift"
+            ],
             "actions": [
               {
-                "after_s": null,
-                "kind": "speak",
+                "after_s": 0.0,
+                "kind": "notify",
                 "lang": "en",
-                "role": "operator"
+                "role": "safety_officer"
               }
             ],
             "backtestable": "yes",
-            "calibration": "ground-plane@phone-26",
+            "calibration": "ground-plane@phone-27",
             "concepts": {
               "forklift": {
                 "prompt": "forklift",
@@ -444,7 +434,7 @@
             "source": {
               "kind": "text",
               "lang": "en",
-              "plan_id": "plan-098d7b6fb193",
+              "plan_id": "plan-4f9ee0094e29",
               "standard": [],
               "text": "Keep people at least 2 metres away from a moving forklift."
             },
@@ -464,97 +454,6 @@
         "version": 1
       },
       "topic": "plan.updated"
-    },
-    {
-      "payload": {
-        "camera_id": "phone-26",
-        "event_id": "ev-725c63ca121b14653fc2f43e",
-        "measurement": {
-          "hi": null,
-          "lo": null,
-          "unit": "m",
-          "value": 0.026799
-        },
-        "plan_version_hash": "ad2b2d4a02c96b8194e4c1a75eb2973fb8d95ec9ebc316deb0edd3faf6d84eaa",
-        "predicate_trace": {
-          "all": true,
-          "all.0.distance_m": true,
-          "all.0.distance_m.value": 0.026799,
-          "all.1.moving": true,
-          "all.1.moving.value": 2.44471,
-          "all.value": 0.026799,
-          "episode_s": 1,
-          "subject": "phone-26:person:6eb3ec88"
-        },
-        "rule_id": "keep-people-2m-from-moving-forklift",
-        "rule_ir_hash": "ad4b59ab864a8037ecb285f5c353f0e4398080898be7c7d8cb944197facf43e5",
-        "severity": "high",
-        "strip_paths": [
-          "/golden/warehouse_driver/strips/ev-725c63ca121b14653fc2f43e/1.jpg",
-          "/golden/warehouse_driver/strips/ev-725c63ca121b14653fc2f43e/2.jpg",
-          "/golden/warehouse_driver/strips/ev-725c63ca121b14653fc2f43e/3.jpg",
-          "/golden/warehouse_driver/strips/ev-725c63ca121b14653fc2f43e/4.jpg",
-          "/golden/warehouse_driver/strips/ev-725c63ca121b14653fc2f43e/5.jpg",
-          "/golden/warehouse_driver/strips/ev-725c63ca121b14653fc2f43e/6.jpg"
-        ],
-        "track_window_hash": "b2a5143b75275b0858c864a9d8e2c6f97e6034318ba2a813550f654d153daa5c",
-        "ts_end": "2026-11-01T02:29:33.012767Z",
-        "ts_start": "2026-11-01T02:29:32.112767Z"
-      },
-      "topic": "candidate.new"
-    },
-    {
-      "payload": {
-        "action": {
-          "detail": "dry-run: would play the warning (en)",
-          "gate": "auto",
-          "kind": "speak",
-          "ok": true,
-          "role": "operator",
-          "ts": "2026-11-01T02:29:40.275525Z"
-        },
-        "event_id": "ev-725c63ca121b14653fc2f43e"
-      },
-      "topic": "action.done"
-    },
-    {
-      "payload": {
-        "latency_ms": 21544,
-        "model": "muse-glimmer-30b",
-        "segment": "verify"
-      },
-      "topic": "relay.model_used"
-    },
-    {
-      "payload": {
-        "event_id": "ev-725c63ca121b14653fc2f43e",
-        "verdict": {
-          "latency_ms": 21544,
-          "model_version": "muse-glimmer-30b",
-          "reason": "The visible person is seated in the operator’s seat of the forklift and is operating it, so there is no separate person near a moving forklift; the measured proximity is the operator with the vehicle.",
-          "reasoning": null,
-          "scene_text": "1/6 t-1.2s keep-people-2m-from-moving-forklift measured 0.03 m\n2/6 t-0.8s keep-people-2m-from-moving-forklift measured 0.03 m\n3/6 t-0.4s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n4/6 t+0.0s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n5/6 t+0.4s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n5.0 m\n6/6 t+0.8s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n4.9 m",
-          "score": 0.02,
-          "tamper": false,
-          "tier": "glimmer",
-          "verdict": "no_violation"
-        }
-      },
-      "topic": "verdict.new"
-    },
-    {
-      "payload": {
-        "action": {
-          "detail": "dry-run: would notify site_lead (needs review)",
-          "gate": "human",
-          "kind": "notify",
-          "ok": true,
-          "role": "site_lead",
-          "ts": "2026-11-01T02:30:02.267787Z"
-        },
-        "event_id": "ev-725c63ca121b14653fc2f43e"
-      },
-      "topic": "action.done"
     }
   ],
   "name": "warehouse_driver",
@@ -605,7 +504,7 @@
         },
         {
           "check": "ci_green",
-          "detail": "boundary 14/14, mutations 5/5",
+          "detail": "boundary 16/16, mutations 6/6",
           "item": "keep-people-2m-from-moving-forklift",
           "passed": true
         },
@@ -625,7 +524,7 @@
         "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)"
       }
     ],
-    "back_translation": "[en]\n- keep-people-2m-from-moving-forklift: Watches for person and forklift objects with ground-plane calibration ground-plane@phone-26. Triggers when a person is within <2.0 m of a forklift AND the forklift is moving with speed >0.2 m/s. On trigger, severity high, speaks to the operator in English. No zone restriction. Verify tier1 glimmer, tier2 spark-open-on-disagree, min_confidence 0.7.",
+    "back_translation": "[en]\n- keep-people-2m-from-moving-forklift: Monitors forklifts and people on the ground-plane@phone-27 calibration. Triggers with high severity when a person is within 2.0 m of a forklift that is moving faster than 0.2 m/s. Action: notify safety_officer in English immediately after 0.0 s.",
     "cost_usd_per_cam_hour": null,
     "feasibility": [
       {
@@ -633,15 +532,7 @@
         "concern": "Keep people at least 2 metres away from a moving forklift.",
         "evidence": [
           {
-            "camera_id": "phone-26",
-            "concept": "person",
-            "detect_lb": 0.862,
-            "detect_rate": 1.0,
-            "median_px_height": 719.0,
-            "n_frames": 24
-          },
-          {
-            "camera_id": "phone-26",
+            "camera_id": "phone-27",
             "concept": "forklift",
             "detect_lb": 0.862,
             "detect_rate": 1.0,
@@ -649,8 +540,16 @@
             "n_frames": 24
           },
           {
-            "camera_id": "phone-26",
-            "concept": "warehouse concrete floor",
+            "camera_id": "phone-27",
+            "concept": "person",
+            "detect_lb": 0.862,
+            "detect_rate": 1.0,
+            "median_px_height": 719.0,
+            "n_frames": 24
+          },
+          {
+            "camera_id": "phone-27",
+            "concept": "concrete warehouse floor",
             "detect_lb": 0.862,
             "detect_rate": 1.0,
             "median_px_height": 719.0,
@@ -658,85 +557,73 @@
           }
         ],
         "reason": null,
-        "says": "I can see the person, forklift, warehouse concrete floor on phone-26, so I can check Keep people at least 2 metres away from a moving forklift..",
+        "says": "I can see the forklift, person, concrete warehouse floor on phone-27, so I can check Keep people at least 2 metres away from a moving forklift..",
         "verdict": "observable"
       }
     ],
     "inventory": [
       {
-        "camera_id": "phone-26",
-        "concept": "person",
+        "camera_id": "phone-27",
+        "concept": "forklift operator",
         "count": 1,
-        "mean_confidence": 0.9785
+        "mean_confidence": 0.9595
       },
       {
-        "camera_id": "phone-26",
-        "concept": "forklift",
-        "count": 1,
-        "mean_confidence": 0.8402
-      },
-      {
-        "camera_id": "phone-26",
-        "concept": "steering wheel",
-        "count": 1,
-        "mean_confidence": 0.9438
-      },
-      {
-        "camera_id": "phone-26",
-        "concept": "forklift seat",
-        "count": 1,
-        "mean_confidence": 0.693
-      },
-      {
-        "camera_id": "phone-26",
-        "concept": "forklift mast",
-        "count": 1,
-        "mean_confidence": 0.5923
-      },
-      {
-        "camera_id": "phone-26",
-        "concept": "seat belt",
-        "count": 1,
-        "mean_confidence": 0.7403
-      },
-      {
-        "camera_id": "phone-26",
+        "camera_id": "phone-27",
         "concept": "blue work uniform",
         "count": 1,
-        "mean_confidence": 0.9487
+        "mean_confidence": 0.9478
       },
       {
-        "camera_id": "phone-26",
-        "concept": "warehouse concrete floor",
+        "camera_id": "phone-27",
+        "concept": "forklift",
         "count": 1,
-        "mean_confidence": 0.9048
+        "mean_confidence": 0.8407
       },
       {
-        "camera_id": "phone-26",
+        "camera_id": "phone-27",
+        "concept": "steering wheel",
+        "count": 1,
+        "mean_confidence": 0.9443
+      },
+      {
+        "camera_id": "phone-27",
+        "concept": "forklift operator seat",
+        "count": 1,
+        "mean_confidence": 0.7584
+      },
+      {
+        "camera_id": "phone-27",
+        "concept": "clipboard with paper",
+        "count": 1,
+        "mean_confidence": 0.691
+      },
+      {
+        "camera_id": "phone-27",
+        "concept": "concrete warehouse floor",
+        "count": 1,
+        "mean_confidence": 0.9488
+      },
+      {
+        "camera_id": "phone-27",
         "concept": "wooden pallet",
         "count": 3,
         "mean_confidence": 0.8325
       },
       {
-        "camera_id": "phone-26",
+        "camera_id": "phone-27",
         "concept": "large white bulk bag",
         "count": 2,
         "mean_confidence": 0.8438
       },
       {
-        "camera_id": "phone-26",
-        "concept": "clipboard",
+        "camera_id": "phone-27",
+        "concept": "forklift mast",
         "count": 1,
-        "mean_confidence": 0.68
+        "mean_confidence": 0.5916
       },
       {
-        "camera_id": "phone-26",
-        "concept": "white paper sheet",
-        "count": 2,
-        "mean_confidence": 0.686
-      },
-      {
-        "camera_id": "phone-26",
+        "camera_id": "phone-27",
         "concept": "metal stand base",
         "count": 2,
         "mean_confidence": 0.7673
@@ -745,7 +632,7 @@
     "languages": [
       "en"
     ],
-    "plan_id": "plan-098d7b6fb193",
+    "plan_id": "plan-4f9ee0094e29",
     "privacy_mode": "standard",
     "protected_two_key": [],
     "request": [
@@ -761,17 +648,19 @@
     "roles": {},
     "rules": [
       {
-        "accept": [],
+        "accept": [
+          "person within 2 m of a moving forklift"
+        ],
         "actions": [
           {
-            "after_s": null,
-            "kind": "speak",
+            "after_s": 0.0,
+            "kind": "notify",
             "lang": "en",
-            "role": "operator"
+            "role": "safety_officer"
           }
         ],
         "backtestable": "yes",
-        "calibration": "ground-plane@phone-26",
+        "calibration": "ground-plane@phone-27",
         "concepts": {
           "forklift": {
             "prompt": "forklift",
@@ -805,7 +694,7 @@
         "source": {
           "kind": "text",
           "lang": "en",
-          "plan_id": "plan-098d7b6fb193",
+          "plan_id": "plan-4f9ee0094e29",
           "standard": [],
           "text": "Keep people at least 2 metres away from a moving forklift."
         },
@@ -824,32 +713,18 @@
     "standards": [],
     "version": 1
   },
-  "recorded_at": "2026-11-01T02:23:36.660187+00:00",
+  "recorded_at": "2026-11-01T03:04:20.439014+00:00",
   "steps": {
     "evidence": {
-      "candidates": 1,
-      "event_ids": [
-        "ev-725c63ca121b14653fc2f43e"
-      ],
-      "n": 32,
+      "candidates": 0,
+      "event_ids": [],
+      "n": 35,
       "ok": true,
       "reason": "",
-      "reproduced": 1,
-      "root": "210c33b41e9ef40353f8ae49f00e32040a9a952df0e20e978e94a93b5d58ad11",
-      "run_kinds": [
-        "candidate",
-        "action",
-        "verdict",
-        "verdict",
-        "action"
-      ],
-      "run_seqs": [
-        26,
-        27,
-        28,
-        29,
-        30
-      ],
+      "reproduced": 0,
+      "root": "6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e",
+      "run_kinds": [],
+      "run_seqs": [],
       "site": "demo"
     },
     "plan": {
@@ -898,7 +773,7 @@
         },
         {
           "check": "ci_green",
-          "detail": "boundary 14/14, mutations 5/5",
+          "detail": "boundary 16/16, mutations 6/6",
           "item": "keep-people-2m-from-moving-forklift",
           "passed": true
         },
@@ -915,7 +790,7 @@
           "verdict": "observable"
         }
       ],
-      "plan_id": "plan-098d7b6fb193",
+      "plan_id": "plan-4f9ee0094e29",
       "planner_steps": [
         {
           "detail": "1 concerns",
@@ -923,7 +798,7 @@
           "step": "understand"
         },
         {
-          "detail": "13 things seen; phone-26 calibrated from pallet_48x40in (0.10 m)",
+          "detail": "11 things seen; phone-27 calibrated from pallet_48x40in (0.09 m)",
           "status": "done",
           "step": "survey"
         },
@@ -973,7 +848,7 @@
       "rules": [
         {
           "canonical": true,
-          "canonical_rule_hash": "ac68c5fd4b09ebf0306fdea18d8277eaf46dac1a0bec27632a11394fc179dda7",
+          "canonical_rule_hash": "56b64866fbabe89dca53a21299424d519fc359f1b9fbfe6f83675a599bc63bc8",
           "id": "keep-people-2m-from-moving-forklift",
           "predicate": {
             "of": [
@@ -992,7 +867,7 @@
             ],
             "op": "all"
           },
-          "rule_ir_hash": "ad4b59ab864a8037ecb285f5c353f0e4398080898be7c7d8cb944197facf43e5",
+          "rule_ir_hash": "bb2c77e6844995b5ec0122eb37546f86213b3c42997882b1750d10f009522a26",
           "severity": "high"
         }
       ],
@@ -1005,59 +880,25 @@
         "matches_plan": true,
         "nonvacuous": true,
         "rule_id": "keep-people-2m-from-moving-forklift",
-        "summary": "boundary 14/14, mutations 5/5"
+        "summary": "boundary 16/16, mutations 6/6"
       }
     ],
     "score": {
-      "alerts": 1,
-      "candidates": 1,
+      "alerts": 0,
+      "candidates": 0,
       "clip": "warehouse_45848",
-      "decisive": 1,
+      "decisive": 0,
       "events": 0,
-      "false_alerts_on_negative": 1,
+      "false_alerts_on_negative": 0,
       "fn": 0,
-      "fp": 1,
+      "fp": 0,
       "outcome": "activated",
       "rule": "forklift_2m",
       "status": "negative",
-      "tier1": [
-        "no_violation"
-      ],
+      "tier1": [],
       "tp": 0
     },
-    "verify": [
-      {
-        "act_first": true,
-        "decision": {
-          "act_first": true,
-          "alert": true,
-          "reason": "acted first; verifier did not confirm, so a person reviews it",
-          "route": "human_queue"
-        },
-        "decision_matches_chain": true,
-        "event_id": "ev-725c63ca121b14653fc2f43e",
-        "measurement": {
-          "hi": null,
-          "lo": null,
-          "unit": "m",
-          "value": 0.026799
-        },
-        "rule_id": "keep-people-2m-from-moving-forklift",
-        "severity": "high",
-        "strip_frames": 6,
-        "tier1": {
-          "model_version": "muse-glimmer-30b",
-          "reason": "The visible person is seated in the operator’s seat of the forklift and is operating it, so there is no separate person near a moving forklift; the measured proximity is the operator with the vehicle.",
-          "reasoning": null,
-          "scene_text": "1/6 t-1.2s keep-people-2m-from-moving-forklift measured 0.03 m\n2/6 t-0.8s keep-people-2m-from-moving-forklift measured 0.03 m\n3/6 t-0.4s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n4/6 t+0.0s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n5/6 t+0.4s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n5.0 m\n6/6 t+0.8s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n4.9 m",
-          "score": 0.02,
-          "tamper": false,
-          "tier": "glimmer",
-          "verdict": "no_violation"
-        },
-        "tier1_matches_chain": true
-      }
-    ]
+    "verify": []
   },
-  "verify_url": "/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=210c33b41e9ef40353f8ae49f00e32040a9a952df0e20e978e94a93b5d58ad11&n=32"
+  "verify_url": "/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35"
 }

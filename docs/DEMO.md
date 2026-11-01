@@ -12,23 +12,24 @@ Two ways to show Rulecam (PLAN-9.5 §9):
 ## What the golden REPLAY shows (and what it does not)
 
 `warehouse_driver` is the stock driver-only clip (a negative: nobody should be alerted). Recorded
-on 1 Nov 2026, it shows honestly what the deployed system did:
+on 1 Nov 2026 (third record, after the operator warm-up, P1-07), it shows honestly what the
+deployed system did:
 
 1. The request: "Keep people at least 2 metres away from a moving forklift."
-2. The planner's ten steps with their real details (survey, calibration from a pallet, probes,
-   compile, lint, acceptance), the rule in canonical form, and **Rule CI green: boundary 14/14,
-   mutations 5/5**, re-run offline and identical to the approval.
-3. The runtime: the rule fired once, on the **driver**, as the scored pass started (operator
-   exclusion did not hold on that track's first keyframes). Severity HIGH acts first, so the
-   dry-run notification was recorded; **Glimmer then answered "no violation: the person is
-   seated in the operator's seat"** from the six strip frames, and the policy moved the alert to
-   a person's review queue. The eval harness counts that as 1 false alert on a negative clip.
-4. The evidence chain: 32 records intact from the day's first, the run's decision re-derived
-   from the stored tracks (1/1), the daily root, and the browser verify page that recomputes
-   every SHA-256 itself.
+2. The planner's steps with their real details (survey, calibration from a pallet, probes,
+   compile, lint, acceptance), the rule in canonical form, and **Rule CI green: boundary 16/16,
+   mutations 6/6** (with the warm-up traces and the `drop_operator_warmup` mutant), re-run
+   offline and identical to the approval.
+3. The runtime: **no candidate, no action, no alert**. The seated driver, first seen already on
+   board, is held as the forklift's operator during the warm-up and then linked; the eval
+   harness counts 0 false alerts on the negative clip. (The earlier record of 1 Nov fired once
+   on the driver's first keyframes; that window is now the Rule CI and unit-test regression
+   `tests/fixtures/rules/golden_warehouse_driver.json`.)
+4. The evidence chain: 35 records intact from the day's first, the daily root, and the browser
+   verify page that recomputes every SHA-256 itself.
 
-Say it the way it happened: "the rule fired on the driver; Glimmer caught it and a person
-reviews it; the act-first notification was a dry run". Do not claim "the driver was not alerted".
+Say it the way it happened: "the driver is the forklift's operator, so nothing fired". The REPLAY
+has no strip or Glimmer verdict to show; use the live demo for a verified alert.
 
 ## Live demo script (3 minutes)
 

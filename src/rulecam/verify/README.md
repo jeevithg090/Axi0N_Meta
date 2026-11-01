@@ -36,7 +36,11 @@ answer = glimmer.structured(model=glimmer.model, messages=msgs, schema=MySchema)
   with a corrective message (so the retry is a new request and a new replay-cache key), then
   the verifier returns `unsure` with score 0.5. It never crashes and never passes silently.
 - Glimmer receives the rule text, an IR summary, the predicate trace and up to 6 strip frames
-  (base64 data URLs). It copies any visible text verbatim into `scene_text` for the firewall.
+  (base64 data URLs). It copies any text visible in the scene verbatim into `scene_text` for the
+  firewall. Rulecam's own caption and legend are in an annotation band below each frame, which
+  the prompt says is ours and not scene text; any copy of a string we drew (listed in the strip's
+  `annotations.json`) is removed from `scene_text` before the firewall (`verify.annotations`:
+  multi-word strings anywhere, one-word labels only as a whole line, nothing else touched).
 - Every call publishes `relay.model_used` and appends a line to
   `evidence/glimmer/inference-log.jsonl` (model, quant, hardware, latency, request hash; never
   prompts or images). Calls served from the replay cache are not logged, since no inference ran.

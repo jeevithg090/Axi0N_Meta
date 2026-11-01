@@ -45,6 +45,20 @@ driver-only warehouse clip, `tests/fixtures/rules/live_driver_only.json`):
    that drives up to a standing person therefore stays a hazard even when their relative motion
    is under the co-moving tolerance.
 
+7. *Warm-up* (`OPERATOR_WARMUP_S`, 1.5 s from the person track's first sample, configurable up
+   to `MAX_OPERATOR_WARMUP_S`): a boarding that starts at the pair's first common sample during
+   the person's warm-up (the person track is born, or the vehicle track is born around them,
+   already on board, so the safeguard has nothing to look at) is *operator pending* while it
+   lasts no longer than the warm-up: held (ignored) until the warm-up ends, then resolved. It is
+   the vehicle's operator if it ended inside the warm-up without its judged samples refuting
+   co-motion (the live keyframe tracker's first second: the seated driver's new track, then a
+   re-identified forklift track, each too short for 1 s of judged samples); a pedestrian
+   otherwise, and then the whole boarding counts again, from its first sample. A window that
+   ends inside the warm-up holds the boarding whatever its evidence. Pedestrians seen outside
+   the box first never wait. **Latency:** a pedestrian first seen inside a moving vehicle's box
+   is reported at most `warmup_s` (1.5 s) later than without the hold, on HIGH (act-first) rules
+   too; that is inside the 10 s alert-latency target (docs/PLAN-9.5.md section 2).
+
 The person is the vehicle's operator for the whole of every linked boarding. When they step off
 (containment below `MIN_CONTAINMENT`) they are a pedestrian again. A pedestrian standing in front
 of a moving forklift does not co-move and was outside its box first, so that boarding is never
@@ -64,7 +78,9 @@ on the rule's concept key and SAM prompt, in `distance_m`, buffer-zone `inside` 
 rule id: `OperatorExclusion(disabled_rules=...)` (the runtime reads
 `RULECAM_OPERATOR_EXCLUSION_OFF`, a comma-separated list of rule ids) resolves to
 `evaluate(..., operator_exclusion=False)` for those rules, and `DecisionContext` records the flag
-so `rederive` reproduces the decision.
+so `rederive` reproduces the decision. The warm-up is `OperatorExclusion.warmup_s`
+(`RULECAM_OPERATOR_WARMUP_S`, 0 turns it off), passed as `evaluate(..., operator_warmup_s=...)`
+and recorded in `DecisionContext` the same way.
 """
 
 from __future__ import annotations
@@ -74,6 +90,7 @@ from dataclasses import dataclass
 from typing import Final
 
 import numpy as np
+from pydantic import Field
 
 from rulecam.contracts import Frozen, RuleIR
 from rulecam.contracts.rule_ir import DistanceM, Inside
@@ -100,6 +117,8 @@ MIN_LINK_S: Final = 1.0
 MAX_BOARDING_GAP_S: Final = 0.5
 ENTRY_S: Final = 1.0
 VELOCITY_WINDOW_S: Final = 1.0
+OPERATOR_WARMUP_S: Final = 1.5
+MAX_OPERATOR_WARMUP_S: Final = 1.5
 _MIN_VELOCITY_SAMPLES: Final = 2
 
 PERSON_WORDS: Final = re.compile(
@@ -118,15 +137,19 @@ class OperatorExclusion(Frozen):
 
     Attributes:
         disabled_rules: Ids of rules whose owner turned operator exclusion off.
+        warmup_s: How long a person first seen on board is held as operator pending (rule 7).
     """
 
     disabled_rules: tuple[str, ...] = ()
+    warmup_s: float = Field(default=OPERATOR_WARMUP_S, ge=0.0, le=MAX_OPERATOR_WARMUP_S)
 
     @classmethod
-    def from_csv(cls, text: str | None) -> OperatorExclusion:
-        """Parse a comma-separated list of rule ids (blank entries ignored)."""
+    def from_csv(
+        cls, text: str | None, *, warmup_s: float = OPERATOR_WARMUP_S
+    ) -> OperatorExclusion:
+        """Parse a comma-separated list of rule ids (blank entries ignored), with a warm-up."""
         ids = sorted({part.strip() for part in (text or "").split(",") if part.strip()})
-        return cls(disabled_rules=tuple(ids))
+        return cls(disabled_rules=tuple(ids), warmup_s=warmup_s)
 
     def enabled_for(self, rule_id: str) -> bool:
         """Whether operator exclusion applies to the rule."""
@@ -282,6 +305,25 @@ def _around(values: FloatArray, span: slice, pad: int) -> tuple[FloatArray, slic
     return values[lo : span.stop + pad], slice(span.start - lo, span.stop - lo)
 
 
+def _observed(track: SampledTrack, values: FloatArray) -> FloatArray:
+    """`values` with the held tail after the track's last point blanked (NaN).
+
+    A track that ended is held for `HOLD_S` at its last position: that tail would read as a
+    vehicle (or person) that stopped dead, so motion is estimated from real points only and the
+    tail is never judged (a tracker re-identifying a vehicle ends its old track mid-ride).
+    """
+    out = values.copy()
+    out[track.seen_stop - track.start :] = np.nan
+    return out
+
+
+def _seen(track: SampledTrack, span: slice) -> BoolArray:
+    """Whether each sample of `span` (track indices) is at or before the track's last point."""
+    index = np.arange(span.start, span.stop) + track.start
+    seen: BoolArray = index < track.seen_stop
+    return seen
+
+
 def _kinematics(
     person: SampledTrack, vehicle: SampledTrack, own: slice, theirs: slice, hz: float
 ) -> _PairKinematics:
@@ -289,15 +331,16 @@ def _kinematics(
     p_box, v_box = person.box[own], vehicle.box[theirs]
     # Windowed estimates only need their neighbourhood, not the whole (maybe hours-long) track.
     pad = max(1, round(VELOCITY_WINDOW_S * hz / 2)) + SPEED_MEDIAN_SAMPLES
-    p_cut, p_in = _around(person.box, own, pad)
-    v_cut, v_in = _around(vehicle.box, theirs, pad)
-    m_cut, m_in = _around(vehicle.foot_m, theirs, pad)
+    p_cut, p_in = _around(_observed(person, person.box), own, pad)
+    v_cut, v_in = _around(_observed(vehicle, vehicle.box), theirs, pad)
+    m_cut, m_in = _around(_observed(vehicle, vehicle.foot_m), theirs, pad)
     p_vel = image_velocity(p_cut, hz)[p_in]
     v_vel = image_velocity(v_cut, hz)[v_in]
     reshape = np.abs(reshape_rate(v_cut, hz)[v_in])
     height = v_box[:, 3] - v_box[:, 1]
     ground = ground_speed(m_cut, hz)[m_in]
     carried = _carried(p_vel, v_vel)
+    seen = _seen(person, own) & _seen(vehicle, theirs)
     with np.errstate(invalid="ignore"):
         vehicle_moving = (norm(v_vel) >= STILL_HEIGHTS_PER_S * height) | (ground >= MOVING_MPS)
         close = norm(p_vel - v_vel) <= MAX_RELATIVE_HEIGHTS_PER_S * height
@@ -305,7 +348,7 @@ def _kinematics(
     return _PairKinematics(
         both=both,
         on_board=both & (_containment(p_box, v_box) >= MIN_CONTAINMENT),
-        vehicle_moving=both & vehicle_moving,
+        vehicle_moving=both & seen & vehicle_moving,
         rigid=rigid,
         carried=carried,
         co_moving=carried | close,
@@ -326,8 +369,42 @@ def _entered_on_foot(k: _PairKinematics, first: int, entry: int) -> bool:
     return bool((k.carried[before] & outside).sum() < MIN_COMOVING_FRACTION * count)
 
 
+@dataclass(frozen=True)
+class _WarmUp:
+    """The person's warm-up in timeline samples: born-on-board boardings before `end` are held.
+
+    Attributes:
+        lo: The pair's first common timeline sample.
+        end: One past the warm-up's last timeline sample (the person's first sample + warm-up).
+        horizon: One past the window's last timeline sample.
+    """
+
+    lo: int
+    end: int
+    horizon: int
+
+    def holds(self, k: _PairKinematics, first: int, last: int, agree: bool) -> bool:
+        """Whether the boarding `[first, last]` (pair indices) is an operator pending or resolved.
+
+        Only a boarding that starts at the pair's first common sample during the warm-up
+        qualifies. It is held while the window ends inside the warm-up, and resolved as the
+        operator when it ended inside the warm-up with agreeing (or no) judged samples.
+        """
+        start = self.lo + first
+        if start >= self.end or first != int(np.argmax(k.both)):
+            return False
+        if self.horizon <= self.end:
+            return True
+        return self.lo + last < self.end and agree
+
+
 def operator_mask(
-    person: SampledTrack, vehicle: SampledTrack, hz: float, horizon: int
+    person: SampledTrack,
+    vehicle: SampledTrack,
+    hz: float,
+    horizon: int,
+    *,
+    warmup_s: float = OPERATOR_WARMUP_S,
 ) -> BoolArray:
     """Samples of `person`'s range where the person is `vehicle`'s operator.
 
@@ -336,10 +413,11 @@ def operator_mask(
         vehicle: A vehicle-like track.
         hz: Timeline rate.
         horizon: Number of timeline samples (one past the window's last sample index).
+        warmup_s: The person's warm-up (rule 7); 0 turns it off.
 
     Returns:
-        Boolean array aligned to `person`'s index range: True over every linked or pending
-        boarding where both tracks are present.
+        Boolean array aligned to `person`'s index range: True over every linked, pending or
+        warm-up-held boarding where both tracks are present.
     """
     out = np.zeros(len(person.present), dtype=np.bool_)
     lo, hi = max(person.start, vehicle.start), min(person.stop, vehicle.stop)
@@ -349,6 +427,7 @@ def operator_mask(
     k = _kinematics(person, vehicle, own, slice(lo - vehicle.start, hi - vehicle.start), hz)
     need = max(1, round(MIN_LINK_S * hz))
     entry = max(1, round(ENTRY_S * hz))
+    warm = _WarmUp(lo=lo, end=person.start + round(warmup_s * hz), horizon=horizon)
     linked = np.zeros(len(k.on_board), dtype=np.bool_)
     for first, last in boardings(k.on_board, round(MAX_BOARDING_GAP_S * hz)):
         if _entered_on_foot(k, first, entry):
@@ -356,9 +435,9 @@ def operator_mask(
         run = slice(first, last + 1)
         judged = k.vehicle_moving[run] & k.rigid[run] & k.on_board[run]
         count = int(judged.sum())
-        agree = (k.co_moving[run] & judged).sum() >= MIN_COMOVING_FRACTION * count
+        agree = bool((k.co_moving[run] & judged).sum() >= MIN_COMOVING_FRACTION * count)
         pending = 0 < count < need and lo + last == horizon - 1
-        if agree and (count >= need or pending):
+        if (agree and (count >= need or pending)) or warm.holds(k, first, last, agree):
             linked[run] = True
     out[own] = linked & k.both
     return out

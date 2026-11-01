@@ -25,8 +25,9 @@ Arms:
   single frames ("Llama CCTV Operator" style).
 
 This module holds the manifest-to-report arithmetic and is pure: it takes outcomes and returns
-tables. Playing clips into a running API is `rulecam.eval.runner`, which E1 drives through the
-`ArmRunner` protocol, so the aggregation is tested without a network or a GPU.
+tables. Playing the clips is the job of an `ArmRunner`, so the aggregation is tested without a
+network or a GPU. No real `ArmRunner` exists yet, which is why `simulated` defaults to True: a
+caller with a runner backed by the real pipeline must pass `simulated=False` on purpose.
 """
 
 from __future__ import annotations
@@ -36,9 +37,9 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Final, Literal, Protocol
 
-from eval.manifests import E1Manifest, ManifestEntry, StagedBy, UseCase
 from pydantic import BaseModel, ConfigDict, Field
 
+from rulecam.eval.manifests import E1Manifest, ManifestEntry, StagedBy, UseCase
 from rulecam.log import get_logger
 from rulecam.stats.intervals import wilson_interval
 
@@ -96,7 +97,8 @@ class ArmOutcome(BaseModel):
 class ArmRunner(Protocol):
     """Anything that can play the E1 clip set once for one arm.
 
-    `rulecam.eval.runner` is the real implementation; the tests pass a deterministic fake.
+    No implementation backed by the real pipeline exists yet; the tests pass a deterministic
+    fake. One that does must also be run with `simulated=False`.
     """
 
     def run(self, arm: Arm, entries: Sequence[ManifestEntry], run_idx: int) -> Sequence[ArmOutcome]:
@@ -225,14 +227,14 @@ def _slice_score(
     outcomes: Sequence[ArmOutcome],
     *,
     labels: Mapping[tuple[str, str], str],
-    seconds: Mapping[tuple[str, str], float],
     runs: int,
 ) -> ArmScore:
     scored = _first_runs(outcomes)
     tp, fp, fn = _counts(scored)
-    negatives = [r for r in scored if labels.get((r.clip, r.rule_id)) == "negative"]
+    negatives = [r for r in scored if labels[(r.clip, r.rule_id)] == "negative"]
     false_alerts = sum(r.alerts for r in negatives)
-    negative_seconds = sum(seconds.get((r.clip, r.rule_id), 0.0) for r in negatives)
+    # Durations come from the same scored run as the counts: an errored run may carry 0 s.
+    negative_seconds = sum(r.clip_seconds for r in negatives)
     per_hour = (
         false_alerts / (negative_seconds / SECONDS_PER_HOUR) if negative_seconds > 0 else None
     )
@@ -260,25 +262,26 @@ def aggregate_e1(
     outcomes: Sequence[ArmOutcome],
     *,
     runs_per_arm: int = REQUIRED_RUNS,
-    simulated: bool = False,
+    simulated: bool = True,
 ) -> E1Summary:
     """Turn raw per-clip outcomes into the E1 tables.
+
+    Only outcomes for a `(clip, rule)` pair in the manifest are counted: the manifest is the
+    consent gate, so an outcome for any other pair is dropped and a warning says how many.
 
     Args:
         manifest: The consented manifest the run used.
         outcomes: Every outcome of every arm and repeat.
         runs_per_arm: How many repeats each arm was asked for.
-        simulated: True when any arm's outcomes did not come from the real pipeline. A
-            simulated summary can never be quoted as an E1 result.
+        simulated: True unless every arm's outcomes came from the real pipeline. A simulated
+            summary can never be quoted as an E1 result, so a real run must pass False.
 
     Returns:
         The summary, with per-rule, per-use-case, per-staged-by and overall rows per arm.
     """
     labels = {(e.clip_name, e.rule_id): e.label for e in manifest.entries}
-    seconds: dict[tuple[str, str], float] = {}
-    for row in outcomes:
-        key = (row.clip, row.rule_id)
-        seconds.setdefault(key, row.clip_seconds)
+    known = [o for o in outcomes if (o.clip, o.rule_id) in labels]
+    dropped = len(outcomes) - len(known)
     use_case: dict[tuple[str, str], UseCase] = {
         (e.clip_name, e.rule_id): e.use_case for e in manifest.entries
     }
@@ -286,38 +289,40 @@ def aggregate_e1(
         (e.clip_name, e.rule_id): e.staged_by for e in manifest.entries
     }
 
-    arms = tuple(a for a in ALL_ARMS if any(o.arm == a for o in outcomes))
+    arms = tuple(a for a in ALL_ARMS if any(o.arm == a for o in known))
     by_rule: list[ArmScore] = []
     by_use_case: list[ArmScore] = []
     by_staged: list[ArmScore] = []
     overall: list[ArmScore] = []
     warnings: list[str] = []
+    if dropped:
+        warnings.append(
+            f"{dropped} outcome(s) for clip/rule pairs outside the manifest were not counted"
+        )
 
     for arm in arms:
-        mine = [o for o in outcomes if o.arm == arm]
+        mine = [o for o in known if o.arm == arm]
         got = len({o.run_idx for o in mine})
         if got < runs_per_arm:
             warnings.append(
                 f"{arm}: {got} of {runs_per_arm} runs present, so stability is not established"
             )
-        score = functools.partial(_slice_score, labels=labels, seconds=seconds, runs=got)
+        score = functools.partial(_slice_score, labels=labels, runs=got)
         for rule_id in sorted({o.rule_id for o in mine}):
             rows = [o for o in mine if o.rule_id == rule_id]
             by_rule.append(score(arm, "rule", rule_id, rows))
-        for uc in sorted({use_case.get((o.clip, o.rule_id), "uc1") for o in mine}):
-            rows = [o for o in mine if use_case.get((o.clip, o.rule_id)) == uc]
+        for uc in sorted({use_case[(o.clip, o.rule_id)] for o in mine}):
+            rows = [o for o in mine if use_case[(o.clip, o.rule_id)] == uc]
             by_use_case.append(score(arm, "use_case", uc, rows))
-        for who in sorted({staged.get((o.clip, o.rule_id), "team") for o in mine}):
-            rows = [o for o in mine if staged.get((o.clip, o.rule_id)) == who]
+        for who in sorted({staged[(o.clip, o.rule_id)] for o in mine}):
+            rows = [o for o in mine if staged[(o.clip, o.rule_id)] == who]
             by_staged.append(score(arm, "staged_by", who, rows))
         overall.append(score(arm, "all", "all", mine))
 
     unstable = sorted({f"{r.arm}/{r.slice_id}" for r in overall if not r.stable})
     if unstable:
         warnings.append(f"not deterministic over repeats: {', '.join(unstable)}")
-    if not any(
-        staged.get((o.clip, o.rule_id)) == "outsider" for o in outcomes
-    ):  # pragma: no branch - a plain guard
+    if not any(staged[(o.clip, o.rule_id)] == "outsider" for o in known):
         warnings.append("every clip was staged by the team, so E1 shows no generalisation")
 
     return E1Summary(
@@ -339,7 +344,7 @@ def run_e1_evaluation(
     *,
     arms: Sequence[Arm] = ALL_ARMS,
     runs_per_arm: int = REQUIRED_RUNS,
-    simulated: bool = False,
+    simulated: bool = True,
 ) -> E1Summary:
     """Play the manifest `runs_per_arm` times for each arm and aggregate the result.
 
@@ -347,11 +352,12 @@ def run_e1_evaluation(
     gives the same summary every time.
 
     Args:
-        manifest: A consented manifest (`eval.manifests.load_manifest`).
+        manifest: A consented manifest (`rulecam.eval.manifests.load_manifest`).
         runner: Plays one arm's clip set once.
         arms: Which arms to run, in order.
         runs_per_arm: Repeats per arm; five is the reporting standard.
-        simulated: Passed through to the summary when the runner is not the real pipeline.
+        simulated: Passed through to the summary. True unless `runner` plays the clips through
+            the real pipeline; a real run must pass False explicitly.
 
     Returns:
         The E1 summary.

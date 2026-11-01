@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 import yaml
-from eval.manifests import (
+
+from rulecam.eval.manifests import (
     ConsentError,
     E1Manifest,
     ManifestError,
@@ -16,8 +17,25 @@ from eval.manifests import (
     load_manifest,
     unlabelled,
 )
+from rulecam.eval.schema import ClipEntry
 
 ZERO = "0" * 64
+FL_EVENT = {"start_s": 1.0, "end_s": 3.0}
+
+
+def clip(
+    name: str = "owner_fl_pos_1m", *, rule_id: str = "forklift_2m", **rule: object
+) -> ClipEntry:
+    """A clip.yaml entry with one rule; by default `labelled` with one event (a positive)."""
+    labels: dict[str, object] = {
+        "id": rule_id,
+        "request": "Keep people 2 m from a forklift.",
+        "status": "labelled",
+        "events": [FL_EVENT],
+    } | rule
+    return ClipEntry.model_validate(
+        {"name": name, "camera_id": "cam1", "placeholder": True, "rules": [labels]}
+    )
 
 
 def entry(**over: object) -> dict[str, object]:
@@ -113,29 +131,54 @@ def test_the_same_clip_with_two_rules_is_allowed(tmp_path: Path) -> None:
 
 def test_a_clip_outside_the_eval_set_is_refused(tmp_path: Path) -> None:
     manifest = load_manifest(write(tmp_path, [entry()]))
-    check_against_set(manifest, ["owner_fl_pos_1m"])
+    check_against_set(manifest, [clip()])
     with pytest.raises(ManifestError, match="not in the eval set"):
-        check_against_set(manifest, ["something_else"])
+        check_against_set(manifest, [clip("something_else")])
+
+
+def test_a_rule_dropped_from_clip_yaml_is_refused(tmp_path: Path) -> None:
+    manifest = load_manifest(write(tmp_path, [entry()]))
+    with pytest.raises(ManifestError, match="no longer lists rule 'forklift_2m'"):
+        check_against_set(manifest, [clip(rule_id="helmet_required")])
+
+
+@pytest.mark.parametrize(
+    ("label", "status", "events"),
+    [("positive", "negative", []), ("negative", "labelled", [FL_EVENT])],
+)
+def test_a_label_that_contradicts_clip_yaml_is_refused(
+    tmp_path: Path, label: str, status: str, events: list[object]
+) -> None:
+    """A relabelled clip must not be measured under the manifest entry written for the old label."""
+    manifest = load_manifest(write(tmp_path, [entry(label=label)]))
+    with pytest.raises(ManifestError, match="needs its manifest entry reviewed"):
+        check_against_set(manifest, [clip(status=status, events=events)])
+
+
+def test_an_unlabelled_rule_agrees_with_either_label(tmp_path: Path) -> None:
+    for label in ("positive", "negative"):
+        manifest = load_manifest(write(tmp_path, [entry(label=label)]))
+        check_against_set(manifest, [clip(status="unlabelled", events=[])])
 
 
 def test_a_changed_clip_cannot_reuse_its_consent(tmp_path: Path) -> None:
     """A re-recording has a new hash, so the old permission must not cover it."""
-    clip = tmp_path / "eval" / "clips" / "owner_fl_pos_1m"
-    clip.mkdir(parents=True)
-    (clip / "clip.mp4").write_bytes(b"first cut")
+    folder = tmp_path / "eval" / "clips" / "owner_fl_pos_1m"
+    folder.mkdir(parents=True)
+    (folder / "clip.mp4").write_bytes(b"first cut")
     digest = hashlib.sha256(b"first cut").hexdigest()
     manifest = load_manifest(write(tmp_path, [entry(sha256=digest)]))
-    check_against_set(manifest, ["owner_fl_pos_1m"], root=tmp_path)
+    check_against_set(manifest, [clip()], root=tmp_path)
 
-    (clip / "clip.mp4").write_bytes(b"re-recorded")
+    (folder / "clip.mp4").write_bytes(b"re-recorded")
     with pytest.raises(ManifestError, match="needs its own consent entry"):
-        check_against_set(manifest, ["owner_fl_pos_1m"], root=tmp_path)
+        check_against_set(manifest, [clip()], root=tmp_path)
 
 
 def test_a_missing_clip_file_is_reported(tmp_path: Path) -> None:
     manifest = load_manifest(write(tmp_path, [entry()]))
     with pytest.raises(ManifestError, match="clip file is missing"):
-        check_against_set(manifest, ["owner_fl_pos_1m"], root=tmp_path)
+        check_against_set(manifest, [clip()], root=tmp_path)
 
 
 def test_file_sha256_reads_a_file_in_chunks(tmp_path: Path) -> None:

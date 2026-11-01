@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import pytest
-from eval.manifests import E1Manifest, ManifestEntry
 from eval.runners.e1 import (
     ALL_ARMS,
     REQUIRED_RUNS,
@@ -16,6 +15,7 @@ from eval.runners.e1 import (
     run_e1_evaluation,
 )
 
+from rulecam.eval.manifests import E1Manifest, ManifestEntry
 from rulecam.stats.intervals import wilson_interval
 
 ZERO = "0" * 64
@@ -247,10 +247,55 @@ def test_a_clip_that_could_not_be_scored_is_listed_not_counted() -> None:
     assert row.errors == ("pos_b: the plan was refused",)
 
 
-def test_a_simulated_summary_says_so() -> None:
+def test_a_summary_is_simulated_unless_the_caller_says_otherwise() -> None:
+    """No real runner exists yet, so forgetting the flag must never pass as a measured run."""
     runner = FixedRunner({"pos_a": (1, 0, 0, 1), "pos_b": (1, 0, 0, 1), "neg_a": (0, 0, 0, 0)})
-    summary = run_e1_evaluation(SIMPLE, runner, arms=["frame_vlm"], simulated=True)
-    assert summary.simulated
+    assert run_e1_evaluation(SIMPLE, runner, arms=["frame_vlm"]).simulated
+    assert aggregate_e1(SIMPLE, []).simulated
+    assert not run_e1_evaluation(SIMPLE, runner, arms=["frame_vlm"], simulated=False).simulated
+
+
+def test_an_errored_run_does_not_zero_the_negative_duration() -> None:
+    """Durations come from each arm's scored run, not from whichever outcome came first."""
+    neg = {"clip": "neg_a", "rule_id": "forklift_2m"}
+    outcomes = [
+        ArmOutcome(arm="glimmer", run_idx=0, error="neg_a: decode failed", **neg),
+        ArmOutcome(arm="predicates", run_idx=0, alerts=2, clip_seconds=1800.0, **neg),
+        ArmOutcome(arm="glimmer", run_idx=1, alerts=1, clip_seconds=1800.0, **neg),
+    ]
+    summary = aggregate_e1(SIMPLE, outcomes, runs_per_arm=1)
+    expected: tuple[tuple[Arm, float], ...] = (("predicates", 4.0), ("glimmer", 2.0))
+    for arm, per_hour in expected:
+        row = summary.score(arm, "all", "all")
+        assert row is not None
+        assert row.negative_seconds == pytest.approx(1800.0)
+        assert row.false_alerts_per_hour == pytest.approx(per_hour)
+
+
+def test_outcomes_outside_the_manifest_are_not_counted() -> None:
+    """The manifest is the consent gate, so it must also gate the aggregation."""
+    outcomes = [
+        ArmOutcome(arm="predicates", run_idx=0, clip="pos_a", rule_id="forklift_2m", tp=1),
+        ArmOutcome(arm="predicates", run_idx=0, clip="no_consent", rule_id="forklift_2m", tp=1),
+        ArmOutcome(arm="predicates", run_idx=0, clip="pos_a", rule_id="helmet_required", fp=3),
+        ArmOutcome(arm="frame_vlm", run_idx=0, clip="stray", rule_id="forklift_2m", fp=1),
+    ]
+    summary = aggregate_e1(SIMPLE, outcomes, runs_per_arm=1)
+    assert summary.arms == ("predicates",)
+    row = summary.score("predicates", "all", "all")
+    assert row is not None
+    assert (row.clips, row.tp, row.fp) == (1, 1, 0)
+    assert [r.slice_id for r in summary.by_rule] == ["forklift_2m"]
+    assert [r.slice_id for r in summary.by_use_case] == ["uc1"]
+    assert summary.by_use_case[0].clips == 1
+    assert any("3 outcome(s)" in w for w in summary.warnings)
+
+
+def test_a_use_case_with_no_outcomes_gets_no_row() -> None:
+    manifest = manifest_of(made_entry("pos_a", use_case="uc3"))
+    outcomes = [ArmOutcome(arm="predicates", run_idx=0, clip="pos_a", rule_id="forklift_2m", tp=1)]
+    summary = aggregate_e1(manifest, outcomes, runs_per_arm=1)
+    assert [r.slice_id for r in summary.by_use_case] == ["uc3"]
 
 
 def test_the_headline_is_the_full_arm_and_is_none_without_it() -> None:

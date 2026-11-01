@@ -12,9 +12,9 @@ Consent is a hard gate, not a warning. `load_manifest` raises `ConsentError` for
 The forms themselves are never committed (`docs/consent.md`); the manifest records only the form
 id, so an auditor can ask for that form by name.
 
-A manifest entry pins the clip's `sha256`, and `check_against_set` refuses a manifest whose hash
-or rule no longer matches the eval set, so a relabelled or re-recorded clip cannot be measured
-under an old permission.
+A manifest entry pins the clip's `sha256`, and `check_against_set` refuses a manifest whose hash,
+rule or label no longer matches the eval set (the clip's `clip.yaml`), so a relabelled or
+re-recorded clip cannot be measured under an old permission.
 """
 
 from __future__ import annotations
@@ -26,6 +26,8 @@ from typing import Final, Literal, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from rulecam.eval.schema import ClipEntry
 
 SHA256: Final = r"^[0-9a-f]{64}$"
 SLUG: Final = r"^[a-z0-9][a-z0-9_-]*$"
@@ -161,26 +163,49 @@ def load_manifest(path: Path) -> E1Manifest:
     return manifest
 
 
+def _label_mismatch(entry: ManifestEntry, clip: ClipEntry) -> str | None:
+    """Say how an entry disagrees with its clip's `clip.yaml`, or return `None` if it agrees.
+
+    A rule still `unlabelled` in `clip.yaml` agrees with either label: labelling it is the
+    work `rulecam eval label` lists.
+    """
+    rule = next((r for r in clip.rules if r.id == entry.rule_id), None)
+    if rule is None:
+        return f"{entry.path}: clip.yaml for {clip.name} no longer lists rule {entry.rule_id!r}"
+    expected = {"labelled": "positive", "negative": "negative"}.get(rule.status)
+    if expected is not None and expected != entry.label:
+        return (
+            f"{entry.path}: the manifest says {entry.rule_id} is {entry.label}, but clip.yaml "
+            f"labels it {rule.status}. A relabelled clip needs its manifest entry reviewed."
+        )
+    return None
+
+
 def check_against_set(
-    manifest: E1Manifest, clip_names: Iterable[str], *, root: Path | None = None
+    manifest: E1Manifest, clips: Iterable[ClipEntry], *, root: Path | None = None
 ) -> None:
     """Check that a manifest still matches the eval set and the files on disk.
 
     Args:
         manifest: The loaded manifest.
-        clip_names: Names of the clips in the eval set (`EvalSet.clips`).
+        clips: The clips of the eval set (`EvalSet.clips`).
         root: Repository root for resolving `path`. When given, every entry's file must exist
-            and hash to its pinned `sha256`; when `None`, only the names are checked.
+            and hash to its pinned `sha256`; when `None`, the files are not read.
 
     Raises:
-        ManifestError: If an entry names a clip that is not in the eval set, or (with `root`)
-            if its file is missing or its hash has changed.
+        ManifestError: If an entry names a clip that is not in the eval set, a rule its
+            `clip.yaml` no longer lists, or a label that contradicts the `clip.yaml` label, or
+            (with `root`) if its file is missing or its hash has changed.
     """
-    known = set(clip_names)
-    unknown = sorted({e.clip_name for e in manifest.entries if e.clip_name not in known})
+    by_name = {clip.name: clip for clip in clips}
+    unknown = sorted({e.clip_name for e in manifest.entries if e.clip_name not in by_name})
     if unknown:
         msg = f"manifest names clips that are not in the eval set: {', '.join(unknown)}"
         raise ManifestError(msg)
+    for entry in manifest.entries:
+        mismatch = _label_mismatch(entry, by_name[entry.clip_name])
+        if mismatch is not None:
+            raise ManifestError(mismatch)
     if root is None:
         return
     for entry in manifest.entries:

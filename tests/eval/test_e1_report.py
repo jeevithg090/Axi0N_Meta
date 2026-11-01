@@ -8,14 +8,13 @@ import pytest
 from eval.report import (
     BEGIN,
     END,
-    ReportError,
     fmt_per_hour,
     fmt_rate,
     headline_lines,
     render_e1_section,
-    splice,
     write_results_section,
 )
+from eval.runners.common import ResultError, splice_section
 from eval.runners.e1 import ArmOutcome, E1Summary, aggregate_e1, rate, run_e1_evaluation
 from tests.eval.test_e1_runner import SIMPLE, FixedRunner
 
@@ -87,7 +86,7 @@ def test_unscored_clips_are_listed() -> None:
 
 def test_splice_replaces_only_the_marked_section() -> None:
     text = f"# Results\n\nBefore.\n\n{BEGIN}\nold\n{END}\n\nAfter.\n"
-    out = splice(text, f"{BEGIN}\nnew\n{END}\n")
+    out = splice_section(text, "e1", f"{BEGIN}\nnew\n{END}\n")
     assert "Before." in out
     assert "After." in out
     assert "old" not in out
@@ -95,10 +94,10 @@ def test_splice_replaces_only_the_marked_section() -> None:
 
 
 def test_splice_refuses_a_file_without_markers() -> None:
-    with pytest.raises(ReportError, match="needs the markers"):
-        splice("# Results\n\nnothing here\n", f"{BEGIN}\nnew\n{END}\n")
-    with pytest.raises(ReportError):
-        splice(f"{END}\n{BEGIN}\n", f"{BEGIN}\nnew\n{END}\n")
+    with pytest.raises(ResultError, match="needs the markers"):
+        splice_section("# Results\n\nnothing here\n", "e1", f"{BEGIN}\nnew\n{END}\n")
+    with pytest.raises(ResultError):
+        splice_section(f"{END}\n{BEGIN}\n", "e1", f"{BEGIN}\nnew\n{END}\n")
 
 
 def test_writing_the_section_keeps_the_rest_of_the_file(tmp_path: Path) -> None:
@@ -123,7 +122,7 @@ def test_writing_twice_is_idempotent(tmp_path: Path) -> None:
 
 
 def test_writing_to_a_missing_file_is_refused(tmp_path: Path) -> None:
-    with pytest.raises(ReportError, match="no results file"):
+    with pytest.raises(ResultError, match="no results file"):
         write_results_section(summary_of(), tmp_path / "absent.md")
 
 
@@ -132,3 +131,13 @@ def test_headline_lines_are_three_plain_lines() -> None:
     assert len(lines) == 3
     assert lines[0].startswith("recall: ")
     assert lines[2].startswith("false_alerts_per_hour: ")
+
+
+def test_the_committed_results_file_holds_the_e1_markers() -> None:
+    """The E1 section shares RESULTS.md with E4-E11, so all their markers must coexist."""
+    results = Path(__file__).resolve().parents[2] / "eval" / "RESULTS.md"
+    text = results.read_text(encoding="utf-8")
+    out = splice_section(text, "e1", render_e1_section(summary_of()))
+    assert out.count(BEGIN) == 1
+    assert "<!-- BEGIN E4 " in out
+    assert "<!-- END E11 -->" in out

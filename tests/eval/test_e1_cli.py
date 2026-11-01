@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -28,7 +30,9 @@ def clip_yaml(path: Path, name: str, *, status: str = "negative") -> None:
     (path / "clip.yaml").write_text(yaml.safe_dump(body), encoding="utf-8")
 
 
-def manifest_yaml(path: Path, *, consent: bool, sha256: str = "0" * 64) -> None:
+def manifest_yaml(
+    path: Path, *, consent: bool, sha256: str = "0" * 64, label: str = "negative"
+) -> None:
     body = {
         "name": "e1-cli",
         "entries": [
@@ -37,7 +41,7 @@ def manifest_yaml(path: Path, *, consent: bool, sha256: str = "0" * 64) -> None:
                 "sha256": sha256,
                 "use_case": "uc1",
                 "rule_id": "forklift_2m",
-                "label": "positive",
+                "label": label,
                 "staged_by": "team",
                 "provenance": "recorded",
                 "consent": consent,
@@ -88,6 +92,41 @@ def test_a_clip_outside_the_eval_set_is_refused(tmp_path: Path) -> None:
     result = runner.invoke(app, ["eval", "label", str(manifest), "--set", str(clips)])
     assert result.exit_code == USAGE_ERROR
     assert "not in the eval set" in result.output
+
+
+def test_a_label_that_contradicts_clip_yaml_is_refused(tmp_path: Path) -> None:
+    clips = tmp_path / "eval" / "clips"
+    clip_yaml(clips / "clip_a", "clip_a", status="negative")
+    manifest = tmp_path / "m.yaml"
+    manifest_yaml(manifest, consent=True, label="positive")
+    result = runner.invoke(app, ["eval", "label", str(manifest), "--set", str(clips)])
+    assert result.exit_code == USAGE_ERROR
+    assert "needs its manifest entry reviewed" in result.output
+
+
+def test_the_installed_cli_runs_without_the_repository_on_the_path(tmp_path: Path) -> None:
+    """`rulecam eval label` must work from an installed package, not only from the repo root.
+
+    `-I` drops the working directory and PYTHONPATH from `sys.path`, and the command runs from
+    a temporary folder, so an import of the top-level `eval/` folder would fail here.
+    """
+    clips = tmp_path / "eval" / "clips"
+    clip_yaml(clips / "clip_a", "clip_a")
+    manifest = tmp_path / "m.yaml"
+    manifest_yaml(manifest, consent=False)
+    command = "from rulecam.cli import app; app()"
+    args = ["eval", "label", str(manifest), "--set", str(clips)]
+    result = subprocess.run(  # noqa: S603 - fixed interpreter and arguments
+        [sys.executable, "-I", "-c", command, *args],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=60,
+    )
+    assert "ModuleNotFoundError" not in result.stderr
+    assert result.returncode == USAGE_ERROR
+    assert "no signed consent form" in result.stderr
 
 
 def test_check_hashes_catches_a_re_recorded_clip(

@@ -336,7 +336,7 @@ def eval_label(
     Every entry must carry a signed consent form, so this command refuses the whole manifest if
     any clip has none, and names the clips that need one. It changes nothing on disk.
     """
-    from eval.manifests import (  # noqa: PLC0415
+    from rulecam.eval.manifests import (  # noqa: PLC0415
         ManifestError,
         check_against_set,
         load_manifest,
@@ -348,7 +348,7 @@ def eval_label(
         loaded = load_manifest(manifest)
         check_against_set(
             loaded,
-            [c.name for c in evalset.clips],
+            evalset.clips,
             root=Path.cwd() if check_hashes else None,
         )
     except ManifestError as exc:

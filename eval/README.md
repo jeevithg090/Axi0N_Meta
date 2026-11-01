@@ -69,12 +69,15 @@ E1 is the detection-accuracy evaluation. It sits on top of the clip set above an
 things the clip set does not carry: permission, arms and intervals.
 
 ```
+src/rulecam/eval/manifests.py  the E1 manifest: permission and provenance per clip
 eval/
-  manifests.py            the E1 manifest: permission and provenance per clip
   e1/manifest.example.yaml  a worked example (every entry unconsented, so it is refused)
   runners/e1.py           5 runs per arm, Wilson intervals, the slices
   report.py               renders the E1 section of RESULTS.md between its markers
 ```
+
+The manifest layer lives in the installed package because `rulecam eval label` uses it; the
+top-level `eval/` folder is not installed, so nothing under `src/` imports from it.
 
 ```bash
 uv run rulecam eval label eval/e1/manifest.yaml                  # consent gate + what to label
@@ -85,8 +88,10 @@ uv run rulecam eval label eval/e1/manifest.yaml --check-hashes   # also re-hash 
 says we are allowed to measure it. An entry whose `consent` is false or missing makes
 `load_manifest` raise, so a clip without a signed form can never reach a measured run. The forms
 themselves are never committed (`docs/consent.md`); the manifest records the form id, so an
-auditor can ask for that form by name. Entries pin the clip's `sha256`, and `--check-hashes`
-refuses a clip whose bytes have changed, because a re-recording needs its own permission.
+auditor can ask for that form by name. An entry whose rule is no longer in the clip's
+`clip.yaml`, or whose label contradicts it, is refused, so a relabelled clip gets its entry
+reviewed. Entries pin the clip's `sha256`, and `--check-hashes` refuses a clip whose bytes have
+changed, because a re-recording needs its own permission.
 
 **Arms.** Three ablations (`predicates`, `glimmer`, `spark_open`) and two baselines
 (`yolov8_ppe`, `frame_vlm`, the model asked the rule every 5 s on single frames). YOLOv8
@@ -99,7 +104,9 @@ for one site. Each arm runs the set five times, and that spread is **stability, 
 repeats of the same clip say whether the pipeline is deterministic, so counts come from the first
 scored run of each clip and are never summed over repeats. Clips staged by an **outsider** are
 reported as their own slice and never pooled with ours, because they are the only honest
-generalisation evidence. A slice with no trials prints `n/a`, not `0`.
+generalisation evidence. A slice with no trials prints `n/a`, not `0`. Outcomes for a clip/rule
+pair outside the manifest are dropped before counting, and a summary is marked **simulated**
+unless the caller passes `simulated=False` for a run through the real pipeline.
 
 ## How the metrics are computed
 

@@ -1,52 +1,64 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rulecam UI Design Suite — Google Stitch</title>
+  <title>Rulecam UI Design Suite — Google Stitch (Atmospheric Industrial Luxe)</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,400;1,600&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Inter', sans-serif; }
+    body { font-family: 'Hanken Grotesk', sans-serif; }
     .mono { font-family: 'JetBrains Mono', monospace; }
+    .serif-italic { font-family: 'Playfair Display', serif; font-style: italic; }
+    .flare-cantaloupe {
+      box-shadow: 0 0 24px -4px rgba(252, 115, 77, 0.35);
+    }
   </style>
 </head>
-<body class="bg-[#06080d] text-[#dfe2ef] min-h-screen flex flex-col">
+<body class="bg-[#02070A] text-[#dce4e9] min-h-screen flex flex-col selection:bg-[#FC734D] selection:text-[#02070A]">
+  <!-- Ambient Subterranean Optical Glows -->
+  <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+    <div class="absolute -top-32 left-1/4 w-[500px] h-[500px] bg-[#0297DE]/10 rounded-full blur-[140px]"></div>
+    <div class="absolute top-1/2 -right-32 w-[500px] h-[500px] bg-[#FC734D]/10 rounded-full blur-[160px]"></div>
+  </div>
+
   <!-- Top Bar -->
-  <header class="border-b border-zinc-800/80 bg-[#0a0e17] px-6 py-4 flex items-center justify-between">
+  <header class="relative z-10 border-b border-white/10 bg-[#061017]/80 backdrop-blur-2xl px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
     <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded bg-[#10b981]/20 border border-[#10b981] flex items-center justify-center text-[#10b981] font-bold text-sm">
+      <div class="w-8 h-8 rounded-lg bg-[#0B1924] border border-[#0297DE]/40 flex items-center justify-center text-[#0297DE] font-bold text-sm shadow-[0_0_15px_rgba(2,151,222,0.25)]">
         R
       </div>
       <div>
-        <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-2">
-          RULECAM <span class="text-xs font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">GOOGLE STITCH DESIGNS</span>
+        <h1 class="text-sm font-semibold tracking-tight text-white flex items-center gap-2">
+          RULECAM <span class="serif-italic font-normal text-[#0297DE]">Studio</span>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#FC734D]/15 text-[#FC734D] border border-[#FC734D]/30">GOOGLE STITCH</span>
         </h1>
-        <p class="text-xs text-zinc-400 mono">Design System: Obsidian Telemetry · Project #9357530616174427445</p>
+        <p class="text-[11px] text-[#6C8294] mono">Theme: Atmospheric Industrial Luxe (Niki Aroca 3-Color Formula) · Project #9357530616174427445</p>
       </div>
     </div>
+
     <!-- Screen Tabs -->
     <nav class="flex items-center gap-2">
-      <button onclick="setTab('01_monitor.html', this)" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-mono border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-semibold transition-all">
+      <button onclick="setTab('01_monitor.html', this)" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-mono border border-[#FC734D]/50 bg-[#FC734D]/15 text-[#FC734D] font-semibold transition-all shadow-[0_0_15px_rgba(252,115,77,0.25)]">
         1. Live Monitor (/monitor)
       </button>
-      <button onclick="setTab('02_planner.html', this)" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-mono border border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:text-zinc-200 transition-all">
+      <button onclick="setTab('02_planner.html', this)" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-mono border border-white/10 bg-white/[0.03] text-[#88929c] hover:text-white hover:border-[#0297DE]/40 transition-all">
         2. Planner Studio (/planner)
       </button>
-      <button onclick="setTab('03_rule_ci.html', this)" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-mono border border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:text-zinc-200 transition-all">
-        3. Rule CI Suite (/ci)
+      <button onclick="setTab('03_rule_ci.html', this)" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-mono border border-white/10 bg-white/[0.03] text-[#88929c] hover:text-white hover:border-[#0297DE]/40 transition-all">
+        3. Rule CI Cockpit (/ci)
       </button>
-      <button onclick="setTab('04_worker_pwa.html', this, true)" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-mono border border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:text-zinc-200 transition-all">
+      <button onclick="setTab('04_worker_pwa.html', this, true)" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-mono border border-white/10 bg-white/[0.03] text-[#88929c] hover:text-white hover:border-[#FD91CC]/40 transition-all">
         4. Worker Mobile PWA (/worker)
       </button>
     </nav>
   </header>
 
   <!-- Viewport Frame -->
-  <main class="flex-1 flex flex-col items-center justify-center p-4 bg-[#06080d]">
-    <div id="frame-container" class="w-full h-[calc(100vh-100px)] rounded-xl border border-zinc-800 overflow-hidden shadow-2xl bg-black transition-all">
+  <main class="relative z-10 flex-1 flex flex-col items-center justify-center p-4 bg-transparent">
+    <div id="frame-container" class="w-full h-[calc(100vh-95px)] rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#02070A] transition-all">
       <iframe id="preview-frame" src="01_monitor.html" class="w-full h-full border-0"></iframe>
     </div>
   </main>
@@ -55,15 +67,15 @@
     function setTab(url, btn, isMobile = false) {
       document.getElementById('preview-frame').src = url;
       document.querySelectorAll('.tab-btn').forEach(b => {
-        b.className = 'tab-btn px-3 py-1.5 rounded-lg text-xs font-mono border border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:text-zinc-200 transition-all';
+        b.className = 'tab-btn px-3.5 py-1.5 rounded-xl text-xs font-mono border border-white/10 bg-white/[0.03] text-[#88929c] hover:text-white hover:border-[#0297DE]/40 transition-all';
       });
-      btn.className = 'tab-btn px-3 py-1.5 rounded-lg text-xs font-mono border border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-semibold transition-all';
+      btn.className = 'tab-btn px-3.5 py-1.5 rounded-xl text-xs font-mono border border-[#FC734D]/50 bg-[#FC734D]/15 text-[#FC734D] font-semibold transition-all shadow-[0_0_15px_rgba(252,115,77,0.25)]';
       
       const container = document.getElementById('frame-container');
       if (isMobile) {
-        container.className = 'w-[420px] h-[calc(100vh-100px)] rounded-3xl border-4 border-zinc-800 overflow-hidden shadow-2xl bg-black transition-all';
+        container.className = 'w-[420px] h-[calc(100vh-95px)] rounded-[38px] border-4 border-white/20 overflow-hidden shadow-2xl bg-[#02070A] transition-all';
       } else {
-        container.className = 'w-full h-[calc(100vh-100px)] rounded-xl border border-zinc-800 overflow-hidden shadow-2xl bg-black transition-all';
+        container.className = 'w-full h-[calc(100vh-95px)] rounded-2xl border border-white/10 overflow-hidden shadow-2xl bg-[#02070A] transition-all';
       }
     }
   </script>

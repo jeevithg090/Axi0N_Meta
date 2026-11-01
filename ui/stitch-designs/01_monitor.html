@@ -3,15 +3,15 @@
 <html class="dark" lang="en"><head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Rulecam Industrial Safety Monitor | Live Viewport</title>
-<!-- Material Symbols Outlined -->
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<!-- JetBrains Mono & Inter Fonts -->
+<title>Rulecam // Live Safety Cockpit &amp; Spatial Monitor</title>
+<!-- Fonts -->
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&amp;family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&amp;family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols Outlined -->
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<!-- Tailwind CSS v3 -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <script id="tailwind-config">
     tailwind.config = {
@@ -19,98 +19,108 @@
       theme: {
         extend: {
           "colors": {
+            "on-primary": "#003450",
+            "surface-container-high": "#232b2f",
+            "surface-container-lowest": "#080f13",
+            "surface-bright": "#323a3e",
+            "surface-container-low": "#151d20",
+            "secondary-container": "#8b2201",
+            "tertiary-fixed": "#ffd8e9",
+            "hazard-glow": "rgba(252, 115, 77, 0.25)",
+            "on-secondary-container": "#ffa086",
+            "primary-fixed": "#cbe6ff",
+            "on-secondary-fixed-variant": "#882000",
+            "inverse-surface": "#dce4e9",
+            "tertiary": "#ffafd7",
+            "outline": "#88929c",
+            "on-tertiary-fixed": "#3c0029",
+            "primary-fixed-dim": "#8fcdff",
+            "on-tertiary-container": "#55003c",
+            "surface-variant": "#2e363a",
+            "tertiary-fixed-dim": "#ffafd7",
+            "secondary-fixed": "#ffdbd1",
+            "tertiary-container": "#d46fa8",
+            "bubblegum-pink": "#FD91CC",
             "on-error-container": "#ffdad6",
-            "tertiary-container": "#e29100",
-            "surface-container": "#1c1f29",
-            "surface-variant": "#31353f",
-            "on-tertiary": "#472a00",
-            "tertiary": "#ffb95f",
-            "on-tertiary-container": "#523200",
-            "surface-tint": "#4edea3",
-            "on-primary-container": "#00422b",
-            "surface-bright": "#353943",
-            "outline-variant": "#3c4a42",
-            "secondary": "#4cd7f6",
-            "on-secondary-fixed": "#001f26",
-            "inverse-on-surface": "#2c303a",
-            "on-secondary-fixed-variant": "#004e5c",
-            "secondary-fixed": "#acedff",
-            "primary-container": "#10b981",
-            "on-primary-fixed-variant": "#005236",
-            "tertiary-fixed": "#ffddb8",
-            "on-tertiary-fixed": "#2a1700",
-            "on-surface": "#dfe2ef",
-            "inverse-primary": "#006c49",
-            "surface": "#0f131c",
-            "surface-container-low": "#181b25",
+            "on-tertiary": "#5e0943",
+            "surface-container-highest": "#2e363a",
             "error": "#ffb4ab",
-            "primary-fixed": "#6ffbbe",
-            "background": "#0f131c",
-            "on-error": "#690005",
-            "inverse-surface": "#dfe2ef",
             "error-container": "#93000a",
-            "surface-container-lowest": "#0a0e17",
-            "surface-dim": "#0f131c",
-            "on-surface-variant": "#bbcabf",
-            "on-secondary": "#003640",
-            "on-background": "#dfe2ef",
-            "on-primary-fixed": "#002113",
-            "on-secondary-container": "#00424e",
-            "primary": "#4edea3",
-            "surface-container-highest": "#31353f",
-            "outline": "#86948a",
-            "surface-container-high": "#262a34",
-            "tertiary-fixed-dim": "#ffb95f",
-            "primary-fixed-dim": "#4edea3",
-            "on-tertiary-fixed-variant": "#653e00",
-            "secondary-container": "#03b5d3",
-            "secondary-fixed-dim": "#4cd7f6",
-            "on-primary": "#003824"
+            "surface-panel": "#061017",
+            "cantaloupe-orange": "#FC734D",
+            "telemetry-muted": "#6C8294",
+            "on-primary-fixed": "#001e30",
+            "on-surface": "#dce4e9",
+            "on-primary-fixed-variant": "#004b71",
+            "inverse-on-surface": "#2a3235",
+            "on-primary-container": "#002d46",
+            "on-surface-variant": "#bec7d2",
+            "outline-variant": "#3f4850",
+            "secondary": "#ffb5a1",
+            "electric-blue": "#0297DE",
+            "surface-container": "#192124",
+            "surface-tint": "#8fcdff",
+            "border-glass": "rgba(255, 255, 255, 0.08)",
+            "border-active": "rgba(2, 151, 222, 0.35)",
+            "on-background": "#dce4e9",
+            "primary": "#8fcdff",
+            "on-error": "#690005",
+            "surface": "#0d1418",
+            "on-secondary": "#601400",
+            "primary-container": "#0b99e0",
+            "background": "#0d1418",
+            "surface-elevated": "#0B1924",
+            "inverse-primary": "#006495",
+            "surface-canvas": "#02070A",
+            "secondary-fixed-dim": "#ffb5a1",
+            "surface-dim": "#0d1418",
+            "on-secondary-fixed": "#3b0900",
+            "on-tertiary-fixed-variant": "#7b255a"
           },
           "borderRadius": {
-            "DEFAULT": "0.125rem",
-            "lg": "0.25rem",
-            "xl": "0.5rem",
-            "full": "0.75rem"
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
           },
           "spacing": {
-            "gutter-mobile": "0.5rem",
-            "gutter": "0.75rem",
-            "space-xl": "1.5rem",
-            "space-lg": "1rem",
-            "margin": "1rem",
+            "margin": "2rem",
+            "space-lg": "1.5rem",
+            "space-md": "1rem",
+            "gutter-sm": "0.75rem",
+            "margin-sm": "1rem",
+            "space-sm": "0.5rem",
+            "space-xl": "2.5rem",
             "space-xs": "0.25rem",
-            "space-md": "0.75rem",
-            "margin-mobile": "0.75rem",
-            "space-sm": "0.5rem"
+            "gutter": "1.5rem"
           },
           "fontFamily": {
-            "telemetry-lg": ["JetBrains Mono"],
-            "headline-lg": ["Inter"],
-            "headline-xl-mobile": ["Inter"],
-            "body-md": ["Inter"],
-            "body-sm": ["Inter"],
-            "telemetry-md": ["JetBrains Mono"],
-            "telemetry-sm": ["JetBrains Mono"],
-            "headline-xl": ["Inter"],
-            "headline-md": ["Inter"],
-            "headline-sm": ["Inter"],
-            "label-caps": ["JetBrains Mono"],
-            "body-lg": ["Inter"]
+            "headline-sm": ["Hanken Grotesk"],
+            "body-md": ["Hanken Grotesk"],
+            "headline-lg-mobile": ["Playfair Display"],
+            "body-sm": ["Hanken Grotesk"],
+            "body-lg": ["Hanken Grotesk"],
+            "label-lg": ["JetBrains Mono"],
+            "headline-xl": ["Playfair Display"],
+            "headline-xl-mobile": ["Playfair Display"],
+            "label-md": ["JetBrains Mono"],
+            "headline-lg": ["Playfair Display"],
+            "headline-md": ["Hanken Grotesk"],
+            "label-sm": ["JetBrains Mono"]
           },
           "fontSize": {
-            "telemetry-lg": ["20px", {"lineHeight": "24px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
-            "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.015em", "fontWeight": "600"}],
-            "headline-xl-mobile": ["28px", {"lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
-            "body-md": ["13px", {"lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "400"}],
-            "body-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.01em", "fontWeight": "400"}],
-            "telemetry-md": ["13px", {"lineHeight": "16px", "letterSpacing": "-0.01em", "fontWeight": "500"}],
-            "telemetry-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.02em", "fontWeight": "500"}],
-            "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
-            "headline-md": ["20px", {"lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
-            "headline-sm": ["16px", {"lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "600"}],
-            "label-caps": ["10px", {"lineHeight": "12px", "letterSpacing": "0.08em", "fontWeight": "600"}],
-            "body-lg": ["15px", {"lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "400"}]
+            "headline-sm": ["18px", {"lineHeight": "26px", "letterSpacing": "0em", "fontWeight": "600"}],
+            "body-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+            "headline-lg-mobile": ["26px", {"lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "400"}],
+            "body-sm": ["12px", {"lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "400"}],
+            "body-lg": ["16px", {"lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "400"}],
+            "label-lg": ["14px", {"lineHeight": "20px", "letterSpacing": "0.04em", "fontWeight": "500"}],
+            "headline-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "400"}],
+            "headline-xl-mobile": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "400"}],
+            "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+            "headline-lg": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.01em", "fontWeight": "400"}],
+            "headline-md": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+            "label-sm": ["10px", {"lineHeight": "14px", "letterSpacing": "0.08em", "fontWeight": "500"}]
           }
         }
       }
@@ -118,748 +128,634 @@
   </script>
 <style>
     .material-symbols-outlined {
-      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
-      display: inline-block;
-      vertical-align: middle;
+      font-family: 'Material Symbols Outlined';
+      font-weight: normal;
+      font-style: normal;
+      font-size: 18px;
       line-height: 1;
+      display: inline-block;
+      white-space: nowrap;
+      word-wrap: normal;
+      direction: ltr;
+      -webkit-font-feature-settings: 'liga';
+      -webkit-font-smoothing: antialiased;
     }
-    @keyframes alert-pulse {
-      0%, 100% { opacity: 1; border-color: rgba(239, 68, 68, 1); box-shadow: 0 0 16px -2px rgba(239, 68, 68, 0.45); }
-      50% { opacity: 0.65; border-color: rgba(239, 68, 68, 0.4); box-shadow: 0 0 4px 0px rgba(239, 68, 68, 0.2); }
+    
+    /* Subtle custom glowing effects adhering to style token definitions */
+    .bloom-electric {
+      box-shadow: 0 0 30px -5px rgba(2, 151, 222, 0.25);
     }
-    .hud-breach-pulse {
-      animation: alert-pulse 1.2s infinite ease-in-out;
+    .flare-cantaloupe {
+      box-shadow: 0 0 40px -5px rgba(252, 115, 77, 0.35);
     }
-    @keyframes live-ping {
-      0% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.35); opacity: 0.4; }
-      100% { transform: scale(1); opacity: 1; }
+    .glow-bubblegum {
+      box-shadow: 0 0 30px -5px rgba(253, 145, 204, 0.30);
     }
-    .status-ping {
-      animation: live-ping 1.8s infinite ease-in-out;
+    .hud-grid {
+      background-size: 24px 24px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
     }
-    /* Hairline industrial scanline pattern */
-    .scanlines {
-      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.28) 50%);
-      background-size: 100% 4px;
+    
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(0.98); }
     }
-    /* Custom compact scrollbar for telemetry modules */
-    ::-webkit-scrollbar {
-      width: 4px;
-      height: 4px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #0a0e17;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #31353f;
-      border-radius: 2px;
+    .animate-live-pip {
+      animation: pulse-subtle 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
   </style>
 </head>
-<body class="bg-surface-container-lowest text-on-surface antialiased overflow-x-hidden min-h-screen select-none font-body-md text-body-md">
+<body class="bg-surface-canvas text-on-surface antialiased overflow-x-hidden min-h-screen selection:bg-cantaloupe-orange selection:text-surface-canvas">
+<!-- Ambient Subterranean Optical Underglows -->
+<div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+<div class="absolute -top-40 left-1/4 w-[650px] h-[650px] bg-electric-blue/10 rounded-full blur-[140px]"></div>
+<div class="absolute top-1/3 -right-32 w-[600px] h-[600px] bg-cantaloupe-orange/10 rounded-full blur-[160px]"></div>
+<div class="absolute bottom-10 left-1/3 w-[500px] h-[500px] bg-bubblegum-pink/5 rounded-full blur-[180px]"></div>
+</div>
 <!-- ========================================================================= -->
-<!-- TOPBAR: SHARED COMPONENT: TopNavBar (/monitor) -->
+<!-- SHARED COMPONENT: SideNavBar (Rail type from JSON anchors)                -->
 <!-- ========================================================================= -->
-<header class="flex justify-between items-center w-full px-4 h-12 z-50 border-b border-outline-variant/30 bg-surface-container-lowest dark:bg-surface-container-lowest sticky top-0">
-<!-- Brand Aperture & Product Title -->
-<div class="flex items-center gap-6">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-primary text-[20px]" style="font-variation-settings: 'FILL' 1;">security</span>
-<span class="text-headline-sm font-headline-sm font-bold tracking-tight text-primary dark:text-primary uppercase flex items-center gap-2">
-          RULECAM <span class="text-on-surface-variant font-normal text-telemetry-sm font-telemetry-sm hidden xl:inline">INDUSTRIAL SAFETY MONITOR</span>
-</span>
+<aside class="fixed left-0 top-0 h-screen w-64 z-40 bg-surface-panel/70 backdrop-blur-2xl border-r border-border-glass shadow-2xl flex flex-col justify-between p-4">
+<!-- Header Segment -->
+<div>
+<div class="flex items-center gap-3 px-3 py-2 mb-6">
+<div class="relative w-8 h-8 rounded-lg bg-surface-elevated border border-border-glass flex items-center justify-center">
+<span class="material-symbols-outlined text-electric-blue" style="font-variation-settings: 'FILL' 1;">view_in_ar</span>
+<span class="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-cantaloupe-orange"></span>
 </div>
-<!-- Live Heartbeat Pill & System UTC -->
-<div class="flex items-center gap-2 px-2 py-0.5 rounded bg-surface-container border border-outline-variant/30">
-<span class="w-2 h-2 rounded-full bg-primary-container status-ping inline-block"></span>
-<span class="text-primary font-telemetry-sm text-telemetry-sm font-bold tracking-wider">LIVE</span>
-<span class="text-outline-variant text-[10px]">|</span>
-<span class="text-on-surface font-telemetry-sm text-telemetry-sm tracking-tight" id="utc-clock">2025-05-18 14:32:08.412 UTC</span>
-</div>
-<!-- Facility Location Context -->
-<div class="hidden lg:flex items-center gap-1.5 px-2 py-0.5 rounded bg-surface-container-low border border-outline-variant/30 text-on-surface-variant font-telemetry-sm text-telemetry-sm">
-<span class="material-symbols-outlined text-secondary text-[16px]">location_on</span>
-<span>SITE: Warehouse Dock A</span>
-<span class="text-secondary font-semibold">[Bay 04 - High Bay Rack Zone]</span>
+<div>
+<div class="font-headline-md text-headline-md font-semibold text-primary tracking-tight leading-none">Rulecam</div>
+<div class="font-label-sm text-label-sm text-telemetry-muted tracking-wider mt-1">V3.1 PROD</div>
 </div>
 </div>
-<!-- Active Navigation Links from JSON Anchor -->
-<nav class="hidden 2xl:flex items-center gap-6 h-full">
-<a class="text-primary dark:text-primary border-b-2 border-primary font-telemetry-md text-telemetry-md py-3 flex items-center gap-1.5" href="#">
-<span class="material-symbols-outlined text-[16px]">videocam</span> Live Feeds
-      </a>
-<a class="text-on-surface-variant dark:text-on-surface-variant font-telemetry-md text-telemetry-md py-3 hover:text-on-surface transition-colors flex items-center gap-1.5" href="#">
-<span class="material-symbols-outlined text-[16px]">table_chart</span> Rule Matrix
-      </a>
-<a class="text-on-surface-variant dark:text-on-surface-variant font-telemetry-md text-telemetry-md py-3 hover:text-on-surface transition-colors flex items-center gap-1.5" href="#">
-<span class="material-symbols-outlined text-[16px]">warning</span> Violation Episodes
-      </a>
-<a class="text-on-surface-variant dark:text-on-surface-variant font-telemetry-md text-telemetry-md py-3 hover:text-on-surface transition-colors flex items-center gap-1.5" href="#">
-<span class="material-symbols-outlined text-[16px]">sensors</span> Telemetry Diagnostics
-      </a>
-<a class="text-on-surface-variant dark:text-on-surface-variant font-telemetry-md text-telemetry-md py-3 hover:text-on-surface transition-colors flex items-center gap-1.5" href="#">
-<span class="material-symbols-outlined text-[16px]">verified</span> Audit Trail
-      </a>
+<!-- Navigation Tabs (5 tabs from JSON) -->
+<nav class="space-y-1">
+<!-- Streams -->
+<a class="text-telemetry-muted hover:text-on-surface px-3 py-2 flex items-center gap-3 transition-colors hover:bg-surface-elevated/40 rounded-lg font-label-md text-label-md" href="#streams">
+<span class="material-symbols-outlined">videocam</span>
+<span>Streams</span>
+</a>
+<!-- Spatial AI (Active context for Live Safety Monitor) -->
+<a class="text-cantaloupe-orange font-medium bg-cantaloupe-orange/10 rounded-lg border-l-2 border-cantaloupe-orange px-3 py-2 flex items-center gap-3 font-label-md text-label-md transition-all duration-200" href="#spatial">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">view_in_ar</span>
+<span>Spatial AI</span>
+</a>
+<!-- Incidents -->
+<a class="text-telemetry-muted hover:text-on-surface px-3 py-2 flex items-center gap-3 transition-colors hover:bg-surface-elevated/40 rounded-lg font-label-md text-label-md" href="#incidents">
+<span class="material-symbols-outlined">warning</span>
+<span>Incidents</span>
+<span class="ml-auto px-1.5 py-0.5 rounded bg-cantaloupe-orange/20 text-cantaloupe-orange font-label-sm text-label-sm">01</span>
+</a>
+<!-- Telemetry -->
+<a class="text-telemetry-muted hover:text-on-surface px-3 py-2 flex items-center gap-3 transition-colors hover:bg-surface-elevated/40 rounded-lg font-label-md text-label-md" href="#telemetry">
+<span class="material-symbols-outlined">speed</span>
+<span>Telemetry</span>
+</a>
+<!-- Audit Log -->
+<a class="text-telemetry-muted hover:text-on-surface px-3 py-2 flex items-center gap-3 transition-colors hover:bg-surface-elevated/40 rounded-lg font-label-md text-label-md" href="#audit">
+<span class="material-symbols-outlined">verified_user</span>
+<span>Audit Log</span>
+</a>
 </nav>
-<!-- Edge AI Relay HUD (Center/Right) -->
-<div class="hidden md:flex items-center gap-3">
-<div class="flex items-center gap-2 px-2.5 py-1 rounded bg-surface-container-low border border-outline-variant/20 font-telemetry-sm text-telemetry-sm">
-<span class="text-outline text-label-caps font-label-caps">RELAY HUD:</span>
-<div class="flex items-center gap-1.5 text-on-surface">
-<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
-<span>Meta Muse Spark 1.3</span>
-<span class="text-secondary font-mono">98.4 FPS</span>
-</div>
-<span class="text-outline-variant text-[10px]">/</span>
-<div class="flex items-center gap-1.5 text-on-surface">
-<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
-<span>SAM 3.1</span>
-<span class="text-primary font-mono">42ms</span>
-</div>
-<span class="text-outline-variant text-[10px]">/</span>
-<div class="flex items-center gap-1.5 text-on-surface">
-<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
-<span>Glimmer Verifier</span>
-<span class="text-secondary font-mono">ACTIVE</span>
+<!-- Calibrate Action Button (CTA from JSON) -->
+<div class="mt-8 px-2">
+<button class="w-full bg-surface-elevated/80 border border-electric-blue/40 text-electric-blue hover:border-electric-blue hover:bloom-electric rounded-xl py-2 px-3 flex items-center justify-center gap-2 font-label-md text-label-md transition-all duration-200 active:scale-95">
+<span class="material-symbols-outlined text-[16px]">tune</span>
+<span>Calibrate</span>
+</button>
 </div>
 </div>
+<!-- Footer Segment -->
+<div class="border-t border-border-glass pt-4 space-y-1">
+<a class="text-telemetry-muted hover:text-on-surface px-3 py-2 flex items-center gap-3 transition-colors hover:bg-surface-elevated/40 rounded-lg font-label-md text-label-md" href="#settings">
+<span class="material-symbols-outlined">tune</span>
+<span>Settings</span>
+</a>
+<a class="text-telemetry-muted hover:text-on-surface px-3 py-2 flex items-center gap-3 transition-colors hover:bg-surface-elevated/40 rounded-lg font-label-md text-label-md" href="#support">
+<span class="material-symbols-outlined">help_outline</span>
+<span>Support</span>
+</a>
+<!-- Operator Mini Profile Pill -->
+<div class="mt-4 p-2.5 rounded-xl bg-surface-elevated/60 border border-border-glass flex items-center gap-3">
+<div class="relative w-8 h-8 rounded-full overflow-hidden border border-white/20">
+<img class="w-full h-full object-cover" data-alt="Autonomous Safety Operator portrait in high-contrast cinematic lighting with slight blue rim flare and serious professional composure against a dark industrial telemetry background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCETEPvXn2gw5Ip2KrMhdsC_IARdRTAQFWvSBt1cRSajLS4kmB6YOktpmkHiE_3rk9oj1uGJqofz3f7Fclr5SM1Zw7H8SIBFBUsL52buZNbcg4bcOF6dJd9c-uAU4fOb9j1a697f8565dEoSR4NcSQrb1VZx2Nc6yScQLRcHfXbDTxg_9byPNHKkCEQksxkN_4-vBl1d9IGcqLIjTkRNHrkHFFdXxQCJo0u8vh1UCcOVuckSfS5vRqKKung8AmQ7yx0Xz-LoexNEUY"/>
+<div class="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-cantaloupe-orange"></div>
 </div>
-<!-- Trailing Actions & Operator Identity -->
+<div class="truncate">
+<div class="font-headline-sm text-[13px] text-on-surface font-semibold truncate leading-tight">M. Vance, Lead Ops</div>
+<div class="font-label-sm text-[10px] text-electric-blue truncate">Operator ID: #9842</div>
+</div>
+</div>
+</div>
+</aside>
+<!-- ========================================================================= -->
+<!-- SHARED COMPONENT: TopNavBar (Docked top bar left-64)                     -->
+<!-- ========================================================================= -->
+<header class="fixed top-0 right-0 left-64 h-16 z-30 bg-surface-panel/80 backdrop-blur-xl border-b border-border-glass shadow-md flex justify-between items-center px-6">
+<div class="flex items-center gap-6">
 <div class="flex items-center gap-3">
-<!-- Interlock Status Warning Indicator -->
-<div class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-error-container/30 border border-error/50 text-error font-telemetry-sm text-telemetry-sm">
-<span class="material-symbols-outlined text-error text-[16px]" style="font-variation-settings: 'FILL' 1;">lock_clock</span>
-<span class="font-bold tracking-wider">INTERLOCK ARMED</span>
+<span class="font-headline-sm text-headline-sm font-bold text-on-surface tracking-wide">Rulecam / Live Safety Cockpit</span>
+<div class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cantaloupe-orange/10 border border-cantaloupe-orange/30 text-cantaloupe-orange font-label-sm text-label-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-cantaloupe-orange animate-live-pip"></span>
+<span>LIVE FEED</span>
 </div>
-<!-- Emergency Trip Button -->
-<button class="px-2.5 py-1 rounded bg-error text-surface-container-lowest font-telemetry-sm text-telemetry-sm font-bold uppercase tracking-wider hover:bg-on-error-container active:scale-95 transition-all flex items-center gap-1 border border-error">
-<span class="material-symbols-outlined text-[16px]">emergency_home</span>
-<span class="hidden sm:inline">Emergency Interlock Trip</span>
+</div>
+<!-- Navigation Links from JSON & Active Selector -->
+<div class="hidden xl:flex items-center gap-6 border-l border-border-glass pl-6 font-label-md text-label-md">
+<a class="text-primary border-b-2 border-primary pb-0.5 font-label-md text-label-md" href="#zone-alpha">Zone Alpha</a>
+<a class="text-telemetry-muted hover:text-on-surface transition-colors font-label-md text-label-md" href="#sam-neural">SAM 3.1 Neural</a>
+<a class="text-telemetry-muted hover:text-on-surface transition-colors font-label-md text-label-md" href="#forensics">Forensics</a>
+</div>
+</div>
+<!-- Neural Model Badges & Trailing Actions -->
+<div class="flex items-center gap-3">
+<!-- Neural Tag Cluster -->
+<div class="hidden lg:flex items-center gap-2">
+<div class="px-2.5 py-1 rounded-full bg-electric-blue/10 border border-electric-blue/20 text-electric-blue font-label-sm text-label-sm flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-electric-blue"></span>
+<span>Meta Muse Spark 1.3 (98.4 FPS)</span>
+</div>
+<div class="px-2.5 py-1 rounded-full bg-electric-blue/10 border border-electric-blue/20 text-electric-blue font-label-sm text-label-sm flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-electric-blue"></span>
+<span>SAM 3.1 (42ms)</span>
+</div>
+<div class="px-2.5 py-1 rounded-full bg-bubblegum-pink/10 border border-bubblegum-pink/30 text-bubblegum-pink font-label-sm text-label-sm flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-bubblegum-pink"></span>
+<span>Glimmer (ACTIVE)</span>
+</div>
+</div>
+<!-- Trailing Action Icons -->
+<div class="flex items-center gap-1 border-l border-border-glass pl-3 text-telemetry-muted">
+<button class="p-2 hover:text-on-surface hover:bg-surface-elevated/40 rounded-lg transition-colors" title="Notifications">
+<span class="material-symbols-outlined">notifications</span>
 </button>
-<!-- Trailing Icon Quick Actions from JSON -->
-<div class="flex items-center gap-1 border-l border-outline-variant/30 pl-2">
-<button class="p-1.5 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors" title="Sensors">
-<span class="material-symbols-outlined text-[18px]">sensors</span>
+<button class="p-2 hover:text-on-surface hover:bg-surface-elevated/40 rounded-lg transition-colors" title="Sensor Array">
+<span class="material-symbols-outlined">sensors</span>
 </button>
-<button class="p-1.5 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors" title="Security Grid">
-<span class="material-symbols-outlined text-[18px]">security</span>
-</button>
-<button class="p-1.5 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors relative" title="Notifications">
-<span class="material-symbols-outlined text-[18px]">notifications</span>
-<span class="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-error"></span>
-</button>
-<button class="p-1.5 rounded hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors" title="Settings">
-<span class="material-symbols-outlined text-[18px]">settings</span>
+<button class="p-2 hover:text-on-surface hover:bg-surface-elevated/40 rounded-lg transition-colors" title="Fullscreen">
+<span class="material-symbols-outlined">fullscreen</span>
 </button>
 </div>
-<!-- Operator Badge / Profile image placeholder -->
-<div class="flex items-center gap-2 border-l border-outline-variant/30 pl-3">
-<div class="text-right hidden sm:block">
-<div class="text-on-surface font-telemetry-sm text-telemetry-sm font-bold leading-none">OP: M. VANCE</div>
-<div class="text-outline font-label-caps text-label-caps leading-none mt-0.5">ID #8841-A</div>
-</div>
-<div class="w-7 h-7 rounded border border-outline-variant/50 overflow-hidden bg-surface-container-high flex items-center justify-center text-primary font-bold font-telemetry-sm text-telemetry-sm">
-          MV
-        </div>
-</div>
+<!-- Emergency Interlock Primary CTA from JSON -->
+<button class="ml-2 bg-cantaloupe-orange hover:bg-cantaloupe-orange/90 text-surface-canvas font-label-md text-label-md font-semibold px-4 py-1.5 rounded-xl flare-cantaloupe flex items-center gap-2 transition-all duration-150 active:scale-95 border border-cantaloupe-orange">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">fmd_bad</span>
+<span>Emergency Stop</span>
+</button>
 </div>
 </header>
 <!-- ========================================================================= -->
-<!-- MAIN WORKSPACE: SIDEBAR + BENTO COCKPIT GRID -->
+<!-- MAIN COCKPIT VIEWPORT (Offset by side nav w-64 and header h-16)           -->
 <!-- ========================================================================= -->
-<div class="flex h-[calc(100vh-3rem)] overflow-hidden">
-<!-- SHARED COMPONENT: SideNavBar (/monitor Viewports) -->
-<aside class="flex flex-col justify-between w-60 h-full border-r border-outline-variant/30 bg-surface-container-low dark:bg-surface-container-low py-3 px-2 z-40 shrink-0 hidden lg:flex">
-<div class="space-y-4">
-<!-- Header Sector Title & Status -->
-<div class="px-2 py-1.5 rounded bg-surface-container-lowest border border-outline-variant/30">
-<div class="flex items-center justify-between">
-<span class="text-label-caps font-label-caps uppercase tracking-wider text-secondary dark:text-secondary">SECTOR 07-W</span>
-<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<main class="ml-64 pt-20 pb-8 px-8 min-h-screen relative z-10 flex flex-col gap-6">
+<!-- Top Editorial Header & Corridor Context -->
+<div class="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-border-glass pb-5">
+<div>
+<div class="flex items-center gap-2 font-label-sm text-label-sm text-telemetry-muted uppercase tracking-wider mb-1">
+<span>Facility Grid 08</span>
+<span class="text-electric-blue">/</span>
+<span class="text-on-surface">Logistics Hub West</span>
+<span class="text-electric-blue">/</span>
+<span class="text-cantaloupe-orange font-semibold">Active Breach Event #8912-A</span>
 </div>
-<div class="text-primary font-telemetry-sm text-telemetry-sm font-semibold mt-0.5">STATUS: NOMINAL</div>
+<h1 class="font-headline-xl text-headline-xl text-on-surface tracking-tight">
+          Verifiable Safety at the Speed of <span class="font-headline-xl italic font-normal text-electric-blue">Vision.</span>
+</h1>
 </div>
-<!-- Navigation Tabs from JSON (Active Item: Visual Viewports) -->
-<nav class="space-y-1">
-<!-- Tab 1: Visual Viewports (ACTIVE) -->
-<a class="flex items-center gap-3 px-3 py-2 bg-surface-container-high border-l-2 border-primary text-primary font-telemetry-sm text-telemetry-sm cursor-pointer rounded-r" href="#">
-<span class="material-symbols-outlined text-[18px]">videocam</span>
-<span>Visual Viewports</span>
-</a>
-<!-- Tab 2: AI Inference HUD -->
-<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-telemetry-sm text-telemetry-sm transition-colors rounded" href="#">
-<span class="material-symbols-outlined text-[18px]">neurology</span>
-<span>AI Inference HUD</span>
-</a>
-<!-- Tab 3: Telemetry Matrix -->
-<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-telemetry-sm text-telemetry-sm transition-colors rounded" href="#">
-<span class="material-symbols-outlined text-[18px]">monitoring</span>
-<span>Telemetry Matrix</span>
-</a>
-<!-- Tab 4: Interlock Controls -->
-<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-telemetry-sm text-telemetry-sm transition-colors rounded" href="#">
-<span class="material-symbols-outlined text-[18px]">lock_clock</span>
-<span>Interlock Controls</span>
-</a>
-<!-- Tab 5: Latency Logs -->
-<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-telemetry-sm text-telemetry-sm transition-colors rounded" href="#">
-<span class="material-symbols-outlined text-[18px]">speed</span>
-<span>Latency Logs</span>
-</a>
-<!-- Tab 6: Audit Ledger -->
-<a class="flex items-center gap-3 px-3 py-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-telemetry-sm text-telemetry-sm transition-colors rounded" href="#">
-<span class="material-symbols-outlined text-[18px]">verified_user</span>
-<span>Audit Ledger</span>
-</a>
-</nav>
-<!-- CTA in side navbar -->
-<div class="px-1 pt-2">
-<button class="w-full py-1.5 px-2 bg-surface-container-high hover:bg-surface-variant text-on-surface border border-outline-variant/40 rounded font-telemetry-sm text-telemetry-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors active:scale-95">
-<span class="material-symbols-outlined text-secondary text-[16px]">check_circle</span>
-            Acknowledge All Alerts
-          </button>
+<div class="flex items-center gap-3">
+<!-- Bay Selector Dropdown Pill -->
+<div class="bg-surface-panel/90 backdrop-blur-md border border-border-glass hover:border-electric-blue/40 px-3.5 py-2 rounded-xl flex items-center gap-3 text-on-surface font-label-md text-label-md transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-electric-blue text-[18px]">location_on</span>
+<span>Site Dock A · Bay 4 [High-Velocity Corridor]</span>
+<span class="material-symbols-outlined text-telemetry-muted text-[16px]">expand_more</span>
+</div>
+<!-- Acknowledge All Button (Secondary trailing action from JSON) -->
+<button class="bg-surface-elevated/70 border border-white/10 hover:border-white/30 text-on-surface hover:text-white px-3.5 py-2 rounded-xl font-label-md text-label-md flex items-center gap-2 transition-all">
+<span class="material-symbols-outlined text-[16px]">done_all</span>
+<span>Acknowledge All</span>
+</button>
 </div>
 </div>
-<!-- SideNav Footer Tabs from JSON -->
-<div class="border-t border-outline-variant/20 pt-3 space-y-1">
-<div class="text-outline font-label-caps text-label-caps px-2 mb-1">SYSTEM UTILITIES</div>
-<a class="flex items-center gap-3 px-3 py-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-telemetry-sm text-telemetry-sm transition-colors rounded" href="#">
-<span class="material-symbols-outlined text-[18px]">build</span>
-<span>Diagnostics</span>
-</a>
-<a class="flex items-center gap-3 px-3 py-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high font-telemetry-sm text-telemetry-sm transition-colors rounded" href="#">
-<span class="material-symbols-outlined text-[18px]">terminal</span>
-<span>System Docs</span>
-</a>
-<div class="px-2 pt-2 text-[10px] text-outline font-telemetry-sm">
-          KERNEL v4.19.22-RT-X86
-        </div>
+<!-- Bento Grid Canvas: 12-Column Responsive Matrix -->
+<div class="grid grid-cols-12 gap-6 items-start">
+<!-- ===================================================================== -->
+<!-- COLUMN 1: Spatial Viewport & Timeline Scrubber (Col-span 8 or 9)      -->
+<!-- ===================================================================== -->
+<section class="col-span-12 xl:col-span-9 flex flex-col gap-6">
+<!-- Spatial Viewport Container -->
+<div class="relative bg-surface-panel/75 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden group">
+<!-- Top HUD Strip -->
+<div class="absolute top-0 inset-x-0 z-20 bg-gradient-to-b from-surface-canvas/90 to-transparent p-4 flex items-center justify-between pointer-events-none">
+<div class="flex items-center gap-3 font-label-sm text-label-sm text-on-surface bg-surface-canvas/70 backdrop-blur-md px-3 py-1.5 rounded-lg border border-border-glass">
+<span class="w-2 h-2 rounded-full bg-cantaloupe-orange animate-pulse"></span>
+<span class="font-semibold text-white">CAM-04 DOCK-A-WEST</span>
+<span class="text-telemetry-muted">·</span>
+<span class="text-telemetry-muted">3840x2160 @ 60 FPS</span>
+<span class="text-telemetry-muted">·</span>
+<span class="text-electric-blue">H.265 / WebRTC 38ms</span>
+<span class="text-telemetry-muted">·</span>
+<span class="text-bubblegum-pink">Optical Flow: LOCKED</span>
+</div>
+<!-- Viewport Controls -->
+<div class="pointer-events-auto flex items-center gap-2">
+<button class="px-2.5 py-1 rounded-lg bg-surface-canvas/80 backdrop-blur-md border border-border-glass hover:border-electric-blue/50 text-telemetry-muted hover:text-on-surface font-label-sm text-label-sm flex items-center gap-1.5 transition-colors">
+<span class="material-symbols-outlined text-[14px]">crop_free</span>
+<span>Focus Reticle</span>
+</button>
+<button class="px-2.5 py-1 rounded-lg bg-surface-canvas/80 backdrop-blur-md border border-border-glass hover:border-electric-blue/50 text-telemetry-muted hover:text-on-surface font-label-sm text-label-sm flex items-center gap-1.5 transition-colors">
+<span class="material-symbols-outlined text-[14px]">pause_circle</span>
+<span>Freeze Frame</span>
+</button>
+<button class="p-1 rounded-lg bg-surface-canvas/80 backdrop-blur-md border border-border-glass hover:border-white/30 text-telemetry-muted hover:text-on-surface transition-colors" title="Expand Viewport">
+<span class="material-symbols-outlined text-[16px]">open_in_full</span>
+</button>
+</div>
+</div>
+<!-- Overhead Warehouse Camera Feed Canvas & Computer Vision HUD -->
+<div class="relative w-full aspect-[16/9] bg-surface-canvas overflow-hidden hud-grid">
+<!-- Background Camera Feed Image -->
+<img class="w-full h-full object-cover opacity-75 filter contrast-125 brightness-90" data-alt="Ultra-crisp overhead high-angle surveillance view of a massive modern distribution warehouse floor with industrial staging bays, vivid yellow safety floor markings, and concrete textures. Dramatic cinematic low-key subterranean lighting casts deep charcoal shadows contrasted with precise neon cyan and amber floodlights. Atmospheric warehouse mist and overhead crane tracks." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4SjwymVZXXr_KGRa727FtAJXogmaMBmtm36kLljOvDFnpM5kIiS3QNmQc8UZXxsjN1zNToHzFggZzEwEF_HUw3CV5yxhBFMtJYJvFApIQ47EyrmnysQL3dj7hbY5tyPGaFMWj5HKlW_bX_FHs0CYgfPx8JdMc33_pOikEP6xLphGOXbuJjBXJ0U3DouKDNS8rdsz7sulfWFqiLWq-D4zAXMcmFig3EpsuELRcpJj_iy0cLnCvYdJam5RofQkdTWiAZPq2Zw1pCvY"/>
+<!-- Real-time Neon SAM 3.1 Neural Segmentation Overlays -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none z-10" preserveaspectratio="none" viewbox="0 0 1280 720">
+<!-- Grid overlay coordinates -->
+<defs>
+<filter height="140%" id="electric-glow" width="140%" x="-20%" y="-20%">
+<fegaussianblur result="blur" stddeviation="6"></fegaussianblur>
+<femerge>
+<femergenode in="blur"></femergenode>
+<femergenode in="SourceGraphic"></femergenode>
+</femerge>
+</filter>
+<filter height="140%" id="hazard-flare" width="140%" x="-20%" y="-20%">
+<fegaussianblur result="blur" stddeviation="8"></fegaussianblur>
+<femerge>
+<femergenode in="blur"></femergenode>
+<femergenode in="SourceGraphic"></femergenode>
+</femerge>
+</filter>
+</defs>
+<!-- Vehicle Boundary Envelope (Electric Blue) around Forklift Toyota 8FBE15U -->
+<polygon fill="rgba(2, 151, 222, 0.12)" filter="url(#electric-glow)" points="340,320 620,290 690,480 390,530" stroke="#0297DE" stroke-dasharray="8 4" stroke-width="2.5"></polygon>
+<!-- Forklift Exclusion Perimeter (Ghost ring) -->
+<ellipse cx="510" cy="420" fill="none" rx="260" ry="170" stroke="rgba(252, 115, 77, 0.35)" stroke-dasharray="4 6" stroke-width="1.5"></ellipse>
+<!-- Pedestrian Hazard Boundary Envelope (Cantaloupe Orange) around Worker -->
+<polygon fill="rgba(252, 115, 77, 0.22)" filter="url(#hazard-flare)" points="760,420 830,410 850,560 780,575" stroke="#FC734D" stroke-width="2.5"></polygon>
+<!-- Vector Line Connecting Worker to Forklift Hull -->
+<line filter="url(#hazard-flare)" stroke="#FC734D" stroke-dasharray="6 4" stroke-width="3" x1="620" x2="760" y1="460" y2="480"></line>
+<!-- Anchor reticles -->
+<circle cx="620" cy="460" fill="#0297DE" r="5"></circle>
+<circle cx="760" cy="480" fill="#FC734D" r="6"></circle>
+</svg>
+<!-- Overlay Card: Forklift Identification Pill -->
+<div class="absolute top-[38%] left-[28%] z-15 bg-surface-canvas/90 backdrop-blur-md border border-electric-blue/40 px-3 py-1.5 rounded-lg shadow-lg">
+<div class="font-label-sm text-[10px] text-electric-blue font-semibold uppercase tracking-wider flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-electric-blue"></span>
+<span>TOYOTA 8FBE15U · FORKLIFT #09</span>
+</div>
+<div class="font-label-sm text-[11px] text-telemetry-muted">Velocity: 2.4 m/s · Heading: 084° SE</div>
+</div>
+<!-- Overlay Card: Worker Pill -->
+<div class="absolute top-[52%] left-[64%] z-15 bg-surface-canvas/90 backdrop-blur-md border border-cantaloupe-orange/50 px-3 py-1.5 rounded-lg shadow-lg">
+<div class="font-label-sm text-[10px] text-cantaloupe-orange font-semibold uppercase tracking-wider flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-cantaloupe-orange animate-ping"></span>
+<span>PEDESTRIAN · WORKER #204</span>
+</div>
+<div class="font-label-sm text-[11px] text-on-surface">PPE Verified: Vest ✓ Helmet ✓</div>
+</div>
+<!-- Center Dynamic Breach Vector Badge -->
+<div class="absolute top-[60%] left-[45%] z-20 -translate-x-1/2 -translate-y-1/2 bg-surface-canvas/95 border-2 border-cantaloupe-orange px-4 py-2 rounded-xl flare-cantaloupe flex items-center gap-3">
+<span class="material-symbols-outlined text-cantaloupe-orange text-[22px]" style="font-variation-settings: 'FILL' 1;">warning</span>
+<div>
+<div class="font-label-lg text-label-lg font-bold text-cantaloupe-orange tracking-tight leading-tight">
+                  1.1m <span class="font-label-sm text-[11px] font-normal text-on-surface/80">[Threshold: 2.0m]</span>
+</div>
+<div class="font-label-sm text-[10px] text-cantaloupe-orange font-semibold tracking-wider uppercase">
+                  ⚠ PROXIMITY HAZARD DETECTED
+                </div>
+</div>
+</div>
+<!-- Viewport Bottom Status Bar -->
+<div class="absolute bottom-0 inset-x-0 z-20 bg-gradient-to-t from-surface-canvas/95 via-surface-canvas/60 to-transparent p-4 flex items-end justify-between">
+<div class="flex items-center gap-4">
+<div class="bg-surface-elevated/80 border border-border-glass px-3 py-1 rounded-md font-label-sm text-label-sm text-telemetry-muted flex items-center gap-2">
+<span class="text-electric-blue font-bold">SEG_ID:</span> 0x889F_CORRIDOR_SAM3
+                </div>
+<div class="bg-surface-elevated/80 border border-border-glass px-3 py-1 rounded-md font-label-sm text-label-sm text-telemetry-muted">
+                  Optical Flow: <span class="text-on-surface font-semibold">Lucas-Kanade Pyramidal</span>
+</div>
+</div>
+<div class="font-label-sm text-label-sm text-cantaloupe-orange bg-cantaloupe-orange/10 px-3 py-1 rounded-md border border-cantaloupe-orange/30">
+                BRAKING INTERLOCK SENT: 0.00s EVENT TIMECODE
+              </div>
+</div>
+</div>
+</div>
+<!-- =================================================================== -->
+<!-- SECTION 3: DECISIVE INCIDENT ANALYSIS & FORENSIC SCRUBBER STRIP   -->
+<!-- =================================================================== -->
+<div class="bg-surface-panel/75 backdrop-blur-2xl border border-white/10 rounded-2xl p-5 shadow-2xl relative">
+<!-- Scrubber Header -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-4 border-b border-border-glass gap-2">
+<div>
+<span class="font-label-sm text-label-sm text-electric-blue uppercase tracking-wider block">Neural Forensics Engine</span>
+<h2 class="font-headline-sm text-headline-sm font-bold text-on-surface tracking-tight">
+                DECISIVE INCIDENT ANALYSIS &amp; FORENSIC SCRUBBER
+              </h2>
+</div>
+<!-- Glimmer Decisive Verdict Badge -->
+<div class="flex items-center gap-3">
+<div class="bg-bubblegum-pink/15 border border-bubblegum-pink/40 px-3.5 py-1.5 rounded-xl glow-bubblegum flex items-center gap-2.5">
+<span class="material-symbols-outlined text-bubblegum-pink text-[18px]" style="font-variation-settings: 'FILL' 1;">gavel</span>
+<div>
+<div class="font-label-sm text-[11px] font-bold text-bubblegum-pink leading-none">DECISIVE VERDICT: CONFIRMED VIOLATION</div>
+<div class="font-label-sm text-[9px] text-on-surface-variant leading-none mt-1">Wilson 95% Confidence Interval: [92.4% - 98.1%]</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Chronological 6-Frame Filmstrip Grid -->
+<div class="relative pt-6 pb-2">
+<!-- Timeline Track Baseline -->
+<div class="absolute top-2 inset-x-4 h-1 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-electric-blue via-bubblegum-pink to-cantaloupe-orange w-full"></div>
+</div>
+<!-- Frame Grid (6 Keyframes) -->
+<div class="grid grid-cols-2 md:grid-cols-6 gap-3 relative z-10">
+<!-- Frame 1: -1.25s -->
+<div class="bg-surface-elevated/80 border border-border-glass hover:border-white/30 rounded-xl p-2 flex flex-col gap-2 transition-all">
+<div class="flex items-center justify-between font-label-sm text-[11px] text-telemetry-muted">
+<span>-1.25s</span>
+<span class="text-electric-blue font-semibold">3.4m</span>
+</div>
+<div class="relative w-full aspect-video rounded-lg overflow-hidden bg-surface-canvas border border-border-glass">
+<img class="w-full h-full object-cover filter contrast-125" data-alt="Warehouse security camera frame timestamp minus 1.25 seconds, showing forklift distant from safety walkway corridor, high contrast surveillance feed in muted blues." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCcc2T46A1CupTAvHnlXI0ZCJsaxAW_xW2qvDXPc0LsJIQrA129Tjz6e_0raQgKNxL25UQIacP03wnf4b-ffPnhTetjmNX8yuLLa4rLMLYV-McsFCouuPWgMlvgCr6i-HgT_2LqP1KFPODj5FFHxxK1TKKK2VYKWFsvIzBs79J1lOMKGb3cMCeAXKWhkzi6mKTZv6o32UpuIFS9ZXvXu9rfwId6srH09k_h2a8iQ2b54Oaeqz5ZIl948g-qRJSxPoRA224W8AYQt-o"/>
+<div class="absolute inset-0 bg-electric-blue/5"></div>
+<span class="absolute bottom-1 right-1 font-label-sm text-[9px] bg-surface-canvas/90 px-1 py-0.5 rounded text-electric-blue">SAFE</span>
+</div>
+<div class="font-label-sm text-[10px] text-telemetry-muted text-center truncate">Clearance nominal</div>
+</div>
+<!-- Frame 2: -1.00s -->
+<div class="bg-surface-elevated/80 border border-border-glass hover:border-white/30 rounded-xl p-2 flex flex-col gap-2 transition-all">
+<div class="flex items-center justify-between font-label-sm text-[11px] text-telemetry-muted">
+<span>-1.00s</span>
+<span class="text-electric-blue font-semibold">2.8m</span>
+</div>
+<div class="relative w-full aspect-video rounded-lg overflow-hidden bg-surface-canvas border border-border-glass">
+<img class="w-full h-full object-cover filter contrast-125" data-alt="Warehouse security camera frame timestamp minus 1.00 seconds, forklift accelerating along transit corridor, operator visible, pedestrian worker entering staging perimeter." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBoSfyNgDRFvzBcFjUw_aeef98wpBXqhFANd_6uI1Nu9qNyIUOXmCmkV2tT_7eLogGo0NS1n6dBlB6wohXuaMI4re6lZpSjEr18Eavw-HMa4f93088Oh01bIPz145ygUfBLbfHCqmpDW2h3KGk0M7Puiwvh8K5iu8Q1pYIeC0WoRCq-mPcseAv_Q_gnHIQ2GJnonnyl4v9LeKxJ9mrUk9k58riFRjDNnRL5ScAEZTiVSxDoUloKH_Lny8si4tB-tXct1IzOrgaMd-Q"/>
+<span class="absolute bottom-1 right-1 font-label-sm text-[9px] bg-surface-canvas/90 px-1 py-0.5 rounded text-electric-blue">SAFE</span>
+</div>
+<div class="font-label-sm text-[10px] text-telemetry-muted text-center truncate">Vector closing</div>
+</div>
+<!-- Frame 3: -0.75s -->
+<div class="bg-surface-elevated/80 border border-border-glass hover:border-white/30 rounded-xl p-2 flex flex-col gap-2 transition-all">
+<div class="flex items-center justify-between font-label-sm text-[11px] text-telemetry-muted">
+<span>-0.75s</span>
+<span class="text-bubblegum-pink font-semibold">2.3m</span>
+</div>
+<div class="relative w-full aspect-video rounded-lg overflow-hidden bg-surface-canvas border border-border-glass">
+<img class="w-full h-full object-cover filter contrast-125" data-alt="Warehouse security camera frame timestamp minus 0.75 seconds, pedestrian worker stepping onto edge of yellow floor marker near forklift path." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8qtxiPFpnlD4fQzWn-wFYd6PZFmz9Ap5viCXW-eoYT1FxbhdxofEURrJbojeZ4gKCAShJld9Di7gHjBXTRwmlsj2UziouTHBgdWvnbtDG0Q-6JSNTU_FZ93eS7c2is182cA9IjqWPfy_2TDlkHeCInEmxLhW60gtryiF8GevluBlOkCVzGmCX0vc2TpPrJmpdn834waScSvkKX88uGPqNebekuE_5WhI7DvKmXwEhHKnpFBi9JNjZdWj0zy7tnMhZiaLgaCgP7-U"/>
+<span class="absolute bottom-1 right-1 font-label-sm text-[9px] bg-surface-canvas/90 px-1 py-0.5 rounded text-bubblegum-pink">CAUTION</span>
+</div>
+<div class="font-label-sm text-[10px] text-telemetry-muted text-center truncate">Near threshold</div>
+</div>
+<!-- Frame 4: -0.50s -->
+<div class="bg-surface-elevated/80 border border-cantaloupe-orange/40 rounded-xl p-2 flex flex-col gap-2 transition-all">
+<div class="flex items-center justify-between font-label-sm text-[11px] text-cantaloupe-orange">
+<span>-0.50s</span>
+<span class="font-bold">1.6m ⚠</span>
+</div>
+<div class="relative w-full aspect-video rounded-lg overflow-hidden bg-surface-canvas border border-cantaloupe-orange/30">
+<img class="w-full h-full object-cover filter contrast-125" data-alt="Warehouse security camera frame timestamp minus 0.50 seconds, worker in high visibility safety vest inside forklift braking safety arc envelope." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCrhzwiJxqiva1qNN5ICpYwnKJEwqOS_7jzjT2INmRlUtExWgdNKTrI8_xhafPg2PnqCVmSJ7F5Ie7N_8JMnjWWEc5x81mM4mQ4dwb-ww6JuleDR0ElflwQCqKsr0isv7SA_hioC04LFSD7sS64YWaR9q3pRGrRB85bUirh4OzBRVNUnABfc67v_ZEnROKsZkvnG7jF7xOXAVrRe4oVPnj7QVfl4Pet8a_LaPYbvA5-wX0wCUcMbc3SbIDgNPYWCE21QaL6VmpkeTs"/>
+<div class="absolute inset-0 bg-cantaloupe-orange/10"></div>
+<span class="absolute bottom-1 right-1 font-label-sm text-[9px] bg-cantaloupe-orange text-surface-canvas px-1 py-0.5 rounded font-bold">BREACH</span>
+</div>
+<div class="font-label-sm text-[10px] text-cantaloupe-orange text-center truncate">Envelope breached</div>
+</div>
+<!-- Frame 5: -0.25s -->
+<div class="bg-surface-elevated/80 border border-cantaloupe-orange/60 rounded-xl p-2 flex flex-col gap-2 transition-all">
+<div class="flex items-center justify-between font-label-sm text-[11px] text-cantaloupe-orange">
+<span>-0.25s</span>
+<span class="font-bold">1.3m ⚠</span>
+</div>
+<div class="relative w-full aspect-video rounded-lg overflow-hidden bg-surface-canvas border border-cantaloupe-orange/50">
+<img class="w-full h-full object-cover filter contrast-125" data-alt="Warehouse security camera frame timestamp minus 0.25 seconds, forklift hydraulic mast and worker separated by narrow gap, computer vision tracking bounding boxes." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAinNr3NgOEu69j25pA9aznj_DZn4FpkTJpDNR7aAa_y0tCprTAaPRgyGPiczNNR8WeWo2JK7442OCeern1ad5CcC5FCTKF-dgbpzi37gAP7rxP5FZ9wz3urLxCHtXvvRU6hWSmeu9VIqzZYdcnGOQuZ11oX2H2FPQZJEsllEKcOqZa-XSb5BqcTptCLgFz161YU8FZSs3JVEcB3DwlsEn-L2EQBQSAFKFCCjx-s15rfQQmapLMaWfGpr_ck8VRiRW03lmux-GYDhc"/>
+<div class="absolute inset-0 bg-cantaloupe-orange/15"></div>
+<span class="absolute bottom-1 right-1 font-label-sm text-[9px] bg-cantaloupe-orange text-surface-canvas px-1 py-0.5 rounded font-bold">RELAY ARMED</span>
+</div>
+<div class="font-label-sm text-[10px] text-cantaloupe-orange text-center truncate">Deceleration cmd</div>
+</div>
+<!-- Frame 6: 0.00s (CURRENT ACTIVE BREACH POINT) -->
+<div class="relative bg-surface-elevated border-2 border-cantaloupe-orange rounded-xl p-2 flex flex-col gap-2 flare-cantaloupe">
+<!-- Glowing Scrubber Needle Indicator Anchored on top -->
+<div class="absolute -top-5 left-1/2 -translate-x-1/2 flex flex-col items-center">
+<span class="material-symbols-outlined text-cantaloupe-orange text-[16px]">arrow_drop_down</span>
+<div class="w-1.5 h-1.5 rounded-full bg-cantaloupe-orange"></div>
+</div>
+<div class="flex items-center justify-between font-label-sm text-[11px] text-cantaloupe-orange font-bold">
+<span>0.00s NOW</span>
+<span class="bg-cantaloupe-orange text-surface-canvas px-1.5 py-0.2 rounded text-[10px]">1.1m BREACH</span>
+</div>
+<div class="relative w-full aspect-video rounded-lg overflow-hidden bg-surface-canvas border border-cantaloupe-orange">
+<img class="w-full h-full object-cover filter contrast-150" data-alt="Warehouse security camera frame at exact moment of safety violation timestamp zero seconds, extreme close proximity between yellow forklift truck and pedestrian worker with neon orange bounding boxes." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB6CEnP_NzzPW5k-nhMzZ3MsBcrJlo5s6-TNKzrhI_YDVKV8lYnyl_XOuo8KDEEcMaU_H_S-1O5GssXDomaqT_oMBVXXUCR1vpesFTVe7q1giAspyW8HhW8Qs15NlnRi2n23PxijulG1PenEbP87D0x_qwd5_yP4nQoX2ajB16M36RHC6M-H47LcQNK0nRYs7x-cGkVHbfSXpwavwmbGti4DwqZMX-3aVpjevBBC5QyIqHyD0aLTeOFfWUsl8D4ips0JC6EdY4DnH4"/>
+<div class="absolute inset-0 bg-cantaloupe-orange/25"></div>
+<span class="absolute bottom-1 right-1 font-label-sm text-[9px] bg-cantaloupe-orange text-surface-canvas px-1 py-0.5 rounded font-bold">HARD TRIP</span>
+</div>
+<div class="font-label-sm text-[10px] text-cantaloupe-orange font-bold text-center truncate">INTERLOCK ACTIVE</div>
+</div>
+</div>
+</div>
+<!-- Bottom Timecode Telemetry Scrubbing Tooling -->
+<div class="flex flex-col sm:flex-row sm:items-center justify-between mt-3 pt-3 border-t border-border-glass font-label-sm text-label-sm text-telemetry-muted gap-2">
+<div class="flex items-center gap-4">
+<span>Timecode: <span class="text-on-surface font-semibold">14:28:49.812 UTC</span></span>
+<span>Episodic Frame: <span class="text-on-surface font-semibold">#149,820</span></span>
+<span class="text-electric-blue">Glimmer Vector: &lt;Δd/Δt = -1.82 m/s²&gt;</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="hover:text-white transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">replay_10</span>
+<span>-10s</span>
+</button>
+<button class="hover:text-white transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">play_arrow</span>
+<span>Play Loop</span>
+</button>
+<button class="hover:text-white transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">forward_10</span>
+<span>+10s</span>
+</button>
+<button class="text-cantaloupe-orange hover:text-white transition-colors ml-2 flex items-center gap-1 font-semibold">
+<span class="material-symbols-outlined text-[14px]">download</span>
+<span>Export TAR.GZ Envelope</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- ===================================================================== -->
+<!-- COLUMN 2: Telemetry, Gauge & Cryptographic Audit Column (Col-span 3) -->
+<!-- ===================================================================== -->
+<aside class="col-span-12 xl:col-span-3 flex flex-col gap-6">
+<!-- Card 1: Radial Hazard Risk Dial -->
+<div class="bg-surface-panel/75 backdrop-blur-2xl border border-white/10 rounded-2xl p-6 shadow-2xl relative overflow-hidden flex flex-col items-center">
+<div class="w-full flex items-center justify-between mb-4">
+<span class="font-label-sm text-label-sm text-telemetry-muted uppercase tracking-wider">Dynamic Risk Metric</span>
+<span class="px-2 py-0.5 rounded bg-cantaloupe-orange/20 text-cantaloupe-orange font-label-sm text-[10px] font-bold">SEVERITY 4</span>
+</div>
+<!-- Circular SVG Radial Gauge -->
+<div class="relative w-48 h-48 flex items-center justify-center my-2">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 160 160">
+<!-- Background Ring -->
+<circle cx="80" cy="80" fill="none" r="68" stroke="#0B1924" stroke-width="12"></circle>
+<!-- Electric Blue Nominal Segment -->
+<circle cx="80" cy="80" fill="none" opacity="0.3" r="68" stroke="#0297DE" stroke-dasharray="427" stroke-dashoffset="260" stroke-linecap="round" stroke-width="12"></circle>
+<!-- Bubblegum Pink & Cantaloupe Arc (Breach Value: 92/100) -->
+<circle cx="80" cy="80" fill="none" r="68" stroke="url(#riskGradient)" stroke-dasharray="427" stroke-dashoffset="50" stroke-linecap="round" stroke-width="12" style="filter: drop-shadow(0 0 8px rgba(253, 145, 204, 0.45));"></circle>
+<defs>
+<lineargradient id="riskGradient" x1="0%" x2="100%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#FD91CC"></stop>
+<stop offset="100%" stop-color="#FC734D"></stop>
+</lineargradient>
+</defs>
+</svg>
+<!-- Center Metric Readout -->
+<div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+<span class="font-label-lg text-4xl font-extrabold text-on-surface tracking-tighter">92</span>
+<span class="font-headline-sm italic text-[14px] text-bubblegum-pink -mt-1 font-normal">Index Critical</span>
+<span class="font-label-sm text-[10px] text-telemetry-muted mt-1 uppercase tracking-wider">Scale 0 - 100</span>
+</div>
+</div>
+<div class="text-center mt-2">
+<div class="font-headline-sm text-headline-sm text-on-surface font-semibold">Proximity Risk Index</div>
+<p class="font-body-sm text-body-sm text-telemetry-muted mt-1 max-w-[220px]">
+              Calculated via real-time spatial vectors, vehicle momentum, and human reaction bounds.
+            </p>
+</div>
+</div>
+<!-- Card 2: Active Safety Enforcement Rule -->
+<div class="bg-surface-panel/75 backdrop-blur-2xl border border-white/10 rounded-2xl p-5 shadow-2xl relative">
+<div class="flex items-center justify-between pb-3 border-b border-border-glass">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-cantaloupe-orange text-[18px]">verified</span>
+<span class="font-label-sm text-label-sm text-telemetry-muted uppercase">Active Rule Definition</span>
+</div>
+<span class="font-label-sm text-[10px] text-electric-blue">SHA-E92A</span>
+</div>
+<div class="mt-3">
+<div class="font-label-md text-label-md font-bold text-on-surface">RULE-WH-049</div>
+<div class="font-body-md text-body-md text-on-surface-variant mt-1 leading-snug">
+              Forklift Exclusion Envelope (Strict Enforcement, 2.0m Radius).
+            </div>
+</div>
+<div class="mt-4 p-3 rounded-xl bg-surface-canvas/60 border border-border-glass space-y-2">
+<div class="flex justify-between font-label-sm text-[11px]">
+<span class="text-telemetry-muted">Configured Threshold:</span>
+<span class="text-on-surface font-semibold">2.00 meters</span>
+</div>
+<div class="flex justify-between font-label-sm text-[11px]">
+<span class="text-telemetry-muted">Observed Incursion:</span>
+<span class="text-cantaloupe-orange font-bold">1.14 meters (-43%)</span>
+</div>
+<div class="flex justify-between font-label-sm text-[11px]">
+<span class="text-telemetry-muted">Velocity Multiplier:</span>
+<span class="text-bubblegum-pink font-semibold">1.48x [High Dynamic]</span>
+</div>
+</div>
+</div>
+<!-- Card 3: Edge Latency Matrix -->
+<div class="bg-surface-panel/75 backdrop-blur-2xl border border-white/10 rounded-2xl p-5 shadow-2xl relative">
+<div class="flex items-center justify-between pb-3 border-b border-border-glass">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-electric-blue text-[18px]">bolt</span>
+<span class="font-label-sm text-label-sm text-telemetry-muted uppercase">Edge Latency Matrix</span>
+</div>
+<span class="font-label-sm text-[10px] text-electric-blue font-bold">TOTAL: 160.4ms</span>
+</div>
+<div class="mt-4 space-y-3">
+<!-- SAM 3.1 Inference -->
+<div>
+<div class="flex justify-between font-label-sm text-[11px] mb-1">
+<span class="text-on-surface font-semibold">SAM 3.1 Neural Seg</span>
+<span class="text-electric-blue font-bold">42.0 ms</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-electric-blue rounded-full w-[26%]"></div>
+</div>
+</div>
+<!-- Glimmer Verifier -->
+<div>
+<div class="flex justify-between font-label-sm text-[11px] mb-1">
+<span class="text-on-surface font-semibold">Glimmer Formal Verifier</span>
+<span class="text-bubblegum-pink font-bold">110.0 ms</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-bubblegum-pink rounded-full w-[68%]"></div>
+</div>
+</div>
+<!-- Hardware Relay Interlock -->
+<div>
+<div class="flex justify-between font-label-sm text-[11px] mb-1">
+<span class="text-on-surface font-semibold">Hardware Relay Interlock</span>
+<span class="text-cantaloupe-orange font-bold">8.4 ms</span>
+</div>
+<div class="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-cantaloupe-orange rounded-full w-[6%]"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Card 4: Interlock Actuation & Cryptographic Attestation -->
+<div class="bg-surface-panel/75 backdrop-blur-2xl border border-white/10 rounded-2xl p-5 shadow-2xl relative space-y-4">
+<!-- Solenoid Interlock Relay Trigger -->
+<div class="p-3.5 rounded-xl bg-cantaloupe-orange/15 border border-cantaloupe-orange/40 flare-cantaloupe">
+<div class="flex items-center gap-2 text-cantaloupe-orange font-label-sm text-label-sm font-bold">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">power_settings_new</span>
+<span>SOLENOID INTERLOCK STATUS</span>
+</div>
+<div class="font-label-md text-label-md font-extrabold text-white mt-1">
+              INTERLOCK TRIPPED
+            </div>
+<div class="font-label-sm text-[11px] text-on-surface-variant mt-0.5">
+              Relay #04B Hard-Latched · Motor Inverter Cut
+            </div>
+</div>
+<!-- Cryptographic Audit Attestation Badge -->
+<div class="p-3.5 rounded-xl bg-surface-canvas/70 border border-border-glass space-y-2">
+<div class="flex items-center gap-2 text-primary font-label-sm text-label-sm font-semibold">
+<span class="material-symbols-outlined text-primary text-[18px]">verified_user</span>
+<span>Cryptographic Audit Attestation</span>
+</div>
+<p class="font-label-sm text-[11px] text-telemetry-muted leading-relaxed font-mono">
+              ✓ SHA-256 Chain Intact · 35 Blocks Sealed · Unbroken Ledger Root: <span class="text-on-surface">9f2e...01c4</span>
+</p>
+<div class="pt-1 flex items-center justify-between text-[10px] font-label-sm text-telemetry-muted">
+<span>Timestamp Signed: 14:28:49Z</span>
+<span class="text-electric-blue hover:underline cursor-pointer">Verify Signature →</span>
+</div>
+</div>
 </div>
 </aside>
-<!-- CENTER & RIGHT DASHBOARD CANVAS: BENTO GRID -->
-<main class="flex-1 grid grid-cols-1 2xl:grid-cols-12 gap-3 p-3 overflow-y-auto bg-surface-container-lowest">
-<!-- ========================================================================= -->
-<!-- CENTER VIEWPORT & INCIDENT CONSOLE (8 Columns on 2xl) -->
-<!-- ========================================================================= -->
-<section class="2xl:col-span-8 flex flex-col gap-3 min-w-0">
-<!-- SECTION 2: MAIN VIEWPORT & CAMERA FEED (Dock A, Cam-04 4K RTSP) -->
-<div class="relative w-full rounded bg-surface-container-lowest border border-outline-variant/40 overflow-hidden flex flex-col shadow-2xl">
-<!-- Tactical HUD Top Banner on Feed -->
-<div class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-3 py-2 bg-gradient-to-b from-surface-container-lowest/95 to-transparent">
-<!-- Camera Identity & Technical Codec specs -->
-<div class="flex items-center gap-3">
-<span class="px-2 py-0.5 rounded bg-surface-container-highest border border-outline-variant/50 text-secondary font-telemetry-sm text-telemetry-sm font-bold tracking-wider">
-                CAM-04 DOCK-A-WEST
-              </span>
-<span class="text-on-surface-variant font-telemetry-sm text-telemetry-sm hidden sm:inline">
-                3840x2160 @ 60 FPS · H.265 / WebRTC Sub-100ms
-              </span>
-<span class="px-1.5 py-0.5 rounded bg-primary-container/20 text-primary border border-primary/30 font-telemetry-sm text-telemetry-sm">
-                Optical Flow: ACTIVE
-              </span>
 </div>
-<!-- Recording Status & Zoom -->
-<div class="flex items-center gap-3">
-<div class="flex items-center gap-1.5 text-error font-telemetry-sm text-telemetry-sm font-bold bg-error-container/30 px-2 py-0.5 rounded border border-error/40">
-<span class="w-2 h-2 rounded-full bg-error animate-ping"></span>
-<span>REC [●] 04:18:22:19</span>
-</div>
-<span class="text-on-surface font-telemetry-sm text-telemetry-sm bg-surface-container-high px-1.5 py-0.5 rounded border border-outline-variant/30">
-                1.0x
-              </span>
-</div>
-</div>
-<!-- Pulsing Critical Proximity Breach Alert Ribbon -->
-<div class="absolute top-11 left-4 right-4 z-30 flex items-center justify-between px-4 py-2 rounded bg-error-container/85 border border-error hud-breach-pulse text-on-error backdrop-blur-md">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-error text-[20px]" style="font-variation-settings: 'FILL' 1;">warning</span>
-<span class="font-telemetry-md text-telemetry-md font-bold tracking-tight text-white">
-                CRITICAL BREACH: PEDESTRIAN INSIDE FORKLIFT EXCLUSION ENVELOPE (1.1m &lt; 2.0m)
-              </span>
-</div>
-<div class="flex items-center gap-2 text-telemetry-sm font-telemetry-sm">
-<span class="px-1.5 py-0.5 rounded bg-error text-surface-container-lowest font-bold">RELAY #04B TRIP</span>
-<span class="hidden md:inline text-on-error-container">Auto-Interlock Latency: 8.4ms</span>
-</div>
-</div>
-<!-- VIDEO FEED SIMULATION & REALISTIC INDUSTRIAL COMPOSITION -->
-<div class="relative w-full aspect-[16/9] min-h-[380px] max-h-[540px] bg-slate-950 scanlines overflow-hidden flex items-center justify-center">
-<!-- Background Image with detailed visual context prompt -->
-<img alt="Rulecam Industrial CCTV Viewport - Warehouse Dock A" class="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity filter contrast-125 brightness-90" data-alt="An expansive industrial logistics warehouse loading dock viewed from a high-angle 4K CCTV camera angle. Steel high-bay shelving racks stretch into the background illuminated by cold overhead industrial strip lamps. On the concrete floor, high-visibility yellow pedestrian walkway boundary lines are marked alongside an electric yellow forklift in motion. The atmosphere is stark, dark obsidian and deep slate, with realistic shadows and crisp architectural details." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8SOkleNk0AWfylrpk1McgCMXtfOyExNQ0MM0wA1oHz0YY_ewS2BJM7jgL-hnaB_ysut3X3BmABxYupnl1d-sEDwNYuzExJz1aoDjAryoAq13WmYRdJoXoAUoDVWZoG6M9VL2qk2T-kj95KLL1F4vSCdhD6h9r2dgVVfYZlMbEVdTLvoIPQVkJrUeRkAcdItq98K8ZND0jY7t8EuvC1qyn5th40mk1l2-ioiYhuALIPBg_J7PCwfWwn-bizxIDvtDswSsSCUpGNw4"/>
-<!-- SVG SAM 3.1 REAL-TIME SEGMENTATION & 3D VECTOR DISTANCE OVERLAY -->
-<svg class="absolute inset-0 w-full h-full pointer-events-none z-20" preserveaspectratio="none" viewbox="0 0 1000 562">
-<!-- Grid Reticle Overlay -->
-<defs>
-<pattern height="40" id="tacticalGrid" patternunits="userSpaceOnUse" width="40">
-<path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(76, 215, 246, 0.08)" stroke-width="0.8"></path>
-</pattern>
-<!-- Vector Arrow Marker -->
-<marker id="arrow" markerheight="6" markerwidth="6" orient="auto-start-reverse" refx="5" refy="5" viewbox="0 0 10 10">
-<path d="M 0 1 L 9 5 L 0 9 z" fill="#ef4444"></path>
-</marker>
-</defs>
-<rect fill="url(#tacticalGrid)" height="100%" width="100%"></rect>
-<!-- Crosshair Center Reticle -->
-<circle cx="500" cy="281" fill="none" r="18" stroke="rgba(223, 226, 239, 0.2)" stroke-width="1"></circle>
-<line stroke="rgba(223, 226, 239, 0.25)" stroke-width="1" x1="500" x2="500" y1="250" y2="312"></line>
-<line stroke="rgba(223, 226, 239, 0.25)" stroke-width="1" x1="468" x2="532" y1="281" y2="281"></line>
-<!-- 1. VEHICLE BOUNDING ENVELOPE: Moving Forklift OBJ_VEH_019 -->
-<!-- SAM 3.1 Segment Polygon mask -->
-<polygon fill="rgba(6, 182, 212, 0.08)" points="210,230 460,210 490,440 230,470" stroke="#4cd7f6" stroke-dasharray="4,2" stroke-width="1.8"></polygon>
-<!-- Bounding Box Brackets -->
-<path d="M 200,220 L 220,220 M 200,220 L 200,240" fill="none" stroke="#4cd7f6" stroke-width="2.5"></path>
-<path d="M 500,220 L 480,220 M 500,220 L 500,240" fill="none" stroke="#4cd7f6" stroke-width="2.5"></path>
-<path d="M 200,480 L 220,480 M 200,480 L 200,460" fill="none" stroke="#4cd7f6" stroke-width="2.5"></path>
-<path d="M 500,480 L 480,480 M 500,480 L 500,460" fill="none" stroke="#4cd7f6" stroke-width="2.5"></path>
-<!-- Forklift Forward Dynamic Safety Envelope / Exclusion Cone -->
-<polygon fill="rgba(239, 68, 68, 0.12)" points="460,210 630,225 610,430 490,440" stroke="#ef4444" stroke-dasharray="6,4" stroke-width="1.2"></polygon>
-<!-- 2. PEDESTRIAN BOUNDING ENVELOPE: J. Miller OBJ_PED_042 -->
-<polygon fill="rgba(239, 68, 68, 0.16)" points="570,220 645,215 650,395 565,395" stroke="#ef4444" stroke-width="2"></polygon>
-<!-- Pedestrian Bracket Corners -->
-<path d="M 560,210 L 575,210 M 560,210 L 560,225" fill="none" stroke="#ef4444" stroke-width="2.5"></path>
-<path d="M 655,210 L 640,210 M 655,210 L 655,225" fill="none" stroke="#ef4444" stroke-width="2.5"></path>
-<path d="M 560,405 L 575,405 M 560,405 L 560,390" fill="none" stroke="#ef4444" stroke-width="2.5"></path>
-<path d="M 655,405 L 640,405 M 655,405 L 655,390" fill="none" stroke="#ef4444" stroke-width="2.5"></path>
-<!-- 3. DYNAMIC 3D VECTOR DISTANCE LINE: Forklift Chassis to Worker -->
-<line filter="drop-shadow(0 0 6px rgba(239,68,68,0.8))" marker-end="url(#arrow)" marker-start="url(#arrow)" stroke="#ef4444" stroke-dasharray="5,3" stroke-width="2.8" x1="475" x2="570" y1="325" y2="310"></line>
-<!-- Distance Node Spheres -->
-<circle cx="475" cy="325" fill="#ef4444" r="4"></circle>
-<circle cx="570" cy="310" fill="#ef4444" r="4"></circle>
-</svg>
-<!-- VECTOR ANNOTATION BADGE 1: FORKLIFT -->
-<div class="absolute left-[20%] top-[34%] z-30 pointer-events-none transform -translate-y-full">
-<div class="bg-surface-container-lowest/90 border border-secondary text-on-surface px-2 py-1 rounded shadow-lg backdrop-blur text-[11px] font-telemetry-sm leading-tight">
-<div class="text-secondary font-bold flex items-center gap-1">
-<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
-                  OBJ_VEH_019 [Toyota 8FBE15U Forklift]
-                </div>
-<div class="text-on-surface-variant text-[10px] mt-0.5">
-                  VEL: 4.2 km/h · HDG: 042° · MAST: +1.4m · CONF: 0.99
-                </div>
-</div>
-</div>
-<!-- VECTOR ANNOTATION BADGE 2: WORKER -->
-<div class="absolute left-[58%] top-[33%] z-30 pointer-events-none transform -translate-y-full">
-<div class="bg-surface-container-lowest/90 border border-error text-on-surface px-2 py-1 rounded shadow-lg backdrop-blur text-[11px] font-telemetry-sm leading-tight">
-<div class="text-error font-bold flex items-center gap-1">
-<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
-                  OBJ_PED_042 [Worker: J. Miller]
-                </div>
-<div class="text-on-surface-variant text-[10px] mt-0.5">
-                  PPE: Hi-Vis Vest Detected [OK] · CONF: 0.982
-                </div>
-</div>
-</div>
-<!-- PROXIMITY VECTOR DISTANCE CHIP (FLOATING OVER LINE) -->
-<div class="absolute left-[52%] top-[55%] z-30 pointer-events-none transform -translate-x-1/2 -translate-y-1/2">
-<div class="px-2.5 py-1 rounded bg-surface-container-lowest border-2 border-error text-white font-telemetry-sm text-telemetry-sm font-bold shadow-xl flex items-center gap-1.5 backdrop-blur-md">
-<span class="material-symbols-outlined text-error text-[16px]">distance</span>
-<span class="text-error tracking-tight">1.1m</span>
-<span class="text-outline text-[10px]">(Threshold: 2.0m)</span>
-<span class="px-1 py-0.2 bg-error text-surface-container-lowest text-[9px] rounded font-bold uppercase">⚠ PROXIMITY VIOLATION</span>
-</div>
-</div>
-<!-- Camera Controls & PTZ Overlay (Bottom Left & Right) -->
-<div class="absolute bottom-2 left-3 z-30 flex items-center gap-2">
-<div class="bg-surface-container-lowest/80 border border-outline-variant/40 px-2 py-0.5 rounded text-on-surface-variant font-telemetry-sm text-telemetry-sm flex items-center gap-3">
-<span>RTSP://edge-gateway-dock-04:8554/live</span>
-<span class="text-primary">E2E: 38ms</span>
-</div>
-</div>
-<div class="absolute bottom-2 right-3 z-30 flex items-center gap-1.5">
-<button class="px-2 py-1 bg-surface-container-high/80 hover:bg-surface-container-highest border border-outline-variant/40 text-on-surface rounded text-telemetry-sm font-telemetry-sm flex items-center gap-1 transition-colors">
-<span class="material-symbols-outlined text-[14px]">crop_free</span> Focus Reticle
-              </button>
-<button class="px-2 py-1 bg-surface-container-high/80 hover:bg-surface-container-highest border border-outline-variant/40 text-on-surface rounded text-telemetry-sm font-telemetry-sm flex items-center gap-1 transition-colors">
-<span class="material-symbols-outlined text-[14px]">fullscreen</span> Expand HUD
-              </button>
-</div>
-</div>
-</div>
-<!-- ========================================================================= -->
-<!-- SECTION 3: BOTTOM INCIDENT VERIFICATION PANEL (/monitor Timeline & Trace) -->
-<!-- ========================================================================= -->
-<div class="w-full rounded bg-surface-container-low border border-outline-variant/30 p-3 space-y-3">
-<!-- Panel Header Banner -->
-<div class="flex items-center justify-between border-b border-outline-variant/20 pb-2">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-secondary text-[20px]">history_toggle_off</span>
-<h2 class="text-headline-sm font-headline-sm font-bold text-on-surface tracking-tight">
-                DECISIVE INCIDENT ANALYSIS &amp; VERIFICATION TIMELINE
-              </h2>
-<span class="px-2 py-0.5 rounded bg-surface-container-highest border border-outline-variant/50 text-secondary font-telemetry-sm text-telemetry-sm font-bold">
-                EPISODE #EP-2025-0914
-              </span>
-</div>
-<div class="flex items-center gap-2">
-<span class="text-outline font-telemetry-sm text-telemetry-sm">Temporal Sync: 250ms interval</span>
-<button class="px-2 py-1 rounded bg-surface-container-high hover:bg-surface-variant text-on-surface text-telemetry-sm font-telemetry-sm flex items-center gap-1 border border-outline-variant/30 transition-colors">
-<span class="material-symbols-outlined text-[14px]">download</span> Export Telemetry (.csv)
-              </button>
-</div>
-</div>
-<!-- 6-FRAME CHRONOLOGICAL EPISODE STRIP -->
-<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-<!-- Frame -5 -->
-<div class="rounded bg-surface-container-lowest border border-outline-variant/30 p-2 flex flex-col justify-between hover:border-outline-variant transition-colors">
-<div class="flex items-center justify-between text-telemetry-sm font-telemetry-sm text-outline mb-1">
-<span>Frame -5</span>
-<span class="text-on-surface-variant">t - 1.25s</span>
-</div>
-<div class="h-14 bg-surface-container rounded mb-2 relative overflow-hidden flex items-center justify-center border border-outline-variant/20">
-<span class="text-[10px] text-outline font-telemetry-sm">3.4m Clearance</span>
-<div class="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-primary-container"></div>
-</div>
-<div class="text-[10px] text-on-surface-variant font-telemetry-sm leading-tight">
-                Forklift enters aisle (3.4m distance - <span class="text-primary font-semibold">Nominal</span>)
-              </div>
-</div>
-<!-- Frame -4 -->
-<div class="rounded bg-surface-container-lowest border border-outline-variant/30 p-2 flex flex-col justify-between hover:border-outline-variant transition-colors">
-<div class="flex items-center justify-between text-telemetry-sm font-telemetry-sm text-outline mb-1">
-<span>Frame -4</span>
-<span class="text-on-surface-variant">t - 1.00s</span>
-</div>
-<div class="h-14 bg-surface-container rounded mb-2 relative overflow-hidden flex items-center justify-center border border-outline-variant/20">
-<span class="text-[10px] text-outline font-telemetry-sm">2.8m Clearance</span>
-<div class="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-primary-container"></div>
-</div>
-<div class="text-[10px] text-on-surface-variant font-telemetry-sm leading-tight">
-                Pedestrian exits rack blindspot (2.8m - <span class="text-primary font-semibold">Nominal</span>)
-              </div>
-</div>
-<!-- Frame -3 -->
-<div class="rounded bg-surface-container-lowest border border-outline-variant/30 p-2 flex flex-col justify-between hover:border-outline-variant transition-colors">
-<div class="flex items-center justify-between text-telemetry-sm font-telemetry-sm text-outline mb-1">
-<span>Frame -3</span>
-<span class="text-on-surface-variant">t - 0.75s</span>
-</div>
-<div class="h-14 bg-surface-container rounded mb-2 relative overflow-hidden flex items-center justify-center border border-outline-variant/20">
-<span class="text-[10px] text-tertiary font-telemetry-sm">2.3m Closing</span>
-<div class="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-tertiary"></div>
-</div>
-<div class="text-[10px] text-on-surface-variant font-telemetry-sm leading-tight">
-                Vehicle maintains speed (2.3m - <span class="text-tertiary font-semibold">Advisory Warning</span>)
-              </div>
-</div>
-<!-- Frame -2 -->
-<div class="rounded bg-surface-container-lowest border border-outline-variant/30 p-2 flex flex-col justify-between hover:border-outline-variant transition-colors">
-<div class="flex items-center justify-between text-telemetry-sm font-telemetry-sm text-outline mb-1">
-<span>Frame -2</span>
-<span class="text-on-surface-variant">t - 0.50s</span>
-</div>
-<div class="h-14 bg-surface-container rounded mb-2 relative overflow-hidden flex items-center justify-center border border-outline-variant/20">
-<span class="text-[10px] text-tertiary font-telemetry-sm font-bold">1.6m Threshold</span>
-<div class="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-tertiary"></div>
-</div>
-<div class="text-[10px] text-on-surface-variant font-telemetry-sm leading-tight">
-                Proximity breached (1.6m - <span class="text-tertiary font-semibold">Candidate Trigger</span>)
-              </div>
-</div>
-<!-- Frame -1 -->
-<div class="rounded bg-surface-container-lowest border border-outline-variant/30 p-2 flex flex-col justify-between hover:border-outline-variant transition-colors">
-<div class="flex items-center justify-between text-telemetry-sm font-telemetry-sm text-outline mb-1">
-<span>Frame -1</span>
-<span class="text-on-surface-variant">t - 0.25s</span>
-</div>
-<div class="h-14 bg-surface-container rounded mb-2 relative overflow-hidden flex items-center justify-center border border-outline-variant/20">
-<span class="text-[10px] text-error font-telemetry-sm font-bold">1.3m Critical</span>
-<div class="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-error"></div>
-</div>
-<div class="text-[10px] text-on-surface-variant font-telemetry-sm leading-tight">
-                Hazard threshold breached (1.3m - <span class="text-error font-semibold">Glimmer Evaluated</span>)
-              </div>
-</div>
-<!-- Frame 0 (CURRENT - CRITICAL ACTIVE) -->
-<div class="rounded bg-surface-container-lowest border-2 border-error p-2 flex flex-col justify-between shadow-[0_0_12px_rgba(239,68,68,0.35)] relative">
-<div class="absolute -top-2.5 right-2 px-1.5 py-0.2 bg-error text-surface-container-lowest text-[9px] font-bold rounded">
-                CURRENT
-              </div>
-<div class="flex items-center justify-between text-telemetry-sm font-telemetry-sm text-error font-bold mb-1">
-<span>Frame 0</span>
-<span>t + 0.00s</span>
-</div>
-<div class="h-14 bg-error-container/20 rounded mb-2 relative overflow-hidden flex items-center justify-center border border-error/50">
-<span class="text-[11px] text-error font-telemetry-sm font-bold">1.1m BREACH</span>
-<div class="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-error animate-ping"></div>
-</div>
-<div class="text-[10px] text-error font-telemetry-sm leading-tight font-bold">
-                INTERLOCK TRIGGERED (1.1m - Decisive Violation Recorded)
-              </div>
-</div>
-</div>
-<!-- GLIMMER VERIFICATION VERDICT BOX & REASONING TRACE -->
-<div class="grid grid-cols-1 lg:grid-cols-12 gap-3 pt-1">
-<!-- Left: Verdict & Metrics Summary (5 Cols) -->
-<div class="lg:col-span-5 rounded bg-surface-container-lowest border border-outline-variant/30 p-3 space-y-2.5">
-<div class="flex items-center justify-between">
-<div class="flex items-center gap-1.5">
-<span class="material-symbols-outlined text-error text-[18px]">gavel</span>
-<span class="text-label-caps font-label-caps uppercase text-outline">GLIMMER VERDICT ENGINE</span>
-</div>
-<div class="px-2 py-0.5 rounded bg-error/20 border border-error text-error font-telemetry-sm text-telemetry-sm font-bold">
-                  DECISIVE VERDICT: VIOLATION
-                </div>
-</div>
-<!-- Confidence Interval Wilson Score -->
-<div class="p-2 rounded bg-surface-container border border-outline-variant/20 font-telemetry-sm text-telemetry-sm space-y-1">
-<div class="flex justify-between text-on-surface">
-<span class="text-outline">Point Estimate:</span>
-<span class="font-bold text-error">96.2% Confirmed</span>
-</div>
-<div class="flex justify-between text-on-surface-variant text-[10px]">
-<span class="text-outline">Wilson 95% CI:</span>
-<span>[92.4% - 98.1%] (Sample size: 120 frames)</span>
-</div>
-<!-- Mini Progress Bar -->
-<div class="w-full bg-surface-container-lowest h-1.5 rounded-full overflow-hidden mt-1">
-<div class="bg-error h-full rounded-full" style="width: 96.2%;"></div>
-</div>
-</div>
-<!-- Dual-Tier Breakdown -->
-<div class="text-[11px] font-telemetry-sm text-on-surface space-y-1 border-t border-outline-variant/20 pt-2">
-<div class="flex items-center justify-between">
-<span class="text-outline">Tier-1 Spatial Primitives:</span>
-<span class="text-primary font-semibold">PASS (Polygon overlap within 1.12m)</span>
-</div>
-<div class="flex items-center justify-between">
-<span class="text-outline">Tier-2 Causal &amp; Intent:</span>
-<span class="text-error font-bold">CONFIRMED VIOLATION</span>
-</div>
-</div>
-</div>
-<!-- Right: Natural Language Reasoning Trace & Automated Actions (7 Cols) -->
-<div class="lg:col-span-7 rounded bg-surface-container-lowest border border-outline-variant/30 p-3 flex flex-col justify-between space-y-2">
-<div>
-<div class="flex items-center justify-between text-label-caps font-label-caps text-outline mb-1">
-<span>CAUSAL INFERENCE REASONING TRACE (NATURAL LANGUAGE)</span>
-<span class="text-secondary">MODEL: GLIMMER-V3-IND</span>
-</div>
-<p class="text-body-sm font-body-sm text-on-surface-variant bg-surface-container-low p-2 rounded border border-outline-variant/20 leading-relaxed font-mono text-[11px]">
-                  "Worker stepped outside designated pedestrian walkway boundary into Forklift Trajectory Cone Zone B while Forklift #19 was actively maneuvering with raised forks. Minimum euclidean clearance collapsed to 1.1m at frame index 1492. Speed vector indicates zero evasive deceleration by vehicle prior to automated interlock trigger."
-                </p>
-</div>
-<!-- Automated Safety Actions Ledger -->
-<div class="border-t border-outline-variant/20 pt-2">
-<div class="text-label-caps font-label-caps text-outline mb-1 flex items-center justify-between">
-<span>AUTOMATED SAFETY ACTIONS DISPATCHED</span>
-<span class="text-primary">3/3 EXECUTED</span>
-</div>
-<div class="space-y-1 font-telemetry-sm text-telemetry-sm text-[11px]">
-<div class="flex items-center gap-1.5 text-error">
-<span class="material-symbols-outlined text-[14px]">bolt</span>
-<span class="text-outline">[14:32:07.820]</span>
-<span class="font-semibold">INTERLOCK POWER CUT TRIGGERED</span>
-<span class="text-on-surface-variant">(Relay Relay-04B tripped in 8.4ms)</span>
-</div>
-<div class="flex items-center gap-1.5 text-tertiary">
-<span class="material-symbols-outlined text-[14px]">volume_up</span>
-<span class="text-outline">[14:32:07.842]</span>
-<span class="font-semibold">SPANISH MMS-TTS BROADCASTED:</span>
-<span class="text-on-surface-variant truncate">"¡ALERTA! Vehículo en aproximación crítica..."</span>
-</div>
-<div class="flex items-center gap-1.5 text-secondary">
-<span class="material-symbols-outlined text-[14px]">sms</span>
-<span class="text-outline">[14:32:07.890]</span>
-<span class="font-semibold">SHIFT SUPERVISOR PUSH DISPATCHED</span>
-<span class="text-on-surface-variant">(Pager/SMS to Lead Vance)</span>
-</div>
-</div>
-</div>
-</div>
-</div>
-</div>
-</section>
-<!-- ========================================================================= -->
-<!-- RIGHT TELEMETRY & AUDIT SIDEBAR (4 Columns on 2xl) -->
-<!-- ========================================================================= -->
-<section class="2xl:col-span-4 flex flex-col gap-3 min-w-0">
-<!-- CARD 1: ACTIVE SAFETY RULE CARD -->
-<div class="rounded bg-surface-container-low border border-outline-variant/30 p-3 space-y-2.5">
-<div class="flex items-center justify-between border-b border-outline-variant/20 pb-2">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-primary text-[18px]">verified</span>
-<span class="text-label-caps font-label-caps text-outline uppercase tracking-wider">ACTIVE GOVERNING RULE</span>
-</div>
-<span class="px-1.5 py-0.5 rounded bg-error-container text-error text-[10px] font-telemetry-sm font-bold">
-              LEVEL 4 CRITICAL
-            </span>
-</div>
-<div class="space-y-1.5">
-<div class="text-headline-sm font-headline-sm font-bold text-on-surface text-[14px]">
-              RULE-WH-049: Pedestrian Forklift Dynamic Exclusion Zone
-            </div>
-<div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/20 space-y-1 font-telemetry-sm text-telemetry-sm text-[11px]">
-<div>
-<span class="text-outline">Parameter:</span>
-<span class="text-on-surface ml-1 font-semibold">Keep pedestrians ≥ 2.0m from active moving forklifts.</span>
-</div>
-<div>
-<span class="text-outline">Enforcement Mode:</span>
-<span class="text-secondary ml-1">Autonomous Hardware Interlock Trip + Audio Broadcast</span>
-</div>
-<div class="border-t border-outline-variant/20 pt-1 mt-1 flex items-center justify-between">
-<span class="text-outline">Current Status:</span>
-<span class="text-error font-bold tracking-tight">RULE BREACHED (Severity Level 4 - Critical)</span>
-</div>
-</div>
-</div>
-</div>
-<!-- CARD 2: LIVE EDGE INFERENCE & CAMERA LATENCY MATRIX -->
-<div class="rounded bg-surface-container-low border border-outline-variant/30 p-3 space-y-2.5">
-<div class="flex items-center justify-between border-b border-outline-variant/20 pb-2">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-secondary text-[18px]">speed</span>
-<span class="text-label-caps font-label-caps text-outline uppercase tracking-wider">LATENCY &amp; INFERENCE MATRIX</span>
-</div>
-<span class="text-primary font-telemetry-sm text-telemetry-sm font-bold flex items-center gap-1">
-<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span> PIPELINE HEALTHY
-            </span>
-</div>
-<!-- Monospace Table Layout -->
-<div class="overflow-x-auto">
-<table class="w-full text-left font-telemetry-sm text-telemetry-sm text-[11px]">
-<thead>
-<tr class="border-b border-outline-variant/30 text-outline text-[10px]">
-<th class="py-1">SUBSYSTEM COMPONENT</th>
-<th class="py-1 text-right">MEASURED</th>
-<th class="py-1 text-right">TARGET</th>
-<th class="py-1 text-right">STATUS</th>
-</tr>
-</thead>
-<tbody class="divide-y divide-outline-variant/10 text-on-surface">
-<tr>
-<td class="py-1.5 font-medium flex items-center gap-1">
-<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
-                    SAM 3.1 Mask Seg
-                  </td>
-<td class="py-1.5 text-right font-mono text-secondary">42.0 ms</td>
-<td class="py-1.5 text-right font-mono text-outline">&lt;50 ms</td>
-<td class="py-1.5 text-right text-primary font-semibold">[OPTIMAL]</td>
-</tr>
-<tr>
-<td class="py-1.5 font-medium flex items-center gap-1">
-<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
-                    Glimmer Dual-Tier Verifier
-                  </td>
-<td class="py-1.5 text-right font-mono text-secondary">110.0 ms</td>
-<td class="py-1.5 text-right font-mono text-outline">&lt;150 ms</td>
-<td class="py-1.5 text-right text-primary font-semibold">[OPTIMAL]</td>
-</tr>
-<tr>
-<td class="py-1.5 font-medium flex items-center gap-1">
-<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
-                    Camera RTSP Glass-to-Glass
-                  </td>
-<td class="py-1.5 text-right font-mono text-primary">38.0 ms</td>
-<td class="py-1.5 text-right font-mono text-outline">&lt;80 ms</td>
-<td class="py-1.5 text-right text-primary font-semibold">[OPTIMAL]</td>
-</tr>
-<tr>
-<td class="py-1.5 font-medium flex items-center gap-1">
-<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
-                    Hardware Interlock Relay Latency
-                  </td>
-<td class="py-1.5 text-right font-mono text-error font-bold">8.4 ms</td>
-<td class="py-1.5 text-right font-mono text-outline">&lt;15 ms</td>
-<td class="py-1.5 text-right text-primary font-semibold">[OPTIMAL]</td>
-</tr>
-</tbody>
-<tfoot>
-<tr class="border-t border-outline-variant/30 text-on-surface font-bold">
-<td class="pt-2 text-outline">End-to-End Pipeline</td>
-<td class="pt-2 text-right font-mono text-primary text-[12px]">198.4 ms</td>
-<td class="pt-2 text-right font-mono text-outline">&lt;300 ms</td>
-<td class="pt-2 text-right text-primary">TOTAL OK</td>
-</tr>
-</tfoot>
-</table>
-</div>
-</div>
-<!-- CARD 3: CRYPTOGRAPHIC AUDIT IMMUTABILITY BADGE & HASH CHAIN -->
-<div class="rounded bg-surface-container-low border border-outline-variant/30 p-3 space-y-3 flex-1 flex flex-col justify-between">
-<div class="space-y-2">
-<!-- Header with Verified Shield -->
-<div class="flex items-center justify-between border-b border-outline-variant/20 pb-2">
-<div class="flex items-center gap-2">
-<span class="material-symbols-outlined text-primary text-[18px]">lock</span>
-<span class="text-label-caps font-label-caps text-outline uppercase tracking-wider">IMMUTABLE AUDIT TRAIL</span>
-</div>
-<div class="flex items-center gap-1.5 px-2 py-0.5 rounded bg-primary-container/15 border border-primary/40 text-primary font-telemetry-sm text-telemetry-sm font-bold">
-<span class="material-symbols-outlined text-[14px]">verified</span>
-<span>✓ Chain Intact · 35 Blocks</span>
-</div>
-</div>
-<!-- Monospace Cryptographic Hash Displays -->
-<div class="space-y-2 font-telemetry-sm text-telemetry-sm text-[11px]">
-<div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/20">
-<div class="flex items-center justify-between text-outline text-[10px] mb-0.5">
-<span>SHA-256 LEDGER HASH (BLOCK #35)</span>
-<button class="hover:text-primary transition-colors text-[10px] flex items-center gap-0.5" title="Copy Hash">
-<span class="material-symbols-outlined text-[12px]">content_copy</span> COPY
-                  </button>
-</div>
-<div class="text-secondary font-mono text-[10px] break-all leading-normal">
-                  e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-                </div>
-</div>
-<div class="grid grid-cols-2 gap-2">
-<div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/20">
-<div class="text-outline text-[10px]">MERKLE ROOT</div>
-<div class="text-on-surface font-mono font-bold text-[11px] mt-0.5">7d8f...49a1</div>
-</div>
-<div class="p-2 rounded bg-surface-container-lowest border border-outline-variant/20">
-<div class="text-outline text-[10px]">TIME ATTESTATION</div>
-<div class="text-primary font-mono text-[11px] mt-0.5">HSM SECURE TS</div>
-</div>
-</div>
-<div class="text-[10px] text-outline leading-tight">
-                Attested via OpenTimestamps and Sector 07 local FIPS 140-2 Level 3 Hardware Security Module.
-              </div>
-</div>
-</div>
-<!-- Action Buttons Cluster -->
-<div class="space-y-1.5 pt-2 border-t border-outline-variant/20">
-<!-- Action 1: Export bundle -->
-<button class="w-full py-1.5 px-2 bg-surface-container-high hover:bg-surface-variant text-on-surface border border-outline-variant/30 rounded font-telemetry-sm text-telemetry-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors active:scale-95">
-<span class="material-symbols-outlined text-secondary text-[16px]">inventory_2</span>
-              Export Cryptographic Incident Bundle (.zip)
-            </button>
-<!-- Action 2: Sign OSHA compliance -->
-<button class="w-full py-1.5 px-2 bg-surface-container-high hover:bg-surface-variant text-on-surface border border-outline-variant/30 rounded font-telemetry-sm text-telemetry-sm font-semibold tracking-wide flex items-center justify-center gap-2 transition-colors active:scale-95">
-<span class="material-symbols-outlined text-primary text-[16px]">draw</span>
-              Sign &amp; File OSHA Compliance Log
-            </button>
-<!-- Action 3: Reset Interlock with Dual Auth requirement -->
-<button class="w-full py-2 px-2 bg-error-container/40 hover:bg-error-container/70 text-error border border-error/60 rounded font-telemetry-sm text-telemetry-sm font-bold tracking-wider flex items-center justify-center gap-2 transition-colors active:scale-95">
-<span class="material-symbols-outlined text-error text-[16px]">vpn_key</span>
-              Reset Interlock (Dual-Key Auth Req)
-            </button>
-</div>
-</div>
-</section>
 </main>
-</div>
-<!-- Realtime Clock Updater Script -->
+<!-- ========================================================================= -->
+<!-- Micro-interactions Script                                                 -->
+<!-- ========================================================================= -->
 <script>
-    function updateClock() {
-      const now = new Date();
-      const pad = (n, len = 2) => String(n).padStart(len, '0');
-      const year = now.getUTCFullYear();
-      const month = pad(now.getUTCMonth() + 1);
-      const day = pad(now.getUTCDate());
-      const hours = pad(now.getUTCHours());
-      const mins = pad(now.getUTCMinutes());
-      const secs = pad(now.getUTCSeconds());
-      const millis = pad(now.getUTCMilliseconds(), 3);
+    document.addEventListener('DOMContentLoaded', () => {
+      // Dynamic live timecode indicator
+      const timecodeEl = document.querySelector('span:has-text("14:28:49.812 UTC")');
       
-      const clockEl = document.getElementById('utc-clock');
-      if (clockEl) {
-        clockEl.textContent = `${year}-${month}-${day} ${hours}:${mins}:${secs}.${millis} UTC`;
-      }
-    }
-    setInterval(updateClock, 73);
-    updateClock();
+      // Micro hover feedback on keyframes
+      const keyframes = document.querySelectorAll('.grid-cols-6 > div');
+      keyframes.forEach(frame => {
+        frame.addEventListener('mouseenter', () => {
+          frame.style.transform = 'translateY(-2px)';
+        });
+        frame.addEventListener('mouseleave', () => {
+          frame.style.transform = 'translateY(0px)';
+        });
+      });
+    });
   </script>
 </body></html>

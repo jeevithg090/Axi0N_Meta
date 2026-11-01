@@ -125,8 +125,9 @@ workflow when its inputs change):
 - `llama-server` and its ggml backends, copied from `ghcr.io/ggml-org/llama.cpp:server-cuda-b11669`
   (Muse Glimmer needs ≥ b10353). That image keeps everything in `/app`: `/app/lib/*` (the shared
   libraries, including the CUDA backend) plus `/app/llama-server`. We copy all of `/app` to
-  `/opt/llama` so the backends stay next to the binary. It links the CUDA runtime and cuBLAS. The
-  torch wheels already ship both (`libcudart.so.12`, `libcublas.so.12`, `libcublasLt.so.12`), so
+  `/opt/llama` so the backends stay next to the binary. It links the CUDA runtime, cuBLAS and NCCL.
+  The torch wheels already ship them (`libcudart.so.12`, `libcublas.so.12`, `libcublasLt.so.12`,
+  `libnccl.so.2`), so
   `/opt/llama/cuda` links to those and the image carries no second copy (the CUDA `runtime`
   image would add about 3 GB). The build fails if `ldd` finds any library of the binary or its
   backends unresolved. `libcuda.so.1` comes from the host driver at run time; at build time it

@@ -11,10 +11,10 @@
 #   (Muse Glimmer needs >= b10353). That image's server stage copies `/app/lib/` (the shared
 #   libraries, CUDA backend included) and `/app/full/llama-server` into `/app`; we keep `/app`
 #   together under /opt/llama, so the backends sit next to the binary as llama.cpp expects.
-#   It links the CUDA runtime and cuBLAS, which CUDA's minimal `base` image lacks: the torch
-#   cu128 wheels already ship both (libcudart.so.12, libcublas(Lt).so.12), so /opt/llama/cuda
-#   links to those instead of adding the `runtime` image's second copy (~3 GB). The build fails
-#   when any library of the binary or its backends is unresolved (libcuda.so.1, the driver, is
+#   It links the CUDA runtime, cuBLAS and NCCL, which CUDA's minimal `base` image lacks: the
+#   torch cu128 wheels already ship them (libcudart.so.12, libcublas(Lt).so.12, libnccl.so.2),
+#   so /opt/llama/cuda links to those instead of adding the `runtime` image's second copy
+#   (~3 GB). The build fails when any library of the binary or its backends is unresolved (libcuda.so.1, the driver, is
 #   mounted by the NVIDIA container runtime and is checked against the image's compat copy).
 #   The extra runtime packages are the ones the ggml-org image installs: libgomp1, curl, ffmpeg.
 #
@@ -72,10 +72,10 @@ ENV PATH=/opt/sam-venv/bin:$PATH \
     GLIMMER_PARALLEL=2 \
     SAM_PORT=8090 \
     SAM_MEMORY_GUARD_GB=8
-# llama-server's CUDA runtime and cuBLAS come from the torch wheels in the venv.
+# llama-server's CUDA runtime, cuBLAS and NCCL come from the torch wheels in the venv.
 RUN set -eu; \
     mkdir -p /opt/llama/cuda; \
-    for lib in libcudart.so.12 libcublas.so.12 libcublasLt.so.12; do \
+    for lib in libcudart.so.12 libcublas.so.12 libcublasLt.so.12 libnccl.so.2; do \
         path="$(find /opt/sam-venv -name "$lib" -print -quit)"; \
         if [ -z "$path" ]; then echo "no $lib in the torch wheels" >&2; exit 1; fi; \
         ln -s "$path" "/opt/llama/cuda/$lib"; \

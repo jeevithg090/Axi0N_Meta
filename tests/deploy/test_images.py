@@ -92,7 +92,7 @@ def test_gpu_image_has_the_sam_venv_and_the_pinned_llama_server() -> None:
     for package in ("einops", "pycocotools", "psutil", '"numpy<2"', '"pydantic>=2.7"'):
         assert package in GPU_DOCKERFILE
     # llama-server's CUDA runtime and cuBLAS come from the torch wheels; the build checks them.
-    for lib in ("libcudart.so.12", "libcublas.so.12", "libcublasLt.so.12"):
+    for lib in ("libcudart.so.12", "libcublas.so.12", "libcublasLt.so.12", "libnccl.so.2"):
         assert lib in GPU_DOCKERFILE
     assert "ldd /opt/llama/llama-server" in GPU_DOCKERFILE
     assert "SAM_MEMORY_GUARD_GB=8" in GPU_DOCKERFILE

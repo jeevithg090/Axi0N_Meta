@@ -76,6 +76,12 @@ class Settings(BaseSettings):
     rulecam_prototype_mode: bool = False
     # The site's time zone (IANA name), for owner questions like "how many customers at 1 pm".
     rulecam_site_timezone: str = "UTC"
+    # Context for `POST /ask` (the owner's words, given to the models as they are): what the site
+    # is, and camera id -> name pairs ("phone-62=checkout lanes,phone-61=entrance queue").
+    rulecam_site_profile: str = ""
+    rulecam_camera_names: str = ""
+    # Ask's temporal memory: Glimmer captions each camera every N seconds of video; 0 = off.
+    rulecam_ask_caption_every_s: float = Field(default=0.0, ge=0.0)
     # Evidence strips sent to Glimmer: frames per strip and their width in pixels.
     rulecam_strip_frames: int = Field(default=6, ge=1, le=12)
     rulecam_strip_max_width: int = Field(default=640, ge=320, le=1920)

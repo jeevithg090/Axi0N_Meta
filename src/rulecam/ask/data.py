@@ -7,7 +7,9 @@ are `TIMESTAMP` in UTC, without a zone):
   joined into tracks by ByteTrack): `track_id, camera_id, concept, ts, frame_idx, x1, y1, x2,
   y2, foot_px_x, foot_px_y, foot_m_x, foot_m_y, conf`;
 - `track_spans`: one row per track: `track_id, camera_id, concept, first_seen, last_seen,
-  seconds, points`.
+  seconds, points`;
+- `captions`: what Muse Glimmer saw on each camera every few seconds (`ask.memory`):
+  `camera_id, t0, t1, caption, people, events`.
 
 After the snapshot the connection loses file access (`enable_external_access = false`, locked),
 so a query can read these tables and nothing else. Only one `SELECT` or `WITH` statement runs;
@@ -78,11 +80,12 @@ def _cell(value: object) -> object:
 class TrackTables:
     """A per-question snapshot of the track store in DuckDB."""
 
-    def __init__(self, root: Path) -> None:
-        """Snapshot every Parquet partition under `root` and lock file access.
+    def __init__(self, root: Path, captions: Path | None = None) -> None:
+        """Snapshot every Parquet partition under `root` (and the captions) and lock file access.
 
         Args:
             root: The track store's directory (`<data>/tracks`).
+            captions: The caption memory's JSON-lines file, if any.
         """
         self._con = duckdb.connect()
         self._con.execute("SET TimeZone = 'UTC'")
@@ -105,6 +108,18 @@ class TrackTables:
             "epoch(max(ts)) - epoch(min(ts)) AS seconds, count(*) AS points "
             "FROM track_points GROUP BY track_id, camera_id, concept"
         )
+        if captions is not None and captions.is_file() and captions.stat().st_size:
+            source = captions.as_posix().replace("'", "''")
+            self._con.execute(
+                "CREATE TABLE captions AS SELECT camera_id, CAST(t0 AS TIMESTAMP) AS t0, "  # noqa: S608
+                "CAST(t1 AS TIMESTAMP) AS t1, caption, people, events "
+                f"FROM read_json_auto('{source}', format = 'newline_delimited')"
+            )
+        else:
+            self._con.execute(
+                "CREATE TABLE captions (camera_id VARCHAR, t0 TIMESTAMP, t1 TIMESTAMP, "
+                "caption VARCHAR, people BIGINT, events VARCHAR[])"
+            )
         self._con.execute("SET enable_external_access = false")
         self._con.execute("SET lock_configuration = true")
 
@@ -135,6 +150,50 @@ class TrackTables:
                 }
             )
         return list(found.values())
+
+    def stats(self) -> list[dict[str, object]]:
+        """Per camera and concept: tracks, most at once, median track length, keyframes/s."""
+        result = self.query(
+            "WITH per_ts AS (SELECT camera_id, concept, ts, count(*) AS n FROM track_points "
+            "GROUP BY camera_id, concept, ts), rate AS (SELECT camera_id, "
+            "count(DISTINCT ts) / greatest(epoch(max(ts)) - epoch(min(ts)), 1) AS hz "
+            "FROM track_points GROUP BY camera_id) "
+            "SELECT s.camera_id, s.concept, count(*) AS tracks, "
+            "(SELECT max(n) FROM per_ts p WHERE p.camera_id = s.camera_id "
+            "AND p.concept = s.concept) AS most_at_once, "
+            "round(median(s.seconds), 1) AS median_track_s, "
+            "round(any_value(r.hz), 2) AS keyframes_per_s "
+            "FROM track_spans s JOIN rate r USING (camera_id) "
+            "GROUP BY s.camera_id, s.concept ORDER BY s.camera_id, s.concept"
+        )
+        return [dict(zip(result.columns, row, strict=True)) for row in result.rows]
+
+    def recent_captions(self) -> list[dict[str, object]]:
+        """The 4 newest captions of each camera, oldest first."""
+        result = self.query(
+            "SELECT camera_id, t0, t1, caption, people FROM (SELECT *, row_number() OVER "
+            "(PARTITION BY camera_id ORDER BY t1 DESC) AS k FROM captions) "
+            "WHERE k <= 4 ORDER BY camera_id, t1"
+        )
+        return [dict(zip(result.columns, row, strict=True)) for row in result.rows]
+
+    def boxes_near(
+        self, camera_id: str, at: datetime, within_s: float = 0.6
+    ) -> list[tuple[str, str, tuple[float, float, float, float]]]:
+        """Each track's box nearest to `at` on `camera_id`, within `within_s` seconds.
+
+        Returns:
+            `(track_id, concept, (x1, y1, x2, y2))`, in track order.
+        """
+        naive = at.astimezone(UTC).replace(tzinfo=None)
+        rows = self._con.execute(
+            "SELECT track_id, concept, x1, y1, x2, y2 FROM track_points WHERE camera_id = ? "
+            "AND abs(epoch(ts) - epoch(CAST(? AS TIMESTAMP))) <= ? "
+            "QUALIFY row_number() OVER (PARTITION BY track_id "
+            "ORDER BY abs(epoch(ts) - epoch(CAST(? AS TIMESTAMP)))) = 1 ORDER BY track_id",
+            [camera_id, naive, within_s, naive],
+        ).fetchall()
+        return [(t, c, (x1, y1, x2, y2)) for t, c, x1, y1, x2, y2 in rows]
 
     def query(self, sql: str) -> QueryResult:
         """Run one read-only query.

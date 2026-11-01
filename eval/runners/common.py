@@ -135,8 +135,36 @@ def render(result: RunnerResult) -> str:
     return "\n".join(lines)
 
 
+def splice_section(text: str, runner_id: str, section: str) -> str:
+    """Replace a runner's marked section in `text` with already rendered Markdown.
+
+    Runners with their own layout (E1's tables) render the section themselves and splice it
+    here, so every runner shares one set of markers and one splice.
+
+    Args:
+        text: The current results file.
+        runner_id: The runner id, which names the markers.
+        section: The rendered section, markers included.
+
+    Returns:
+        The updated contents.
+
+    Raises:
+        ResultError: If the markers are missing or out of order.
+    """
+    opening, closing = begin(runner_id), end(runner_id)
+    start, stop = text.find(opening), text.find(closing)
+    if start < 0 or stop < 0 or stop < start:
+        msg = (
+            f"the results file needs the markers {opening!r} and {closing!r}, in that order, "
+            f"for the {runner_id.upper()} section to be written into"
+        )
+        raise ResultError(msg)
+    return text[:start] + section.rstrip("\n") + text[stop + len(closing) :]
+
+
 def splice(text: str, result: RunnerResult) -> str:
-    """Replace a runner's marked section in `text`.
+    """Replace a runner's marked section in `text` with its rendered table.
 
     Args:
         text: The current results file.
@@ -148,15 +176,7 @@ def splice(text: str, result: RunnerResult) -> str:
     Raises:
         ResultError: If the markers are missing or out of order.
     """
-    opening, closing = begin(result.id), end(result.id)
-    start, stop = text.find(opening), text.find(closing)
-    if start < 0 or stop < 0 or stop < start:
-        msg = (
-            f"the results file needs the markers {opening!r} and {closing!r}, in that order, "
-            f"for the {result.id.upper()} section to be written into"
-        )
-        raise ResultError(msg)
-    return text[:start] + render(result).rstrip("\n") + text[stop + len(closing) :]
+    return splice_section(text, result.id, render(result))
 
 
 def write_json(result: RunnerResult, *, results_dir: Path = RESULTS_DIR) -> Path:

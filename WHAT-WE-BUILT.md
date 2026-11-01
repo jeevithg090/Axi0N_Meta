@@ -30,6 +30,8 @@ adds a row here with its licence.
 | ffmpeg (system) | Video encoding | LGPL/GPL (system binary, not bundled) |
 | RTMPose (OpenMMLab) as ONNX, plus ONNX Runtime (`ml` extra) | CPU pose estimator (`pose/keypoints.py`, P4-04) | Apache-2.0 (code); weights are downloaded at run time, not bundled, so confirm their licence when fetching. ONNX Runtime is MIT |
 | YuNet face detector (opencv_zoo) via OpenCV `FaceDetectorYN` | Blurring faces in evidence strips, never recognition (`runtime/strip_draw.py`, P4-05) | OpenCV is Apache-2.0; the ONNX weights are fetched by the owner (`RULECAM_FACE_MODEL`), not bundled, so confirm their licence when fetching |
+| Roboflow `trackers` 2.6.1 | ByteTrack (with buffered IoU) joining SAM 3.1 image keyframes into tracks (`perception/keyframe_tracker.py`, PLAN-9.5 WS2b) | Apache-2.0 (LICENSE checked on GitHub at tag 2.6.1). Its `opencv-python` requirement is overridden in `pyproject.toml` (`[tool.uv]`): the repo's `opencv-python-headless` provides the same `cv2` |
+| Roboflow `supervision` 0.30.0 | The `Detections` type `trackers` takes | MIT. Pulls PyAV (`av`, BSD-3-Clause; pinned to 19.0.1), defusedxml (PSF), pyDeprecate (Apache-2.0) |
 | Llama Prompt Guard 2 86M (`meta-llama/Llama-Prompt-Guard-2-86M`, gated) | Scene-text firewall (`verify/firewall.py`, P3-05) | Llama 4 Community License ("Built with Llama"); weights downloaded at run time, not bundled |
 
 ## Built during the hackathon
@@ -44,3 +46,4 @@ adds a row here with its licence.
 | `src/rulecam/capture/` + `rulecam capture` CLI | Webcam / RTSP / file → 3 s H.264 faststart chunks, published on the bus (P1-01) | #2 |
 | `src/rulecam/pose/` | COCO-17 pose features (`is_down`, `hands_above_shoulder`, `ladder_three_point_lost`, `bent_back_lift`), the `PoseStates` adapter for the rule engine, the RTMPose ONNX estimator and keypoint interpolation (P4-04) | #77 |
 | `src/rulecam/runtime/strips.py`, `strip_draw.py` | Runtime evidence strips for Glimmer: keyframes across the episode (one in-memory ffmpeg decode per chunk), rule boxes, zones and a calibrated distance ruler, privacy modes (standard face blur via YuNet; anonymous/strict plate + skeletons, no person pixels) (P4-05) | #98 |
+| `src/rulecam/perception/keyframes.py`, `keyframe_tracker.py`, `/segment_image` in `sam_server.py`, `Sam31ImageEngine` | Image-mode runtime: SAM 3.1 image keyframes (2–4/s per camera, self-hosted with hosted fallback) joined into cross-chunk tracks by ByteTrack; `RULECAM_RUNTIME_SAM_MODE` (P1-03/P1-04, PLAN-9.5 WS2b/WS2c) | this PR |

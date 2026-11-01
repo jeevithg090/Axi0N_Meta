@@ -23,10 +23,12 @@ from rulecam.perception.metrics import PerceptionMetrics
 from rulecam.perception.router import Purpose, SegmenterRouter
 from rulecam.perception.sam_runtime import HttpSamWorker, ModalSam31, SamWorker
 from rulecam.perception.sam_server import (
+    BadRequestError,
     GpuSlot,
     SamHTTPServer,
     bearer_matches,
     parse_segment_body,
+    parse_segment_image_body,
 )
 from rulecam.perception.sam_worker import MODEL_VERSION
 from tests.fakes import FakeClock, FakeSegmenter, make_chunk
@@ -118,6 +120,7 @@ def test_health_is_open(running: Running) -> None:
         "busy": False,
         "waiting": 0,
         "memory": {"allocated_bytes": 4 * 2**30, "reserved_bytes": 5 * 2**30, "sessions": 0},
+        "image": {"loaded": False},
     }
 
 
@@ -397,3 +400,151 @@ def test_pod_setup_script_uses_the_pinned_commit_and_torch() -> None:
     # uv's Python must survive a pod restart (container disk is wiped), and a broken venv rebuilt.
     assert "UV_PYTHON_INSTALL_DIR" in script
     assert "has no working Python; rebuilding it" in script
+
+
+# --- image mode (`POST /segment_image`, WS2c) -------------------------------------------------
+
+
+class FakeImageEngine:
+    """Answers `segment_images` with one object per image and concept; may block."""
+
+    def __init__(self, block: threading.Event | None = None) -> None:
+        self.calls: list[tuple[list[bytes], dict[str, Any]]] = []
+        self.block = block
+        self.started = threading.Event()
+
+    def segment_images(self, images: list[bytes], request: dict[str, Any]) -> dict[str, Any]:
+        self.calls.append((images, request))
+        self.started.set()
+        if self.block is not None:
+            self.block.wait(timeout=5)
+        return {
+            "objects": [
+                {
+                    "image_idx": i,
+                    "concept": concept,
+                    "object_id": 0,
+                    "rle": "",
+                    "box_xyxy": [1.0, 2.0, 3.0, 4.0],
+                    "confidence": 0.7,
+                }
+                for i in range(len(images))
+                for concept in request["concepts"]
+            ],
+            "images_processed": len(images),
+            "gpu_seconds": 0.05,
+            "model_version": "fake-image",
+        }
+
+    def memory_stats(self) -> dict[str, Any]:
+        return {"calls": len(self.calls), "guard_trips": 0}
+
+
+IMAGES = [b"\xff\xd8jpeg-one", b"\xff\xd8jpeg-two"]
+
+
+def _image_body(request: dict[str, Any] | None = None) -> dict[str, Any]:
+    return {
+        "request": request or {"concepts": ["person"], "n_images": 2, "width": 8, "height": 6},
+        "images_b64": [base64.b64encode(image).decode() for image in IMAGES],
+    }
+
+
+@pytest.fixture
+def imaging() -> Iterator[Running]:
+    server = Running(FakeEngine(), image_engine=FakeImageEngine())
+    yield server
+    server.close()
+
+
+def test_segment_image_round_trip(imaging: Running) -> None:
+    reply = httpx.post(f"{imaging.url}/segment_image", json=_image_body(), headers=_auth())
+    assert reply.status_code == 200
+    assert reply.json()["images_processed"] == 2
+    images, request = imaging.server.image_engine.calls[0]  # type: ignore[union-attr]
+    assert images == IMAGES
+    assert request["concepts"] == ["person"]
+    health = httpx.get(f"{imaging.url}/health").json()
+    assert health["image"] == {"loaded": True, "waiting": 0, "calls": 1, "guard_trips": 0}
+
+
+def test_segment_image_requires_the_key(imaging: Running) -> None:
+    reply = httpx.post(f"{imaging.url}/segment_image", json=_image_body(), headers=_auth("nope"))
+    assert reply.status_code == 401
+    assert imaging.server.image_engine.calls == []  # type: ignore[union-attr]
+
+
+def test_segment_image_is_404_without_an_image_engine(running: Running) -> None:
+    reply = httpx.post(f"{running.url}/segment_image", json=_image_body(), headers=_auth())
+    assert reply.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"request": {"concepts": ["p"]}},
+        {"request": {"concepts": ["p"]}, "images_b64": []},
+        {"request": {"concepts": ["p"]}, "images_b64": [1]},
+        {"request": {"concepts": ["p"]}, "images_b64": ["!!not base64!!"]},
+        {"request": "x", "images_b64": ["aGk="]},
+    ],
+)
+def test_segment_image_malformed_bodies_are_400(imaging: Running, body: dict[str, Any]) -> None:
+    reply = httpx.post(f"{imaging.url}/segment_image", json=body, headers=_auth())
+    assert reply.status_code == 400
+
+
+def test_image_and_video_calls_share_one_gpu_but_queue_separately() -> None:
+    release = threading.Event()
+    image_engine = FakeImageEngine(block=release)
+    server = Running(FakeEngine(), image_engine=image_engine, max_waiting=0, image_max_waiting=0)
+    statuses: list[int] = []
+    worker = threading.Thread(
+        target=lambda: statuses.append(
+            httpx.post(
+                f"{server.url}/segment_image", json=_image_body(), headers=_auth()
+            ).status_code
+        )
+    )
+    try:
+        worker.start()
+        assert image_engine.started.wait(timeout=5)
+        assert httpx.get(f"{server.url}/health").json()["busy"] is True  # the shared GPU lock
+        busy = httpx.post(f"{server.url}/segment_image", json=_image_body(), headers=_auth())
+        assert busy.status_code == 503
+    finally:
+        release.set()
+        worker.join(timeout=5)
+        server.close()
+    assert statuses == [200]
+
+
+def test_parse_segment_image_body() -> None:
+    images, request = parse_segment_image_body(
+        json.dumps(_image_body({"concepts": ["a"]})).encode()
+    )
+    assert (images, request) == (IMAGES, {"concepts": ["a"]})
+    with pytest.raises(BadRequestError, match="JSON"):
+        parse_segment_image_body(b"{")
+    with pytest.raises(BadRequestError, match="object"):
+        parse_segment_image_body(b"[]")
+
+
+def test_http_worker_segments_images_through_the_server(imaging: Running) -> None:
+    from rulecam.perception.keyframes import Keyframe, SelfHostedKeyframes, frame_ts  # noqa: PLC0415
+
+    chunk = make_chunk()
+    frames = [Keyframe(i, frame_ts(chunk, i), IMAGES[k]) for k, i in enumerate((0, 5))]
+    metrics = PerceptionMetrics()
+    keyframes = SelfHostedKeyframes(
+        HttpSamWorker(HttpxTransport(imaging.url, KEY)), metrics=metrics
+    )
+    batch = keyframes.segment_keyframes(chunk, frames, ("person", "forklift"))
+    assert [d.frame_idx for d in batch.detections["forklift"]] == [0, 5]
+    assert metrics.report().total.sam_calls_self_hosted == 1
+
+
+def test_http_worker_image_failures_are_unavailable(imaging: Running) -> None:
+    worker = HttpSamWorker(HttpxTransport(imaging.url, "wrong"))
+    with pytest.raises(SamRuntimeUnavailableError, match="HTTP 401"):
+        worker.segment_images(IMAGES, {"concepts": ["person"]})

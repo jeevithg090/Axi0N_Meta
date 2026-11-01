@@ -451,6 +451,58 @@ again automatically: run `scripts/deploy/runpod_up.sh` before the next session. 
 stopped the runtime falls back to hosted SAM (and its bill, which the dollar budget then limits)
 and the planner skips its Glimmer audit.
 
+## Runtime perception modes (image keyframes + tracker)
+
+`RULECAM_RUNTIME_SAM_MODE` picks how the continuous runtime perceives (PLAN-9.5 WS2b/WS2c):
+
+- **`image` (default):** each 3 s chunk is segmented on its *keyframes* only, `RULECAM_KEYFRAME_FPS`
+  per second (default 2, allowed 2 to 10; per camera `RULECAM_KEYFRAME_FPS_CAMERAS=dock=4,kitchen=3`).
+  The keyframes are decoded once, in memory (JPEG, never written to disk), and SAM 3.1 **image** mode
+  finds every concept on each. An open-source multi-object tracker, Roboflow `trackers` ByteTrack
+  (Apache-2.0) with buffered IoU, joins them into tracks whose ids survive chunk borders; the rules
+  engine interpolates between keyframes, so `moving`, speeds and operator exclusion work unchanged.
+  Static concepts come from the static cache (one keyframe per plan and camera), and the motion
+  gate, idle sampling and budget apply as before.
+- **`video`:** the previous path: SAM 3.1 video per chunk and concept, IoU hand-off between chunks.
+
+Probes, surveys, Rule CI and evidence re-checks always use hosted SAM 3.1 **video**, in both modes.
+
+Image-mode fallback chain, each step counted at `GET /metrics/perception`: our GPU pod's
+`POST /segment_image` (one call per chunk with every keyframe and concept; `SAM_BASE_URL`) →
+hosted SAM 3.1 image requests (one per keyframe and concept, at most `RULECAM_SAM_MAX_CONCURRENCY`
+open at once) while the pod fails (`sam_fallbacks`, `sam_fallback_to_hosted` in the log, retried
+after 60 s). On Modal (no image endpoint) image mode is hosted only.
+
+**Cost per active camera-hour** (3 s chunks at 10 fps, one rule with two concepts such as person and
+forklift, every chunk segmented; idle sampling and the motion gate divide all rows alike):
+
+| Runtime | Billed per chunk | $ per camera-hour |
+|---|---|---|
+| hosted video | 2 requests x 50 frames (30-frame chunks bill the 50 minimum) = $0.02 | **$24** |
+| hosted image, 2 keyframes/s | 2 concepts x 6 images x $0.0025 = $0.03 | **$36** (1.5x) |
+| hosted image, 4 keyframes/s | 2 x 15 images = $0.075 | $90 |
+| self-hosted image (GPU pod) | nothing per call | the pod's hourly price, shared by every camera |
+
+Hosted images are *not* cheaper than hosted video for 3 s chunks: an image costs as much as 12.5
+video frames, and 6 keyframes already exceed the 50-frame minimum that pays for the whole chunk
+(break-even is about 4 images per chunk). Image mode saves money only on our own GPU, where an image
+needs no video session state (the 20 GB OOM was video sessions) and costs nothing per call; hosted
+images are the fallback that keeps alerts flowing while the pod is down. The loop's budget counts
+hosted images as 12.5 frames each (`billed_frames`), so a hosted-only image camera reaches the
+default 1,000 frames/min budget with one concept and degrades as the budget section above says; a
+self-hosted batch bills 0. The dollar budget and cost lines (`cost` above) see the same split:
+each hosted image is recorded as one billed image (`PerceptionMetrics.record_image_call`), each
+self-hosted batch as GPU time only. For a hosted-only site where cost matters more than latency, set
+`RULECAM_RUNTIME_SAM_MODE=video`.
+
+**Latency.** Video mode spends one hosted request per concept per chunk, about 10 s (p95 16 s). Image
+mode spends one self-hosted call per chunk: about 0.5 MB of JPEGs over the RunPod proxy plus one
+image-encoder pass per keyframe and one detector pass per concept on it. The video engine measured
+about 3.5 s per 30-frame session, roughly 0.1 s per frame for encoder, detector and tracker, so a
+2-concept chunk at 2 keyframes/s should take about 1 s of GPU and one L4 should carry 2 to 3 cameras;
+measure it live (`stages.sam` / `sam_request` in `/runtime/metrics`, `image` in the SAM pod's
+`/health`). Hosted images are many small requests (12 per chunk here) that run 8 at a time.
+
 ## Evidence strips (what Glimmer sees)
 
 Every candidate gets a strip before Tier 1 (`runtime/strips.py`, P4-05): up to 6 keyframes
@@ -495,7 +547,14 @@ What runs where:
 
 - GPU pod: `rulecam.perception.sam_server`, a stdlib HTTP server around `Sam31Engine`
   (`facebook/sam3.1`, `sam3` at the commit pinned in `sam_worker.SAM3_COMMIT`). `GET /health` is
-  open; `POST /segment` needs `Authorization: Bearer <SAM_API_KEY>`. The body is
+  open; `POST /segment` (video, offline uses) and `POST /segment_image` (the runtime's keyframes,
+  `{"request": <SamImageRequest JSON>, "images_b64": [...]}`) need
+  `Authorization: Bearer <SAM_API_KEY>`. Image mode runs the detector of the already loaded SAM 3.1
+  model through `sam3`'s `Sam3Processor` (`Sam31ImageEngine`): no second checkpoint, no session
+  state, memory released and guarded after every call. `SAM_IMAGE=0` turns it off (404),
+  `SAM_IMAGE_THRESH` (0.5) is its confidence threshold, and image calls wait in their own queue,
+  `SAM_IMAGE_MAX_WAITING` (8), for the same GPU. `/health` reports `image` (loaded, waiting,
+  calls, guard trips). The body is
   `{"request": <SamRequest JSON>, "video_b64": ...}` (32 MB limit, `SAM_MAX_BODY_BYTES`), the
   answer the `SamResponse` JSON. One call runs on the GPU at a time; up to `SAM_MAX_WAITING` (2)
   wait, the rest get 503 at once. The model loads once, before the port opens.

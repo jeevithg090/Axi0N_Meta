@@ -387,7 +387,50 @@ class HostedSam31:
         if content_type is None:
             msg = f"segment_image takes JPEG or PNG, got {frame.suffix or 'no extension'}"
             raise ValueError(msg)
-        encoded = base64.b64encode(frame.read_bytes()).decode("ascii")
+        return self.segment_image_bytes(
+            frame.read_bytes(),
+            concept,
+            content_type=content_type,
+            camera_id=camera_id,
+            ts=ts,
+            include_confidence=include_confidence,
+        )
+
+    def segment_image_bytes(
+        self,
+        image: bytes,
+        concept: str,
+        *,
+        content_type: str = "image/jpeg",
+        camera_id: str = PROBE_CAMERA_ID,
+        ts: datetime | None = None,
+        include_confidence: bool = True,
+    ) -> list[Detection]:
+        """Segment one concept in an encoded image held in memory (runtime keyframes).
+
+        Billed as one image ($2.50 per 1,000), whatever its size. Like `segment`, it publishes
+        `relay.model_used` on the bus directly (the bus hands it to its loop from other threads).
+
+        Args:
+            image: JPEG or PNG bytes.
+            concept: The concept noun phrase.
+            content_type: `image/jpeg` or `image/png`.
+            camera_id: The camera the frame came from (for detections and cost counters).
+            ts: The frame's timestamp; defaults to the injected clock's now.
+            include_confidence: Whether detections carry confidences.
+
+        Returns:
+            Detections on frame 0, sorted by object id; `[]` when nothing matched.
+
+        Raises:
+            ValueError: If the content type is not JPEG or PNG.
+            ModelHTTPError: When the API keeps failing or rejects the request.
+            ModelResponseError: When the reply cannot be parsed.
+        """
+        if content_type not in IMAGE_CONTENT_TYPES.values():
+            msg = f"segment_image takes JPEG or PNG, got {content_type}"
+            raise ValueError(msg)
+        encoded = base64.b64encode(image).decode("ascii")
         body = image_request(
             concept,
             image_data_url=f"data:{content_type};base64,{encoded}",
@@ -401,6 +444,7 @@ class HostedSam31:
         detections = [
             self._detection(r, camera_id, concept, stamp, include_confidence) for r in records
         ]
+        detections.sort(key=lambda d: d.object_id)
         publish_model_used(self._bus, self._model_used(reply, camera_id))
         _log.info("sam_image", camera_id=camera_id, concept=concept, n=len(detections))
         return detections

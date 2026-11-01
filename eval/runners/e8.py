@@ -100,8 +100,8 @@ def aggregate_e8(manifest: DatasetManifest, results: Sequence[SequenceResult]) -
         results: One result per sequence.
 
     Returns:
-        The result. Refused as "not measured" if the terms are not accepted or there are no
-        sequences.
+        The result. Refused as "not measured" if the terms are not accepted, the manifest does
+        not name who accepted them and which sequences were used, or there are no sequences.
     """
     if not manifest.terms_accepted:
         return not_measured(
@@ -109,6 +109,13 @@ def aggregate_e8(manifest: DatasetManifest, results: Sequence[SequenceResult]) -
             TITLE,
             f"the dataset's terms are not recorded as accepted. Read them at {manifest.url}, "
             "download it by hand, then set `terms_accepted` and `accepted_by` in the manifest.",
+        )
+    if not manifest.accepted_by.strip() or not manifest.sequences:
+        return not_measured(
+            "e8",
+            TITLE,
+            "the manifest does not record who accepted the terms (`accepted_by`) and which "
+            "sequences were used (`sequences`); fill both in before any figure is reported.",
         )
     if not results:
         return not_measured("e8", TITLE, "the terms are accepted but no sequence was scored yet.")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import yaml
 from eval.runners.common import RunnerResult
 from eval.runners.e5 import ArmScore, aggregate_e5
@@ -42,6 +43,10 @@ def test_e5_needs_the_same_clip_on_both_arms() -> None:
     got = aggregate_e5([arm("a", "raw")])
     assert not got.measured
     assert "no clip was scored on both arms" in got.caveats[0]
+
+
+def test_e5_not_measured_uses_the_e5_lite_id() -> None:
+    assert aggregate_e5([]).id == "e5-lite"
 
 
 def test_e5_compares_only_the_clips_both_arms_scored() -> None:
@@ -115,6 +120,15 @@ def test_e8_refuses_to_report_anything_without_accepted_terms() -> None:
     assert not got.measured
     assert "not recorded as accepted" in got.caveats[0]
     assert "fenix.ur.edu.pl" in got.caveats[0]
+
+
+@pytest.mark.parametrize("over", [{"accepted_by": " "}, {"sequences": ()}])
+def test_e8_refuses_figures_without_accepted_by_and_sequences(over: dict[str, object]) -> None:
+    got = aggregate_e8(
+        accepted(**over), [SequenceResult(sequence="fall-01", fall=True, alerted=True)]
+    )
+    assert not got.measured
+    assert "`accepted_by`" in got.caveats[0]
 
 
 def test_e8_with_accepted_terms_but_no_sequences_says_so() -> None:

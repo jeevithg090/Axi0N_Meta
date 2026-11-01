@@ -70,7 +70,7 @@ def aggregate_e5(scores: Sequence[ArmScore]) -> RunnerResult:
     }
     if not paired:
         return not_measured(
-            "e5",
+            "e5-lite",
             TITLE,
             "no clip was scored on both arms. E5-lite needs the same clips run raw and in "
             "Anonymous Mode, which needs the UC2 recordings.",

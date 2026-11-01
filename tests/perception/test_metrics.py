@@ -81,3 +81,15 @@ def test_report_is_json_with_numbers() -> None:
     camera = body["cameras"][0]
     numeric = [value for key, value in camera.items() if key != "camera_id"]
     assert all(isinstance(value, int | float) and math.isfinite(value) for value in numeric)
+
+
+def test_image_calls_price_hosted_images_and_self_hosted_gpu_time() -> None:
+    metrics = PerceptionMetrics(gpu_usd_per_hour=3.6)
+    metrics.record_chunk("cam1", 3600.0)
+    metrics.record_image_call("cam1", backend=Backend.HOSTED, images=1)
+    metrics.record_image_call("cam1", backend=Backend.SELF_HOSTED, images=12, gpu_seconds=2.0)
+    summary = metrics.report().cameras[0]
+    assert (summary.sam_calls_hosted, summary.sam_calls_self_hosted) == (1, 1)
+    assert summary.hosted_equivalent_usd_per_camera_hour == pytest.approx(13 * 0.0025)
+    assert summary.actual_usd_per_camera_hour == pytest.approx(0.0025 + 2.0 * 0.001)
+    assert summary.gpu_seconds == 2.0

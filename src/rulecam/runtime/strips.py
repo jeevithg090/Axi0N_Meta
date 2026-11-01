@@ -11,14 +11,18 @@ For every candidate the loop hands over, `EpisodeStrips.render`:
 3. reads the rule's tracks (`relevant_concepts`) from the track store, and at each keyframe
    takes each track's nearest point (within `TRACK_TOLERANCE_S`); the candidate's subject is
    highlighted;
-4. draws boxes with concept labels, the rule's polygon zones, a caption (frame, offset from the
-   episode start, rule id, the measured value) and, where the plan has a calibration for the
-   camera, a **distance ruler** from the subject's foot to the nearest other object's foot with
-   its ground distance in metres and a one-metre tick on the ground;
+4. draws boxes, the rule's polygon zones and, where the plan has a calibration for the camera, a
+   **distance ruler** from the subject's foot to the nearest other object's foot with a
+   one-metre tick on the ground; every word (a caption with the frame, the offset from the
+   episode start, the rule id and the measured value, and a colour legend with the concepts and
+   the ground distance in metres) goes in Rulecam's **annotation band** below the frame, never
+   on the scene (`strip_draw.with_band`);
 5. applies the privacy mode (`runtime.strip_draw`): standard blurs faces on the real frame;
    anonymous and strict keep no person pixel (plate + objects minus people + skeletons);
-6. writes the JPEGs under `<data dir>/strips/<camera>/<event>/` (atomically: a half-written strip
-   is never returned) and returns the candidate with `strip_paths` set.
+6. writes the JPEGs under `<data dir>/strips/<camera>/<event>/`, with `annotations.json` listing
+   every string the bands show (`verify.annotations`: the verifiers remove copies of them from
+   `scene_text` before the firewall), atomically (a half-written strip is never returned), and
+   returns the candidate with `strip_paths` set.
 
 **Failures never break the loop.** A chunk that cannot be decoded is skipped (`strip_chunk_failed`
 in the log); any other failure gives the candidate an empty strip and `strip_render_failed`, so
@@ -69,11 +73,13 @@ from rulecam.runtime.strip_draw import (
     Overlay,
     Ruler,
     YuNetFaces,
+    annotation_texts,
     anonymous_frame,
     clean_plate,
     person_mask,
     standard_frame,
 )
+from rulecam.verify.annotations import write_annotations
 
 _log = get_logger(__name__)
 
@@ -406,7 +412,8 @@ class EpisodeStrips:
             for k, (key, _) in enumerate(decoded, start=1)
         ]
         images = render_frames([frame for _, frame in decoded], overlays, mode, self._faces)
-        paths = self._write(candidate, images)
+        drawn = [text for overlay in overlays for text in annotation_texts(overlay)]
+        paths = self._write(candidate, images, drawn)
         _log.info(
             "strip_rendered",
             event_id=candidate.event_id,
@@ -437,7 +444,9 @@ class EpisodeStrips:
             decoded.extend(zip(keys, frames, strict=True))
         return sorted(decoded, key=lambda pair: pair[0].ts)
 
-    def _write(self, candidate: CandidateEvent, images: Sequence[Frame]) -> tuple[str, ...]:
+    def _write(
+        self, candidate: CandidateEvent, images: Sequence[Frame], drawn: Sequence[str]
+    ) -> tuple[str, ...]:
         folder = self._out_dir / safe_name(candidate.camera_id) / safe_name(candidate.event_id)
         partial = folder.with_name(folder.name + ".part")
         shutil.rmtree(partial, ignore_errors=True)
@@ -448,6 +457,7 @@ class EpisodeStrips:
                 if not cv2.imwrite(str(path), image, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY]):
                     msg = f"could not write strip frame {k}"
                     raise OSError(msg)
+            write_annotations(partial, drawn)
             shutil.rmtree(folder, ignore_errors=True)
             partial.rename(folder)
         finally:

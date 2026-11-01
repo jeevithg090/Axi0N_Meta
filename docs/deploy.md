@@ -284,6 +284,12 @@ riders as pedestrians for a rule, list its id in `RULECAM_OPERATOR_EXCLUSION_OFF
 e.g. `RULECAM_OPERATOR_EXCLUSION_OFF=forklift-proximity`) and restart the API; each candidate's
 evidence record keeps the flag it was decided with.
 
+A person first seen already on board (the tracker's first keyframes of a seated driver) is held
+as *operator pending* for up to `RULECAM_OPERATOR_WARMUP_S` (default and maximum 1.5 s, 0 turns
+it off) before being judged operator or pedestrian. The trade-off: a pedestrian first seen inside
+a moving vehicle's box alerts at most 1.5 s later, on HIGH (act-first) rules too, well inside the
+10 s alert-latency target; pedestrians seen approaching from outside alert at once.
+
 ### Actions, escalation and the interlock
 
 The runtime decides with P3-05's `VerificationPolicy` and acts with P3-06's `ActionExecutor`
@@ -543,10 +549,15 @@ measure it live (`stages.sam` / `sam_request` in `/runtime/metrics`, `image` in 
 Every candidate gets a strip before Tier 1 (`runtime/strips.py`, P4-05): up to 6 keyframes
 spread over the episode (at least its last 2 s), decoded from the chunks on disk with one ffmpeg
 call per chunk straight into memory (no raw frame is written), at most 640 px wide. Each frame
-shows the rule's objects as labelled boxes (the subject in red), the rule's polygon zones, a
-caption (frame, offset, rule, measured value) and, when the camera has a calibration in the
-approved plan, a ruler from the subject's foot to the nearest other object with its ground
-distance and a one-metre tick. The JPEGs go to `$RULECAM_DATA_DIR/strips/<camera>/<event>/`.
+shows the rule's objects as boxes (the subject thick and red), the rule's polygon zones and, when
+the camera has a calibration in the approved plan, a ruler from the subject's foot to the nearest
+other object with a one-metre tick. Every word Rulecam draws is in a black **annotation band**
+appended below the frame (headed "RULECAM ANNOTATION (not part of the scene)"): the caption
+(frame, offset, rule, measured value) and a colour legend (concepts, the ground distance, the
+tick, zones). Glimmer is told the band is ours and not scene text, and `annotations.json` beside
+the JPEGs lists the exact strings, which the verifiers remove from `scene_text` before the
+Prompt Guard firewall, so our own labels never read as a tamper attempt. The JPEGs go to
+`$RULECAM_DATA_DIR/strips/<camera>/<event>/`.
 
 The plan's privacy mode applies: `standard` keeps the real frame with faces blurred;
 `anonymous` and `strict` keep no person pixel (a clean plate, the rule's non-person objects

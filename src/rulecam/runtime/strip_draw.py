@@ -17,6 +17,13 @@ Privacy modes (MP §7.5):
 - **strict**: as anonymous, but greyscale (no clothing or skin colour), every person is the same
   canonical stick figure in one neutral colour (no per-track colour, no real bone lengths).
 
+**Annotation band.** Every word Rulecam draws goes in a band *appended below* the frame (the
+scene's pixels are never covered by text): a header that says the band is Rulecam's, the caption
+and a colour legend for the boxes, the distance ruler, the one-metre tick and the zones. On the
+frame itself only shapes are drawn (boxes, lines, polygons), so a verifier that copies visible
+text into `scene_text` finds none of ours in the scene; `annotation_texts` lists exactly what
+the band says, so the verifier can also remove any copy of it (`verify.annotations`).
+
 Never identity: faces are only located to be blurred; nothing is recognised or compared.
 """
 
@@ -73,7 +80,16 @@ ZONE_COLOUR = (255, 255, 0)
 STRICT_COLOUR = (230, 230, 230)
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 FONT_SCALE = 0.45
-CAPTION_H = 20
+BAND_HEADER = "RULECAM ANNOTATION (not part of the scene)"
+BAND_COLOUR = (0, 0, 0)
+BAND_EDGE_COLOUR = RULER_COLOUR
+BAND_EDGE = 2
+BAND_LINE_H = 18
+BAND_PAD = 4
+SWATCH = 10
+LEGEND_GAP = 14
+TICK_LABEL = "white tick: 1 m on the ground"
+CAPTION_SEPARATOR = "  "
 
 
 @dataclass(frozen=True)
@@ -270,10 +286,9 @@ def blur_faces(frame: Frame, items: Sequence[Item], faces: FaceDetector) -> Fram
 
 
 def standard_frame(raw: Frame, overlay: Overlay, faces: FaceDetector) -> Frame:
-    """A standard-mode keyframe: the real frame, faces blurred, overlays drawn."""
+    """A standard-mode keyframe: the real frame, faces blurred, overlays drawn, band below."""
     out = blur_faces(raw, overlay.items, faces)
-    draw_overlay(out, overlay, strict=False)
-    return out
+    return draw_overlay(out, overlay, strict=False)
 
 
 def anonymous_frame(
@@ -290,7 +305,8 @@ def anonymous_frame(
         strict: Greyscale and canonical figures only.
 
     Returns:
-        The composite; no pixel inside a (grown) person box comes from `raw`.
+        The composite with the annotation band below it; no pixel inside a (grown) person box
+        comes from `raw`.
     """
     people = person_mask(raw.shape, overlay.items)
     objects = box_mask(raw.shape, [i.box for i in overlay.items if not i.person])
@@ -304,8 +320,7 @@ def anonymous_frame(
     for item in overlay.items:
         if item.person:
             draw_person(out, item, strict=strict)
-    draw_overlay(out, overlay, strict=strict)
-    return out
+    return draw_overlay(out, overlay, strict=strict)
 
 
 def track_colour(key: str) -> tuple[int, int, int]:
@@ -375,24 +390,109 @@ def _head_circle(
     return (x0 + 0.1 * (x1 - x0), (y0 + y1) / 2), 0.08 * (x1 - x0)
 
 
-def draw_overlay(frame: Frame, overlay: Overlay, *, strict: bool) -> None:
-    """Draw zones, boxes with concept labels, the distance ruler and the caption, in place."""
-    for name, polygon in overlay.zones:
+def draw_overlay(frame: Frame, overlay: Overlay, *, strict: bool) -> Frame:
+    """Draw the overlay: shapes on the frame, every word in the band below it.
+
+    Zones, boxes and the distance ruler are drawn on `frame` in place, without any text; the
+    returned frame is `frame` with the annotation band (caption and legend) appended below.
+    """
+    for _, polygon in overlay.zones:
         pts = np.asarray([_pt(p) for p in polygon], dtype=np.int32)
         cv2.polylines(frame, [pts], isClosed=True, color=ZONE_COLOUR, thickness=1)
-        _label(frame, f"zone {name}", _pt(polygon[0]), ZONE_COLOUR)
     for item in overlay.items:
         colour = SUBJECT_COLOUR if item.subject else _concept_colour(item.concept, strict=strict)
         x0, y0, x1, y1 = item.box
         cv2.rectangle(frame, _pt((x0, y0)), _pt((x1, y1)), colour, 3 if item.subject else 1)
-        label = f"subject: {item.concept}" if item.subject else item.concept
-        _label(frame, label, _pt((x0, y0 - 4)), colour)
     if overlay.ruler is not None:
         _draw_ruler(frame, overlay.ruler)
+    return with_band(frame, overlay, strict=strict)
+
+
+def legend(overlay: Overlay, *, strict: bool) -> list[tuple[str, tuple[int, int, int]]]:
+    """The band's legend: `(text, swatch colour)` per subject, other concept, ruler, tick, zone."""
+    entries: list[tuple[str, tuple[int, int, int]]] = []
+    subjects = sorted({i.concept for i in overlay.items if i.subject})
+    entries += [(f"subject: {concept}", SUBJECT_COLOUR) for concept in subjects]
+    others = sorted({i.concept for i in overlay.items if not i.subject})
+    entries += [(concept, _concept_colour(concept, strict=strict)) for concept in others]
+    if overlay.ruler is not None:
+        entries.append((f"distance {overlay.ruler.metres:.1f} m", RULER_COLOUR))
+        if overlay.ruler.tick is not None:
+            entries.append((TICK_LABEL, (255, 255, 255)))
+    entries += [(f"zone {name}", ZONE_COLOUR) for name, _ in overlay.zones]
+    return entries
+
+
+def caption_parts(caption: str) -> tuple[str, ...]:
+    """The caption's fields (frame, offset, rule, measurement), as drawn and as copied apart."""
+    return tuple(part.strip() for part in caption.split(CAPTION_SEPARATOR) if part.strip())
+
+
+def annotation_texts(overlay: Overlay) -> tuple[str, ...]:
+    """Every string the annotation band of this overlay shows (the same in every privacy mode)."""
+    texts = [BAND_HEADER]
     if overlay.caption:
-        width = frame.shape[1]
-        cv2.rectangle(frame, (0, 0), (width, CAPTION_H), (0, 0, 0), thickness=-1)
-        cv2.putText(frame, overlay.caption, (4, 14), FONT, FONT_SCALE, (255, 255, 255), 1)
+        texts += [overlay.caption, *caption_parts(overlay.caption)]
+    texts += [text for text, _ in legend(overlay, strict=False)]
+    if overlay.ruler is not None:
+        texts.append(f"{overlay.ruler.metres:.1f} m")  # the value alone, as a model may copy it
+    return tuple(dict.fromkeys(texts))
+
+
+def _text_width(text: str) -> int:
+    (width, _), _ = cv2.getTextSize(text, FONT, FONT_SCALE, 1)
+    return int(width)
+
+
+def _legend_rows(
+    entries: list[tuple[str, tuple[int, int, int]]], width: int
+) -> list[list[tuple[str, tuple[int, int, int]]]]:
+    """Legend entries wrapped into rows that fit `width` (an over-long entry gets its own row)."""
+    rows: list[list[tuple[str, tuple[int, int, int]]]] = []
+    used = width
+    for entry in entries:
+        need = SWATCH + 4 + _text_width(entry[0]) + LEGEND_GAP
+        if used + need > width and (not rows or rows[-1]):
+            rows.append([])
+            used = BAND_PAD
+        rows[-1].append(entry)
+        used += need
+    return rows
+
+
+def band_height(overlay: Overlay, width: int, *, strict: bool) -> int:
+    """Height in pixels of the annotation band for a frame `width` pixels wide."""
+    lines = 1 + bool(overlay.caption) + len(_legend_rows(legend(overlay, strict=strict), width))
+    return BAND_EDGE + lines * BAND_LINE_H + BAND_PAD
+
+
+def with_band(frame: Frame, overlay: Overlay, *, strict: bool) -> Frame:
+    """The frame with Rulecam's annotation band appended below it (the scene is not covered).
+
+    The band is black under a `BAND_EDGE` px line in the ruler colour. It shows `BAND_HEADER`,
+    the caption, and the legend: a colour swatch and a label per subject, concept, ruler, tick and
+    zone. Its strings are exactly `annotation_texts(overlay)`.
+    """
+    height, width = frame.shape[:2]
+    out = np.zeros((height + band_height(overlay, width, strict=strict), width, 3), np.uint8)
+    out[:height] = frame
+    out[height:] = BAND_COLOUR
+    out[height : height + BAND_EDGE] = BAND_EDGE_COLOUR
+    baseline = height + BAND_EDGE + BAND_LINE_H - 5
+    _text(out, BAND_HEADER, (BAND_PAD, baseline), BAND_EDGE_COLOUR)
+    if overlay.caption:
+        baseline += BAND_LINE_H
+        _text(out, overlay.caption, (BAND_PAD, baseline), (255, 255, 255))
+    for row in _legend_rows(legend(overlay, strict=strict), width):
+        baseline += BAND_LINE_H
+        x = BAND_PAD
+        for text, colour in row:
+            top = baseline - SWATCH
+            cv2.rectangle(out, (x, top), (x + SWATCH, top + SWATCH), colour, thickness=-1)
+            x += SWATCH + 4
+            _text(out, text, (x, baseline), (255, 255, 255))
+            x += _text_width(text) + LEGEND_GAP
+    return out
 
 
 def _draw_ruler(frame: Frame, ruler: Ruler) -> None:
@@ -400,22 +500,17 @@ def _draw_ruler(frame: Frame, ruler: Ruler) -> None:
     cv2.line(frame, a, b, RULER_COLOUR, 2, cv2.LINE_AA)
     for end in (a, b):
         cv2.circle(frame, end, 4, RULER_COLOUR, -1)
-    middle = ((a[0] + b[0]) // 2, (a[1] + b[1]) // 2 - 6)
-    _label(frame, f"{ruler.metres:.1f} m", middle, RULER_COLOUR)
     if ruler.tick is not None:
         t0, t1 = _pt(ruler.tick[0]), _pt(ruler.tick[1])
         cv2.line(frame, t0, t1, (255, 255, 255), 3, cv2.LINE_AA)
-        _label(frame, "1 m", (t1[0] + 4, t1[1] + 12), (255, 255, 255))
 
 
 def _concept_colour(concept: str, *, strict: bool) -> tuple[int, int, int]:
     return STRICT_COLOUR if strict else track_colour(f"concept:{concept}")
 
 
-def _label(frame: Frame, text: str, origin: tuple[int, int], colour: tuple[int, int, int]) -> None:
-    x, y = origin[0], max(CAPTION_H + 12, origin[1])
-    cv2.putText(frame, text, (x, y), FONT, FONT_SCALE, (0, 0, 0), 3, cv2.LINE_AA)
-    cv2.putText(frame, text, (x, y), FONT, FONT_SCALE, colour, 1, cv2.LINE_AA)
+def _text(frame: Frame, text: str, origin: tuple[int, int], colour: tuple[int, int, int]) -> None:
+    cv2.putText(frame, text, origin, FONT, FONT_SCALE, colour, 1, cv2.LINE_AA)
 
 
 def _pt(point: PointXY) -> tuple[int, int]:

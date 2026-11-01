@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import itertools
+import json
 import shutil
 import subprocess
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -28,12 +30,18 @@ from rulecam.rules.backtest import DecisionContext
 from rulecam.runtime import strips as strips_module
 from rulecam.runtime.loop import ActivePlan
 from rulecam.runtime.strip_draw import (
+    BAND_EDGE_COLOUR,
+    BAND_HEADER,
     RULER_COLOUR,
     SUBJECT_COLOUR,
+    TICK_LABEL,
     Frame,
     NoFaceDetector,
     Overlay,
     YuNetFaces,
+    annotation_texts,
+    band_height,
+    legend,
 )
 from rulecam.runtime.strips import (
     EpisodeStrips,
@@ -302,8 +310,77 @@ def test_overlays_are_drawn_on_the_frame() -> None:
     assert tuple(out[140, 100]) == SUBJECT_COLOUR  # left edge of the subject's box
     assert tuple(out[180, 250]) == RULER_COLOUR  # the ruler's end at the forklift's foot
     assert np.abs(out[180, 185].astype(int) - np.asarray(RULER_COLOUR)).sum() < 90  # its line
-    assert out[:20].mean() < 40  # caption bar
-    assert out.shape == raw.shape
+    band = band_height(overlay, 640, strict=False)
+    assert out.shape == (360 + band, 640, 3)  # the band is appended, never drawn over the scene
+    assert np.array_equal(out[:20], raw[:20])  # no caption bar on the scene any more
+    assert (out[360:362] == BAND_EDGE_COLOUR).all()
+    assert out[362:].mean() < 40  # black band with white text
+
+
+def _relabelled(overlay: Overlay, *, concepts: bool) -> Overlay:
+    """The same shapes with other words: caption, zone names and (optionally) concept names."""
+    items = (
+        tuple(replace(i, concept=f"{i.concept}-renamed") for i in overlay.items)
+        if concepts
+        else overlay.items
+    )
+    zones = tuple((f"{name}-renamed", poly) for name, poly in overlay.zones)
+    caption = "9/9  t+9.9s  some-other-rule  measured 9.99 m"
+    return replace(overlay, items=items, zones=zones, caption=caption)
+
+
+def test_no_text_is_drawn_on_the_scene() -> None:
+    """Live finding: Glimmer copied our captions and labels into `scene_text`."""
+    key = Keyframe(chunk=make_chunk(), frame_idx=20, ts=at(2.0))
+    tracks = [
+        track("cam1:person:1", "person", PERSON_BOX),
+        track("cam1:forklift:1", "forklift", FORKLIFT_BOX),
+    ]
+    overlay = replace(
+        keyframe_overlay(candidate(), context(), tracks, key, scale=0.5, position=(1, 6)),
+        zones=(("dock", ((10.0, 300.0), (60.0, 300.0), (60.0, 340.0))),),
+    )
+    # Concept names pick box colours in standard mode, so they are renamed in strict mode only.
+    for mode, concepts in ((PrivacyMode.STANDARD, False), (PrivacyMode.STRICT, True)):
+        raw = scene_frame((640, 360))
+        other = _relabelled(overlay, concepts=concepts)
+        (one,) = render_frames([raw], [overlay], mode, NoFaceDetector())
+        (two,) = render_frames([raw], [other], mode, NoFaceDetector())
+        assert np.array_equal(one[:360], two[:360])  # the words change nothing on the scene
+        assert not np.array_equal(one[360:], two[360:])  # they are all in the band
+
+
+def test_the_band_lists_exactly_what_it_shows() -> None:
+    key = Keyframe(chunk=make_chunk(), frame_idx=20, ts=at(2.0))
+    tracks = [
+        track("cam1:person:1", "person", PERSON_BOX),
+        track("cam1:forklift:1", "forklift", FORKLIFT_BOX),
+    ]
+    overlay = keyframe_overlay(candidate(), context(), tracks, key, scale=0.5, position=(2, 6))
+    assert [text for text, _ in legend(overlay, strict=False)] == [
+        "subject: person",
+        "forklift",
+        "distance 2.6 m",
+        TICK_LABEL,
+    ]
+    assert annotation_texts(overlay) == (
+        BAND_HEADER,
+        "2/6  t+1.0s  forklift-proximity  measured 2.60 m",
+        "2/6",
+        "t+1.0s",
+        "forklift-proximity",
+        "measured 2.60 m",
+        "subject: person",
+        "forklift",
+        "distance 2.6 m",
+        TICK_LABEL,
+        "2.6 m",
+    )
+    bare = Overlay(items=())
+    assert annotation_texts(bare) == (BAND_HEADER,)
+    assert band_height(bare, 640, strict=False) < band_height(overlay, 640, strict=False)
+    # A narrow frame wraps the legend onto more rows.
+    assert band_height(overlay, 120, strict=False) > band_height(overlay, 640, strict=False)
 
 
 def test_rule_polygons_are_scaled_and_filtered_by_camera() -> None:
@@ -359,9 +436,10 @@ def test_no_person_pixel_survives_anonymous_and_strict(mode: PrivacyMode) -> Non
 def test_strict_mode_is_greyscale_except_the_subject_box() -> None:
     raws = [scene_frame((640, 360))]
     (out,) = render_frames(raws, [_scene_overlay()], PrivacyMode.STRICT, NoFaceDetector())
-    colourful = (out.max(axis=2).astype(int) - out.min(axis=2)) > 10
+    scene = out[:360]  # the band's legend swatches are coloured on purpose
+    colourful = (scene.max(axis=2).astype(int) - scene.min(axis=2)) > 10
     ys, xs = np.nonzero(colourful)
-    assert colourful.any()  # the red subject box and its label
+    assert colourful.any()  # the red subject box
     assert xs.min() >= 90
     assert xs.max() <= 260
     assert ys.min() >= 20
@@ -428,7 +506,11 @@ def test_render_writes_the_strip_and_returns_its_paths(tmp_path: Path) -> None:
     assert [c for c, _ in decode.calls] == ["cam1_000000", "cam1_000001"]  # one call per chunk
     assert not list((tmp_path / "strips" / "cam1").glob("*.part"))
     image = read_image(out.strip_paths[0])
-    assert image.shape == (360, 640, 3)
+    assert image.shape[1:] == (640, 3)
+    assert image.shape[0] > 360  # the frame plus Rulecam's annotation band below it
+    drawn = json.loads((folder / "annotations.json").read_text("utf-8"))["drawn"]
+    assert BAND_HEADER in drawn
+    assert any(text.startswith("1/6") and "forklift-proximity" in text for text in drawn)
 
 
 def test_rerender_replaces_the_old_strip(tmp_path: Path) -> None:

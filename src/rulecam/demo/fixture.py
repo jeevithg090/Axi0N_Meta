@@ -8,6 +8,7 @@ scenarios/<name>/
   chain.jsonl           the day's evidence chain, from its first record
   windows.json          the track window the rules engine read for each candidate
   strips/<event>/<k>.jpg  the Tier 1 strips, byte for byte as Glimmer saw them
+  strips/<event>/annotations.json  the strings drawn in the strips' annotation bands
   replay/<provider>/<key>.json  the recorded model replies those calls got
 ```
 

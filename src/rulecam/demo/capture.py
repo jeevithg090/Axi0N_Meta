@@ -38,6 +38,7 @@ from rulecam.demo.tier1 import replay_tier1, with_strip
 from rulecam.replay.cache import CacheEntry, ReplayCache, atomic_write_text
 from rulecam.replay.errors import ReplayMiss
 from rulecam.rules.backtest import read_candidate_payload
+from rulecam.verify.annotations import ANNOTATION_FILE
 
 DEFAULT_MODEL = "muse-glimmer-30b"
 
@@ -154,6 +155,8 @@ def capture(sources: CaptureSources, out: Path) -> GoldenFixture:
         target.mkdir(parents=True, exist_ok=True)
         for frame in frames:
             shutil.copyfile(frame, target / frame.name)
+        if (strip_dir / ANNOTATION_FILE).is_file():  # what the bands say (`verify.annotations`)
+            shutil.copyfile(strip_dir / ANNOTATION_FILE, target / ANNOTATION_FILE)
         model = _model(records, candidate.event_id)
         try:
             replay_tier1(

@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     # to one chunk in RULECAM_SAM_BUDGET_STRIDE. 12 $/h = the former 1,000 hosted frames/min.
     rulecam_budget_usd_per_camera_hour: float = Field(default=12.0, ge=0)  # 0 = no budget
     rulecam_gpu_usd_per_hour: float = Field(default=0.0, ge=0)  # GPU pods' combined $/h
+    # One running RunPod serverless worker's $/h (RTX 4090 pool); with serverless GPUs whose
+    # worker state is known, only running workers are charged (runtime.serverless).
+    rulecam_gpu_worker_usd_per_hour: float = Field(default=1.34, ge=0)
     rulecam_sam_budget_frames_per_min: int = Field(default=0, ge=0)  # optional frame cap; 0 = off
     rulecam_sam_budget_stride: int = Field(default=3, ge=1)  # over budget: one chunk in N
     # Stop the GPU pods after this many seconds with no camera on an active plan

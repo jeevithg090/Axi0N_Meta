@@ -276,8 +276,24 @@ person or track). Families: `rulecam_runtime_lag_seconds`, `_keyframe_mode`, `_i
 `_usd_per_camera_hour{basis}`; `rulecam_cost_budget_alarm`, `_budget_usd_per_camera_hour`,
 `_usd_total`, `_usd_per_camera_hour`, `_usd_per_hour{camera}`, `_gpu_idle_stopped` (WS3);
 `rulecam_verdicts_total{tier,verdict}`;
-`rulecam_dependency_up{service="glimmer"|"sam"}` (their open `/health`, cached 10 s) and the SAM
-pod's `rulecam_sam_gpu_memory_bytes{kind}` / `rulecam_sam_memory_guard_trips_total`.
+`rulecam_dependency_up{service="glimmer"|"sam"}` and `rulecam_dependency_state{service,state}`
+(cached 10 s), serverless `rulecam_dependency_workers{service,status}` and
+`_workers_limit{service,limit}`, and the SAM pod's `rulecam_sam_gpu_memory_bytes{kind}` /
+`rulecam_sam_memory_guard_trips_total`. `GET /health` serves the same state under `gpus`.
+
+**GPU state.** A pod URL is probed on its open `/health` (`warm` when it answers, else
+`unhealthy`). A serverless URL (`https://<id>.api.runpod.ai`) is never polled: its edge answers
+401 without the RunPod key, and with it every probe would start a worker. The API reads the
+endpoint from RunPod's REST API instead (`GET /v2/serverless/{id}` and `/workers`, which wake
+nothing), with the key in `RULECAM_RUNPOD_API_KEY_FILE` when set, else `SAM_EDGE_KEY` /
+`GLIMMER_EDGE_KEY` (`runtime/serverless.py`). States: `warm` (a worker runs, billed),
+`cold-ready` (scaled to zero, the next request starts one), `starting` (RunPod is preparing a
+worker), `unhealthy` (`workers.max` is 0, or every worker is unhealthy) and `unknown` (no
+answer from the REST API, e.g. a key restricted to the endpoints only: put a read-capable key in
+`RULECAM_RUNPOD_API_KEY_FILE`). The first three are up, so a GPU scaled to zero raises no alert,
+the verifier's recovery probe passes and the UI can show "GPU waking". With both GPUs serverless
+and their state known, the cost meter charges `RULECAM_GPU_WORKER_USD_PER_HOUR` (1.34) per
+running worker instead of `RULECAM_GPU_USD_PER_HOUR`.
 
 `deploy/monitoring/` is a minimal Prometheus + Grafana (`docker compose -f
 deploy/monitoring/docker-compose.yml up -d` on your own machine, after copying
@@ -288,7 +304,7 @@ is AGPL-3.0: run it for yourself, don't host it for others. Alert rules (`alerts
 |---|---|---|
 | RulecamApiDown | `/metrics` unreachable for 1 min | page |
 | RulecamLagHigh | `rulecam_runtime_lag_seconds > 10` for 1 min | page |
-| RulecamDependencyDown | `rulecam_dependency_up == 0` for 2 min (Glimmer or SAM pod unhealthy) | page |
+| RulecamDependencyDown | `rulecam_dependency_up == 0` for 2 min (Glimmer or SAM `unhealthy` or `unknown`; scaled to zero is up) | page |
 | RulecamKeyframeMode | keyframe mode for 1 min | warning |
 | RulecamSamFallback | any self-hosted SAM outage in 10 min | warning |
 | RulecamHostedSpendHigh | hosted SAM above $1.20/h for 5 min | warning |
@@ -971,7 +987,9 @@ around the clock), avoids that wait at the start of a demo.
 - Glimmer chat without the key → 401.
 - SAM `POST /segment` without the key → 401; `GET /health` → `{"status": "ok", …}`.
 - `curl https://<api-pod>-8000.proxy.runpod.net/metrics` → Prometheus text with
-  `rulecam_dependency_up{service="glimmer"} 1` (and `sam` when self-hosted).
+  `rulecam_dependency_up{service="glimmer"} 1` (and `sam` when self-hosted); serverless GPUs
+  scaled to zero show `rulecam_dependency_state{…,state="cold-ready"} 1`, and
+  `curl https://rulecam.vercel.app/rulecam-api/health` shows the same under `gpus`.
 - `scripts/deploy/runpod_status.sh` → every pod `RUNNING` and `ok`.
 - On the API pod: `uv run python -m rulecam.replay.preflight` (with the key files exported).
 

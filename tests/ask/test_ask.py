@@ -147,7 +147,7 @@ def test_spark_chooses_the_tools_and_answers(tracks_root: Path, tmp_path: Path) 
     assert reply.answer == "15 s on average, 2 carts."
     assert [s.action.action for s in reply.steps] == ["sql", "count_objects", "look", "answer"]
     assert reply.steps[0].result["rows"] == [[15.0]]  # type: ignore[index]
-    assert reply.steps[1].result[0]["count"] == 2  # type: ignore[index]
+    assert reply.steps[1].result["frames"][0]["count"] == 2  # type: ignore[index]
     assert reply.steps[2].result["count"] == 2  # type: ignore[index]
     assert sam.prompts == ["shopping cart"]
     assert reply.models == ["muse-spark-1.3", "sam-3.1", "muse-glimmer-30b"]

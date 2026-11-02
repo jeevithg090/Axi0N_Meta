@@ -13,6 +13,10 @@ The tool's result goes back to Spark as the next message. Spark decides which to
 which order, what to count and how to read the numbers; nothing about the question types is
 written here. The loop stops at `MAX_STEPS`, then asks for an answer from what it has. Every
 step (action, result, seconds) is returned with the answer.
+
+Nothing is cut silently (`AskLimits`): a query returns up to `max_rows` rows and says how many
+there were; a turn's results share `max_result_chars` characters and a cut result says what it
+left out (`ask.results`); instants past `max_frames`, or with no recorded frame, are named.
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final, Literal
@@ -27,8 +32,16 @@ from typing import Final, Literal
 import yaml
 from pydantic import Field
 
-from rulecam.ask.data import SqlError, TrackTables
-from rulecam.ask.vision import Frame, FrameGrabber, count_objects, look, marked
+from rulecam.ask.data import DEFAULT_MAX_ROWS, SqlError, TrackTables
+from rulecam.ask.results import DEFAULT_MAX_RESULT_CHARS, fit_result
+from rulecam.ask.vision import (
+    DEFAULT_MAX_FRAMES,
+    Frame,
+    FrameGrabber,
+    count_objects,
+    look,
+    marked,
+)
 from rulecam.contracts import Clock, Frozen, StructuredLLM
 from rulecam.errors import RulecamError
 from rulecam.log import get_logger
@@ -40,6 +53,24 @@ SPARK_MODEL: Final = "muse-spark-1.3"
 MAX_STEPS: Final = 8
 
 Action = Literal["sql", "count_objects", "look", "answer"]
+
+
+@dataclass(frozen=True)
+class AskLimits:
+    """How much of each tool's output reaches Spark (settings `RULECAM_ASK_MAX_*`).
+
+    Attributes:
+        max_rows: Rows a SQL query returns at most (the full count is always reported).
+        max_result_chars: Characters of tool results per turn, shared by the turn's actions.
+        max_frames: Instants one `count_objects` or `look` call uses at most.
+    """
+
+    max_rows: int = DEFAULT_MAX_ROWS
+    max_result_chars: int = DEFAULT_MAX_RESULT_CHARS
+    max_frames: int = DEFAULT_MAX_FRAMES
+
+
+DEFAULT_LIMITS: Final = AskLimits()
 
 
 class AskAction(Frozen):
@@ -112,16 +143,19 @@ saw on each camera every {caption_s}; search them with ILIKE and read them for "
 and summary questions.
 
 Tools:
-1. sql: one DuckDB SELECT/WITH query over those tables.
+1. sql: one DuckDB SELECT/WITH query over those tables; up to {max_rows} rows come back.
 2. count_objects: SAM 3.1 finds any noun phrase you choose ("shopping cart", "cashier in black \
-uniform", "checkout counter") on the recorded frames of camera_id at up to 6 instants (times); \
-returns the count and boxes [x1, y1, x2, y2, confidence] per frame.
-3. look: Muse Glimmer looks at the recorded frames of camera_id at up to 6 instants and answers \
-your question in words (and a count if asked). With marks (default) the tracked objects are \
-drawn as numbered boxes and the result maps each number to its track_id, so you can join what \
-Glimmer says to the tables.
+uniform", "checkout counter") on the recorded frames of camera_id at up to {max_frames} \
+instants (times); returns the count and boxes [x1, y1, x2, y2, confidence] per frame.
+3. look: Muse Glimmer looks at the recorded frames of camera_id at up to {max_frames} instants \
+and answers your question in words (and a count if asked). With marks (default) the tracked \
+objects are drawn as numbered boxes and the result maps each number to its track_id, so you can \
+join what Glimmer says to the tables.
 4. answer: the final reply in the owner's language, with the numbers, the time range they cover \
 and one short sentence on how you got them and how sure you are.
+
+A result is cut only when it is too long, and then it says so ("note", "truncated", \
+"total_rows", "rows_shown"): never read a cut result as complete; aggregate or page instead.
 
 Use the owner's names for cameras and areas. Interpret times like "1 pm" in the site's time \
 zone ({timezone}). If the recording does not cover the time asked about, say so and answer for \
@@ -149,6 +183,7 @@ class AskAgent:
         camera_profiles: Callable[[], dict[str, list[dict[str, object]]]] = dict,
         caption_every_s: float = 0.0,
         marks_dir: Path | None = None,
+        limits: AskLimits = DEFAULT_LIMITS,
     ) -> None:
         """Create the agent.
 
@@ -167,6 +202,8 @@ class AskAgent:
             camera_profiles: Camera id -> what the planner's survey saw there.
             caption_every_s: How often the caption memory writes (0: off).
             marks_dir: Where frames with numbered boxes are written.
+            limits: How much tool output reaches Spark (the snapshot's row cap is set where
+                `tables` is built, see `open_tables`).
         """
         self._spark = spark
         self._segmenter = segmenter
@@ -182,6 +219,7 @@ class AskAgent:
         self._camera_profiles = camera_profiles
         self._caption_every_s = caption_every_s
         self._marks_dir = marks_dir
+        self._limits = limits
 
     def ask(self, question: str) -> AskAnswer:
         """Answer one question.
@@ -224,7 +262,7 @@ class AskAgent:
                 messages.append(
                     {
                         "role": "user",
-                        "content": "Result:\n" + json.dumps(result, default=str)[:6000],
+                        "content": "Result:\n" + fit_result(result, self._limits.max_result_chars),
                     }
                 )
         finally:
@@ -248,7 +286,12 @@ class AskAgent:
         width, height = self._frame_size
         every = f"{self._caption_every_s:g} s" if self._caption_every_s else "(off: empty)"
         system = SYSTEM_PROMPT.format(
-            width=width, height=height, timezone=self._timezone, caption_s=every
+            width=width,
+            height=height,
+            timezone=self._timezone,
+            caption_s=every,
+            max_rows=self._limits.max_rows,
+            max_frames=self._limits.max_frames,
         )
         video = {
             camera: {"first": first.isoformat(), "last": last.isoformat()}
@@ -276,20 +319,24 @@ class AskAgent:
     def _run(self, action: AskAction, tables: TrackTables, models: list[str]) -> object:
         try:
             if action.action == "sql":
-                return tables.query(action.sql or "").model_dump(mode="json")
-            frames = self._frames.frames(action.camera_id or "", _instants(action.times))
+                return tables.query(action.sql or "").model_dump(mode="json", exclude_none=True)
+            asked = _instants(action.times)
+            used = asked[: self._limits.max_frames]
+            frames = self._frames.frames(action.camera_id or "", used)
+            notes = _frame_notes(asked, used, frames, self._limits.max_frames)
             if not frames:
                 return {"error": "no recorded frames at those instants on that camera"}
             if action.action == "count_objects":
                 _note(models, "sam-3.1")
                 counts = count_objects(self._segmenter, frames, action.concept or "person")
-                return [c.model_dump(mode="json") for c in counts]
+                found = [c.model_dump(mode="json") for c in counts]
+                return {"frames": found, **({"notes": notes} if notes else {})}
             _note(models, self._glimmer_model)
             labels: dict[str, str] = {}
             if action.marks and self._marks_dir is not None:
                 frames = [self._mark(f, tables, labels) for f in frames]
             answer = look(self._glimmer, self._glimmer_model, frames, action.question or "")
-            return {**answer.model_dump(), "marks": labels}
+            return {**answer.model_dump(), "marks": labels, **({"notes": notes} if notes else {})}
         except (SqlError, ValueError, RulecamError, OSError) as exc:
             _log.info("ask_step_failed", action=action.action, error=str(exc))
             return {"error": str(exc)}
@@ -318,14 +365,34 @@ def _instants(times: Sequence[str]) -> list[datetime]:
     return [t if t.tzinfo is not None else t.replace(tzinfo=UTC) for t in parsed]
 
 
+def _frame_notes(
+    asked: Sequence[datetime], used: Sequence[datetime], frames: Sequence[Frame], cap: int
+) -> list[str]:
+    """Say which asked instants were not looked at: past the frame cap, or not recorded."""
+    notes = []
+    if len(asked) > len(used):
+        skipped = ", ".join(t.isoformat() for t in asked[len(used) :])
+        notes.append(
+            f"used the first {len(used)} of {len(asked)} instants (at most {cap} per call); "
+            f"not looked at: {skipped}"
+        )
+    seen = {f.at for f in frames}
+    missing = [t.isoformat() for t in used if t not in seen]
+    if missing:
+        notes.append(f"no recorded frame at: {', '.join(missing)}")
+    return notes
+
+
 def open_tables(
     root: Path,
     captions: Path | None = None,
     identities: Path | None = None,
     notes: Path | None = None,
+    *,
+    max_rows: int = DEFAULT_MAX_ROWS,
 ) -> Callable[[], TrackTables]:
     """A factory of fresh snapshots of the track store at `root` and the memories' files."""
-    return lambda: TrackTables(root, captions, identities, notes)
+    return lambda: TrackTables(root, captions, identities, notes, max_rows=max_rows)
 
 
 def camera_names(text: str) -> dict[str, str]:

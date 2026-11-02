@@ -71,6 +71,7 @@ from rulecam.api.prometheus import (
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
     AskAgent,
+    AskLimits,
     CaptionMemory,
     FrameGrabber,
     camera_names,
@@ -886,6 +887,7 @@ def build_ask(
             ask_dir / "captions.jsonl",
             identity.identities_path if identity is not None else None,
             identity.notes_path if identity is not None else None,
+            max_rows=settings.rulecam_ask_max_rows,
         ),
         frames=frames,
         clock=clock,
@@ -895,6 +897,11 @@ def build_ask(
         camera_profiles=planner_profiles(PLANS_DIR),
         caption_every_s=every,
         marks_dir=ask_dir / "marked",
+        limits=AskLimits(
+            max_rows=settings.rulecam_ask_max_rows,
+            max_result_chars=settings.rulecam_ask_max_result_chars,
+            max_frames=settings.rulecam_ask_max_frames,
+        ),
     )
     return agent, tuple(m.tick for m in (memory, identity) if m is not None)
 

@@ -14,8 +14,10 @@ are `TIMESTAMP` in UTC, without a zone):
   by appearance (`ask.identity`), each identity's span, and Glimmer's note on each person.
 
 After the snapshot the connection loses file access (`enable_external_access = false`, locked),
-so a query can read these tables and nothing else. Only one `SELECT` or `WITH` statement runs;
-results are capped at `MAX_ROWS` rows.
+so a query can read these tables and nothing else. Only `SELECT` or `WITH` statements run.
+Results are capped at `max_rows` rows (`RULECAM_ASK_MAX_ROWS`); a capped result says so and
+carries the query's full row count, so the model never takes part of a result for all of it.
+Every read runs on its own cursor, so the tool calls of one turn can query at the same time.
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ import duckdb
 
 from rulecam.contracts import Frozen
 
-MAX_ROWS: Final = 60
+DEFAULT_MAX_ROWS: Final = 1000
 _COLUMNS: Final = (
     "track_id, camera_id, concept, CAST(ts AS TIMESTAMP) AS ts, frame_idx, x1, y1, x2, y2, "
     "foot_px_x, foot_px_y, foot_m_x, foot_m_y, conf"
@@ -43,17 +45,22 @@ class SqlError(ValueError):
 
 
 class QueryResult(Frozen):
-    """A query's answer, capped at `MAX_ROWS` rows.
+    """A query's answer, capped at the snapshot's `max_rows` rows.
 
     Attributes:
         columns: Column names.
         rows: Rows as lists of JSON-friendly values (timestamps as ISO text).
         truncated: Whether more rows existed.
+        total_rows: The query's full row count when it was capped (`None` when it was not, or
+            when counting failed).
+        note: What was left out, in words, when the result was capped.
     """
 
     columns: list[str]
     rows: list[list[object]]
     truncated: bool = False
+    total_rows: int | None = None
+    note: str | None = None
 
 
 class CameraData(Frozen):
@@ -80,6 +87,15 @@ def _cell(value: object) -> object:
     return value
 
 
+def capped_note(shown: int, total: int | None) -> str:
+    """Say that a result shows only its first `shown` rows of `total` (unknown: `None`)."""
+    of = f"{total}" if total is not None else "more"
+    return (
+        f"showing the first {shown} of {of} rows (at most {shown} rows per query); aggregate in "
+        "SQL, or page with LIMIT/OFFSET, to see the rest"
+    )
+
+
 class TrackTables:
     """A per-question snapshot of the track store in DuckDB."""
 
@@ -89,6 +105,8 @@ class TrackTables:
         captions: Path | None = None,
         identities: Path | None = None,
         notes: Path | None = None,
+        *,
+        max_rows: int = DEFAULT_MAX_ROWS,
     ) -> None:
         """Snapshot the track store and the memories, then lock file access.
 
@@ -97,9 +115,12 @@ class TrackTables:
             captions: The caption memory's JSON-lines file, if any.
             identities: The identity memory's track -> identity file, if any.
             notes: The identity notes file, if any.
+            max_rows: Rows a query returns at most; the rest is counted and reported.
         """
+        self._max_rows = max_rows
         self._con = duckdb.connect()
-        self._con.execute("SET TimeZone = 'UTC'")
+        # GLOBAL, so the per-call cursors read timestamps in UTC as well.
+        self._con.execute("SET GLOBAL TimeZone = 'UTC'")
         files = sorted(root.glob("camera_id=*/date=*/*.parquet"))
         if files:
             pattern = (root / "camera_id=*" / "date=*" / "*.parquet").as_posix().replace("'", "''")
@@ -169,18 +190,23 @@ class TrackTables:
         else:
             self._con.execute(f"CREATE TABLE {name} ({columns})")
 
+    def _rows(self, sql: str, params: Sequence[object] = ()) -> list[tuple[object, ...]]:
+        """Run a fixed internal query on its own cursor and return the raw rows."""
+        with self._con.cursor() as cursor:
+            return cursor.execute(sql, list(params)).fetchall()
+
     def query_params(self, sql: str, params: Sequence[object]) -> list[tuple[object, ...]]:
         """Run a fixed internal query with parameters and return the raw rows."""
-        return self._con.execute(sql, list(params)).fetchall()
+        return self._rows(sql, params)
 
     def track_samples(
         self, track_id: str, n: int
     ) -> list[tuple[datetime, tuple[float, float, float, float]]]:
         """Up to `n` points of a track, spread evenly over it: `(UTC instant, box)`."""
-        rows = self._con.execute(
+        rows: list[tuple[datetime, float, float, float, float]] = self._rows(  # type: ignore[assignment]
             "SELECT ts, x1, y1, x2, y2 FROM track_points WHERE track_id = ? ORDER BY ts",
             [track_id],
-        ).fetchall()
+        )
         if not rows:
             return []
         picks = sorted({round(k * (len(rows) - 1) / max(1, n - 1)) for k in range(n)})
@@ -195,10 +221,10 @@ class TrackTables:
 
     def cameras(self) -> list[CameraData]:
         """What each camera recorded, cameras in name order."""
-        rows = self._con.execute(
+        rows: list[tuple[str, datetime, datetime, str, int]] = self._rows(  # type: ignore[assignment]
             "SELECT camera_id, min(first_seen), max(last_seen), concept, count(*) "
             "FROM track_spans GROUP BY camera_id, concept ORDER BY camera_id, concept"
-        ).fetchall()
+        )
         found: dict[str, CameraData] = {}
         for camera_id, first_naive, last_naive, concept, tracks in rows:
             first, last = first_naive.replace(tzinfo=UTC), last_naive.replace(tzinfo=UTC)
@@ -257,13 +283,13 @@ class TrackTables:
             `(track_id, concept, (x1, y1, x2, y2))`, in track order.
         """
         naive = at.astimezone(UTC).replace(tzinfo=None)
-        rows = self._con.execute(
+        rows: list[tuple[str, str, float, float, float, float]] = self._rows(  # type: ignore[assignment]
             "SELECT track_id, concept, x1, y1, x2, y2 FROM track_points WHERE camera_id = ? "
             "AND abs(epoch(ts) - epoch(CAST(? AS TIMESTAMP))) <= ? "
             "QUALIFY row_number() OVER (PARTITION BY track_id "
             "ORDER BY abs(epoch(ts) - epoch(CAST(? AS TIMESTAMP)))) = 1 ORDER BY track_id",
             [camera_id, naive, within_s, naive],
-        ).fetchall()
+        )
         return [(t, c, (x1, y1, x2, y2)) for t, c, x1, y1, x2, y2 in rows]
 
     def query(self, sql: str) -> QueryResult:
@@ -273,7 +299,8 @@ class TrackTables:
             sql: A single `SELECT` or `WITH` statement (a trailing `;` is allowed).
 
         Returns:
-            The result, at most `MAX_ROWS` rows.
+            The result, at most `max_rows` rows; a capped one has `truncated`, the full row
+            count in `total_rows` and a `note` saying how much it shows.
 
         Raises:
             SqlError: For anything but one read-only statement, or a DuckDB error.
@@ -282,14 +309,30 @@ class TrackTables:
         if not _READ_ONLY.match(text) or ";" in text:
             msg = "only one SELECT or WITH statement is allowed"
             raise SqlError(msg)
-        try:
-            cursor = self._con.execute(text)
-            rows = cursor.fetchmany(MAX_ROWS + 1)
-        except duckdb.Error as exc:
-            raise SqlError(str(exc).splitlines()[0]) from exc
-        columns = [d[0] for d in cursor.description or []]
+        with self._con.cursor() as cursor:
+            try:
+                cursor.execute(text)
+                rows = cursor.fetchmany(self._max_rows + 1)
+            except duckdb.Error as exc:
+                raise SqlError(str(exc).splitlines()[0]) from exc
+            columns = [d[0] for d in cursor.description or []]
+            total = _count(cursor, text) if len(rows) > self._max_rows else None
+        shown = [[_cell(v) for v in row] for row in rows[: self._max_rows]]
+        if len(rows) <= self._max_rows:
+            return QueryResult(columns=columns, rows=shown)
         return QueryResult(
             columns=columns,
-            rows=[[_cell(v) for v in row] for row in rows[:MAX_ROWS]],
-            truncated=len(rows) > MAX_ROWS,
+            rows=shown,
+            truncated=True,
+            total_rows=total,
+            note=capped_note(self._max_rows, total),
         )
+
+
+def _count(cursor: duckdb.DuckDBPyConnection, text: str) -> int | None:
+    """The full row count of a read-only query, or `None` when counting it fails."""
+    try:
+        found = cursor.execute(f"SELECT count(*) FROM ({text})").fetchone()  # noqa: S608
+    except duckdb.Error:
+        return None
+    return int(found[0]) if found else None

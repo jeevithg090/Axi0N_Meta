@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from collections.abc import AsyncIterator, Sequence
-from typing import Any, Final
+from typing import Annotated, Any, Final
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
@@ -42,6 +42,14 @@ class AskRequest(BaseModel):
         default=None,
         pattern=r"^[A-Za-z0-9_-]{1,64}$",
         description="The conversation_id of an earlier answer, to ask a follow-up.",
+    )
+    numbers: list[Annotated[str, Field(min_length=1, max_length=200)]] = Field(
+        default_factory=list,
+        max_length=12,
+        description=(
+            "Names of the numbers the answer must give in `numbers`, in order (benchmarks, "
+            "e.g. `rulecam eval ask`); empty: the answer gives whatever numbers it has."
+        ),
     )
 
 
@@ -75,7 +83,13 @@ async def stream_answer(
 
     def work() -> None:
         try:
-            agent.ask(body.question, conversation_id=body.conversation_id, emit=put, stop=stop)
+            agent.ask(
+                body.question,
+                conversation_id=body.conversation_id,
+                numbers=body.numbers,
+                emit=put,
+                stop=stop,
+            )
         except Exception as exc:
             _log.exception("ask_stream_failed")
             put(AskEvent(type="error", detail=f"answering failed: {type(exc).__name__}"))
@@ -119,7 +133,9 @@ def ask_router(agent: AskAgent | None, dependencies: Sequence[Any] = ()) -> APIR
     @router.post("/ask", response_model=AskAnswer, tags=["ask"])
     def ask(body: AskRequest) -> AskAnswer:
         """Answer with Spark, SAM 3.1 and Glimmer over the recorded tracks and video."""
-        return ready().ask(body.question, conversation_id=body.conversation_id)
+        return ready().ask(
+            body.question, conversation_id=body.conversation_id, numbers=body.numbers
+        )
 
     @router.post(
         "/ask/stream",

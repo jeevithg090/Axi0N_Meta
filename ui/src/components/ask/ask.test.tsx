@@ -75,6 +75,7 @@ describe("AskTimeline", () => {
           models: ["muse-spark-1.3", "sam-3.1"],
           conversation_id: "c1",
           turns: [{ turn: 0, model: "muse-spark-1.3", seconds: 2.1, actions: 2 }],
+          receipt: "0123456789abcdef".repeat(4),
         },
       },
     ] satisfies AskEvent[];
@@ -86,5 +87,6 @@ describe("AskTimeline", () => {
     expect(answer).toContain("5 people at 9:45:11.");
     expect(answer).toContain("9.5 s");
     expect(answer).toContain("muse-spark-1.3, sam-3.1");
+    expect(answer).toContain("receipt 0123456789ab");
   });
 });

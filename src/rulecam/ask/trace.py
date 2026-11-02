@@ -30,6 +30,13 @@ class AskAction(Frozen):
         default=True, description="For look: draw the tracked objects as numbered boxes."
     )
     answer: str | None = Field(default=None, description="For answer: the reply to the owner.")
+    numbers: list[float | None] = Field(
+        default_factory=list,
+        description=(
+            "For answer: the numbers the reply gives, in the order the question asks for them "
+            "(e.g. [5, 1, 4] for counts at three times; null for one you could not get)."
+        ),
+    )
 
 
 class AskTurn(Frozen):
@@ -91,6 +98,9 @@ class AskAnswer(Frozen):
         models: Every model used, Spark first.
         conversation_id: Send it with the next question to ask a follow-up.
         turns: Spark's time per turn.
+        numbers: The numbers the answer gives, in the order asked (for grading without prose).
+        prompt_sha256: SHA-256 of the instructions the models got (prompt and schema).
+        receipt: SHA-256 of this answer's row in the hash-chained run log (empty if unlogged).
     """
 
     question: str
@@ -100,6 +110,9 @@ class AskAnswer(Frozen):
     models: list[str]
     conversation_id: str = ""
     turns: list[AskTurnTiming] = Field(default_factory=list)
+    numbers: list[float | None] = Field(default_factory=list)
+    prompt_sha256: str = ""
+    receipt: str = ""
 
 
 EventType = Literal["start", "thinking", "actions", "step", "answer", "error"]

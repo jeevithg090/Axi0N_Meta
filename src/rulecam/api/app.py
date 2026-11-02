@@ -79,6 +79,7 @@ from rulecam.ask import (
     planner_profiles,
 )
 from rulecam.ask.identity import IdentityMemory, gpu_embedder
+from rulecam.ask.runlog import AskRunLog, git_sha
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
 from rulecam.clients.errors import ClientConfigError
@@ -829,6 +830,7 @@ def build_ask(
     Served in prototype mode only: it reads per-track spans (dwell time per tracked person). The
     caption memory runs when `RULECAM_ASK_CAPTION_EVERY_S` is above 0; the identity memory
     (DINOv2 re-identification on the GPU pod) when `SAM_BASE_URL` and `SAM_API_KEY` are set.
+    Every answer is appended to the hash-chained run log `<data>/ask/runs.jsonl`.
 
     Returns:
         The agent and the tickers; `(None, ())` (logged) outside prototype mode or without a
@@ -902,6 +904,12 @@ def build_ask(
             max_result_chars=settings.rulecam_ask_max_result_chars,
             max_frames=settings.rulecam_ask_max_frames,
             max_actions=settings.rulecam_ask_max_actions,
+        ),
+        runs=AskRunLog(
+            ask_dir / "runs.jsonl",
+            clock=clock,
+            git_sha=git_sha(settings.rulecam_git_sha),
+            max_result_chars=settings.rulecam_ask_max_result_chars,
         ),
     )
     return agent, tuple(m.tick for m in (memory, identity) if m is not None)

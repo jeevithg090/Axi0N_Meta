@@ -1,0 +1,90 @@
+# Ask benchmark: the CAVIAR shopping-centre corridor (`rulecam eval ask eval/ask/corridor.yaml`).
+#
+# The ten questions of reports/eval/2026-11-02-corridor-ground-truth.md (C01-C10), with the truth
+# from CAVIAR's hand labels (that report's .json, `ground_truth` and `perception_score.spot_counts`).
+# Needs the corridor recording on camera phone-68 (7 CAVIAR "cor" clips chained into one 553.6 s
+# stream starting 2026-11-02T09:44:11.875Z), with RULECAM_SITE_TIMEZONE=UTC so "9:45 am" means
+# 09:45 UTC as in that run. Each graded number is sent to the API by name (the request's
+# `numbers`) and read back from the answer's `numbers`, in order; nothing is parsed from prose.
+# Tolerances are this benchmark's own choice: +-1 person for a count at one instant, 15-30% for
+# totals over the recording, which depend on what counts as one visit or one group.
+name: corridor
+source: >-
+  CAVIAR (University of Edinburgh, EC project IST 2001 37540, CC BY-SA) hand labels, as scored in
+  reports/eval/2026-11-02-corridor-ground-truth.md
+notes: camera phone-68, stream start 2026-11-02T09:44:11.875Z, RULECAM_SITE_TIMEZONE=UTC
+questions:
+  - id: C01
+    question: How many people walked through the shopping centre corridor between 9:44 and 9:54 am?
+    truth: 80 visits
+    numbers:
+      - name: people (visits) who walked through the corridor
+        truth: 80
+        rel_tol: 0.15
+  - id: C02
+    question: How many people went into a shop from the corridor?
+    truth: 24 entered a shop
+    numbers:
+      - name: people who went into a shop
+        truth: 24
+        rel_tol: 0.2
+  - id: C03
+    question: On average, how long did a person stay in view of the corridor camera, and who stayed the longest?
+    truth: 25.1 s mean (median 16.7 s), longest 93.4 s
+    numbers:
+      - name: average seconds a person stayed in view
+        truth: 25.1
+        rel_tol: 0.25
+      - name: seconds in view of the person who stayed longest
+        truth: 93.4
+        rel_tol: 0.25
+  - id: C04
+    question: When was the corridor busiest, and how many people were there at that moment?
+    truth: 8 people, first at 09:49:28
+    numbers:
+      - name: people in view at the busiest moment
+        truth: 8
+        abs_tol: 1
+      - name: minutes past 9:00 am of the busiest moment (e.g. 49.5 for 9:49:30)
+        truth: 49.47
+        abs_tol: 0.5
+  - id: C05
+    question: On average, how many people were in the corridor at any one time?
+    truth: 3.62 people in view on average
+    numbers:
+      - name: average people in view at any one time
+        truth: 3.62
+        abs_tol: 0.5
+  - id: C06
+    question: How many people stopped to look at shop windows or browse, instead of just walking past?
+    truth: 13 window-shopped or browsed
+    numbers:
+      - name: people who stopped to look or browse
+        truth: 13
+        rel_tol: 0.3
+  - id: C07
+    question: How many people were in the corridor at 9:45:11 am, at 9:47:31 am and at 9:52:31 am?
+    truth: 5 / 1 / 4
+    numbers:
+      - name: people in view at 9:45:11 am
+        truth: 5
+        abs_tol: 1
+      - name: people in view at 9:47:31 am
+        truth: 1
+        abs_tol: 1
+      - name: people in view at 9:52:31 am
+        truth: 4
+        abs_tol: 1
+  - id: C08
+    question: Describe the people who went into shops.
+    truth: 24 people entered shops (descriptions not labelled; not graded)
+  - id: C09
+    question: What happened in the corridor around 9:49 am?
+    truth: the busiest moment of the recording, 8 people at 09:49:28 (not graded)
+  - id: C10
+    question: Did people walk alone or in groups? How many groups did we see?
+    truth: 15 pairs walked together
+    numbers:
+      - name: groups (two or more people walking together)
+        truth: 15
+        rel_tol: 0.3

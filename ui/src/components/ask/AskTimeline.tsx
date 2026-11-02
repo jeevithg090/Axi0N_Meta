@@ -212,6 +212,12 @@ function AnswerView({ answer }: { answer: AskAnswer }) {
         {answer.seconds.toFixed(1)} s · {answer.turns.length} turns ·{" "}
         {answer.steps.filter((s) => s.action.action !== "answer").length} steps · models:{" "}
         {answer.models.join(", ")}
+        {answer.receipt ? (
+          <>
+            {" "}
+            · receipt <code title={answer.receipt}>{answer.receipt.slice(0, 12)}</code>
+          </>
+        ) : null}
       </p>
     </div>
   );

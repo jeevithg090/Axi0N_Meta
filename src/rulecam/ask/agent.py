@@ -28,6 +28,7 @@ so are actions past `max_actions`.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import threading
@@ -45,6 +46,7 @@ import yaml
 
 from rulecam.ask.data import DEFAULT_MAX_ROWS, QueryResult, SqlError, TrackTables
 from rulecam.ask.results import DEFAULT_MAX_RESULT_CHARS, fit_results
+from rulecam.ask.runlog import AskRunLog
 from rulecam.ask.trace import (
     AskAction,
     AskAnswer,
@@ -167,7 +169,8 @@ and answers your question in words (and a count if asked). With marks (default) 
 objects are drawn as numbered boxes and the result maps each number to its track_id, so you can \
 join what Glimmer says to the tables.
 4. answer: the final reply in the owner's language, with the numbers, the time range they cover \
-and one short sentence on how you got them and how sure you are.
+and one short sentence on how you got them and how sure you are. Also list the numbers the \
+reply gives in `numbers`, in the order the question asks for them.
 
 A result is cut only when it is too long, and then it says so ("note", "truncated", \
 "total_rows", "rows_shown"): never read a cut result as complete; aggregate or page instead.
@@ -176,6 +179,15 @@ Use the owner's names for cameras and areas. Interpret times like "1 pm" in the 
 zone ({timezone}). If the recording does not cover the time asked about, say so and answer for \
 what it covers.\
 """
+
+
+def prompt_digest(*parts: str) -> str:
+    """SHA-256 of the instructions the models get: the prompts, then Spark's turn schema."""
+    schema = json.dumps(AskTurn.model_json_schema(), sort_keys=True)
+    return hashlib.sha256("\n\n".join([*parts, schema]).encode("utf-8")).hexdigest()
+
+
+PROMPT_SHA256: Final = prompt_digest(SYSTEM_PROMPT)
 
 
 class AskAgent:
@@ -199,6 +211,7 @@ class AskAgent:
         caption_every_s: float = 0.0,
         marks_dir: Path | None = None,
         limits: AskLimits = DEFAULT_LIMITS,
+        runs: AskRunLog | None = None,
     ) -> None:
         """Create the agent.
 
@@ -219,6 +232,7 @@ class AskAgent:
             marks_dir: Where frames with numbered boxes are written.
             limits: How much tool output reaches Spark (the snapshot's row cap is set where
                 `tables` is built, see `open_tables`).
+            runs: The run log each answer is appended to (its row hash is the receipt).
         """
         self._spark = spark
         self._segmenter = segmenter
@@ -235,6 +249,7 @@ class AskAgent:
         self._caption_every_s = caption_every_s
         self._marks_dir = marks_dir
         self._limits = limits
+        self._runs = runs
         self._conversations: OrderedDict[str, list[AskAnswer]] = OrderedDict()
         self._lock = threading.Lock()
 
@@ -243,6 +258,7 @@ class AskAgent:
         question: str,
         *,
         conversation_id: str | None = None,
+        numbers: Sequence[str] = (),
         emit: Emit = _ignore,
         stop: threading.Event | None = None,
     ) -> AskAnswer:
@@ -251,11 +267,12 @@ class AskAgent:
         Args:
             question: The owner's question, in any language.
             conversation_id: The conversation a follow-up continues; `None` starts one.
+            numbers: Names of the numbers the answer must give, in order (benchmarks).
             emit: Receives each step as it happens.
             stop: When set, no further turn starts (the asker went away).
 
         Returns:
-            The answer with its steps.
+            The answer with its steps, numbers and run-log receipt.
         """
         started = time.perf_counter()
         conversation = conversation_id or uuid.uuid4().hex
@@ -264,22 +281,37 @@ class AskAgent:
         trace = _Trace()
         tables = self._tables()
         try:
-            messages = self._opening(question, tables, earlier)
-            reply = self._loop(messages, tables, trace, emit, stop)
+            messages = self._opening(question, tables, earlier, numbers)
+            final = self._loop(messages, tables, trace, emit, stop)
         finally:
             tables.close()
-        answer = AskAnswer(
-            question=question,
-            answer=reply,
-            steps=trace.steps,
-            seconds=round(time.perf_counter() - started, 1),
-            models=_models(trace.steps),
-            conversation_id=conversation,
-            turns=trace.turns,
+        answer = self._logged(
+            AskAnswer(
+                question=question,
+                answer=final.answer or final.thought,
+                steps=trace.steps,
+                seconds=round(time.perf_counter() - started, 1),
+                models=_models(trace.steps),
+                conversation_id=conversation,
+                turns=trace.turns,
+                numbers=final.numbers,
+                prompt_sha256=PROMPT_SHA256,
+            )
         )
         self._remember(answer)
         emit(AskEvent(type="answer", conversation_id=conversation, answer=answer))
         return answer
+
+    def _logged(self, answer: AskAnswer) -> AskAnswer:
+        """The answer with its run-log receipt (unchanged when there is no log or it fails)."""
+        if self._runs is None:
+            return answer
+        try:
+            receipt = self._runs.append(answer)
+        except OSError as exc:
+            _log.warning("ask_run_log_failed", error=repr(exc))
+            return answer
+        return answer.model_copy(update={"receipt": receipt})
 
     def frame_file(self, name: str) -> Path | None:
         """A frame a step showed a model, by its file name; `None` for anything else."""
@@ -298,11 +330,11 @@ class AskAgent:
         trace: _Trace,
         emit: Emit,
         stop: threading.Event | None,
-    ) -> str:
-        """Spark's turns until it answers (at the latest on its last turn): the reply."""
+    ) -> AskAction:
+        """Spark's turns until it answers (at the latest on its last turn): the answer action."""
         for k in range(MAX_STEPS + 1):
             if stop is not None and stop.is_set():
-                return STOPPED
+                return AskAction(thought=STOPPED, action="answer", answer=STOPPED)
             turn, last = len(trace.turns), k == MAX_STEPS
             if last:
                 messages.append({"role": "user", "content": "Steps used up: answer now."})
@@ -316,9 +348,8 @@ class AskAgent:
             emit(AskEvent(type="actions", turn=turn, actions=actions, seconds=seconds))
             final = _final(actions, last=last)
             if final is not None:
-                action, reply = final
-                trace.steps.append(AskStep(turn=turn, action=action, result=None, seconds=0.0))
-                return reply
+                trace.steps.append(AskStep(turn=turn, action=final, result=None, seconds=0.0))
+                return final
             run = actions[: self._limits.max_actions]
             done = self._run_all(turn, run, tables, emit)
             trace.steps.extend(done)
@@ -403,7 +434,11 @@ class AskAgent:
         return "\n".join(lines)
 
     def _opening(
-        self, question: str, tables: TrackTables, earlier: Sequence[AskAnswer] = ()
+        self,
+        question: str,
+        tables: TrackTables,
+        earlier: Sequence[AskAnswer] = (),
+        numbers: Sequence[str] = (),
     ) -> list[dict[str, object]]:
         width, height = self._frame_size
         every = f"{self._caption_every_s:g} s" if self._caption_every_s else "(off: empty)"
@@ -438,12 +473,19 @@ class AskAgent:
                 "\n\nEarlier in this conversation (the owner's new question may build on it; the "
                 f"data above is newer):\n{history}"
             )
+        wanted = ""
+        if numbers:
+            wanted = (
+                "\n\nIn the answer action's `numbers`, give exactly these numbers in this order "
+                f"(null for one you cannot get): {json.dumps(list(numbers))}"
+            )
         return [
             {"role": "system", "content": system},
             {
                 "role": "user",
                 "content": (
-                    f"Recorded data:\n{json.dumps(context)}{before}\n\nOwner's question: {question}"
+                    f"Recorded data:\n{json.dumps(context)}{before}\n\n"
+                    f"Owner's question: {question}{wanted}"
                 ),
             },
         ]
@@ -489,15 +531,12 @@ class AskAgent:
         return marked(frame, marks, self._marks_dir)
 
 
-def _final(actions: Sequence[AskAction], *, last: bool) -> tuple[AskAction, str] | None:
-    """The answer action and its text, when the turn answers (or must, being the last)."""
+def _final(actions: Sequence[AskAction], *, last: bool) -> AskAction | None:
+    """The turn's answer action; on the last turn, its first action stands in for one."""
     for action in actions:
         if action.action == "answer":
-            return action, action.answer or action.thought
-    if last:
-        first = actions[0]
-        return first, first.answer or first.thought
-    return None
+            return action
+    return actions[0] if last else None
 
 
 def _models(steps: Sequence[AskStep]) -> list[str]:

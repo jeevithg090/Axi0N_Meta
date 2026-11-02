@@ -45,6 +45,12 @@ export interface AskAnswer {
   models: string[];
   conversation_id: string;
   turns: AskTurnTiming[];
+  /** The numbers the answer gives, in the order asked (for benchmarks). */
+  numbers?: (number | null)[];
+  /** SHA-256 of the instructions the models got. */
+  prompt_sha256?: string;
+  /** SHA-256 of this answer's row in the hash-chained run log (empty if unlogged). */
+  receipt?: string;
 }
 
 export type AskEventType = "start" | "thinking" | "actions" | "step" | "answer" | "error";

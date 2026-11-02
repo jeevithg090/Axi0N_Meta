@@ -103,6 +103,34 @@ def golden_verify(
         raise typer.Exit(code=1)
 
 
+@golden_app.command("gate")
+def golden_gate(
+    scenario: Annotated[
+        list[str] | None, typer.Argument(help="Scenario names (default: all)")
+    ] = None,
+    *,
+    scenarios_dir: Annotated[Path, typer.Option(help="Scenario directory")] = SCENARIOS_DIR,
+) -> None:
+    """Re-score every golden run (`eval score`) and fail if a `demo.score` gate is broken."""
+    from rulecam.demo.gate import gate_all  # noqa: PLC0415
+
+    results = gate_all(scenarios_dir, scenario)
+    for result in results:
+        score = result.score
+        summary = (
+            f"alerts {score.get('alerts')}, tier1 {score.get('tier1')}, "
+            f"false alerts on negative {score.get('false_alerts_on_negative')}"
+        )
+        typer.echo(f"{'✓' if result.ok else '✗'} {result.scenario}: {summary}")
+        for failure in result.failures:
+            typer.echo(f"    {failure}")
+    if not results:
+        typer.echo(f"no scenario under {scenarios_dir}", err=True)
+        raise typer.Exit(code=USAGE_ERROR)
+    if not all(r.ok for r in results):
+        raise typer.Exit(code=AUDIT_FAILED)
+
+
 @golden_app.command("capture")
 def golden_capture(
     scenario: Annotated[
@@ -427,6 +455,7 @@ def eval_run(
     survey_s: Annotated[float, typer.Option(help="Seconds fed before the request")] = 80.0,
     plan_timeout_s: Annotated[float, typer.Option(help="How long the planner may take")] = 900.0,
     include_unlabelled: Annotated[bool, typer.Option(help="Also run unlabelled rules")] = False,
+    rule: Annotated[list[str] | None, typer.Option(help="Only these rule ids")] = None,
     bus: Annotated[bool, typer.Option(help="Listen on /ws for alert times")] = True,
     track_store: Annotated[Path | None, typer.Option(help="The API's track store")] = None,
     cache_dir: Annotated[Path, typer.Option(help="Git-ignored clip cache")] = EVAL_CACHE,
@@ -469,6 +498,7 @@ def eval_run(
             work_dir=cache_dir / "chunks",
             runs_dir=runs_dir,
             include_unlabelled=include_unlabelled,
+            rules=rule or (),
         )
     finally:
         client.close()

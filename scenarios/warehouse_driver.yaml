@@ -13,4 +13,6 @@ steps:
   - {id: rule_ci, kind: demo.rule_ci, params: {fixture: scenarios/warehouse_driver}}
   - {id: evidence, kind: demo.evidence, params: {fixture: scenarios/warehouse_driver}}
   - {id: verify, kind: demo.verify, params: {fixture: scenarios/warehouse_driver}}
-  - {id: score, kind: demo.score, params: {fixture: scenarios/warehouse_driver, eval_set: eval/clips}}
+  - id: score
+    kind: demo.score
+    params: {fixture: scenarios/warehouse_driver, eval_set: eval/clips, gate: {max_alerts: 0}}

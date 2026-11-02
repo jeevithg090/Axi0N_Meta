@@ -1,6 +1,6 @@
 # Rulecam developer commands (task book §3.3). `make check` must pass before every push.
 .PHONY: setup fmt lint type test check ui-check api ui openapi preflight golden live-test \
-	eval-replay golden-verify verify-page-sync eval-caviar
+	eval-replay golden-verify golden-gate verify-page-sync eval-caviar
 
 UI_EXISTS := $(wildcard ui/package.json)
 
@@ -66,6 +66,11 @@ eval-replay:
 # into the site (ui/public/verify), where the golden demo's chain is checked in the browser.
 golden-verify:
 	@for s in scenarios/*.yaml; do uv run rulecam golden verify "$$(basename "$$s" .yaml)" || exit 1; done
+
+# Add-on 1.2: re-score every golden run with `eval score` and fail on a broken `demo.score` gate
+# (a false alert on a negative clip, a missing verified alert, ...). CI runs it after golden-verify.
+golden-gate:
+	uv run rulecam golden gate
 
 verify-page-sync:
 	cp src/rulecam/evidence/verify_page/index.html src/rulecam/evidence/verify_page/chain.js ui/public/verify/

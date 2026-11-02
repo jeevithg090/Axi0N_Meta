@@ -148,7 +148,10 @@ from rulecam.runtime.factory import (
     Perception,
     build_perception,
     build_runtime,
+    build_tier0,
     build_tier1,
+    crop_segmenter,
+    geometry_estimator,
 )
 from rulecam.runtime.idle_stop import IdleGpuStop
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
@@ -749,6 +752,8 @@ def build_planner(
         store=PlanStore(PLANS_DIR),
         audit=audit_hook(SparkOpenVerifier(spark_open), glimmer, glimmer_model=glimmer.model),
         prove=prove_plan_hook(bus, calibrations=run_calibrations(PlanStore(PLANS_DIR))),
+        zoom=crop_segmenter(settings, perception),
+        geometry=geometry_estimator(settings, perception),
     )
     frames = ChunkFrames(
         perception.chunks,
@@ -875,7 +880,14 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     glimmer = next((probe.up for probe in probes if probe.service == "glimmer"), None)
     response = build_response(
         settings,
-        tier1=build_tier1(settings, cache=cache, clock=clock, bus=bus, probe=glimmer),
+        tier1=build_tier1(
+            settings,
+            cache=cache,
+            clock=clock,
+            bus=bus,
+            probe=glimmer,
+            tier0=build_tier0(settings, perception),
+        ),
         segmenter=perception.hosted,
         cache=cache,
         clock=clock,

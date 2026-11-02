@@ -15,6 +15,13 @@ decodable mask) is never used: a box is not a footprint, so it would invent a sc
 survey also saw a door on that camera, a candidate whose scale disagrees with a 2.03 m door
 (`door_scale_ok`) is dropped. The owner's calibration always wins over the scene's.
 
+Calibration from a model (`model_calibrations`, add-on 3.5): when the GPU pod has MoGe-2, the
+survey sends one frame per camera to it (a metric point map and the intrinsics) and asks SAM for
+the `floor` in the same frame; `calibrate_point_map` fits the floor plane under that mask. The
+result must agree with the standing people in view (`people_agree`), like a reference object,
+and competes with reference objects on `err_m`. Only a camera with neither falls back to
+`calibrate_people` (the 1.7 m-person guess).
+
 Reference probes (`metric_cameras`, `probe_references`): the survey only sees a pallet if Spark
 names it with a phrase `reference_kind` accepts, and Spark's wording varies ("wooden pallet" on
 one run, "stacked pallet with bags" on the next). So when a concern needs metres (its text names
@@ -64,12 +71,14 @@ from rulecam.perception.calibration import (
     DOOR_SCALE_TOLERANCE,
     ReferenceKind,
     calibrate_people,
+    calibrate_point_map,
     calibrate_reference,
     door_scale_ratio,
     people_agree,
 )
 from rulecam.perception.errors import CalibrationError
 from rulecam.perception.masks import NO_MASK, decode_rle
+from rulecam.perception.point_map import GeometryEstimator, grid_mask
 from rulecam.planner.acceptance import is_metric
 from rulecam.planner.scope import scoped_cameras
 from rulecam.planner.steps.survey import DEFAULT_SURVEY_FRAMES, ImageSegmenter, sample_frames
@@ -106,6 +115,7 @@ REFERENCE_PROMPTS: Final[dict[str, ReferenceKind]] = {
     "1 m floor square": "floor_square_1m",
 }
 REFERENCE_PROBE_FRAMES: Final = 3
+FLOOR_PROMPT: Final = "floor"
 _METRIC: Final = re.compile(
     r"\d\s*(?:m|cm|ft|km/?h|mph|m/s)\b"
     r"|\b(?:met(?:re|er)s?|metros?|feet|foot|yards?|distance|distancia|speed(?:ing)?|"
@@ -300,16 +310,26 @@ def _reference_calibration(
     return calibration
 
 
-def scene_calibrations(sightings: Sequence[Sighting]) -> dict[str, Calibration]:
+def _keep_best(best: dict[str, Calibration], calibration: Calibration) -> None:
+    current = best.get(calibration.camera_id)
+    if current is None or calibration.err_m < current.err_m:
+        best[calibration.camera_id] = calibration
+
+
+def scene_calibrations(
+    sightings: Sequence[Sighting], *, model: Mapping[str, Calibration] | None = None
+) -> dict[str, Calibration]:
     """Ground calibrations from the scene, the best (lowest `err_m`) per camera.
 
     A reference object (pallet, floor square) must agree with any door and with the standing
-    people in view (`people_agree`), or it is dropped. A camera left without one, but with
-    enough standing people at different depths, is calibrated from the people
+    people in view (`people_agree`), or it is dropped. A model calibration (`model`, MoGe-2,
+    already checked against the people) competes with it on `err_m`. A camera left without
+    either, but with enough standing people at different depths, is calibrated from the people
     (`calibrate_people`, reference `person_height_1.7m`), with its wider error.
 
     Args:
         sightings: The survey's (and probe's) SAM calls.
+        model: Camera id -> calibration from a geometry model (`model_calibrations`).
 
     Returns:
         Camera id -> calibration (method `reference_object`); cameras without a usable
@@ -326,11 +346,10 @@ def scene_calibrations(sightings: Sequence[Sighting]) -> dict[str, Calibration]:
             calibration = _reference_calibration(
                 sighting.camera_id, detection, kind, doors, people.get(sighting.camera_id, ())
             )
-            if calibration is None:
-                continue
-            current = best.get(sighting.camera_id)
-            if current is None or calibration.err_m < current.err_m:
-                best[sighting.camera_id] = calibration
+            if calibration is not None:
+                _keep_best(best, calibration)
+    for calibration in (model or {}).values():
+        _keep_best(best, calibration)
     for camera_id, boxes in people.items():
         if camera_id not in best and (fit := _people_calibration(camera_id, boxes, sightings)):
             best[camera_id] = fit
@@ -342,6 +361,84 @@ def scene_calibrations(sightings: Sequence[Sighting]) -> dict[str, Calibration]:
             err_m=round(calibration.err_m, 4),
         )
     return dict(sorted(best.items()))
+
+
+def floor_mask(detections: Sequence[Detection], rows: int, cols: int) -> np.ndarray | None:
+    """The union of SAM's floor masks, sampled on a `rows` x `cols` grid; `None` without one."""
+    union: np.ndarray | None = None
+    for detection in detections:
+        mask = _mask(detection)
+        if mask is None:
+            continue
+        union = mask.astype(bool) if union is None else union | mask.astype(bool)
+    return grid_mask(union, rows, cols) if union is not None else None
+
+
+def model_calibration(
+    camera_id: str, frame: Path, *, geometry: GeometryEstimator, segmenter: ImageSegmenter
+) -> Calibration | None:
+    """One camera's calibration from MoGe-2 and SAM's floor, or `None` (logged) when it fails.
+
+    Args:
+        camera_id: The camera.
+        frame: One of its frames.
+        geometry: The point-map model.
+        segmenter: SAM 3.1 on single images (finds the floor).
+
+    Returns:
+        The calibration (reference `moge2_point_map`), or `None`.
+    """
+    try:
+        point_map = geometry.estimate(frame.read_bytes(), camera_id=camera_id)
+        rows, cols = point_map.points.shape[:2]
+        found = segmenter.segment_image(frame, FLOOR_PROMPT, camera_id=camera_id)
+        floor = floor_mask(found, rows, cols)
+        if floor is None:
+            _log.info("model_calibration_no_floor", camera_id=camera_id)
+            return None
+        return calibrate_point_map(camera_id, point_map.points, floor, point_map.intrinsics_px)
+    except Exception as exc:  # model calibration is optional: the old guesses remain
+        _log.warning(
+            "model_calibration_failed", camera_id=camera_id, error=f"{type(exc).__name__}: {exc}"
+        )
+        return None
+
+
+def model_calibrations(
+    camera_frames: Mapping[str, Sequence[Path]],
+    *,
+    geometry: GeometryEstimator,
+    segmenter: ImageSegmenter,
+    seed: int,
+    people: Mapping[str, Sequence[BoxXYXY]],
+) -> dict[str, Calibration]:
+    """Calibrate every camera from one frame with MoGe-2, keeping those the people agree with.
+
+    Args:
+        camera_frames: Camera id -> its frames, oldest first.
+        geometry: The point-map model.
+        segmenter: SAM 3.1 on single images (a `RecordingSegmenter` keeps the floor calls).
+        seed: The run's seed (picks the frame, as the survey picks its own).
+        people: Camera id -> standing people's boxes (`standing_people`), the cross-check.
+
+    Returns:
+        Camera id -> calibration; cameras that failed or that the people contradict are absent.
+    """
+    found: dict[str, Calibration] = {}
+    for camera_id, frames in sorted(camera_frames.items()):
+        picked = sample_frames(frames, 1, seed=seed)
+        if not picked:
+            continue
+        calibration = model_calibration(
+            camera_id, picked[0], geometry=geometry, segmenter=segmenter
+        )
+        if calibration is None:
+            continue
+        if not people_agree(calibration, people.get(camera_id, ())):
+            _log.warning("model_calibration_people_mismatch", camera_id=camera_id)
+            continue
+        found[camera_id] = calibration
+    return found
 
 
 def trusted_calibrations(

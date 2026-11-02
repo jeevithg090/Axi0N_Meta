@@ -131,6 +131,8 @@ def test_health_is_open(running: Running) -> None:
         "waiting": 0,
         "memory": {"allocated_bytes": 4 * 2**30, "reserved_bytes": 5 * 2**30, "sessions": 0},
         "image": {"loaded": False},
+        "crops": {"loaded": False},
+        "geometry": {"loaded": False},
     }
 
 

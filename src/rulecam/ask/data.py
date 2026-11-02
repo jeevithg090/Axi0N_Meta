@@ -14,7 +14,8 @@ are `TIMESTAMP` in UTC, without a zone):
   by appearance (`ask.identity`), each identity's span, and Glimmer's note on each person.
 
 After the snapshot the connection loses file access (`enable_external_access = false`, locked),
-so a query can read these tables and nothing else. Only `SELECT` or `WITH` statements run.
+so a query can read these tables and nothing else. Only `SELECT` or `WITH` statements run
+(checked with DuckDB's own parser); several separated by `;` run one by one (`run_sql`).
 Results are capped at `max_rows` rows (`RULECAM_ASK_MAX_ROWS`); a capped result says so and
 carries the query's full row count, so the model never takes part of a result for all of it.
 Every read runs on its own cursor, so the tool calls of one turn can query at the same time.
@@ -22,7 +23,6 @@ Every read runs on its own cursor, so the tool calls of one turn can query at th
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,7 +37,6 @@ _COLUMNS: Final = (
     "track_id, camera_id, concept, CAST(ts AS TIMESTAMP) AS ts, frame_idx, x1, y1, x2, y2, "
     "foot_px_x, foot_px_y, foot_m_x, foot_m_y, conf"
 )
-_READ_ONLY: Final = re.compile(r"^\s*(?:select|with)\b", re.IGNORECASE)
 
 
 class SqlError(ValueError):
@@ -292,6 +291,27 @@ class TrackTables:
         )
         return [(t, c, (x1, y1, x2, y2)) for t, c, x1, y1, x2, y2 in rows]
 
+    def run_sql(self, sql: str) -> list[tuple[str, QueryResult | SqlError]]:
+        """Run one or more read-only statements (separated by `;`), each on its own.
+
+        Args:
+            sql: `SELECT` or `WITH` statements.
+
+        Returns:
+            Each statement with its result, or the error it alone hit.
+
+        Raises:
+            SqlError: When the text does not parse, or any statement is not read-only (then
+                none of them runs).
+        """
+        out: list[tuple[str, QueryResult | SqlError]] = []
+        for text in read_only_statements(sql):
+            try:
+                out.append((text, self._execute(text)))
+            except SqlError as exc:
+                out.append((text, exc))
+        return out
+
     def query(self, sql: str) -> QueryResult:
         """Run one read-only query.
 
@@ -305,10 +325,14 @@ class TrackTables:
         Raises:
             SqlError: For anything but one read-only statement, or a DuckDB error.
         """
-        text = sql.strip().rstrip(";").strip()
-        if not _READ_ONLY.match(text) or ";" in text:
-            msg = "only one SELECT or WITH statement is allowed"
+        statements = read_only_statements(sql)
+        if len(statements) != 1:
+            msg = "only one SELECT or WITH statement is allowed here"
             raise SqlError(msg)
+        return self._execute(statements[0])
+
+    def _execute(self, text: str) -> QueryResult:
+        """Run one statement already checked to be read-only, capped at `max_rows` rows."""
         with self._con.cursor() as cursor:
             try:
                 cursor.execute(text)
@@ -327,6 +351,33 @@ class TrackTables:
             total_rows=total,
             note=capped_note(self._max_rows, total),
         )
+
+
+def read_only_statements(sql: str) -> list[str]:
+    """Split SQL into its statements (DuckDB's own parser) and check each one only reads.
+
+    Args:
+        sql: One or more statements separated by `;`.
+
+    Returns:
+        Each statement's text, without its `;`.
+
+    Raises:
+        SqlError: When the text does not parse, holds no statement, or any statement is not a
+            `SELECT` (which includes `WITH ...` and `FROM ...` queries).
+    """
+    try:
+        found = duckdb.extract_statements(sql)
+    except duckdb.Error as exc:
+        raise SqlError(str(exc).splitlines()[0]) from exc
+    if not found:
+        msg = "no SQL statement given"
+        raise SqlError(msg)
+    for statement in found:
+        if statement.type != duckdb.StatementType.SELECT:
+            msg = f"only SELECT or WITH statements are allowed, not {statement.type.name}"
+            raise SqlError(msg)
+    return [s.query.strip().rstrip(";").strip() for s in found]
 
 
 def _count(cursor: duckdb.DuckDBPyConnection, text: str) -> int | None:

@@ -901,6 +901,7 @@ def build_ask(
             max_rows=settings.rulecam_ask_max_rows,
             max_result_chars=settings.rulecam_ask_max_result_chars,
             max_frames=settings.rulecam_ask_max_frames,
+            max_actions=settings.rulecam_ask_max_actions,
         ),
     )
     return agent, tuple(m.tick for m in (memory, identity) if m is not None)

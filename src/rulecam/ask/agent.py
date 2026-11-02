@@ -1,22 +1,24 @@
 """Answer an owner's free-form question about what the cameras saw (`POST /ask`).
 
-Muse Spark 1.3 runs a short tool loop. Each turn it returns one `AskAction`:
+Muse Spark 1.3 runs a short tool loop. Each turn it returns an `AskTurn`: a list of actions, as
+many as it decides (up to `max_actions`), which run at the same time in a thread pool:
 
-- `sql`: a read-only DuckDB query over `track_points` / `track_spans` (`ask.data`), the
+- `sql`: read-only DuckDB statements over `track_points` / `track_spans` (`ask.data`), the
   runtime's SAM 3.1 tracks;
 - `count_objects`: SAM 3.1 (Meta hosted) prompted with any noun phrase on the recorded frames of
   a camera at chosen instants;
 - `look`: Muse Glimmer answers a question about the recorded frames at chosen instants;
-- `answer`: the final answer.
+- `answer`: the final answer (on its own).
 
-The tool's result goes back to Spark as the next message. Spark decides which tools to use, in
-which order, what to count and how to read the numbers; nothing about the question types is
-written here. The loop stops at `MAX_STEPS`, then asks for an answer from what it has. Every
-step (action, result, seconds) is returned with the answer.
+The results go back to Spark in the order of its actions, as the next message. Spark decides
+which tools to use, how many at once, what to count and how to read the numbers; nothing about
+the question types is written here. The loop stops at `MAX_STEPS` turns, then asks for an answer
+from what it has. Every step (turn, action, result, seconds, model) is returned with the answer.
 
 Nothing is cut silently (`AskLimits`): a query returns up to `max_rows` rows and says how many
 there were; a turn's results share `max_result_chars` characters and a cut result says what it
-left out (`ask.results`); instants past `max_frames`, or with no recorded frame, are named.
+left out (`ask.results`); instants past `max_frames`, or with no recorded frame, are named, and
+so are actions past `max_actions`.
 """
 
 from __future__ import annotations
@@ -24,16 +26,17 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final, Literal
+from typing import Final
 
 import yaml
-from pydantic import Field
 
-from rulecam.ask.data import DEFAULT_MAX_ROWS, SqlError, TrackTables
-from rulecam.ask.results import DEFAULT_MAX_RESULT_CHARS, fit_result
+from rulecam.ask.data import DEFAULT_MAX_ROWS, QueryResult, SqlError, TrackTables
+from rulecam.ask.results import DEFAULT_MAX_RESULT_CHARS, fit_results
+from rulecam.ask.trace import AskAction, AskAnswer, AskStep, AskTurn
 from rulecam.ask.vision import (
     DEFAULT_MAX_FRAMES,
     Frame,
@@ -42,7 +45,7 @@ from rulecam.ask.vision import (
     look,
     marked,
 )
-from rulecam.contracts import Clock, Frozen, StructuredLLM
+from rulecam.contracts import Clock, StructuredLLM
 from rulecam.errors import RulecamError
 from rulecam.log import get_logger
 from rulecam.planner.steps.survey import ImageSegmenter
@@ -50,9 +53,9 @@ from rulecam.planner.steps.survey import ImageSegmenter
 _log = get_logger(__name__)
 
 SPARK_MODEL: Final = "muse-spark-1.3"
+SAM_MODEL: Final = "sam-3.1"
 MAX_STEPS: Final = 8
-
-Action = Literal["sql", "count_objects", "look", "answer"]
+DEFAULT_MAX_ACTIONS: Final = 6
 
 
 @dataclass(frozen=True)
@@ -63,58 +66,34 @@ class AskLimits:
         max_rows: Rows a SQL query returns at most (the full count is always reported).
         max_result_chars: Characters of tool results per turn, shared by the turn's actions.
         max_frames: Instants one `count_objects` or `look` call uses at most.
+        max_actions: Tool calls one turn runs at once; the rest are reported as not run.
     """
 
     max_rows: int = DEFAULT_MAX_ROWS
     max_result_chars: int = DEFAULT_MAX_RESULT_CHARS
     max_frames: int = DEFAULT_MAX_FRAMES
+    max_actions: int = DEFAULT_MAX_ACTIONS
 
 
 DEFAULT_LIMITS: Final = AskLimits()
 
 
-class AskAction(Frozen):
-    """One turn of the model: a tool call or the final answer."""
+@dataclass(frozen=True)
+class _Outcome:
+    """A tool's result and the model that produced it (`None` for SQL)."""
 
-    thought: str = Field(description="One sentence: why this step.")
-    action: Action
-    sql: str | None = Field(default=None, description="For sql: one SELECT or WITH statement.")
-    concept: str | None = Field(default=None, description="For count_objects: a noun phrase.")
-    camera_id: str | None = Field(default=None, description="For count_objects and look.")
-    times: list[str] = Field(
-        default_factory=list, description="For count_objects and look: ISO-8601 UTC instants."
-    )
-    question: str | None = Field(default=None, description="For look: what Glimmer should answer.")
-    marks: bool = Field(
-        default=True, description="For look: draw the tracked objects as numbered boxes."
-    )
-    answer: str | None = Field(default=None, description="For answer: the reply to the owner.")
-
-
-class AskStep(Frozen):
-    """What one step did, for the trace."""
-
-    action: AskAction
     result: object
-    seconds: float
-
-
-class AskAnswer(Frozen):
-    """The answer to an owner's question, with every step that led to it."""
-
-    question: str
-    answer: str
-    steps: list[AskStep]
-    seconds: float
-    models: list[str]
+    model: str | None = None
 
 
 SYSTEM_PROMPT: Final = """\
 You answer a site owner's questions about what their cameras recorded. The owner may ask \
 anything: counts at a time, busiest periods, how long people stayed, queues, carts, baskets, \
 staff, what someone was doing, what happened. Decide yourself how to find the answer with these \
-tools, check a number a second way when you can, then answer. Reply with exactly one JSON \
-action per turn.
+tools, check a number a second way when you can, then answer. Each turn, reply with one JSON \
+object holding a list of actions: up to {max_actions} tool calls, which all run at the same time \
+(so none can use another's result; put checks that do not depend on each other in one turn), \
+or one answer action on its own.
 
 The recorded data (all times are TIMESTAMP in UTC without a zone; write literals as \
 TIMESTAMP '2026-11-01 13:00:00'):
@@ -143,7 +122,8 @@ saw on each camera every {caption_s}; search them with ILIKE and read them for "
 and summary questions.
 
 Tools:
-1. sql: one DuckDB SELECT/WITH query over those tables; up to {max_rows} rows come back.
+1. sql: one or more DuckDB SELECT/WITH statements over those tables, separated by ';' (each \
+gets its own result); up to {max_rows} rows come back per statement.
 2. count_objects: SAM 3.1 finds any noun phrase you choose ("shopping cart", "cashier in black \
 uniform", "checkout counter") on the recorded frames of camera_id at up to {max_frames} \
 instants (times); returns the count and boxes [x1, y1, x2, y2, confidence] per frame.
@@ -235,52 +215,88 @@ class AskAgent:
         try:
             messages = self._opening(question, tables)
             steps: list[AskStep] = []
-            models = [SPARK_MODEL]
             for turn in range(MAX_STEPS + 1):
                 last = turn == MAX_STEPS
                 if last:
                     messages.append({"role": "user", "content": "Steps used up: answer now."})
-                action = self._next(messages)
-                if action.action == "answer" or last:
-                    reply = action.answer or action.thought
-                    steps.append(AskStep(action=action, result=None, seconds=0.0))
+                actions = self._next(messages)
+                final = _final(actions, last=last)
+                if final is not None:
+                    action, reply = final
+                    steps.append(AskStep(turn=turn, action=action, result=None, seconds=0.0))
                     return AskAnswer(
                         question=question,
                         answer=reply,
                         steps=steps,
                         seconds=round(time.perf_counter() - started, 1),
-                        models=models,
+                        models=_models(steps),
                     )
-                t0 = time.perf_counter()
-                result = self._run(action, tables, models)
-                steps.append(
-                    AskStep(
-                        action=action, result=result, seconds=round(time.perf_counter() - t0, 1)
-                    )
-                )
-                messages.append({"role": "assistant", "content": action.model_dump_json()})
+                run = actions[: self._limits.max_actions]
+                done = self._run_all(turn, run, tables)
+                steps.extend(done)
                 messages.append(
-                    {
-                        "role": "user",
-                        "content": "Result:\n" + fit_result(result, self._limits.max_result_chars),
-                    }
+                    {"role": "assistant", "content": AskTurn(actions=run).model_dump_json()}
+                )
+                messages.append(
+                    {"role": "user", "content": self._results(done, len(actions) - len(run))}
                 )
         finally:
             tables.close()
         msg = "unreachable: the loop always answers on its last turn"
         raise AssertionError(msg)
 
-    def _next(self, messages: list[dict[str, object]]) -> AskAction:
-        """Spark's next action; a reply that is not a valid action ends with an apology."""
+    def _next(self, messages: list[dict[str, object]]) -> list[AskAction]:
+        """Spark's next actions; a reply that is not a valid turn ends with an apology."""
         try:
-            return self._spark.structured(model=SPARK_MODEL, messages=messages, schema=AskAction)
+            turn = self._spark.structured(model=SPARK_MODEL, messages=messages, schema=AskTurn)
         except RulecamError as exc:
             _log.warning("ask_spark_failed", error=str(exc)[:200])
-            return AskAction(
-                thought=f"Muse Spark did not return a valid step ({type(exc).__name__}).",
-                action="answer",
-                answer="Sorry, I could not finish working that out. Please ask again.",
+            return [
+                AskAction(
+                    thought=f"Muse Spark did not return a valid step ({type(exc).__name__}).",
+                    action="answer",
+                    answer="Sorry, I could not finish working that out. Please ask again.",
+                )
+            ]
+        return turn.actions
+
+    def _run_all(
+        self, turn: int, actions: Sequence[AskAction], tables: TrackTables
+    ) -> list[AskStep]:
+        """Run a turn's actions at the same time; the steps come back in the actions' order."""
+        if len(actions) == 1:
+            return [self._step(turn, actions[0], tables)]
+        with ThreadPoolExecutor(len(actions), thread_name_prefix="ask-tool") as pool:
+            futures = [pool.submit(self._step, turn, action, tables) for action in actions]
+            return [future.result() for future in futures]
+
+    def _step(self, turn: int, action: AskAction, tables: TrackTables) -> AskStep:
+        started = time.perf_counter()
+        outcome = self._run(action, tables)
+        return AskStep(
+            turn=turn,
+            action=action,
+            result=outcome.result,
+            seconds=round(time.perf_counter() - started, 1),
+            model=outcome.model,
+        )
+
+    def _results(self, steps: Sequence[AskStep], not_run: int) -> str:
+        """The next message: each result in the actions' order, within the turn's budget."""
+        texts = fit_results([s.result for s in steps], self._limits.max_result_chars)
+        if len(steps) == 1 and not not_run:
+            return "Result:\n" + texts[0]
+        lines = ["Results, in the order of your actions:"]
+        lines += [
+            f"[{k}] {step.action.action}: {text}"
+            for k, (step, text) in enumerate(zip(steps, texts, strict=True), 1)
+        ]
+        if not_run:
+            lines.append(
+                f"Not run: your last {not_run} action(s) (at most {self._limits.max_actions} "
+                "per turn); ask again if you still need them."
             )
+        return "\n".join(lines)
 
     def _opening(self, question: str, tables: TrackTables) -> list[dict[str, object]]:
         width, height = self._frame_size
@@ -292,6 +308,7 @@ class AskAgent:
             caption_s=every,
             max_rows=self._limits.max_rows,
             max_frames=self._limits.max_frames,
+            max_actions=self._limits.max_actions,
         )
         video = {
             camera: {"first": first.isoformat(), "last": last.isoformat()}
@@ -316,30 +333,30 @@ class AskAgent:
             },
         ]
 
-    def _run(self, action: AskAction, tables: TrackTables, models: list[str]) -> object:
+    def _run(self, action: AskAction, tables: TrackTables) -> _Outcome:
         try:
             if action.action == "sql":
-                return tables.query(action.sql or "").model_dump(mode="json", exclude_none=True)
+                return _Outcome(_sql_result(tables.run_sql(action.sql or "")))
             asked = _instants(action.times)
             used = asked[: self._limits.max_frames]
             frames = self._frames.frames(action.camera_id or "", used)
             notes = _frame_notes(asked, used, frames, self._limits.max_frames)
             if not frames:
-                return {"error": "no recorded frames at those instants on that camera"}
+                return _Outcome({"error": "no recorded frames at those instants on that camera"})
             if action.action == "count_objects":
-                _note(models, "sam-3.1")
                 counts = count_objects(self._segmenter, frames, action.concept or "person")
                 found = [c.model_dump(mode="json") for c in counts]
-                return {"frames": found, **({"notes": notes} if notes else {})}
-            _note(models, self._glimmer_model)
+                return _Outcome({"frames": found, **_notes(notes)}, SAM_MODEL)
             labels: dict[str, str] = {}
             if action.marks and self._marks_dir is not None:
                 frames = [self._mark(f, tables, labels) for f in frames]
             answer = look(self._glimmer, self._glimmer_model, frames, action.question or "")
-            return {**answer.model_dump(), "marks": labels, **({"notes": notes} if notes else {})}
+            return _Outcome(
+                {**answer.model_dump(), "marks": labels, **_notes(notes)}, self._glimmer_model
+            )
         except (SqlError, ValueError, RulecamError, OSError) as exc:
             _log.info("ask_step_failed", action=action.action, error=str(exc))
-            return {"error": str(exc)}
+            return _Outcome({"error": str(exc)})
 
     def _mark(self, frame: Frame, tables: TrackTables, labels: dict[str, str]) -> Frame:
         """The frame with every track near its instant drawn as a numbered box."""
@@ -354,9 +371,41 @@ class AskAgent:
         return marked(frame, marks, self._marks_dir)
 
 
-def _note(models: list[str], model: str) -> None:
-    if model not in models:
-        models.append(model)
+def _final(actions: Sequence[AskAction], *, last: bool) -> tuple[AskAction, str] | None:
+    """The answer action and its text, when the turn answers (or must, being the last)."""
+    for action in actions:
+        if action.action == "answer":
+            return action, action.answer or action.thought
+    if last:
+        first = actions[0]
+        return first, first.answer or first.thought
+    return None
+
+
+def _models(steps: Sequence[AskStep]) -> list[str]:
+    """Spark, then every other model in the order the steps first used it."""
+    models = [SPARK_MODEL]
+    for step in steps:
+        if step.model is not None and step.model not in models:
+            models.append(step.model)
+    return models
+
+
+def _sql_result(results: Sequence[tuple[str, QueryResult | SqlError]]) -> object:
+    """One statement's result as it is; several as `{"results": [...]}` with their SQL."""
+
+    def one(result: QueryResult | SqlError) -> dict[str, object]:
+        if isinstance(result, SqlError):
+            return {"error": str(result)}
+        return result.model_dump(mode="json", exclude_none=True)
+
+    if len(results) == 1:
+        return one(results[0][1])
+    return {"results": [{"sql": sql, **one(result)} for sql, result in results]}
+
+
+def _notes(notes: Sequence[str]) -> dict[str, object]:
+    return {"notes": list(notes)} if notes else {}
 
 
 def _instants(times: Sequence[str]) -> list[datetime]:

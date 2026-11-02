@@ -11,7 +11,7 @@ import pytest
 from rulecam.ask import AskAgent, AskLimits, FrameGrabber, TrackTables, open_tables
 from rulecam.ask.results import fit_result, fit_results
 from rulecam.rules.store import ParquetTrackStore
-from tests.ask.test_ask import Chunks, Sam, person, write_frame
+from tests.ask.test_ask import Chunks, Sam, person, turn, write_frame
 from tests.fakes import EPOCH, FakeClock, FakeLLM
 
 
@@ -74,15 +74,17 @@ def test_instants_past_the_frame_cap_or_unrecorded_are_named(root: Path, tmp_pat
     times = [(EPOCH + timedelta(seconds=s)).isoformat() for s in (3, 6, 9, 9000)]
     spark = FakeLLM(
         [
-            {
-                "thought": "count",
-                "action": "count_objects",
-                "concept": "person",
-                "camera_id": "checkout",
-                "times": times,
-            },
-            {"thought": "big", "action": "sql", "sql": "SELECT * FROM track_points"},
-            {"thought": "done", "action": "answer", "answer": "ok"},
+            turn(
+                {
+                    "thought": "count",
+                    "action": "count_objects",
+                    "concept": "person",
+                    "camera_id": "checkout",
+                    "times": times,
+                }
+            ),
+            turn({"thought": "big", "action": "sql", "sql": "SELECT * FROM track_points"}),
+            turn({"thought": "done", "action": "answer", "answer": "ok"}),
         ]
     )
     agent = AskAgent(

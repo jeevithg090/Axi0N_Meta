@@ -117,26 +117,35 @@ def agent(
     )
 
 
+def turn(*actions: dict[str, object]) -> dict[str, object]:
+    """One Spark turn: the actions it runs at once."""
+    return {"actions": list(actions)}
+
+
 def test_spark_chooses_the_tools_and_answers(tracks_root: Path, tmp_path: Path) -> None:
     at = (EPOCH + timedelta(seconds=6)).isoformat()
     spark = FakeLLM(
         [
-            {"thought": "dwell", "action": "sql", "sql": "SELECT avg(seconds) FROM track_spans"},
-            {
-                "thought": "carts",
-                "action": "count_objects",
-                "concept": "shopping cart",
-                "camera_id": "checkout",
-                "times": [at],
-            },
-            {
-                "thought": "check",
-                "action": "look",
-                "camera_id": "checkout",
-                "times": [at.replace("+00:00", "Z")],
-                "question": "How many customers queue?",
-            },
-            {"thought": "done", "action": "answer", "answer": "15 s on average, 2 carts."},
+            turn(
+                {"thought": "dwell", "action": "sql", "sql": "SELECT avg(seconds) FROM track_spans"}
+            ),
+            turn(
+                {
+                    "thought": "carts",
+                    "action": "count_objects",
+                    "concept": "shopping cart",
+                    "camera_id": "checkout",
+                    "times": [at],
+                },
+                {
+                    "thought": "check",
+                    "action": "look",
+                    "camera_id": "checkout",
+                    "times": [at.replace("+00:00", "Z")],
+                    "question": "How many customers queue?",
+                },
+            ),
+            turn({"thought": "done", "action": "answer", "answer": "15 s on average, 2 carts."}),
         ]
     )
     glimmer = FakeLLM([{"answer": "Two customers queue.", "count": 2, "confidence": 0.8}])
@@ -146,6 +155,8 @@ def test_spark_chooses_the_tools_and_answers(tracks_root: Path, tmp_path: Path) 
 
     assert reply.answer == "15 s on average, 2 carts."
     assert [s.action.action for s in reply.steps] == ["sql", "count_objects", "look", "answer"]
+    assert [s.turn for s in reply.steps] == [0, 1, 1, 2]
+    assert [s.model for s in reply.steps] == [None, "sam-3.1", "muse-glimmer-30b", None]
     assert reply.steps[0].result["rows"] == [[15.0]]  # type: ignore[index]
     assert reply.steps[1].result["frames"][0]["count"] == 2  # type: ignore[index]
     assert reply.steps[2].result["count"] == 2  # type: ignore[index]
@@ -161,14 +172,16 @@ def test_spark_chooses_the_tools_and_answers(tracks_root: Path, tmp_path: Path) 
 def test_tool_errors_go_back_to_spark(tracks_root: Path, tmp_path: Path) -> None:
     spark = FakeLLM(
         [
-            {"thought": "bad", "action": "sql", "sql": "DELETE FROM track_points"},
-            {
-                "thought": "gone",
-                "action": "look",
-                "camera_id": "elsewhere",
-                "times": ["2026-10-30T12:00:01"],
-            },
-            {"thought": "ok", "action": "answer", "answer": "Not recorded."},
+            turn({"thought": "bad", "action": "sql", "sql": "DELETE FROM track_points"}),
+            turn(
+                {
+                    "thought": "gone",
+                    "action": "look",
+                    "camera_id": "elsewhere",
+                    "times": ["2026-10-30T12:00:01"],
+                }
+            ),
+            turn({"thought": "ok", "action": "answer", "answer": "Not recorded."}),
         ]
     )
     reply = agent(spark, FakeLLM(), tracks_root, tmp_path, Sam()).ask("q")
@@ -178,8 +191,10 @@ def test_tool_errors_go_back_to_spark(tracks_root: Path, tmp_path: Path) -> None
 
 
 def test_the_loop_is_bounded(tracks_root: Path, tmp_path: Path) -> None:
-    looping: dict[str, object] = {"thought": "again", "action": "sql", "sql": "SELECT 1"}
-    spark = FakeLLM([looping] * 8 + [{"thought": "x", "action": "answer", "answer": "best effort"}])
+    looping = turn({"thought": "again", "action": "sql", "sql": "SELECT 1"})
+    spark = FakeLLM(
+        [looping] * 8 + [turn({"thought": "x", "action": "answer", "answer": "best effort"})]
+    )
     reply = agent(spark, FakeLLM(), tracks_root, tmp_path, Sam()).ask("q")
     assert len(reply.steps) == 9
     assert reply.answer == "best effort"

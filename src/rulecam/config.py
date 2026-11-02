@@ -89,6 +89,8 @@ class Settings(BaseSettings):
     rulecam_ask_max_rows: int = Field(default=1000, ge=1)
     rulecam_ask_max_result_chars: int = Field(default=100_000, ge=2000)
     rulecam_ask_max_frames: int = Field(default=6, ge=1, le=32)
+    # Tool calls one Ask turn runs at the same time (Spark picks how many, up to this).
+    rulecam_ask_max_actions: int = Field(default=6, ge=1, le=16)
     # Evidence strips sent to Glimmer: frames per strip and their width in pixels.
     rulecam_strip_frames: int = Field(default=6, ge=1, le=12)
     rulecam_strip_max_width: int = Field(default=640, ge=320, le=1920)

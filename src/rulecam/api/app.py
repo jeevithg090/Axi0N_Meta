@@ -190,6 +190,7 @@ class AppServices:
     advice: AdviceStore = field(default_factory=AdviceStore)
     plan_factory: PlanFactory | None = None
     public_demo: bool = False
+    revision: str | None = None
 
 
 class RuntimeReport(LoopMetrics):
@@ -214,6 +215,27 @@ async def _tick_forever(tickers: Sequence[Callable[[], object]]) -> None:
 
 
 VERIFY_PAGE_DIR = Path(__file__).resolve().parent.parent / "evidence" / "verify_page"
+# Written next to `src/` by `make ship-api` (scripts/deploy/ship_api.sh): the git SHA deployed.
+REVISION_FILE = Path(__file__).resolve().parents[3] / "REVISION"
+
+
+def code_revision(configured: str | None, revision_file: Path = REVISION_FILE) -> str | None:
+    """The git revision this API runs: `RULECAM_REVISION`, else the shipped `REVISION` file.
+
+    Args:
+        configured: `RULECAM_REVISION` (e.g. baked into an image).
+        revision_file: The file `make ship-api` writes at the release root.
+
+    Returns:
+        The revision, or `None` when neither says (a dev checkout).
+    """
+    if configured:
+        return configured.strip()
+    try:
+        lines = revision_file.read_text(encoding="utf-8").split()
+    except OSError:
+        return None
+    return lines[0] if lines else None
 
 
 class DayRoot(BaseModel):
@@ -256,12 +278,14 @@ class Health(BaseModel):
 
     `gpus` is each GPU dependency's state (`runtime.serverless`): a serverless GPU scaled to
     zero is `cold-ready` (up; the UI says "GPU waking" while a request starts it), not down.
+    `revision` is the git SHA deployed (`code_revision`), which `make ship-api` waits for.
     """
 
     ok: bool
     site: str
     mode: Mode
     runtime: bool
+    revision: str | None = None
     gpus: dict[str, GpuHealth] = {}
 
 
@@ -290,6 +314,7 @@ def _core_router(services: AppServices, auth: OwnerAuth) -> APIRouter:
             site=services.site,
             mode=services.cache.mode,
             runtime=services.runtime is not None,
+            revision=services.revision,
             gpus={probe.service: probe.health() for probe in services.health_probes},
         )
 
@@ -812,6 +837,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         activator=activator,
         viewer_origins=origins,
         public_demo=settings.public_demo,
+        revision=code_revision(settings.rulecam_revision),
         auth=auth,
         health_probes=probes,
         tickers=(

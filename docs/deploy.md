@@ -447,9 +447,58 @@ Open the printed URL on the phone (or scan the QR in `qr_png_base64`) before it 
   has no flag for it.
 - The SSH port changes on every restart: `runpodctl pod get <id>` shows the current one.
 
-Update the API: `git archive origin/main | ssh … 'tar -x -C /workspace/rulecam'`, then
-`uv sync --no-dev` and restart (`pkill -f "[u]vicorn rulecam.api.app"` then `./start.sh` via
-`setsid nohup`, or restart the pod).
+Update the API: `make ship-api` (below). By hand: `git archive origin/main | ssh … 'tar -x -C
+/workspace/rulecam'`, then `uv sync --no-dev` and restart (`pkill -f "[u]vicorn rulecam.api.app"`
+then `./start.sh` via `setsid nohup`, or restart the pod).
+
+### Ship the API
+
+`GET /health` reports `revision`, the git SHA the API runs (`RULECAM_REVISION`, else the
+`REVISION` file at the release root; `null` on a hand-made checkout).
+
+```bash
+export RULECAM_API_SSH_HOST=<ip> RULECAM_API_SSH_PORT=<port>   # runpodctl pod get 7nv0ifjo2tmk00
+make ship-api                 # the committed HEAD; `make ship-api REF=<sha>` for another commit
+```
+
+`scripts/deploy/ship_api.sh` uploads `git archive` into `/workspace/releases/<sha12>` (key
+`RULECAM_API_SSH_KEY`, default `~/.runpod/ssh/runpodctl-ssh-key`; SSH keep-alives and retries,
+since the pod's SSH drops now and then), then starts `scripts/deploy/ship_api_remote.sh` on the
+pod with `setsid nohup`, so a dropped session cannot stop it halfway. That script:
+
+1. The first time, moves the hand-made `/workspace/rulecam` to `/workspace/rulecam-shared` and
+   makes `/workspace/rulecam` a symlink to it (the first rollback target).
+2. Links everything untracked from `rulecam-shared` into the release: `.env`, `.sam_edge_key`,
+   `.glimmer_edge_key`, `.glimmer_api_key`, `start.sh`, `boot.sh`, and `plans/`, `evidence/`,
+   `data/`, `reports/`, which the API writes into. Keys are never copied.
+3. Builds the release's own `.venv` (`uv sync --frozen --no-dev`). Until here the live API is
+   untouched; a failure ends with status `failed`.
+4. Switches the `/workspace/rulecam` symlink, runs `/workspace/restart_api.sh` detached and polls
+   `127.0.0.1:8000/health` until it reports the new revision (`HEALTH_WAIT_S`, 300 s). Otherwise it
+   switches back, restarts again and ends with `rolled-back`.
+5. Keeps the 3 newest releases (`KEEP`) plus the live and previous ones.
+
+The result is in `/workspace/releases/ship-<sha12>.status` (`ok`, `rolled-back`, `failed`) and
+the log in `ship-<sha12>.log`; `make ship-api` prints its tail. Roll back by hand: `ln -sfn
+/workspace/releases/<old sha12> /workspace/rulecam.next && mv -Tf /workspace/rulecam.next
+/workspace/rulecam`, then `setsid nohup /workspace/restart_api.sh > /dev/null 2>&1 < /dev/null &`.
+
+### Ship the GPU code
+
+```bash
+export RUNPOD_S3_ACCESS_KEY_ID=user_... RUNPOD_S3_SECRET_ACCESS_KEY=rps_...  # RunPod S3 API key
+make ship-gpu                 # DRY_RUN=1 prints the writes
+```
+
+`scripts/deploy/ship_gpu.sh` copies `src`, `scripts/sam_pod` and `scripts/glimmer_pod`
+(`SHIP_GPU_PATHS`) of the committed HEAD onto network volume `11ymk65bni` (US-IL-1) through
+RunPod's S3-compatible API (`https://s3api-us-il-1.runpod.io`, bucket = volume ID) at
+`rulecam/<path>`, which serverless workers see as `/runpod-volume/rulecam/...`. It deletes
+files the commit no longer has and writes `rulecam/REVISION`. No staging pod is needed. It uses
+the `aws` CLI, or `uvx --from awscli aws` when that is missing. Running workers keep their
+code; the next cold start loads the new one (`scripts/ops/warm.sh off` and wait out the 300 s
+idle timeout to force it). New Python dependencies still need the staging pod (`setup.sh
+--stage`).
 
 ### Operator exclusion (forklift drivers)
 

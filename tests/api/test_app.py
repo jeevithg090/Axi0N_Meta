@@ -18,6 +18,7 @@ from rulecam.api.app import (
     AppServices,
     _cameras,
     _log_task_end,
+    code_revision,
     create_app,
     find_plan,
     openapi_json,
@@ -73,6 +74,7 @@ def test_health_and_mode(services: AppServices) -> None:
             "site": "site",
             "mode": "replay",
             "runtime": False,
+            "revision": None,
             "gpus": {},
         }
         assert client.get("/mode").json() == {"mode": "replay", "badge": "REPLAY"}
@@ -82,6 +84,19 @@ def test_health_and_mode(services: AppServices) -> None:
         }
         assert services.cache.mode == "live"
         assert client.put("/mode", json={"mode": "bogus"}).status_code == 422
+
+
+def test_health_reports_the_shipped_revision(services: AppServices, tmp_path: Path) -> None:
+    shipped = tmp_path / "REVISION"
+    assert code_revision(None, shipped) is None  # a dev checkout: nothing shipped
+    shipped.write_text("")
+    assert code_revision(None, shipped) is None
+    shipped.write_text("0123abcd4567\n")
+    assert code_revision(None, shipped) == "0123abcd4567"
+    assert code_revision(" fromenv ", shipped) == "fromenv"  # RULECAM_REVISION wins
+    services.revision = code_revision(None, shipped)
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        assert client.get("/health").json()["revision"] == "0123abcd4567"
 
 
 def test_health_serves_each_gpu_state(services: AppServices) -> None:

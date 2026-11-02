@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     rulecam_replay_dir: Path | None = None
     rulecam_site_config: Path | None = None  # owner's site YAML (docs/site.example.yaml)
     rulecam_runtime: bool = False  # start the runtime loop (SAM, tracker, Glimmer) with the API
+    # The git SHA served in GET /health; unset, the REVISION file `make ship-api` writes is read.
+    rulecam_revision: str | None = None
     # Runtime SAM cost control (docs/deploy.md "Runtime SAM cost"): while nothing is happening on a
     # camera, segment one chunk in N, per the strictest severity of the rules on that camera.
     rulecam_idle_stride_low: int = Field(default=3, ge=1)

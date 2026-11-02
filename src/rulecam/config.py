@@ -111,6 +111,9 @@ class Settings(BaseSettings):
     modal_token_secret: SecretStr | None = None
     sam_base_url: str | None = None  # our own GPU pod running sam_server; wins over Modal
     sam_api_key: SecretStr | None = None
+    # SAM_BASE_URL is a RunPod serverless load balancer: its edge takes this RunPod API key as
+    # `Authorization`, and SAM_API_KEY goes in `X-Rulecam-Key` to the worker.
+    sam_edge_key: SecretStr | None = None
     kasa_plug_host: str | None = None
     kasa_light_host: str | None = None
     whatsapp_token: SecretStr | None = None

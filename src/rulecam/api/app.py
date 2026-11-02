@@ -864,7 +864,13 @@ def build_ask(
         identity = IdentityMemory(
             tracks_root=settings.rulecam_data_dir / "tracks",
             frames=frames,
-            embed=gpu_embedder(settings.sam_base_url, settings.sam_api_key.get_secret_value()),
+            embed=gpu_embedder(
+                settings.sam_base_url,
+                settings.sam_api_key.get_secret_value(),
+                edge_key=(
+                    settings.sam_edge_key.get_secret_value() if settings.sam_edge_key else None
+                ),
+            ),
             glimmer=glimmer,
             glimmer_model=glimmer.model,
             out_dir=ask_dir / "identity",

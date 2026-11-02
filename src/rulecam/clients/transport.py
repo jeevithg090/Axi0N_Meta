@@ -224,6 +224,7 @@ class HttpxTransport:
         timeout_s: float = 120.0,
         client: httpx.Client | None = None,
         auth_scheme: str = "Bearer",
+        headers: Mapping[str, str] | None = None,
     ) -> None:
         """Create the transport.
 
@@ -233,9 +234,11 @@ class HttpxTransport:
             timeout_s: Per-request timeout in seconds.
             client: Optional preconfigured client (tests pass one with `httpx.MockTransport`).
             auth_scheme: The `Authorization` scheme, e.g. `Api-Key` for Baseten.
+            headers: Extra headers sent on every request (e.g. the SAM key behind RunPod's edge).
+                Never logged.
         """
         self._base_url = base_url.rstrip("/")
-        self._headers = {"Authorization": f"{auth_scheme} {api_key}"}
+        self._headers = {"Authorization": f"{auth_scheme} {api_key}", **(headers or {})}
         self._client = client or httpx.Client(timeout=timeout_s)
 
     def __call__(self, request: Mapping[str, object]) -> Mapping[str, object]:

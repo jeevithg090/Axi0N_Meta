@@ -47,6 +47,7 @@ from rulecam.clients.open_weights.glimmer import user_message
 from rulecam.contracts import Frozen, StructuredLLM
 from rulecam.errors import RulecamError
 from rulecam.log import get_logger
+from rulecam.perception.sam_runtime import SAM_KEY_HEADER
 from rulecam.rules.operators import is_person_like
 
 _log = get_logger(__name__)
@@ -444,19 +445,28 @@ class IdentityMemory:
                 self._noted.add(json.loads(line)["identity_id"])
 
 
-def gpu_embedder(base_url: str, api_key: str, timeout_s: float = 60.0) -> Embed:
-    """`Embed` over the GPU pod's `/embed` (the SAM server's DINOv2)."""
+def gpu_embedder(
+    base_url: str, api_key: str, timeout_s: float = 60.0, edge_key: str | None = None
+) -> Embed:
+    """`Embed` over the GPU pod's `/embed` (the SAM server's DINOv2).
+
+    With `edge_key` (`SAM_EDGE_KEY`, a RunPod serverless load balancer), that key is the bearer
+    and the server's key travels in `X-Rulecam-Key`, as in `sam_runtime.sam_transport`.
+    """
     import base64  # noqa: PLC0415
 
     import httpx  # noqa: PLC0415
 
     client = httpx.Client(timeout=timeout_s)
+    headers = {"Authorization": f"Bearer {edge_key or api_key}", "User-Agent": "rulecam/1.0"}
+    if edge_key:
+        headers[SAM_KEY_HEADER] = api_key
 
     def embed(crops: list[bytes]) -> list[list[float]]:
         try:
             reply = client.post(
                 f"{base_url.rstrip('/')}/embed",
-                headers={"Authorization": f"Bearer {api_key}", "User-Agent": "rulecam/1.0"},
+                headers=headers,
                 json={"images_b64": [base64.b64encode(c).decode("ascii") for c in crops]},
             )
             reply.raise_for_status()

@@ -9,22 +9,32 @@ import subprocess
 import sys
 import threading
 from collections.abc import Callable, Iterator, Mapping
+from http.server import ThreadingHTTPServer
 from typing import Any
 
 import httpx
 import pytest
 from pydantic import SecretStr
 
+from rulecam.ask.identity import gpu_embedder
 from rulecam.clients.transport import HttpxTransport, ModelTransportError
 from rulecam.config import Settings
 from rulecam.contracts import Segmenter
 from rulecam.perception.errors import SamResponseError, SamRuntimeUnavailableError
 from rulecam.perception.metrics import PerceptionMetrics
 from rulecam.perception.router import Purpose, SegmenterRouter
-from rulecam.perception.sam_runtime import HttpSamWorker, ModalSam31, SamWorker
+from rulecam.perception.sam_runtime import (
+    SAM_KEY_HEADER,
+    HttpSamWorker,
+    ModalSam31,
+    SamWorker,
+    sam_transport,
+)
 from rulecam.perception.sam_server import (
+    KEY_HEADER,
     BadRequestError,
     GpuSlot,
+    LoadingHandler,
     SamHTTPServer,
     bearer_matches,
     parse_segment_body,
@@ -572,3 +582,55 @@ def test_embed_round_trip_and_limits() -> None:
 def test_embed_is_404_without_an_embedder(running: Running) -> None:
     body = {"images_b64": [base64.b64encode(b"abc").decode()]}
     assert httpx.post(f"{running.url}/embed", json=body, headers=_auth()).status_code == 404
+
+
+# --- behind a RunPod serverless load balancer --------------------------------------------------
+
+
+def test_ping_is_open(running: Running) -> None:
+    reply = httpx.get(f"{running.url}/ping")
+    assert reply.status_code == 200
+    assert reply.json() == {"status": "ok"}
+
+
+def test_the_key_header_authorizes_behind_the_edge(running: Running) -> None:
+    edge = {"Authorization": "Bearer runpod-edge-key", "X-Rulecam-Key": KEY}
+    assert httpx.post(f"{running.url}/segment", json=_body(), headers=edge).status_code == 200
+    wrong = {**_auth(), "X-Rulecam-Key": "wrong"}  # the key header wins over Authorization
+    assert httpx.post(f"{running.url}/segment", json=_body(), headers=wrong).status_code == 401
+
+
+def test_the_loading_server_says_initializing_and_refuses_work() -> None:
+    loading = ThreadingHTTPServer(("127.0.0.1", 0), LoadingHandler)
+    thread = threading.Thread(target=loading.serve_forever, daemon=True)
+    thread.start()
+    url = f"http://127.0.0.1:{loading.server_address[1]}"
+    try:
+        assert httpx.get(f"{url}/ping").status_code == 204
+        assert httpx.get(f"{url}/health").status_code == 503
+        reply = httpx.post(f"{url}/segment", json=_body(), headers=_auth())
+        assert reply.status_code == 503
+        assert reply.headers["Retry-After"] == "5"
+    finally:
+        loading.shutdown()
+        loading.server_close()
+        thread.join(timeout=5)
+
+
+def test_client_and_server_agree_on_the_key_header() -> None:
+    assert SAM_KEY_HEADER == KEY_HEADER
+
+
+def test_http_worker_and_embedder_behind_the_edge(tmp_path: Any) -> None:
+    server = Running(FakeEngine(), embedder=FakeEmbedder())
+    try:
+        transport = sam_transport(server.url, SecretStr(KEY), SecretStr("runpod-edge-key"))
+        detections = ModalSam31(HttpSamWorker(transport)).segment(
+            _chunk_with_file(tmp_path), "person"
+        )
+        assert [d.object_id for d in detections] == [1]
+        assert gpu_embedder(server.url, KEY, edge_key="runpod-edge-key")([b"abc"]) == [[3.0, 0.0]]
+        with pytest.raises(ConnectionError, match="HTTPStatusError"):
+            gpu_embedder(server.url, "wrong", edge_key="runpod-edge-key")([b"abc"])
+    finally:
+        server.close()

@@ -7,7 +7,11 @@ The API pod reaches it through `sam_runtime.HttpSamWorker`. Routes:
   free and total bytes now and after the last session, the session count, the memory guard and
   its trips, and the effective model settings. Watch `allocated_bytes` across calls: it should
   return to the same level after every session;
-- `POST /segment`: needs `Authorization: Bearer <SAM_API_KEY>`. The body is JSON
+- `GET /ping`: open, the health probe of a RunPod serverless load balancer: 204 while the model
+  loads (a small placeholder server holds the port meanwhile), 200 once it serves;
+- `POST /segment`: needs `Authorization: Bearer <SAM_API_KEY>`, or `X-Rulecam-Key:
+  <SAM_API_KEY>` behind RunPod's load balancer, whose edge takes `Authorization` for the RunPod
+  key (`KEY_HEADER` wins when both are sent). The body is JSON
   `{"request": <SamRequest JSON>, "video_b64": "<base64 MP4 bytes>"}`, the same two arguments
   `ModalWorker` passes to the Modal method; the answer is the `SamResponse` JSON. Video mode is
   for offline uses (probes, Rule CI scenes, evidence re-checks);
@@ -29,7 +33,8 @@ to `max_waiting` of them, and the rest are refused with 503 at once instead of p
 
 Like `sam_worker`, this module runs inside the GPU venv (numpy < 2, `sam3`, torch), so it imports
 only the standard library and `sam_worker`, and logs with `logging`, not structlog. The model is
-loaded once, before the port opens. Run it with the key in the environment, never in argv:
+loaded once, before the real server takes the port. Run it with the key in the environment,
+never in argv:
 
     SAM_API_KEY=... python -m rulecam.perception.sam_server --host 0.0.0.0 --port 8090
 """
@@ -62,6 +67,8 @@ MAX_WAITING_ENV = "SAM_MAX_WAITING"
 IMAGE_MAX_WAITING_ENV = "SAM_IMAGE_MAX_WAITING"
 IMAGE_ENV = "SAM_IMAGE"
 HEALTH_PATH = "/health"
+PING_PATH = "/ping"  # RunPod serverless load balancer: 204 while loading, 200 when ready
+KEY_HEADER = "X-Rulecam-Key"  # the key behind RunPod's edge, which keeps `Authorization`
 SEGMENT_PATH = "/segment"
 SEGMENT_IMAGE_PATH = "/segment_image"
 EMBED_PATH = "/embed"
@@ -315,7 +322,10 @@ class SamRequestHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
     def do_GET(self) -> None:
-        """Serve `/health`, or 404/401 for anything else."""
+        """Serve `/health` and `/ping`, or 404/401 for anything else."""
+        if self.path == PING_PATH:
+            self._send(HTTPStatus.OK, {"status": "ok"})
+            return
         if self.path == HEALTH_PATH:
             slot = self.server.slot
             self._send(
@@ -413,7 +423,12 @@ class SamRequestHandler(BaseHTTPRequestHandler):
         _log.debug("%s - %s", self.address_string(), format % args)
 
     def _authorized(self) -> bool:
-        if bearer_matches(self.headers.get("Authorization"), self.server.api_key):
+        key = self.headers.get(KEY_HEADER)
+        if key is not None:
+            matched = hmac.compare_digest(key.encode(), self.server.api_key.encode())
+        else:
+            matched = bearer_matches(self.headers.get("Authorization"), self.server.api_key)
+        if matched:
             return True
         self._drain()
         self._error(HTTPStatus.UNAUTHORIZED, "missing or wrong API key")
@@ -453,6 +468,36 @@ class SamRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
 
+class LoadingHandler(BaseHTTPRequestHandler):
+    """Holds the port while SAM 3.1 loads: `/ping` 204 ("initializing"), anything else 503.
+
+    A RunPod load balancer counts any other answer, or none, as an unhealthy worker.
+    """
+
+    server_version = "rulecam-sam"
+    sys_version = ""
+
+    def do_GET(self) -> None:
+        """Answer the health probe; refuse everything else until the model is loaded."""
+        loading = self.path == PING_PATH
+        self.send_response(HTTPStatus.NO_CONTENT if loading else HTTPStatus.SERVICE_UNAVAILABLE)
+        if not loading:
+            self.send_header("Retry-After", "5")
+            self.send_header("Content-Length", "0")
+        self.close_connection = True
+        self.send_header("Connection", "close")
+        self.end_headers()
+
+    def do_POST(self) -> None:
+        """Refuse work until the model is loaded (the body is never read)."""
+        self.path = ""
+        self.do_GET()
+
+    def log_message(self, format: str, *args: Any) -> None:
+        """Route the stdlib access log to `logging`."""
+        _log.debug("%s - %s", self.address_string(), format % args)
+
+
 def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM 3.1 on a GPU
     """Load SAM 3.1 once, then serve until killed.
 
@@ -471,18 +516,24 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
     if not api_key:
         msg = f"{API_KEY_ENV} must be set: the GPU is never served without a key"
         raise SystemExit(msg)
+    loading = ThreadingHTTPServer((args.host, args.port), LoadingHandler)
+    threading.Thread(target=loading.serve_forever, daemon=True).start()
     _log.info("sam_loading model=%s", MODEL_VERSION)
     engine = Sam31Engine.load()
     image_on = os.environ.get(IMAGE_ENV, "1").strip().lower() not in {"0", "false", "no"}
+    image_engine = Sam31ImageEngine.from_video_engine(engine) if image_on else None
+    embedder = DinoEmbedder()
+    loading.shutdown()
+    loading.server_close()
     server = SamHTTPServer(
         (args.host, args.port),
         engine,
         api_key=api_key,
         max_body_bytes=int(os.environ.get(MAX_BODY_ENV, DEFAULT_MAX_BODY_BYTES)),
         max_waiting=int(os.environ.get(MAX_WAITING_ENV, DEFAULT_MAX_WAITING)),
-        image_engine=Sam31ImageEngine.from_video_engine(engine) if image_on else None,
+        image_engine=image_engine,
         image_max_waiting=int(os.environ.get(IMAGE_MAX_WAITING_ENV, DEFAULT_IMAGE_MAX_WAITING)),
-        embedder=DinoEmbedder(),
+        embedder=embedder,
     )
     _log.info("sam_serving port=%d", args.port)
     server.serve_forever()

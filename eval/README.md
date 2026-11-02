@@ -354,3 +354,29 @@ A label vocabulary that does not match (the script refuses a positive clip with 
 label, and a negative control with any) is checked with
 `scripts/eval/caviar_clips.py inventory <file.xml>`; change the event type's needles, not the
 labels.
+
+## Labelled verifier set (add-on 1.4)
+
+The 1 Nov campaign has 29 Glimmer verdicts (27 from run 2, 2 from run 1); their strips are on the
+API pod under `data/strips/<camera>/<event>/`. Nobody has labelled them, so Tier 1 accuracy
+(target ≥ 90 %) is unmeasured.
+
+```bash
+# on the API pod: copy the strips into a blind sheet (shuffled, neutral ids v01..v29)
+uv run rulecam eval verifier-sheet --strips data/strips --out data/verifier-sheet
+# hand data/verifier-sheet/ (minus key.json) to two people; each opens index.html, labels every
+# item violation / no violation / unsure from the frames alone, and sends back labels-<name>.csv
+uv run rulecam eval verifier-score labels-alice.csv labels-bob.csv \
+  --key data/verifier-sheet/key.json --out reports/eval/verifier-labels.json
+# 6 blurred frames at 640 px vs 8 raw at 960 px on the same strips (calls Glimmer, ~58 calls)
+uv run python scripts/eval/verifier_replay.py --key data/verifier-sheet/key.json \
+  --strips data/strips --out reports/eval/verifier-replay.jsonl --labels labels-alice.csv labels-bob.csv
+```
+
+The viewer shows the request and the frames only; Glimmer's verdict, score and reason are in
+`key.json`. The score reports Glimmer's accuracy against each labeller and against their
+consensus (items both labelled the same decisive way; a Glimmer `unsure` there counts as not
+correct, and accuracy among its decisive answers is reported too), with a Wilson 95 % interval,
+the `unsure` rates, raw agreement and Cohen's kappa. The `blur6_640` strips are built from the
+raw ones (6 of 8 frames, scaled to 640 px with the annotation band, faces blurred with YuNet when
+`RULECAM_FACE_MODEL` is set), not re-rendered from the chunks.

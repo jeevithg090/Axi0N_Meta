@@ -613,6 +613,71 @@ def eval_track(
         typer.echo(f"wrote {out}")
 
 
+CAMPAIGN = (
+    "run1=reports/eval/2026-11-01-live-test-campaign-run1.json",
+    "run2=reports/eval/2026-11-01-live-test-campaign.json",
+)
+
+
+@eval_app.command("verifier-sheet")
+def eval_verifier_sheet(
+    *,
+    campaign: Annotated[
+        list[str] | None, typer.Option(help="NAME=campaign.json (repeat; default: both 1 Nov runs)")
+    ] = None,
+    strips: Annotated[Path, typer.Option(help="The API's strip folder")] = Path("data/strips"),
+    out: Annotated[Path, typer.Option(help="Sheet folder")] = Path("data/verifier-sheet"),
+    seed: Annotated[int, typer.Option(help="Shuffle seed")] = 1101,
+) -> None:
+    """Write a blind labelling sheet of the campaign's Glimmer verdicts (verdicts hidden)."""
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+    from rulecam.eval.verifier_set import blind, collect_items, write_sheet  # noqa: PLC0415
+
+    runs = []
+    for spec in campaign or CAMPAIGN:
+        name, sep, path = spec.partition("=")
+        if not sep:
+            typer.echo(f"--campaign wants NAME=path, got {spec!r}", err=True)
+            raise typer.Exit(code=USAGE_ERROR)
+        runs.append((name, Path(path)))
+    try:
+        items = blind(collect_items(runs), seed=seed)
+    except EvalError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    done, missing = write_sheet(items, out, strips)
+    typer.echo(f"{len(done)} verdicts -> {out}/index.html and {out}/labels.csv")
+    typer.echo(f"answer key: {out}/key.json (do not show it to the labellers)")
+    if missing:
+        typer.echo(f"no strip found under {strips} for: {', '.join(missing)}", err=True)
+
+
+@eval_app.command("verifier-score")
+def eval_verifier_score(
+    labels: Annotated[list[Path], typer.Argument(help="One or two labellers' CSVs")],
+    *,
+    key: Annotated[Path, typer.Option(help="The sheet's key.json")] = Path(
+        "data/verifier-sheet/key.json"
+    ),
+    out: Annotated[Path | None, typer.Option(help="Write the JSON report here")] = None,
+) -> None:
+    """Score Glimmer's verdicts against the labels: accuracy, unsure rate, Cohen's kappa."""
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+    from rulecam.eval.verifier_set import load_key, read_labels, score_labels  # noqa: PLC0415
+
+    try:
+        verdicts = {item.item: item.verdict for item in load_key(key)}
+        given = {path.stem: read_labels(path) for path in labels}
+    except EvalError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    report = score_labels(verdicts, given)
+    typer.echo(report.to_json())
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(report.to_json(), encoding="utf-8")
+
+
 AUTO_CHECKS = "auto"
 DEFAULT_UI = "https://rulecam.vercel.app"
 

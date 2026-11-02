@@ -12,7 +12,7 @@
 #
 # The first run moves the hand-made /workspace/rulecam directory to /workspace/rulecam-shared and
 # links /workspace/rulecam to it, so the old code stays the first rollback target. Then, in order:
-# link the shared state into the release, build its venv (`uv sync --frozen --no-dev`), switch the
+# link the shared state into the release, build its venv (`uv sync --frozen $UV_SYNC_ARGS`), switch the
 # symlink, restart the API (`/workspace/restart_api.sh`, detached), and wait for GET /health to
 # report this revision. If it does not within HEALTH_WAIT_S, the symlink goes back to the previous
 # release and the API is restarted again. Nothing touches the live API before the switch, so a
@@ -33,6 +33,8 @@ HEALTH_SETTLE_S=${HEALTH_SETTLE_S:-5}  # let the old process go before the first
 HEALTH_POLL_S=${HEALTH_POLL_S:-3}
 KEEP=${KEEP:-3}
 SHARED_DIRS=${SHARED_DIRS:-plans evidence data reports}  # tracked, but the API writes into them
+# The live pod needs the reid (BoT-SORT) and ml (onnxruntime for RTMPose) extras.
+UV_SYNC_ARGS=${UV_SYNC_ARGS:---no-dev --extra reid --extra ml}
 mkdir -p "$RELEASES"
 RELEASES=$(cd "$RELEASES" && pwd -P)
 REL="$RELEASES/$SHORT"
@@ -97,7 +99,9 @@ link_shared() {
 
 build_venv() {
   command -v uv > /dev/null || { log "uv is not on PATH"; return 1; }
-  (cd "$REL" && UV_PROJECT_ENVIRONMENT="$REL/.venv" uv sync --frozen --no-dev)
+  local args
+  read -r -a args <<< "$UV_SYNC_ARGS"
+  (cd "$REL" && UV_PROJECT_ENVIRONMENT="$REL/.venv" uv sync --frozen "${args[@]}")
   log "venv ready"
 }
 

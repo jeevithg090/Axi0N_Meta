@@ -50,7 +50,7 @@ fi
 
 # The settings the remote script reads, quoted for the remote shell.
 remote_env=""
-for name in RELEASES LIVE SHARED RESTART HEALTH_URL HEALTH_WAIT_S KEEP SHARED_DIRS; do
+for name in RELEASES LIVE SHARED RESTART HEALTH_URL HEALTH_WAIT_S KEEP SHARED_DIRS UV_SYNC_ARGS; do
   if [ -n "${!name:-}" ]; then
     remote_env+="$name=$(printf '%q' "${!name}") "
   fi

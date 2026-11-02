@@ -180,6 +180,11 @@ _env = Environment(
 )
 
 
+def render_template(name: str, **context: object) -> str:
+    """Render one of this package's auto-escaping templates (`templates/<name>`)."""
+    return _env.get_template(name).render(**context)
+
+
 def render_html(pack: EvidencePack) -> str:
     """Render the pack as a self-contained HTML page.
 

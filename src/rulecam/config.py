@@ -89,6 +89,25 @@ class Settings(BaseSettings):
     rulecam_ask_caption_every_s: float = Field(default=0.0, ge=0.0)
     # Ask's identity memory: join track fragments by DINOv2 appearance on the GPU pod's /embed.
     rulecam_ask_identities: bool = True
+    # How much tool output reaches Spark in Ask (anything cut is reported to it, never silent):
+    # rows per SQL query, characters of results per turn, instants per count/look call.
+    rulecam_ask_max_rows: int = Field(default=1000, ge=1)
+    rulecam_ask_max_result_chars: int = Field(default=100_000, ge=2000)
+    rulecam_ask_max_frames: int = Field(default=6, ge=1, le=32)
+    # Tool calls one Ask turn runs at the same time (Spark picks how many, up to this).
+    rulecam_ask_max_actions: int = Field(default=6, ge=1, le=16)
+    # Ask's `watch` tool: the longest window joined into one clip for Spark, and the Spark model
+    # that takes video (Spark's video limits are not published; the clip is capped to this).
+    rulecam_ask_max_watch_s: float = Field(default=180.0, ge=3.0, le=1800.0)
+    rulecam_ask_watch_model: str = "muse-spark-1.2"
+    # Muse Spark Open (Baseten) checks each Ask answer against its trace and can send it back
+    # once (needs BASETEN_API_KEY; off without it).
+    rulecam_ask_review: bool = True
+    # The deployed commit, for Ask's run log (empty: `git rev-parse HEAD` when run from a clone).
+    rulecam_git_sha: str = ""
+    # Only for command-line clients that log in to a remote API as the owner (`rulecam eval
+    # ask`); the API itself never reads it (it checks OWNER_PASSPHRASE_HASH).
+    rulecam_owner_passphrase: SecretStr | None = None
     # Evidence strips sent to Glimmer: frames per strip and their width in pixels.
     rulecam_strip_frames: int = Field(default=6, ge=1, le=12)
     rulecam_strip_max_width: int = Field(default=640, ge=320, le=1920)
@@ -113,6 +132,15 @@ class Settings(BaseSettings):
     # Hosted OpenAI-compatible Glimmer (e.g. Routeway) may honour JSON mode but not a strict
     # schema: also state the schema in a system message. Off for llama-server (grammar-enforced).
     glimmer_schema_in_prompt: bool = False
+    # Glimmer's output cap per call, reasoning included. A reply cut at it (finish_reason
+    # `length`) is retried with the cap doubled, up to the ceiling, then reported.
+    glimmer_max_tokens: int = Field(default=1024, ge=64, le=32768)
+    glimmer_max_tokens_ceiling: int = Field(default=4096, ge=64, le=32768)
+    # llama.cpp's per-request `reasoning_budget_tokens` (thinking tokens before the model must
+    # answer). -1: not sent, the server's --reasoning-budget applies (unlimited by default); 0: no
+    # thinking. Off by default so recorded Tier 1 replies keep their replay keys; pick a value with
+    # scripts/eval/glimmer_budget_sweep.py.
+    glimmer_reasoning_budget_tokens: int = Field(default=-1, ge=-1, le=32768)
     evidence_dir: Path = Path("./evidence")
     hf_token: SecretStr | None = None
     modal_token_id: SecretStr | None = None

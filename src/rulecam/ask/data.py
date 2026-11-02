@@ -142,6 +142,11 @@ class TrackTables:
             notes,
             "identity_id VARCHAR, role VARCHAR, description VARCHAR, carrying VARCHAR",
         )
+        # Relinking can retire an identity id; its note then describes no current identity.
+        self._con.execute(
+            "DELETE FROM identity_notes WHERE identity_id NOT IN "
+            "(SELECT identity_id FROM track_identity)"
+        )
         self._con.execute(
             "CREATE TABLE identity_spans AS SELECT i.identity_id, i.camera_id, i.concept, "
             "min(s.first_seen) AS first_seen, max(s.last_seen) AS last_seen, "

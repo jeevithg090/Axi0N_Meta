@@ -167,6 +167,18 @@ def test_a_run_writes_identities_spans_and_notes(tmp_path: Path) -> None:
     assert spans.rows[0] == [2, 9.0]
     assert tables.query("SELECT DISTINCT role FROM identity_notes").rows == [["customer"]]
     tables.close()
+    with memory.notes_path.open("a") as out:
+        out.write(
+            json.dumps(
+                {"identity_id": "gone", "role": "customer", "description": "x", "carrying": ""}
+            )
+            + "\n"
+        )
+    tables = TrackTables(root, identities=memory.identities_path, notes=memory.notes_path)
+    assert tables.query("SELECT count(*) FROM identity_notes").rows == [
+        [2]
+    ]  # the retired one is dropped
+    tables.close()
     memory.run()  # a second run embeds nothing new
     assert sum(seen) == 9
 

@@ -52,6 +52,7 @@ HTTP_SEGMENT_IMAGE_PATH = "/segment_image"  # sam_server.SEGMENT_IMAGE_PATH
 SAM_KEY_HEADER = "X-Rulecam-Key"  # sam_server.KEY_HEADER
 MAX_IMAGES_PER_CALL = 32  # keyframes of one chunk: 3 s at up to 10 fps
 MAX_IMAGE_CONCEPTS = 16
+DEFAULT_MIN_CONFIDENCE = 0.5  # what every caller but the runtime tracker keeps
 HTTP_TIMEOUT_S = 60.0
 HTTP_RETRY = RetryPolicy(max_attempts=2, base_delay_s=0.25, max_delay_s=1.0)
 HTTP_RATE_PER_MINUTE = 1200.0  # far above what one GPU serves; the server's queue pushes back
@@ -137,6 +138,8 @@ class SamImageRequest(Frozen):
     The server runs the image encoder once per image and the text-conditioned detector once per
     concept on it, so one call for all of a chunk's concepts costs far less GPU than one per
     concept. `masks` false returns boxes only (the runtime needs foot points, not masks).
+    `min_confidence` is the lowest detection score returned: 0.5 by default, lower for the
+    runtime tracker, whose low-confidence pass only extends tracks it already has.
     """
 
     concepts: tuple[str, ...] = Field(min_length=1, max_length=MAX_IMAGE_CONCEPTS)
@@ -145,6 +148,7 @@ class SamImageRequest(Frozen):
     height: int = Field(gt=0)
     include_confidence: bool = True
     masks: bool = False
+    min_confidence: float = Field(default=DEFAULT_MIN_CONFIDENCE, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _check_concepts(self) -> Self:

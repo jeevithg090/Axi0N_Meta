@@ -65,7 +65,11 @@ MODAL_CLASS_NAME = "Sam31Worker"
 MODEL_VERSION = "facebook/sam3.1@sam3.1_multiplex"
 IMAGE_MODEL_VERSION = f"{MODEL_VERSION}#detector"
 IMAGE_THRESH_ENV = "SAM_IMAGE_THRESH"
-DEFAULT_IMAGE_THRESH = 0.5  # `Sam3Processor`'s default confidence threshold
+# The floor `Sam3Processor` keeps detections at (its own default is 0.5). Each `/segment_image`
+# request then cuts at its `min_confidence`: the runtime's tracker asks for everything down to
+# this floor (ByteTrack's low-confidence second pass), every other caller keeps 0.5.
+DEFAULT_IMAGE_THRESH = 0.1
+LEGACY_MIN_CONFIDENCE = 0.5  # the cut for requests that do not name `min_confidence`
 DEFAULT_GPU = "L4"
 WARM_CONTAINERS = 1
 SCALEDOWN_WINDOW_S = 600
@@ -539,6 +543,7 @@ def image_objects(
     *,
     masks: bool,
     include_confidence: bool,
+    min_confidence: float = 0.0,
 ) -> list[WireObject]:
     """Convert one concept's detections on one image into wire objects (best score first).
 
@@ -548,6 +553,7 @@ def image_objects(
         found: `(boxes, scores, masks)` from `ImagePredictor.detect`.
         masks: Whether to encode masks (otherwise `rle` is empty: boxes only).
         include_confidence: Whether to report the scores.
+        min_confidence: Detections scored below it are dropped.
 
     Returns:
         One dict per object with `image_idx`, `concept`, `object_id` (0.. in score order),
@@ -555,7 +561,7 @@ def image_objects(
     """
     boxes, scores, binary = found
     height, width = binary.shape[-2:] if binary.ndim == 3 else (0, 0)  # noqa: PLR2004 - (N, H, W)
-    order = np.argsort(-scores, kind="stable")
+    order = [i for i in np.argsort(-scores, kind="stable") if scores[i] >= min_confidence]
     objects = []
     for object_id, i in enumerate(order):
         x0, y0, x1, y1 = (float(v) for v in boxes[i])
@@ -612,7 +618,8 @@ class Sam31ImageEngine:
     def from_video_engine(cls, engine: Sam31Engine) -> Sam31ImageEngine:  # pragma: no cover
         """Serve images with the detector of an already loaded video engine (needs a GPU).
 
-        The confidence threshold comes from `SAM_IMAGE_THRESH` (default 0.5).
+        The confidence floor comes from `SAM_IMAGE_THRESH` (default 0.1); each request cuts
+        higher with its `min_confidence`.
         """
         from sam3.model.sam3_image_processor import (  # type: ignore[import-not-found]  # noqa: PLC0415
             Sam3Processor,
@@ -635,7 +642,8 @@ class Sam31ImageEngine:
 
         Args:
             images: JPEG or PNG bytes, in request order.
-            request: A `SamImageRequest` in JSON form.
+            request: A `SamImageRequest` in JSON form; without `min_confidence`, detections
+                below `LEGACY_MIN_CONFIDENCE` are dropped.
 
         Returns:
             A `SamImageResponse` in JSON form.
@@ -646,6 +654,7 @@ class Sam31ImageEngine:
         started = time.perf_counter()
         concepts = [str(c) for c in request["concepts"]]
         masks, confidence = bool(request.get("masks")), bool(request["include_confidence"])
+        floor = float(request.get("min_confidence", LEGACY_MIN_CONFIDENCE))
         objects: list[WireObject] = []
         try:
             with self._inference_context():
@@ -660,6 +669,7 @@ class Sam31ImageEngine:
                                 found,
                                 masks=masks,
                                 include_confidence=confidence,
+                                min_confidence=floor,
                             )
                         )
         finally:

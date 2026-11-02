@@ -90,6 +90,21 @@ def test_each_image_is_encoded_once_and_every_concept_detected_on_it() -> None:
     assert response.objects[0].box_xyxy == (4.0, 1.0, 7.0, 5.0)
 
 
+def test_requests_cut_at_their_min_confidence_and_old_requests_at_one_half() -> None:
+    predictor = FakeImagePredictor({"person": [(0.9, (0, 0, 2, 3)), (0.3, (4, 1, 7, 5))]})
+    engine = Sam31ImageEngine(predictor)
+    low = engine.segment_images(
+        [jpeg()], request(concepts=["person"], n_images=1, min_confidence=0.1)
+    )
+    assert [o["confidence"] for o in low["objects"]] == [0.9, 0.3]
+    legacy = {
+        k: v for k, v in request(concepts=["person"], n_images=1).items() if k != "min_confidence"
+    }
+    assert [o["confidence"] for o in engine.segment_images([jpeg()], legacy)["objects"]] == [0.9]
+    default = engine.segment_images([jpeg()], request(concepts=["person"], n_images=1))
+    assert [o["object_id"] for o in default["objects"]] == [0]
+
+
 def test_masks_and_confidences_on_request() -> None:
     predictor = FakeImagePredictor({"person": [(0.7, (1, 1, 3, 4))]})
     reply = Sam31ImageEngine(predictor).segment_images(

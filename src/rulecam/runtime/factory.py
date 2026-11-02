@@ -51,7 +51,7 @@ from rulecam.contracts import Chunk, Clock, EventRecord, Track
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.log import get_logger
 from rulecam.perception.errors import SamRuntimeError
-from rulecam.perception.keyframe_tracker import KeyframeTracker
+from rulecam.perception.keyframe_tracker import KeyframeIdentities, KeyframeTracker
 from rulecam.perception.keyframes import HostedKeyframes, KeyframeRates, SelfHostedKeyframes
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.perception.motion_gate import MotionGate
@@ -454,7 +454,13 @@ def _image_tracker(
     )
     worker = perception.image_worker
     self_hosted = (
-        SelfHostedKeyframes(worker, bus=bus, metrics=metrics, timings=timings.record)
+        SelfHostedKeyframes(
+            worker,
+            bus=bus,
+            metrics=metrics,
+            timings=timings.record,
+            min_confidence=settings.rulecam_tracker_low_confidence,
+        )
         if worker is not None
         else None
     )
@@ -472,6 +478,7 @@ def _image_tracker(
         ),
         store=perception.store,
         bus=bus,
+        identities=KeyframeIdentities(low_confidence=settings.rulecam_tracker_low_confidence),
         timings=timings,
     )
     return RuntimeTracker(

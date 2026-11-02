@@ -175,6 +175,16 @@ def test_low_confidence_detections_extend_tracks_but_never_start_them() -> None:
     assert [len(v) for v in assigned.values()] == [2]
 
 
+def test_detections_below_the_low_confidence_floor_are_ignored() -> None:
+    identities = KeyframeIdentities(low_confidence=0.2)
+    chunk = make_chunk()
+    frames = keyframes(chunk)
+    box = (100.0, 100.0, 140.0, 180.0)
+    dets = [det(chunk, 0, box), det(chunk, 5, box, conf=0.15), det(chunk, 10, box, conf=0.25)]
+    assigned = identities.assign("cam1", "person", frames[:3], dets)
+    assert [[d.frame_idx for d in v] for v in assigned.values()] == [[0, 10]]
+
+
 def test_cameras_and_concepts_have_separate_streams() -> None:
     identities = KeyframeIdentities()
     box = (100.0, 100.0, 140.0, 180.0)
@@ -213,10 +223,12 @@ class ScriptedKeyframes:
         *,
         billed: bool = True,
         backend: Backend = Backend.HOSTED,
+        confidences: Sequence[float] = (),
     ) -> None:
         self.world = world
         self.billed = billed
         self.backend = backend
+        self.confidences = confidences
         self.calls: list[tuple[str, tuple[int, ...], tuple[str, ...]]] = []
 
     def segment_keyframes(
@@ -229,8 +241,9 @@ class ScriptedKeyframes:
             for frame in frames:
                 for object_id, box_at in enumerate(self.world.get(concept, ())):
                     box = box_at(chunk, frame.frame_idx)
+                    conf = self.confidences[object_id] if self.confidences else 0.9
                     dets.append(
-                        det(chunk, frame.frame_idx, box, object_id=object_id).model_copy(
+                        det(chunk, frame.frame_idx, box, object_id=object_id, conf=conf).model_copy(
                             update={"concept": concept}
                         )
                     )
@@ -290,6 +303,16 @@ def test_static_concepts_come_from_the_cache_spread_over_the_keyframes() -> None
     tracker.segment(make_chunk(index=2), ["sink"])
     assert len([c for c in segmenter.calls if c[2] == ("sink",)]) == 2
     assert tracker.cache.handle_coverage_changed({"camera_id": "cam1", "state": "moved"})
+
+
+def test_static_concepts_cache_only_confident_objects() -> None:
+    world = {"sink": [static_box, lambda c, i: (200.0, 10.0, 260.0, 60.0)]}
+    segmenter = ScriptedKeyframes(world, confidences=(0.9, 0.3))
+    tracker = KeyframeTracker(segmenter, decoder=fake_decoder([]))
+    tracker.set_static(["sink"], generation="g1")
+    chunk = make_chunk()
+    found = tracker.segment(chunk, ["sink"]).detections["sink"]
+    assert {d.mask.box_xyxy for d in found} == {static_box(chunk, 0)}
 
 
 def test_static_only_chunks_decode_no_frame_after_the_cache_is_warm() -> None:

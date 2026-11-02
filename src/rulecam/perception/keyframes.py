@@ -43,6 +43,7 @@ from rulecam.log import get_logger
 from rulecam.perception.errors import PerceptionError
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.perception.sam_runtime import (
+    DEFAULT_MIN_CONFIDENCE,
     MAX_IMAGES_PER_CALL,
     MODEL_NAME,
     RELAY_SEGMENT,
@@ -346,6 +347,7 @@ class SelfHostedKeyframes:
         metrics: PerceptionMetrics | None = None,
         timings: StageSink | None = None,
         masks: bool = False,
+        min_confidence: float = DEFAULT_MIN_CONFIDENCE,
         timer: Callable[[], float] = time.perf_counter,
     ) -> None:
         """Wrap the server's worker.
@@ -356,6 +358,8 @@ class SelfHostedKeyframes:
             metrics: Receives one `record_image_call` per call, with its GPU-seconds.
             timings: Receives `sam_request` per call.
             masks: Ask for masks too (the runtime's foot point needs boxes only).
+            min_confidence: The lowest detection score to return (the runtime tracker asks for
+                its low-confidence floor; see `keyframe_tracker.LOW_CONFIDENCE`).
             timer: Monotonic seconds, for latency.
         """
         self._worker = worker
@@ -363,6 +367,7 @@ class SelfHostedKeyframes:
         self._metrics = metrics
         self._timings = timings
         self._masks = masks
+        self._min_confidence = min_confidence
         self._timer = timer
 
     @property
@@ -402,6 +407,7 @@ class SelfHostedKeyframes:
             width=chunk.width,
             height=chunk.height,
             masks=self._masks,
+            min_confidence=self._min_confidence,
         )
         started = self._timer()
         raw = self._worker.segment_images([f.jpeg for f in frames], request.model_dump(mode="json"))

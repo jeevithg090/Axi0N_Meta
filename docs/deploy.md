@@ -803,7 +803,10 @@ What runs where:
   `Authorization: Bearer <SAM_API_KEY>`. Image mode runs the detector of the already loaded SAM 3.1
   model through `sam3`'s `Sam3Processor` (`Sam31ImageEngine`): no second checkpoint, no session
   state, memory released and guarded after every call. `SAM_IMAGE=0` turns it off (404),
-  `SAM_IMAGE_THRESH` (0.5) is its confidence threshold, and image calls wait in their own queue,
+  `SAM_IMAGE_THRESH` (0.1) is the lowest confidence it keeps; each request cuts higher at its
+  `min_confidence` (0.5 unless the runtime tracker asks for its low-confidence floor,
+  `RULECAM_TRACKER_LOW_CONFIDENCE`, 0.1, which only ByteTrack's second pass uses), and image calls
+  wait in their own queue,
   `SAM_IMAGE_MAX_WAITING` (8), for the same GPU. `/health` reports `image` (loaded, waiting,
   calls, guard trips). The body is
   `{"request": <SamRequest JSON>, "video_b64": ...}` (32 MB limit, `SAM_MAX_BODY_BYTES`), the

@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     rulecam_runtime_sam_mode: Literal["image", "video"] = "image"
     rulecam_keyframe_fps: float = Field(default=2.0, ge=2.0, le=10.0)  # keyframes per second
     rulecam_keyframe_fps_cameras: str = ""  # per-camera overrides, e.g. "dock=4,kitchen=3"
+    # Image mode: the lowest SAM score the keyframe tracker gets (ByteTrack's second pass, which
+    # only extends existing tracks); everything else keeps SAM's 0.5 cut.
+    rulecam_tracker_low_confidence: float = Field(default=0.1, ge=0.0, le=0.5)
     # Rule ids whose owner turned operator exclusion off (comma-separated; rules/operators.py):
     # for these, a person riding a forklift counts as a pedestrian next to it.
     rulecam_operator_exclusion_off: str = ""

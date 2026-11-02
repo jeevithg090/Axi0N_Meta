@@ -278,6 +278,7 @@ def test_self_hosted_keyframes_make_one_call_for_every_concept() -> None:
         "height": 720,
         "include_confidence": True,
         "masks": False,
+        "min_confidence": 0.5,
     }
     assert [(d.frame_idx, d.ts) for d in batch.detections["forklift"]] == [
         (f.frame_idx, f.ts) for f in frames
@@ -287,6 +288,15 @@ def test_self_hosted_keyframes_make_one_call_for_every_concept() -> None:
     assert bus.topics() == [Topic.RELAY_MODEL_USED]
     total = metrics.report().total
     assert (total.sam_calls_self_hosted, total.gpu_seconds) == (1, 0.2)
+
+
+def test_self_hosted_keyframes_ask_for_the_trackers_low_confidence_floor() -> None:
+    chunk = make_chunk()
+    worker = FakeImageWorker()
+    SelfHostedKeyframes(worker, min_confidence=0.1).segment_keyframes(
+        chunk, frames_of(chunk), ("person",)
+    )
+    assert worker.calls[0][1]["min_confidence"] == 0.1
 
 
 def test_self_hosted_keyframes_split_long_batches() -> None:

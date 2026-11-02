@@ -15,6 +15,9 @@
 **Tracker.** [Roboflow `trackers`](https://github.com/roboflow/trackers) (Apache-2.0) ByteTrack:
 a Kalman filter per track predicts where it is at the next keyframe, then high-confidence
 detections are matched by IoU (Hungarian), low-confidence ones only to the tracks left over.
+Self-hosted SAM returns detections down to `LOW_CONFIDENCE` (0.1) for this second pass; anything
+below `HIGH_CONFIDENCE` (0.5) can only extend a track the tracker already has, never start one,
+and the static cache keeps only confident objects, so the 0.5 cut holds everywhere but here.
 Its timestamp mode scales the prediction by the real gap, so keyframes 0.25 to 0.5 s apart, and a
 skipped chunk, are handled. Between keyframes 0.5 s apart a walking person (1.4 m/s, about 0.5 m
 wide) moves more than its own width, so plain IoU would never match its new box before the filter
@@ -77,6 +80,7 @@ LOST_TRACK_S = 2.0  # a track unseen this long is dropped
 MIN_IOU = 0.1  # ByteTrack's association threshold (after the Kalman prediction)
 BUFFER_RATIO = 0.5  # boxes grow by half their size each side before IoU (buffered IoU)
 HIGH_CONFIDENCE = 0.5  # first-stage detections; below it they only extend existing tracks
+LOW_CONFIDENCE = 0.1  # the floor of the second stage; weaker detections are ignored
 TRACK_ACTIVATION = 0.5  # the confidence a detection needs to start a track
 TRACKERS_REFERENCE_FPS = 30.0  # `trackers` counts `lost_track_buffer` in 30 fps frames
 
@@ -142,10 +146,16 @@ class _Stream:
     last_s: float | None = None
 
 
-def _frames(detections: Iterable[Detection]) -> dict[int, list[Detection]]:
+def confidence_of(detection: Detection) -> float:
+    """A detection's score; one without a score counts as certain."""
+    return 1.0 if detection.mask.confidence is None else detection.mask.confidence
+
+
+def _frames(detections: Iterable[Detection], floor: float) -> dict[int, list[Detection]]:
     by_frame: dict[int, list[Detection]] = {}
     for det in detections:
-        by_frame.setdefault(det.frame_idx, []).append(det)
+        if confidence_of(det) >= floor:
+            by_frame.setdefault(det.frame_idx, []).append(det)
     return by_frame
 
 
@@ -154,9 +164,7 @@ def _as_sv(detections: Sequence[Detection]) -> sv.Detections:
         return sv.Detections.empty()
     return sv.Detections(
         xyxy=np.array([d.mask.box_xyxy for d in detections], dtype=float).reshape(-1, 4),
-        confidence=np.array(
-            [1.0 if d.mask.confidence is None else d.mask.confidence for d in detections]
-        ),
+        confidence=np.array([confidence_of(d) for d in detections]),
         data={"row": np.arange(len(detections))},
     )
 
@@ -168,6 +176,7 @@ class KeyframeIdentities:
         self,
         *,
         lost_track_s: float = LOST_TRACK_S,
+        low_confidence: float = LOW_CONFIDENCE,
         new_suffix: Callable[[], str] = _new_suffix,
         new_tracker: Callable[[float], ByteTrackTracker] = new_bytetrack,
     ) -> None:
@@ -175,10 +184,13 @@ class KeyframeIdentities:
 
         Args:
             lost_track_s: Seconds a track may go undetected before it is dropped.
+            low_confidence: Detections scored below it are ignored; between it and
+                `HIGH_CONFIDENCE` they only extend existing tracks.
             new_suffix: Generates the random part of new track ids (injected in tests).
             new_tracker: Builds a tracker (injected in tests).
         """
         self._lost_track_s = lost_track_s
+        self._low_confidence = low_confidence
         self._new_suffix = new_suffix
         self._new_tracker = new_tracker
         self._streams: dict[tuple[str, str], _Stream] = {}
@@ -194,6 +206,7 @@ class KeyframeIdentities:
 
         Call for a camera's chunks in order. A keyframe without detections still advances the
         tracker (its tracks age). A keyframe not after the previous one restarts the stream.
+        Detections below the low-confidence floor are ignored.
 
         Args:
             camera_id: The camera.
@@ -205,7 +218,7 @@ class KeyframeIdentities:
             Track id -> its detections in this chunk, by frame.
         """
         stream = self._stream(camera_id, concept)
-        by_frame = _frames(detections)
+        by_frame = _frames(detections, self._low_confidence)
         assigned: dict[str, list[Detection]] = {}
         for frame_idx, ts in keyframes:
             seconds = ts.timestamp()
@@ -266,7 +279,10 @@ class _FirstKeyframe:
         if box_prompts:
             return []
         frames = self._owner.decode(chunk, (0,))
-        return list(self._owner.call(chunk, frames, (concept,)).detections[concept])
+        found = self._owner.call(chunk, frames, (concept,)).detections[concept]
+        # Static objects are cached as they are: only confident detections, never the tracker's
+        # low-confidence second pass.
+        return [d for d in found if confidence_of(d) >= HIGH_CONFIDENCE]
 
 
 class KeyframeTracker:

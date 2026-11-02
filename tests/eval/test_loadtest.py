@@ -20,9 +20,9 @@ from rulecam.eval.loadtest import (
     Endpoint,
     JobResult,
     Payload,
+    billed_workers,
     glimmer_body,
     integrate_workers,
-    live_workers,
     percentile,
     render_markdown,
     run_burst,
@@ -63,8 +63,11 @@ def handler(fail_glimmer: bool = False) -> httpx.MockTransport:
             if fail_glimmer:
                 return httpx.Response(503, text="busy")
             return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]})
-        if request.url.path.endswith("/health"):
-            return httpx.Response(200, json={"workers": {"idle": 1, "running": 1, "throttled": 3}})
+        if request.url.path.endswith("/workers"):
+            parked = {"status": "IDLE"}
+            return httpx.Response(
+                200, json={"workers": [parked, {"status": "RUNNING", "uptimeSeconds": 12}]}
+            )
         return httpx.Response(404)
 
     return httpx.MockTransport(respond)
@@ -119,10 +122,24 @@ def test_maths() -> None:
     assert percentile([1.0, 2.0, 3.0, 4.0], 95) == pytest.approx(3.85)
     assert union_seconds([(0, 2), (1, 3), (5, 6), (5.5, 5.8)]) == 4.0
     assert integrate_workers([(0, 1), (10, 2), (15, 0)]) == 20.0
-    assert (
-        live_workers({"workers": {"idle": 1, "running": 2, "initializing": 1, "throttled": 5}}) == 4
-    )
-    assert live_workers({}) == 0
+    # 2 Nov, SAM endpoint: parked IDLE/INITIALIZING workers have no uptime and are not billed;
+    # one IDLE worker in its idle timeout has a container up and is.
+    listing = {
+        "summary": {"idle": 3, "initializing": 1, "running": 1, "throttled": 1},
+        "workers": [
+            {"status": "IDLE"},
+            {"status": "IDLE"},
+            {"status": "IDLE", "uptimeSeconds": 504},
+            {"status": "INITIALIZING"},
+            {"status": "RUNNING", "uptimeSeconds": 12},
+            {"status": "THROTTLED"},
+        ],
+    }
+    assert billed_workers(listing) == 2
+    assert billed_workers({"workers": [{"status": "IDLE"}, {"status": "INITIALIZING"}]}) == 0
+    assert billed_workers(listing["workers"]) == 2
+    assert billed_workers({}) == 0
+    assert billed_workers({"workers": "x"}) == 0
 
 
 def test_scenario_cost_measured_and_estimated() -> None:
@@ -142,7 +159,7 @@ def test_scenario_cost_measured_and_estimated() -> None:
     assert measured.errors == ("ReadTimeout: x",)
     assert measured.usd == pytest.approx(1.34)
     assert measured.usd_per_alert == pytest.approx(1.34)
-    assert measured.worker_s_source == "runpod health samples"
+    assert measured.worker_s_source == "runpod worker samples"
     estimated = scenario_report(
         burst=2, state="warm", results=[ok, failed], wall_s=11.0, idle_timeout_s=0
     )
@@ -201,7 +218,7 @@ def test_script_runs_bursts_offline(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     report = json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))
     assert [s["burst"] for s in report["scenarios"]] == [1, 2]
     assert report["sam_endpoint"] == "sam"
-    assert report["scenarios"][0]["worker_s_source"] == "runpod health samples"
+    assert report["scenarios"][0]["worker_s_source"] == "runpod worker samples"
     assert out.with_suffix(".md").is_file()
     assert script.endpoint_id("http://localhost:8090", None) is None
     assert script.endpoint_id("x", "abc") == "abc"

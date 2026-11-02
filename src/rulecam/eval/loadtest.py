@@ -32,7 +32,6 @@ import httpx
 USD_PER_WORKER_HOUR = 1.34  # RunPod serverless RTX 4090 (ADA_24), per running worker
 IDLE_TIMEOUT_S = 300.0  # both endpoints' idle timeout
 STAGES = ("sam", "glimmer", "total")
-LIVE_WORKER_STATES = ("initializing", "idle", "running")
 GLIMMER_PROMPT = (
     "You verify safety-rule alerts from site cameras. Rule: Keep people at least 2 metres away "
     "from a moving forklift. Look at the frames and answer as JSON with keys verdict "
@@ -193,12 +192,21 @@ def integrate_workers(samples: Sequence[tuple[float, int]]) -> float:
     return sum((t1 - t0) * n for (t0, n), (t1, _) in itertools.pairwise(ordered))
 
 
-def live_workers(health: Mapping[str, object]) -> int:
-    """Billed workers in a RunPod endpoint health reply (`workers`: initializing/idle/running)."""
-    workers = health.get("workers")
-    if not isinstance(workers, Mapping):
+def billed_workers(listing: object) -> int:
+    """Workers with a live container in RunPod's worker list (`GET /v2/serverless/{id}/workers`).
+
+    A worker is billed from its handler start until it scales down, idle timeout included, and
+    while billed the list gives it an `uptimeSeconds`. The status alone does not tell: parked
+    workers (scaled down, image cached) are listed as `IDLE` or `INITIALIZING` with no uptime,
+    and the legacy `/v2/{id}/health` counts them as `idle`/`ready`, so it never reaches zero on
+    a cold endpoint (seen on both endpoints on 2 Nov: `idle: 2, ready: 2` with no container up).
+    """
+    workers = listing.get("workers") if isinstance(listing, Mapping) else listing
+    if not isinstance(workers, Sequence) or isinstance(workers, str | bytes):
         return 0
-    return sum(int(workers.get(state, 0) or 0) for state in LIVE_WORKER_STATES)
+    return sum(
+        1 for w in workers if isinstance(w, Mapping) and float(w.get("uptimeSeconds") or 0) > 0
+    )
 
 
 @dataclass(frozen=True)
@@ -280,7 +288,7 @@ def scenario_report(
         wall_s=wall_s,
         stages=stage_stats(results),
         worker_s=billed,
-        worker_s_source="runpod health samples" if worker_s is not None else "estimate",
+        worker_s_source="runpod worker samples" if worker_s is not None else "estimate",
         usd=usd,
         usd_per_alert=usd / len(ok) if ok else None,
     )

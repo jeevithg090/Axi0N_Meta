@@ -23,6 +23,7 @@ import sys
 
 if sys.platform != "win32":
     import fcntl
+
     msvcrt = None
 else:
     fcntl = None

@@ -87,6 +87,12 @@ class Settings(BaseSettings):
     # Evidence strips sent to Glimmer: frames per strip and their width in pixels.
     rulecam_strip_frames: int = Field(default=6, ge=1, le=12)
     rulecam_strip_max_width: int = Field(default=640, ge=320, le=1920)
+    # RTMPose-l body7 ONNX (`scripts/fetch_rtmpose.sh`; runs on the CPU, needs `onnxruntime`):
+    # strips then draw each person's real pose instead of a figure fitted to the box. Unset, or
+    # a file whose sha256 is not RULECAM_POSE_SHA256 (pose.keypoints.RTMPOSE_BODY7_ONNX_SHA256),
+    # means no pose.
+    rulecam_pose_onnx: Path | None = None
+    rulecam_pose_sha256: str = "cff059fd58a2c0d5fabaddcd66a96abcfb327563bcb0149ea59c9de4a8990fe2"
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None

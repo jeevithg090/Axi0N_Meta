@@ -890,3 +890,79 @@ def test_real_chunks_on_disk_give_a_strip_end_to_end(tmp_path: Path) -> None:
     assert corners[0][0] < 100
     assert corners[-1][0] > 150
     assert corners[-1][2] < 100
+
+
+# --- pose on the strip (add-on 3.4: RTMPose-l body7) ------------------------------------------
+
+
+class FakePose:
+    """A pose model that puts every keypoint at the box's centre (strip pixels)."""
+
+    def __init__(self, fail: bool = False) -> None:
+        self.boxes: list[tuple[float, float, float, float]] = []
+        self.fail = fail
+
+    def estimate(
+        self, frame: Frame, box_xyxy: tuple[float, float, float, float]
+    ) -> tuple[Keypoint, ...]:
+        self.boxes.append(box_xyxy)
+        if self.fail:
+            raise RuntimeError("onnx session failed")
+        x0, y0, x1, y1 = box_xyxy
+        return tuple(
+            Keypoint(x=(x0 + x1) / 2, y=y0 + (y1 - y0) * k / 16, score=0.9) for k in range(17)
+        )
+
+
+def test_pose_pass_estimates_people_in_strip_pixels_and_returns_chunk_pixels() -> None:
+    pose = FakePose()
+    key = Keyframe(chunk=make_chunk(), frame_idx=20, ts=at(2.0))
+    tracks = [
+        track("cam1:person:1", "person", PERSON_BOX),
+        track("cam1:forklift:1", "forklift", FORKLIFT_BOX),
+    ]
+    frame = scene_frame((640, 360))
+    overlay = keyframe_overlay(
+        candidate(),
+        context(),
+        tracks,
+        key,
+        scale=0.5,
+        position=(1, 1),
+        pose=strips_module.PosePass(pose, frame, 0.5),
+    )
+    assert pose.boxes == [(100.0, 100.0, 140.0, 180.0)]  # only the person, in strip pixels
+    person = next(item for item in overlay.items if item.person)
+    forklift = next(item for item in overlay.items if not item.person)
+    assert forklift.keypoints is None
+    assert person.keypoints is not None
+    assert person.keypoints[0][:2] == pytest.approx((120.0, 100.0))  # back in strip pixels
+
+
+def test_pose_pass_keeps_known_keypoints_and_survives_a_failing_model() -> None:
+    point = track("cam1:person:1", "person", PERSON_BOX).points[0]
+    known = point.model_copy(update={"keypoints": (Keypoint(x=1.0, y=2.0, score=0.5),) * 17})
+    frame = scene_frame((640, 360))
+    pose = FakePose()
+    assert strips_module.PosePass(pose, frame, 0.5)(known) is known
+    assert pose.boxes == []
+    assert strips_module.PosePass(FakePose(fail=True), frame, 0.5)(point) is point
+
+
+def test_strip_with_a_pose_model_draws_the_real_skeleton(tmp_path: Path) -> None:
+    pose = FakePose()
+    strips = EpisodeStrips(
+        chunks=Chunks([make_chunk(index=0), make_chunk(index=1)]),
+        store=store_with_scene(),
+        out_dir=tmp_path / "strips",
+        faces=NoFaceDetector(),
+        decode=FakeDecode(),
+        raw=True,
+        pose=pose,
+    )
+    out = strips.render(candidate(), make_chunk(index=1), PrivacyMode.STANDARD, context())
+    assert len(out.strip_paths) == 6
+    assert len(pose.boxes) == 6  # the person, once per keyframe
+    image = read_image(out.strip_paths[0])
+    column = image[110:170, 120].astype(int)  # the skeleton runs down the box's centre line
+    assert (np.abs(column - np.array(SENTINEL)).sum(axis=1) > 60).any()

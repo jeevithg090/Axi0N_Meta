@@ -27,8 +27,10 @@ wait for one more SAM round trip in order, so identities are handed off by IoU.
 
 Each candidate gets its evidence strip from `EpisodeStrips` (P4-05): keyframes across the
 episode from the chunks on disk, with the rule's boxes, zones and distance ruler, in the plan's
-privacy mode, under `<data dir>/strips`. The policy is P3-05's `VerificationPolicy` and the
-actions P3-06's `ActionExecutor`, dry-run by default (`RULECAM_ACTIONS_DRY_RUN`).
+privacy mode, under `<data dir>/strips`. With `RULECAM_POSE_ONNX` (RTMPose-l body7, CPU) each
+person in a strip gets its real pose (`pose.keypoints.load_pose_estimator`). The policy is
+P3-05's `VerificationPolicy` and the actions P3-06's `ActionExecutor`, dry-run by default
+(`RULECAM_ACTIONS_DRY_RUN`).
 """
 
 from __future__ import annotations
@@ -72,6 +74,7 @@ from rulecam.perception.sam_runtime import (
 )
 from rulecam.perception.static_cache import StaticCache, StaticServedSegmenter
 from rulecam.perception.tracking import Tracker
+from rulecam.pose.keypoints import load_pose_estimator
 from rulecam.replay.cache import ReplayCache
 from rulecam.rules.operators import OperatorExclusion
 from rulecam.rules.store import ParquetTrackStore
@@ -383,6 +386,9 @@ def build_runtime(
             frames=settings.rulecam_strip_frames,
             max_width=settings.rulecam_strip_max_width,
             raw=settings.rulecam_prototype_mode,
+            pose=load_pose_estimator(
+                settings.rulecam_pose_onnx, sha256=settings.rulecam_pose_sha256
+            ),
         ),
         chain=chain,
         sampling=SamplingPolicy.from_settings(settings),

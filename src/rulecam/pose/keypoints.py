@@ -3,6 +3,13 @@
 `RtmposeOnnx` is the CPU path (RTMPose, Apache-2.0). `PoseEstimator` is the seam where a Sapiens
 worker on a GPU can plug in. Poses are estimated every few frames and filled between by linear
 interpolation. Only person tracks should be passed in: this produces joints, never identity.
+
+The pinned checkpoint is OpenMMLab's RTMPose-l body7 (`RTMPOSE_BODY7_NAME`, COCO val AP 76.7),
+exported to ONNX by OpenMMLab (`RTMPOSE_BODY7_URL`, a zip whose `end2end.onnx` has the sha256
+`RTMPOSE_BODY7_ONNX_SHA256`). Its preprocessing (192 x 256 input, padding 1.25, ImageNet mean and
+std in RGB) and SimCC split ratio 2.0 are what this module implements. It runs at about 20 ms per
+person crop on a laptop CPU. `scripts/fetch_rtmpose.sh` downloads and checks it;
+`load_pose_estimator` loads it for the runtime (`RULECAM_POSE_ONNX`), or returns `None`.
 """
 
 from __future__ import annotations
@@ -21,12 +28,21 @@ from numpy.typing import NDArray
 
 from rulecam.contracts import Keypoint, Track, TrackPoint
 from rulecam.contracts.core import BoxXYXY
+from rulecam.log import get_logger
+
+_log = get_logger(__name__)
 
 INPUT_W, INPUT_H = 192, 256
 SIMCC_SPLIT_RATIO = 2.0
 BOX_PADDING = 1.25
 MEAN = np.array((123.675, 116.28, 103.53), dtype=np.float32)
 STD = np.array((58.395, 57.12, 57.375), dtype=np.float32)
+RTMPOSE_BODY7_NAME = "rtmpose-l_simcc-body7_pt-body7_420e-256x192-4dba18fc_20230504"
+RTMPOSE_BODY7_URL = (
+    f"https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/{RTMPOSE_BODY7_NAME}.zip"
+)
+RTMPOSE_BODY7_ZIP_SHA256 = "121f42bf3f3e28f2cf254696ae649e58459513f65d2b4580959b688c0b2c8302"
+RTMPOSE_BODY7_ONNX_SHA256 = "cff059fd58a2c0d5fabaddcd66a96abcfb327563bcb0149ea59c9de4a8990fe2"
 
 Frame = NDArray[np.uint8]
 
@@ -181,6 +197,35 @@ class RtmposeOnnx:
         return to_image_keypoints(positions, scores, window)
 
 
+def load_pose_estimator(
+    model_path: Path | None, *, sha256: str = RTMPOSE_BODY7_ONNX_SHA256
+) -> RtmposeOnnx | None:
+    """Load the runtime's pose model, or `None` (logged) when it cannot run.
+
+    Pose is optional evidence: without it, strips draw a figure fitted to the person's box, so a
+    missing file, a missing `onnxruntime` or a file with another hash never stops the runtime.
+
+    Args:
+        model_path: The RTMPose ONNX file (`RULECAM_POSE_ONNX`), or `None` for no pose.
+        sha256: The file's pinned sha256 (`RULECAM_POSE_SHA256`).
+
+    Returns:
+        The estimator, or `None`.
+    """
+    if model_path is None:
+        return None
+    if not model_path.is_file():
+        _log.warning("pose_model_missing", path=str(model_path))
+        return None
+    try:
+        estimator = RtmposeOnnx.load(model_path, sha256=sha256)
+    except Exception as exc:  # a missing extra, a wrong hash or a bad file: run without pose
+        _log.warning("pose_model_unavailable", path=str(model_path), error=str(exc))
+        return None
+    _log.info("pose_model_loaded", path=str(model_path))
+    return estimator
+
+
 def sample_indices(count: int, stride: int) -> tuple[int, ...]:
     """Pick the track points to run the model on: every `stride`-th, plus the last.
 
@@ -291,6 +336,10 @@ def estimate_track(
 
 
 __all__ = [
+    "RTMPOSE_BODY7_NAME",
+    "RTMPOSE_BODY7_ONNX_SHA256",
+    "RTMPOSE_BODY7_URL",
+    "RTMPOSE_BODY7_ZIP_SHA256",
     "CropWindow",
     "PoseEstimator",
     "RtmposeOnnx",
@@ -298,6 +347,7 @@ __all__ = [
     "decode_simcc",
     "estimate_track",
     "fill_keypoints",
+    "load_pose_estimator",
     "prepare_input",
     "sample_indices",
     "to_image_keypoints",

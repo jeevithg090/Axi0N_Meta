@@ -11,6 +11,9 @@ For every candidate the loop hands over, `EpisodeStrips.render`:
 3. reads the rule's tracks (`relevant_concepts`) from the track store, and at each keyframe
    takes each track's nearest point (within `TRACK_TOLERANCE_S`); the candidate's subject is
    highlighted;
+   With a pose model (`pose`, RTMPose on the CPU), each person without keypoints gets its pose
+   estimated on the decoded keyframe, so the skeleton, the head blur and the `hands` PPE region
+   follow the real body rather than a figure fitted to the box;
 4. draws boxes, the rule's polygon zones and, where the plan has a calibration for the camera, a
    **distance ruler** from the subject's foot to the nearest other object's foot with a
    one-metre tick on the ground; every word (a caption with the frame, the offset from the
@@ -50,6 +53,7 @@ from rulecam.contracts import (
     Calibration,
     CandidateEvent,
     Chunk,
+    Keypoint,
     PrivacyMode,
     RuleIR,
     Track,
@@ -61,6 +65,7 @@ from rulecam.contracts.core import PointXY
 from rulecam.contracts.rule_ir import Without
 from rulecam.log import get_logger
 from rulecam.planner.runner import passthrough_args
+from rulecam.pose.keypoints import PoseEstimator
 from rulecam.rules.backtest import DecisionContext
 from rulecam.rules.engine import relevant_concepts
 from rulecam.rules.errors import RuleEvaluationError
@@ -356,6 +361,7 @@ class EpisodeStrips:
         frames: int = STRIP_FRAMES,
         max_width: int = MAX_WIDTH,
         raw: bool = False,
+        pose: PoseEstimator | None = None,
     ) -> None:
         """Create the renderer.
 
@@ -368,6 +374,7 @@ class EpisodeStrips:
             frames: Most keyframes per strip.
             max_width: Strip width in pixels (frames are scaled down to it, never up).
             raw: Prototype mode: the real frames with the overlays, no face blurring.
+            pose: Estimates the keypoints of people the track store has none for.
         """
         self._chunks = chunks
         self._store = store
@@ -377,6 +384,7 @@ class EpisodeStrips:
         self._frames = frames
         self._max_width = max_width
         self._raw = raw
+        self._pose = pose
 
     def render(
         self,
@@ -435,13 +443,15 @@ class EpisodeStrips:
                 scale=scale,
                 position=(k, len(decoded)),
                 ppe=mode is not PrivacyMode.STANDARD,
+                pose=PosePass(self._pose, frame, scale) if self._pose is not None else None,
             )
-            for k, (key, _) in enumerate(decoded, start=1)
+            for k, (key, frame) in enumerate(decoded, start=1)
         ]
         frames = [frame for _, frame in decoded]
         if self._raw:
             images = [
-                draw_overlay(f, o, strict=False) for f, o in zip(frames, overlays, strict=True)
+                draw_overlay(f, o, strict=False, pose=True)
+                for f, o in zip(frames, overlays, strict=True)
             ]
         else:
             images = render_frames(frames, overlays, mode, self._faces)
@@ -507,6 +517,7 @@ def keyframe_overlay(
     scale: float,
     position: tuple[int, int],
     ppe: bool = False,
+    pose: Callable[[TrackPoint], TrackPoint] | None = None,
 ) -> Overlay:
     """What is drawn on one keyframe: the rule's tracks, its zones, the ruler and the caption.
 
@@ -519,6 +530,8 @@ def keyframe_overlay(
         position: `(k, n)`: this is frame `k` of `n`.
         ppe: Give each person its PPE marks (anonymous and strict mode, where the person's
             pixels, and so the item itself, are not shown).
+        pose: Adds keypoints to a person's point (`PosePass`), before it is drawn or its PPE
+            regions are checked.
 
     Returns:
         The overlay, in strip pixels.
@@ -531,6 +544,8 @@ def keyframe_overlay(
         point = nearest_point(track, key.ts)
         if point is None or (concepts and track.concept not in concepts):
             continue
+        if pose is not None and is_person(track.concept, rule):
+            point = pose(point)
         present.append((track, point))
     seen: list[tuple[Item, TrackPoint]] = []
     for track, point in present:
@@ -544,6 +559,38 @@ def keyframe_overlay(
         ruler=_ruler(seen, context.calibration, candidate.camera_id, scale),
         caption=caption(candidate, key, *position),
     )
+
+
+class PosePass:
+    """Adds estimated keypoints to people's track points at one decoded keyframe.
+
+    Args:
+        estimator: The pose model.
+        frame: The keyframe as decoded for the strip (strip pixels, BGR).
+        scale: Strip pixels per chunk pixel.
+    """
+
+    def __init__(self, estimator: PoseEstimator, frame: Frame, scale: float) -> None:
+        """Hold the model, the frame and its scale."""
+        self._estimator = estimator
+        self._frame = frame
+        self._scale = scale
+
+    def __call__(self, point: TrackPoint) -> TrackPoint:
+        """The point with keypoints in chunk pixels; unchanged if it has some or pose fails."""
+        if point.keypoints is not None:
+            return point
+        scale = self._scale
+        x0, y0, x1, y1 = point.box_xyxy
+        try:
+            found = self._estimator.estimate(
+                self._frame, (x0 * scale, y0 * scale, x1 * scale, y1 * scale)
+            )
+        except Exception as exc:  # pose is optional evidence: never lose the strip over it
+            _log.warning("strip_pose_failed", error=f"{type(exc).__name__}: {exc}")
+            return point
+        keypoints = tuple(Keypoint(x=kp.x / scale, y=kp.y / scale, score=kp.score) for kp in found)
+        return point.model_copy(update={"keypoints": keypoints})
 
 
 def render_frames(

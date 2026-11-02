@@ -37,7 +37,8 @@ owner-only), ticks the escalation timers once a second, and serves how the respo
 configured (Tier 2, firewall, dry run, interlock) in `GET /runtime/metrics` under `response`.
 Upheld disputes, owner corrections and responders' *False alarm* taps become permanent Rule CI
 regressions (WS1f). With `TELEGRAM_BOT_TOKEN`, a poller long-polls the Telegram bot for taps and
-the owner mints role links at `GET /telegram/link?role=…` (add-on 5.1).
+the owner mints role links at `GET /telegram/link?role=…` (add-on 5.1). With `RULECAM_WEBHOOKS`,
+another poller sends the signed outbound webhooks (add-on 5.4).
 
 Cost (WS3): with the runtime on, a `CostWatch` ticks once a second: the per-camera dollar budget
 (alarm and degrade, `runtime.cost`), the cost per camera-hour, and the optional idle GPU stop
@@ -859,7 +860,6 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         return plan_concepts(plan) if plan is not None else []
 
     false_alarm = false_alarm_regressions(lambda: runtime.plan if runtime else None, hard_negatives)
-    telegram_bot = response.telegram_bot(false_alarm)
 
     pair = PairPhone(
         bus=bus, clock=clock, segmenter=perception.hosted, settings=settings, concepts=concepts
@@ -924,7 +924,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             *((watch.tick,) if watch is not None else ()),
             *ask_tickers,
         ),
-        pollers=(telegram_bot.poll,) if telegram_bot is not None else (),
+        pollers=response.pollers(false_alarm),
         response=response.status,
         cost=watch.report if watch is not None else None,
         routers=(

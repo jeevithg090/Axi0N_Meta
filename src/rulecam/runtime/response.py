@@ -23,6 +23,9 @@
   start-up so the first cut is one round trip. `KASA_LIGHT_HOST` adds the strobe light.
 - **Telegram** (add-on 5.1). With `TELEGRAM_BOT_TOKEN`, every notification also goes to the
   Telegram chats linked to its role (`act.telegram`), and the API long-polls the bot for taps.
+- **Webhooks** (add-on 5.4). With `RULECAM_WEBHOOKS`, every notification is also queued as a
+  signed JSON delivery per target (`act.webhook`: generic, Slack, Teams Workflows), sent with
+  retries by an API poller.
 - **Dry run.** `RULECAM_ACTIONS_DRY_RUN` (default **on**, until the owner turns it off) records
   every action as `dry-run: would …` in the chain and runs none of them.
 """
@@ -49,6 +52,12 @@ from rulecam.act.telegram import (
     TelegramNotifier,
     link_key,
     telegram_router,
+)
+from rulecam.act.webhook import (
+    HttpxPoster,
+    WebhookDispatcher,
+    WebhookNotifier,
+    parse_targets,
 )
 from rulecam.act.whatsapp import (
     GRAPH_TIMEOUT_S,
@@ -110,6 +119,7 @@ class ResponseStatus(Frozen):
         light: Whether a strobe light is configured.
         notifier: Where notifications go.
         telegram: Whether Telegram alerts are on (add-on 5.1).
+        webhooks: The presets of the configured outbound webhooks (add-on 5.4), never URLs.
     """
 
     tier2: Literal["configured", "absent"]
@@ -122,6 +132,7 @@ class ResponseStatus(Frozen):
     light: bool = False
     notifier: Literal["lan"] = "lan"
     telegram: bool = False
+    webhooks: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -142,6 +153,7 @@ class Response:
         telegram: Telegram alerts (add-on 5.1), when configured; it wraps the outbound notifier.
         telegram_key: The HMAC key of its role links.
         telegram_poll: The Bot API on a transport long enough for long polling.
+        webhooks: The outbound webhook queue (add-on 5.4), when configured.
     """
 
     tier1: Verifier
@@ -157,6 +169,17 @@ class Response:
     telegram: TelegramNotifier | None = None
     telegram_key: bytes = b""
     telegram_poll: BotApi | None = None
+    webhooks: WebhookDispatcher | None = None
+
+    def pollers(
+        self, on_false_alarm: FalseAlarmSink | None = None
+    ) -> tuple[Callable[[], object], ...]:
+        """Blocking loops the API runs in their own threads: the Telegram bot, the webhooks."""
+        bot = self.telegram_bot(on_false_alarm)
+        return (
+            *((bot.poll,) if bot is not None else ()),
+            *((self.webhooks.poll,) if self.webhooks is not None else ()),
+        )
 
     @property
     def tickers(self) -> tuple[Callable[[], object], ...]:
@@ -344,7 +367,16 @@ def build_response(
     notifier = LanNotifier(bus=bus, clock=clock)
     whatsapp = build_whatsapp(settings, lan=notifier, clock=clock)
     telegram = build_telegram(settings, inner=whatsapp or notifier)
+    webhooks = build_webhooks(settings, clock=clock)
     outbound: Notifier = telegram or whatsapp or notifier
+    if webhooks is not None:
+        outbound = WebhookNotifier(
+            inner=outbound,
+            dispatcher=webhooks,
+            clock=clock,
+            site=chain.site,
+            link_base=settings.public_ui_url,
+        )
     escalation = EscalationManager(notifier=outbound, clock=clock, chain=chain, bus=bus)
     interlock = None
     if settings.kasa_plug_host:
@@ -373,6 +405,7 @@ def build_response(
         interlock_unreachable=unreachable,
         light=light is not None,
         telegram=telegram is not None,
+        webhooks=webhooks.presets if webhooks is not None else (),
     )
     _log_status(status)
     return Response(
@@ -389,6 +422,27 @@ def build_response(
         telegram=telegram,
         telegram_key=_telegram_key(settings),
         telegram_poll=_telegram_api(settings, timeout_s=POLL_TIMEOUT_S + SEND_TIMEOUT_S),
+        webhooks=webhooks,
+    )
+
+
+def build_webhooks(settings: Settings, *, clock: Clock) -> WebhookDispatcher | None:
+    """The signed outbound webhook queue when `RULECAM_WEBHOOKS` is set (add-on 5.4).
+
+    Raises:
+        WebhookError: For a malformed target list, or a generic target without a secret.
+    """
+    if settings.rulecam_webhooks is None:
+        return None
+    targets = parse_targets(settings.rulecam_webhooks.get_secret_value())
+    if not targets:
+        return None
+    secret = settings.rulecam_webhook_secret
+    return WebhookDispatcher(
+        targets,
+        post=HttpxPoster(),
+        clock=clock,
+        secret=secret.get_secret_value() if secret is not None else None,
     )
 
 

@@ -117,6 +117,30 @@ reaches anyone who opens a link. Set `TELEGRAM_BOT_TOKEN` (BotFather → `/newbo
   (`HardNegatives.from_false_alarm`, `<data>/rule_ci/regressions/<rule>.jsonl`). The wording is
   fixed; nothing the responder typed is used.
 
+## Signed outbound webhooks (add-on 5.4)
+
+Set `RULECAM_WEBHOOKS` to `preset=url` pairs and `RULECAM_WEBHOOK_SECRET` to a long random
+string. Keep both in `.env` only, because the URLs are secrets. `build_response` then wraps the
+outbound notifier in `WebhookNotifier`, and the API runs `WebhookDispatcher.poll` as a poller.
+
+| Preset | Receiver | Body |
+|---|---|---|
+| `generic` | n8n, Zapier, Home Assistant, your code | `{type: "rulecam.alert", id, site, event_id, rule_id, role, title, body, ts, link}` |
+| `slack` | Slack incoming webhook | `text` plus Block Kit header, section and context |
+| `teams` | Teams Workflows, "When a Teams webhook request is received" | an Adaptive Card 1.4 message |
+
+- **Headers:** `Idempotency-Key` (the event hash, the SHA-256 of the canonical generic payload,
+  the same on every retry), `X-Rulecam-Event: alert`, `X-Rulecam-Timestamp`, and
+  `X-Rulecam-Signature: v1=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`.
+  Receivers check them with `act.webhook.verify_signature` (constant time, 5-minute tolerance).
+  A `generic` target without a secret is refused at start-up.
+- **Retries:** 408, 429, 5xx and network errors back off 2 s, 4 s, 8 s, … (up to 5 min), for at
+  most 6 attempts, re-signed each time. Other statuses are final. The queue holds 500
+  deliveries, and the oldest is dropped when it is full.
+- **What leaves the site:** title, body, role, rule and event ids, and (with `PUBLIC_UI_URL`) a
+  link to the owner-only incident report. Clips, stills and file paths never leave. Logs carry
+  the preset and the key, never the URL.
+
 ## Response drills (P3-S2)
 
 `POST /drills {roles, after_s, scenario}` (owner-only, under the alerts router) starts a **labelled

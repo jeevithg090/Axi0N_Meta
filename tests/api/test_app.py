@@ -583,3 +583,17 @@ def test_telegram_is_wired_when_a_bot_token_is_set(tmp_path: Path) -> None:
     with TestClient(app, **TUNNEL) as remote:  # type: ignore[arg-type]
         assert remote.get("/telegram/link", params={"role": "aide"}).status_code == 403
     assert services_from_settings(Settings(_env_file=None, rulecam_data_dir=tmp_path)).pollers == ()
+
+
+def test_webhooks_are_wired_when_configured(tmp_path: Path) -> None:
+    settings = Settings(
+        _env_file=None,
+        rulecam_data_dir=tmp_path,
+        rulecam_webhooks="slack=https://hooks.slack.com/services/x,teams=https://flow.example/t",
+        public_ui_url="https://ui.example",
+    )
+    services = services_from_settings(settings, "s")
+    assert len(services.pollers) == 1  # the webhook queue
+    assert services.response is not None
+    assert services.response.webhooks == ("slack", "teams")
+    assert "hooks.slack.com" not in services.response.model_dump_json()  # URLs are secrets

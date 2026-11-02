@@ -1,0 +1,928 @@
+{
+  "name": "corridor",
+  "source": "CAVIAR (University of Edinburgh, EC project IST 2001 37540, CC BY-SA) hand labels, as scored in reports/eval/2026-11-02-corridor-ground-truth.md",
+  "api": "http://localhost:8000",
+  "generated_at": "2026-11-02T23:05:20.545557Z",
+  "runs_per_question": 3,
+  "numbers_graded": 36,
+  "numbers_passed": 7,
+  "median_seconds": 41.8,
+  "questions": [
+    {
+      "id": "C01",
+      "question": "How many people walked through the shopping centre corridor between 9:44 and 9:54 am?",
+      "truth": "80 visits",
+      "graded": true,
+      "runs": 3,
+      "passed_runs": 0,
+      "pass_rate": 0.0,
+      "values": {
+        "people (visits) who walked through the corridor": [
+          62.0,
+          62.0,
+          62.0
+        ]
+      },
+      "median_seconds": 22.7
+    },
+    {
+      "id": "C02",
+      "question": "How many people went into a shop from the corridor?",
+      "truth": "24 entered a shop",
+      "graded": true,
+      "runs": 3,
+      "passed_runs": 0,
+      "pass_rate": 0.0,
+      "values": {
+        "people who went into a shop": [
+          14.0,
+          11.0,
+          32.0
+        ]
+      },
+      "median_seconds": 65.8
+    },
+    {
+      "id": "C03",
+      "question": "On average, how long did a person stay in view of the corridor camera, and who stayed the longest?",
+      "truth": "25.1 s mean (median 16.7 s), longest 93.4 s",
+      "graded": true,
+      "runs": 3,
+      "passed_runs": 0,
+      "pass_rate": 0.0,
+      "values": {
+        "average seconds a person stayed in view": [
+          174.1565,
+          174.2,
+          174.16
+        ],
+        "seconds in view of the person who stayed longest": [
+          568.3769,
+          568.4,
+          568.38
+        ]
+      },
+      "median_seconds": 24.4
+    },
+    {
+      "id": "C04",
+      "question": "When was the corridor busiest, and how many people were there at that moment?",
+      "truth": "8 people, first at 09:49:28",
+      "graded": true,
+      "runs": 3,
+      "passed_runs": 0,
+      "pass_rate": 0.0,
+      "values": {
+        "people in view at the busiest moment": [
+          12.0,
+          12.0,
+          10.0
+        ],
+        "minutes past 9:00 am of the busiest moment (e.g. 49.5 for 9:49:30)": [
+          769.04,
+          769.0,
+          49.2
+        ]
+      },
+      "median_seconds": 48.7
+    },
+    {
+      "id": "C05",
+      "question": "On average, how many people were in the corridor at any one time?",
+      "truth": "3.62 people in view on average",
+      "graded": true,
+      "runs": 3,
+      "passed_runs": 0,
+      "pass_rate": 0.0,
+      "values": {
+        "average people in view at any one time": [
+          4.78,
+          4.7843,
+          4.78
+        ]
+      },
+      "median_seconds": 24.0
+    },
+    {
+      "id": "C06",
+      "question": "How many people stopped to look at shop windows or browse, instead of just walking past?",
+      "truth": "13 window-shopped or browsed",
+      "graded": true,
+      "runs": 3,
+      "passed_runs": 1,
+      "pass_rate": 0.333,
+      "values": {
+        "people who stopped to look or browse": [
+          3.0,
+          5.0,
+          14.0
+        ]
+      },
+      "median_seconds": 48.9
+    },
+    {
+      "id": "C07",
+      "question": "How many people were in the corridor at 9:45:11 am, at 9:47:31 am and at 9:52:31 am?",
+      "truth": "5 / 1 / 4",
+      "graded": true,
+      "runs": 3,
+      "passed_runs": 0,
+      "pass_rate": 0.0,
+      "values": {
+        "people in view at 9:45:11 am": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "people in view at 9:47:31 am": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "people in view at 9:52:31 am": [
+          4.0,
+          2.0,
+          2.0
+        ]
+      },
+      "median_seconds": 36.5
+    },
+    {
+      "id": "C08",
+      "question": "Describe the people who went into shops.",
+      "truth": "24 people entered shops (descriptions not labelled; not graded)",
+      "graded": false,
+      "runs": 3,
+      "passed_runs": 0,
+      "pass_rate": null,
+      "values": {},
+      "median_seconds": 85.6
+    },
+    {
+      "id": "C09",
+      "question": "What happened in the corridor around 9:49 am?",
+      "truth": "the busiest moment of the recording, 8 people at 09:49:28 (not graded)",
+      "graded": false,
+      "runs": 3,
+      "passed_runs": 0,
+      "pass_rate": null,
+      "values": {},
+      "median_seconds": 41.8
+    },
+    {
+      "id": "C10",
+      "question": "Did people walk alone or in groups? How many groups did we see?",
+      "truth": "15 pairs walked together",
+      "graded": true,
+      "runs": 3,
+      "passed_runs": 1,
+      "pass_rate": 0.333,
+      "values": {
+        "groups (two or more people walking together)": [
+          9.0,
+          14.0,
+          8.0
+        ]
+      },
+      "median_seconds": 65.7
+    }
+  ],
+  "runs": [
+    {
+      "id": "C01",
+      "run": 1,
+      "answer": "62 different people walked through the shopping centre corridor (phone-68) between 9:44 and 9:54am on 2 Nov — the full recorded clip 09:44:10 to 09:53:38. This is the count of 62 re-identified person identities joining 416 track fragments in that window (48 noted as customers and 14 as staff). Instantaneous occupancy is much lower (~6-10 at once). Confidence is high — identities are the reliable unique-visitor measure here; track counts would over-count by ~7x.",
+      "numbers": [
+        {
+          "name": "people (visits) who walked through the corridor",
+          "truth": 80.0,
+          "tolerance": 12.0,
+          "value": 62.0,
+          "error": -18.0,
+          "passed": false
+        }
+      ],
+      "seconds": 44.2,
+      "steps": 4,
+      "models": [
+        "muse-spark-1.3"
+      ],
+      "receipt": "9a507ffdb54417ae25052fab496891414b9a0f9e80fdf429da92bd404b545877",
+      "error": null
+    },
+    {
+      "id": "C02",
+      "run": 1,
+      "answer": "About 14 people went into a shop from the corridor (all into the shops on the left side; the right side is railing/stairs with no shops) during the recorded corridor period 09:44-09:53 UTC on 2026-11-02: ~6 between 09:44:10-09:47:10, ~2 between 09:47:07-09:50:10, and ~6 individuals in 5 entry events between 09:50:07-09:53:10.\nWatched the full corridor video in 3 clips and counted each person seen turning off the walkway through the glass shop-front doorway and disappearing inside, excluding passers-by and window-lookers; last ~30s 09:53:10-09:53:39 was not covered and one far pair was low-resolution, so treat 14 as best estimate, moderate-high confidence.",
+      "numbers": [
+        {
+          "name": "people who went into a shop",
+          "truth": 24.0,
+          "tolerance": 4.800000000000001,
+          "value": 14.0,
+          "error": -10.0,
+          "passed": false
+        }
+      ],
+      "seconds": 65.8,
+      "steps": 5,
+      "models": [
+        "muse-spark-1.3",
+        "muse-spark-1.2"
+      ],
+      "receipt": "851aaad688baa0384461abbe8ff6f41b01c8c5729946e4b69585b4f4b29545a3",
+      "error": null
+    },
+    {
+      "id": "C03",
+      "run": 1,
+      "answer": "On the shopping centre corridor camera (phone-68, 09:44-09:53 UTC on 2 Nov 2026, ~9.5 min recording):\n\n- Average time a person stayed in view: ~174 seconds (~2.9 minutes), across 62 person identities.\n- Longest stay: ~568 seconds (~9.5 minutes) – essentially the whole recording, first seen 09:44:10 to last seen 09:53:38.\n\nThe longest-stayer was a customer adult in a red/maroon upper garment with dark trousers, walking through the corridor with no bag/trolley visible.\n\nHow I got it: averaged identity_spans.seconds for concept='person' on phone-68 and took the MAX; role/description from identity_notes. High confidence – based on appearance re-ID identities, not fragmented track IDs; the longest identity has 40 fragments and 225s actually detected.",
+      "numbers": [
+        {
+          "name": "average seconds a person stayed in view",
+          "truth": 25.1,
+          "tolerance": 6.275,
+          "value": 174.1565,
+          "error": 149.0565,
+          "passed": false
+        },
+        {
+          "name": "seconds in view of the person who stayed longest",
+          "truth": 93.4,
+          "tolerance": 23.35,
+          "value": 568.3769,
+          "error": 474.9769,
+          "passed": false
+        }
+      ],
+      "seconds": 25.8,
+      "steps": 3,
+      "models": [
+        "muse-spark-1.3"
+      ],
+      "receipt": "14ba74fef6cfcf75ae77231e5e620caad4c42aa5413e5aae295d6a40a9e0cbbf",
+      "error": null
+    },
+    {
+      "id": "C04",
+      "run": 1,
+      "answer": "The corridor was busiest at about 21:49 on 2026-11-02 (phone-93 view looking down the mall). At that peak instant 12 person tracks were in view at the same timestamp (2026-11-02T21:49:02Z). That is about 769 minutes after 9:00 am. Found by counting simultaneous person tracks per timestamp across all corridor cameras, peak = 12 at 21:49, checked with visual count (10-12 visible, SAM found 10 high-confidence plus far small figures) and track-box listing. High confidence that this is the busiest recorded moment.",
+      "numbers": [
+        {
+          "name": "people in view at the busiest moment",
+          "truth": 8.0,
+          "tolerance": 1.0,
+          "value": 12.0,
+          "error": 4.0,
+          "passed": false
+        },
+        {
+          "name": "minutes past 9:00 am of the busiest moment (e.g. 49.5 for 9:49:30)",
+          "truth": 49.47,
+          "tolerance": 0.5,
+          "value": 769.04,
+          "error": 719.5699999999999,
+          "passed": false
+        }
+      ],
+      "seconds": 48.7,
+      "steps": 5,
+      "models": [
+        "muse-spark-1.3",
+        "muse-glimmer-30b",
+        "sam-3.1"
+      ],
+      "receipt": "895a1e687d67c9f6853469ca7f9c9a28f5ee8b7ead1e7f6bc1c72372efcadf69",
+      "error": null
+    },
+    {
+      "id": "C05",
+      "run": 1,
+      "answer": "On average about 4.8 people – about 5 – were visible in the shopping centre corridor (phone-68) at any one time on 2026-11-02 09:44-09:53 UTC.\n\nHow I got it: counted distinct tracked `person` objects per timestamp in track_points for phone-68: 5,301 detections over 1,108 keyframes = 4.78 per frame, median 5, range 1-10. Spot check with a second detector (person counts of 8, 4, 1 at three sample times) confirms low-single-digit typical occupancy. High confidence – continuous 9.5 min coverage.",
+      "numbers": [
+        {
+          "name": "average people in view at any one time",
+          "truth": 3.62,
+          "tolerance": 0.5,
+          "value": 4.78,
+          "error": 1.1600000000000001,
+          "passed": false
+        }
+      ],
+      "seconds": 27.1,
+      "steps": 4,
+      "models": [
+        "muse-spark-1.3",
+        "sam-3.1"
+      ],
+      "receipt": "bc60a26dcc4d9e3f474018b84e5fc2abccec190fb8f7e9c0da64925f36f7bca9",
+      "error": null
+    },
+    {
+      "id": "C06",
+      "run": 1,
+      "answer": "3 people stopped to look/browse instead of just walking past - 2 together lingering at the left-hand shop window on the corridor (phone-96 around 22:04) and 1 man in a tan/brown top stopped facing the glazing on the left (phone-91 around 21:34-21:34, later joined by a second man). Everyone else in those views was walking through the corridor in both directions. Found by searching captions for lingering/window stops (2 hits) and visually checking those clips with Glimmer - high confidence on the 2+1, low traffic otherwise with no other browsing seen.",
+      "numbers": [
+        {
+          "name": "people who stopped to look or browse",
+          "truth": 13.0,
+          "tolerance": 3.9,
+          "value": 3.0,
+          "error": -10.0,
+          "passed": false
+        }
+      ],
+      "seconds": 46.3,
+      "steps": 7,
+      "models": [
+        "muse-spark-1.3",
+        "muse-glimmer-30b"
+      ],
+      "receipt": "cde32dd4f13afc15d5458cf94e7f8453ba36c60af1040eafb4cecac71090651b",
+      "error": null
+    },
+    {
+      "id": "C07",
+      "run": 1,
+      "answer": "At the shopping centre corridor camera (phone-68):\n\n- 9:45:11 am: 5 people in view\n- 9:47:31 am: 3 people in view\n- 9:52:31 am: 4 people in view\n\nChecked two ways: automatic person detector and visual count by Muse Glimmer on the same recorded frames. The first two times agreed exactly (5 and 3). At 9:52:31 the detector found 2 large foreground figures, while the visual check and tracked-object memory show 4 including 2 small distant figures, so 4 is given. Recording covers all three times. Confidence high for the first two, medium-high for the third.",
+      "numbers": [
+        {
+          "name": "people in view at 9:45:11 am",
+          "truth": 5.0,
+          "tolerance": 1.0,
+          "value": 5.0,
+          "error": 0.0,
+          "passed": true
+        },
+        {
+          "name": "people in view at 9:47:31 am",
+          "truth": 1.0,
+          "tolerance": 1.0,
+          "value": 3.0,
+          "error": 2.0,
+          "passed": false
+        },
+        {
+          "name": "people in view at 9:52:31 am",
+          "truth": 4.0,
+          "tolerance": 1.0,
+          "value": 4.0,
+          "error": 0.0,
+          "passed": true
+        }
+      ],
+      "seconds": 36.5,
+      "steps": 4,
+      "models": [
+        "muse-spark-1.3",
+        "sam-3.1",
+        "muse-glimmer-30b"
+      ],
+      "receipt": "4572eb8662303dbc58babb9850daab20c480b1bc9bc4dfd5f1228651f0624f84",
+      "error": null
+    },
+    {
+      "id": "C08",
+      "run": 1,
+      "answer": "In shopping centre corridor phone-68 on 2026-11-02 09:44-09:53 UTC all shop entries were into doorways on the LEFT side glass frontage - continuous glass wall with recessed doorways:\n\n09:44:48 - adult female, dark shoulder-length hair, white / off-white long-sleeve sweater, light grey trousers, nothing in hands - walked away from camera and turned left into mid-corridor doorway and disappeared inside.\n\n09:45:12 - adult, dark hair tied back, cream / off-white sweater with faint detail on back, brown / tan trousers, nothing visible - walked away, reached left wall, put hand to door/frame and entered same mid-corridor doorway.\n\n09:45:43 - adult male, short dark hair, brown / tan jacket, dark trousers, nothing visible - walking toward camera then turned left into far-end left doorway and disappeared.\n\n09:46:19 - adult male, dark short hair, beige / light tan jacket, dark trousers, nothing visible - walked away then sharp left into mid-corridor left doorway.\n\n09:50:15 - middle-aged male, brown / grey suit - brown jacket + brown trousers, dark shoes, no bag - walked away on left side, 90-deg left into doorway recess and disappeared.\n\n09:50:25 - 2 men together, entered same left doorway within 1s:\n A: dark jacket, light grey/blue jeans, dark shoes, nothing carried\n B: dark suit / jacket + dark trousers, nothing carried\n\n09:51:18 - young-middle adult male, long dark hair, long-sleeve shirt with red front panel + teal/green side panels, dark wide trousers, dark shoes, hands empty - stopped ~3s to look in window at 09:51:12 then returned and stepped into left doorway recess and disappeared.\n\nSeparately, window-browsers who did NOT enter: pair at 09:44:55 - woman tan/beige long coat over blue jeans with dark shoulder bag + man long grey overcoat; person in dark jacket/white trousers at 09:45:25; person dark jacket/grey trousers at 09:46:35; woman beige trench coat over dark dress at 09:51:53; man brown pullover + woman white top/black trousers at 09:52:32.\n\nHow found: Spark watched the full 09:44:10-09:47:10 and 09:49:58-09:53:00 clips frame-by-frame for doorway disappearances vs window looks, cross-checked with captions which report low-traffic corridor with no staff/queues. Confidence medium ~0.72 - view is high top-down, low resolution, so age/gender are approximate from clothing/hair.",
+      "numbers": [],
+      "seconds": 85.6,
+      "steps": 7,
+      "models": [
+        "muse-spark-1.3",
+        "muse-spark-1.2",
+        "muse-glimmer-30b"
+      ],
+      "receipt": "26b1b64ebea339a874867eea2de1063c86a99bd4ff310f8b3af7d052da0ff244",
+      "error": null
+    },
+    {
+      "id": "C09",
+      "run": 1,
+      "answer": "Around 9:49am on Nov 2 in the shopping centre corridor (phone-68) it was quiet / low-traffic with steady through-flow, no incident.\n\nWhat was seen 09:48:51-09:49:22 UTC:\n- 4-6 people visible at once, moving in both directions, mainly toward the camera. No queue, no shopping carts/trolleys, no staff clearly identifiable.\n- Main subjects: a pair walking together toward the camera - woman in brown/tan top with shoulder bag and dark trousers + man in dark jacket/trousers. They paused/slowed briefly by the right-hand pillar/railing/bin area around 09:48:52-09:49:00, then continued together past the camera.\n- Following them: a woman in white top/dark trousers walking alone toward the camera, hand to ear as if on phone.\n- A man in dark clothing/suit standing stationary by the right pillar/railing near the camera looking at phone, remaining there through the period.\n- 2 figures in far distance walking in background.\n- No one stopped to look at shop windows on the left, no one entered/exited a shop, no groups beyond that one pair, nothing unusual.\n\nHow found: captions for phone-68 09:48:51 and 09:49:12 clips + Spark watch of 09:47:58-09:51:00 video + Glimmer still at 09:49:00 showing 6 boxes. High confidence - three sources agree the corridor was calm with only that pair + 2-3 singles.",
+      "numbers": [],
+      "seconds": 41.1,
+      "steps": 4,
+      "models": [
+        "muse-spark-1.3",
+        "muse-spark-1.2",
+        "muse-glimmer-30b"
+      ],
+      "receipt": "742a131a3354a0feed4bcd393e7bd347334de818bf02c85e74dab354977c27c0",
+      "error": null
+    },
+    {
+      "id": "C10",
+      "run": 1,
+      "answer": "In the shopping centre corridor (phone-68, 09:44-09:53 UTC on 2026-11-02) most people walked alone. Movement-checked video review of the full ~9 min in 3 clips found 9 distinct groups of 2 or more people walking together side-by-side in the same direction:\n\n- Clip 09:44-09:47: 5 groups - 2x dark jackets toward camera, 2x long coats (tan/grey) toward camera pausing at window, 2x dark jackets away, 2x foreground (brown jacket + dark jacket) toward camera, 2x suits toward camera.\n- Clip 09:47-09:50: +3 new groups - 2x casual (tan top + black jacket) toward camera pausing at railing, 3x (white jacket + brown striped + red/black jacket) from left store toward camera, 3x (red/black jacket + dark coat/green top + dark jacket/scarf) abreast toward camera. One suit-pair is continuation from previous clip.\n- Clip 09:50-09:53: +1 new group - 2x (striped sweater + brown sweater) away shoulder-to-shoulder at ~09:52:19. The foreground trio at ~09:50:11 is continuation of the previous 3-person group.\n\nCross-checked with still frames showing 3-together toward camera at 09:47 and 09:50, and identity overlaps. Confidence medium-high; brief 17s gap at ~09:50:40 not recorded.",
+      "numbers": [
+        {
+          "name": "groups (two or more people walking together)",
+          "truth": 15.0,
+          "tolerance": 4.5,
+          "value": 9.0,
+          "error": -6.0,
+          "passed": false
+        }
+      ],
+      "seconds": 80.3,
+      "steps": 6,
+      "models": [
+        "muse-spark-1.3",
+        "muse-glimmer-30b",
+        "muse-spark-1.2"
+      ],
+      "receipt": "222482f0d24084904ec20a7110d4f2b525efbab78340702fb00cf3f4a1dc73cf",
+      "error": null
+    },
+    {
+      "id": "C01",
+      "run": 2,
+      "answer": "62 people walked through the shopping centre corridor between 9:44 and 9:54 am (camera phone-68, shopping centre corridor).\n\nHow found: counted distinct person Re-ID identities overlapping 09:44-09:54 on phone-68 = 62 identities. This matches the full recording for that camera (09:44:10 to 09:53:41, so the last ~19s to 09:54 has no video). Tracks show up to 10 people at once, so 62 is unique visits, not people at one time. Medium-high confidence – Re-ID can occasionally split or merge one shopper, so treat as ~60-65.",
+      "numbers": [
+        {
+          "name": "people (visits) who walked through the corridor",
+          "truth": 80.0,
+          "tolerance": 12.0,
+          "value": 62.0,
+          "error": -18.0,
+          "passed": false
+        }
+      ],
+      "seconds": 22.7,
+      "steps": 2,
+      "models": [
+        "muse-spark-1.3"
+      ],
+      "receipt": "a94d895026ee3c91073265d3efca79b3a8b276aef0a15dbf8c66ff1b615ea7ec",
+      "error": null
+    },
+    {
+      "id": "C02",
+      "run": 2,
+      "answer": "11 people were seen going into a shop from the shopping centre corridor (phone-68) during 2026-11-02 09:44:10 to 09:53:12 UTC.\n\n5 entries in 09:44-09:47, 3 entries in 09:47-09:50, and 3 entries in 09:50-09:53, all crossing the left-wall shop doorway/threshold from the corridor inside – e.g. ~09:44:48, ~09:45:12, ~09:45:32, ~09:45:43, ~09:46:18, ~09:47:28, ~09:47:58, ~09:48:06, ~09:50:16, ~09:51:19 and ~09:52:31.\n\nHow found: watched the full corridor video in three clips covering the whole recording and counted only clear doorway crossings into shops, excluding walk-pasts, window stops and exits. Still-image captions mostly report no entry. Confidence medium-high; a ~17s gap around 09:50:40-09:50:57 and ~09:53:10-09:53:39 were not watched, final stills show only through-traffic.",
+      "numbers": [
+        {
+          "name": "people who went into a shop",
+          "truth": 24.0,
+          "tolerance": 4.800000000000001,
+          "value": 11.0,
+          "error": -13.0,
+          "passed": false
+        }
+      ],
+      "seconds": 35.6,
+      "steps": 5,
+      "models": [
+        "muse-spark-1.3",
+        "muse-spark-1.2"
+      ],
+      "receipt": "dd2971f3161840a04c460fa934e0eb832d8a2499d552021664b354a1a183ac74",
+      "error": null
+    },
+    {
+      "id": "C03",
+      "run": 2,
+      "answer": "On the shopping centre corridor camera (phone-68) on 2026-11-02 09:44-09:54 UTC (~9.5 min recording):\n\n- Average time a person stayed in view (identity span first_seen to last_seen): ~174 seconds (~2.9 minutes) across 62 person identities. Median was 36 seconds, so a few long-stayers pull the average up.\n- Longest stay: ~568 seconds (~9.5 minutes, 09:44:10 to 09:53:38) – essentially the whole recording. Identity phone-68:person:id-b2cdf253, described as an adult customer in a red/maroon upper garment with dark trousers, carrying nothing visible.\n\nHow found: averaged identity_spans.seconds for camera phone-68 concept person (AVG 174.2s, MAX 568.4s), and looked up identity_notes for the longest identity. Note: identities join re-appearing track fragments, so this is first-to-last appearance, not continuous visible time; median continuous visible time (seen_seconds) is much lower. Fairly confident for this camera/period.",
+      "numbers": [
+        {
+          "name": "average seconds a person stayed in view",
+          "truth": 25.1,
+          "tolerance": 6.275,
+          "value": 174.2,
+          "error": 149.1,
+          "passed": false
+        },
+        {
+          "name": "seconds in view of the person who stayed longest",
+          "truth": 93.4,
+          "tolerance": 23.35,
+          "value": 568.4,
+          "error": 475.0,
+          "passed": false
+        }
+      ],
+      "seconds": 20.3,
+      "steps": 3,
+      "models": [
+        "muse-spark-1.3"
+      ],
+      "receipt": "a5bfa55d6ea9f0faefe32cdf8083c93f4b2ff8c6fa2dc50090a9b59caa892ff9",
+      "error": null
+    },
+    {
+      "id": "C04",
+      "run": 2,
+      "answer": "The corridor was busiest in the evening on phone-93 at about 21:49 UTC on 2 Nov — 12 people in view at once (tracked persons present at 21:49:02). A second visual count found 10 clearly visible, with 2 more very small distant figures making up the 12 in the tracks. Morning peak was lower at 10 people around 09:49 on phone-68. Coverage is 09:44-22:05 on 2 Nov for corridor cameras.",
+      "numbers": [
+        {
+          "name": "people in view at the busiest moment",
+          "truth": 8.0,
+          "tolerance": 1.0,
+          "value": 12.0,
+          "error": 4.0,
+          "passed": false
+        },
+        {
+          "name": "minutes past 9:00 am of the busiest moment (e.g. 49.5 for 9:49:30)",
+          "truth": 49.47,
+          "tolerance": 0.5,
+          "value": 769.0,
+          "error": 719.53,
+          "passed": false
+        }
+      ],
+      "seconds": 40.9,
+      "steps": 3,
+      "models": [
+        "muse-spark-1.3",
+        "sam-3.1"
+      ],
+      "receipt": "10b63f56c2ab456becd47351dc2cbf4330866435150661c239dfcc19b5d2ff32",
+      "error": null
+    },
+    {
+      "id": "C05",
+      "run": 2,
+      "answer": "On average about 4.8 people were in the shopping centre corridor (phone-68) at any one time on 2026-11-02 09:44-09:53 UTC (range 1-10). Calculated as the mean distinct person tracks per keyframe instant (5,301 points over 1,108 instants, 416 tracks) — high confidence as full-period track data.",
+      "numbers": [
+        {
+          "name": "average people in view at any one time",
+          "truth": 3.62,
+          "tolerance": 0.5,
+          "value": 4.7843,
+          "error": 1.1643,
+          "passed": false
+        }
+      ],
+      "seconds": 24.0,
+      "steps": 3,
+      "models": [
+        "muse-spark-1.3"
+      ],
+      "receipt": "d2e0f283d18b6049684c92e0a6c177767789f646d5e40be8d316de1cbae802e9",
+      "error": null
+    },
+    {
+      "id": "C06",
+      "run": 2,
+      "answer": "About 5 people stopped to look at shop windows instead of just walking past, across the shopping-centre corridor recording on 2026-11-02.\n\n- corridor camera morning ~09:51:30 - 1 person pauses to look at the left shopfront then continues\n- ~21:34:40 - 1 shopper lingering by the storefronts\n- ~21:50:10 - 1 shopper stopped at the left-hand storefront\n- ~22:04:45 - 2 people lingering together by a shop window on the left\n\nTotal 1+1+1+2 = 5 window-browsers. Found by searching all corridor captions for stop/linger/window/pause mentions and checking each moment visually. Captions otherwise repeatedly note \"no one stopping at windows\", so browsing was rare - most visitors just walked through. Medium-high confidence - based on 4 short clips, single frames, distant views.",
+      "numbers": [
+        {
+          "name": "people who stopped to look or browse",
+          "truth": 13.0,
+          "tolerance": 3.9,
+          "value": 5.0,
+          "error": -8.0,
+          "passed": false
+        }
+      ],
+      "seconds": 48.9,
+      "steps": 9,
+      "models": [
+        "muse-spark-1.3",
+        "muse-glimmer-30b"
+      ],
+      "receipt": "d166b7f255381a7fcdbf47ff3b3773125e4f8b7b9544472b13bee24e8a6f013f",
+      "error": null
+    },
+    {
+      "id": "C07",
+      "run": 2,
+      "answer": "At 9:45:11 am there were 5 people in view in the shopping centre corridor, at 9:47:31 am there were 3 people, and at 9:52:31 am there were 2 people. Counts are direct visual counts on the corridor camera frames at those instants, cross-checked against tracked person records around the same seconds which showed 5-6, 3, and 2-4 people present.",
+      "numbers": [
+        {
+          "name": "people in view at 9:45:11 am",
+          "truth": 5.0,
+          "tolerance": 1.0,
+          "value": 5.0,
+          "error": 0.0,
+          "passed": true
+        },
+        {
+          "name": "people in view at 9:47:31 am",
+          "truth": 1.0,
+          "tolerance": 1.0,
+          "value": 3.0,
+          "error": 2.0,
+          "passed": false
+        },
+        {
+          "name": "people in view at 9:52:31 am",
+          "truth": 4.0,
+          "tolerance": 1.0,
+          "value": 2.0,
+          "error": -2.0,
+          "passed": false
+        }
+      ],
+      "seconds": 20.8,
+      "steps": 5,
+      "models": [
+        "muse-spark-1.3",
+        "sam-3.1"
+      ],
+      "receipt": "622c0421d9b83547b0809615d5f02222e099a55256ebeb87348507480c24e163",
+      "error": null
+    },
+    {
+      "id": "C08",
+      "run": 2,
+      "answer": "Shopping centre corridor (phone-68) on 2026-11-02 09:44-09:53 UTC - very little shop entry/exit, mostly pass-through and window stops:\n\n1. ENTERED left-hand shop at ~09:45:11 UTC - 1 person confirmed:\nMan in light beige / off-white jacket and brown trousers. Walked from centre foreground to the left shop-front window/door and disappeared inside the shop. No exit seen in the clip. Walked alone, carrying nothing obvious.\n\n2. Possibly EXITED left-hand shop at ~09:44:17-09:44:21 UTC - 1 person, lower confidence:\nMan in dark suit / business jacket with light shirt, right hand to face as if on phone call. Appeared at the very left edge by the shop line in the foreground and walked diagonally across to exit bottom of frame, continuing down the corridor. No other doorway activity in that 12s clip.\n\nAll other figures described in captions and video as only stopping at the left glazing to look, not going in:\n- Woman in long light-tan coat, blue jeans, shoulder bag + older man in long grey overcoat with dark item - stood together facing glass ~09:45:07-09:45:17, woman touched/pointed at glass, then both walked toward camera together.\n- Man in teal shirt with maroon vest and dark trousers - stopped and leaned to glass further down corridor ~09:45:30.\n- Person in dark jacket + light trousers further down - stood facing glass looking in.\n- Man in brown long-sleeve top/trousers stood by left shopfront ~09:52:53-09:53:03 looking at window/waiting, did not enter.\n- Person in red-green vest over teal shirt ~09:51:26 paused to look at window then continued.\n\nHow found: searched all phone-68 captions for enter/exit/shop/store/window/door (28 clips, almost all state \"no one stops/enters\"), then watched 09:45:07-09:45:40 and 09:44:16-09:44:28 clips and checked stills + identity notes for clothing. Confidence high for the 1 entry at 09:45:11, medium for the 09:44:17 exit as he appears at frame edge.",
+      "numbers": [],
+      "seconds": 92.3,
+      "steps": 10,
+      "models": [
+        "muse-spark-1.3",
+        "muse-glimmer-30b",
+        "muse-spark-1.2"
+      ],
+      "receipt": "01647067f2dddd622813ba17018e3382eb3a32d9d88b456a4eb7b1672f993c31",
+      "error": null
+    },
+    {
+      "id": "C09",
+      "run": 2,
+      "answer": "Around 9:48-9:51 am on Nov 2 in the shopping centre corridor (phone-68) it was a quiet, normal low-traffic period - no queues, no carts/trolleys and no staff clearly visible. About 4-5 people were in view at 9:49:00, rising to ~7 by 9:49:30-9:50:00, with ~17 different visitors passing through in the ~3-min 09:48-09:51 window. Flow was in both directions, including a pair walking together and two groups of 3 walking together. One person in a light top entered a shop doorway on the left at ~09:48:06, one person stopped to look into a left-hand shop window for ~7s at ~09:49:34, and 1-2 people lingered briefly at the right-hand railing/bin area on phones. Nothing unusual occurred.",
+      "numbers": [],
+      "seconds": 41.9,
+      "steps": 4,
+      "models": [
+        "muse-spark-1.3",
+        "muse-glimmer-30b",
+        "muse-spark-1.2"
+      ],
+      "receipt": "de2fec8ed7773d2981593993e0e8f87fe5af33576b26d3464653017ab8c11c36",
+      "error": null
+    },
+    {
+      "id": "C10",
+      "run": 2,
+      "answer": "Most visitors walked alone, but groups walking together were common.\n\nAcross 6 sampled 3-minute corridor clips I watched (morning 09:44-09:47 on the corridor, plus evening 21:00-21:03, 21:24-21:27, 21:43-21:46, 21:55-21:58 and 22:00-22:03) I counted 14 distinct groups of 2+ walking together:\n- 09:44 clip: 5 groups - all pairs, e.g. tan-coat + grey-coat pair who pause to talk, brown-jacket + blazer pair, dark-suit + dark-jacket pair\n- 21:24 clip: 1 group - red-top + dark-clothing pair walking away\n- 21:43 clip: 3 groups - dark-suit pair, tan-top + dark-jacket pair, trio in white / striped / dark-red-teal jackets\n- 21:55 clip: 2 groups - dark-jackets pair away, brown-jacket + dark-jacket pair toward camera\n- 22:00 clip: 2 groups - dark-coats pair in distance, tan-coat + grey-coat pair who also linger together at the left shop window\n- 21:00 atrium clip: 1 group - white-top + camo-top pair\n\nSingle walkers were also seen in every clip, so traffic was a mix of alone and together. The same-looking pairs re-appear in different time windows, so 14 is groups seen in the samples, not necessarily 14 unique visitor parties for the whole day.",
+      "numbers": [
+        {
+          "name": "groups (two or more people walking together)",
+          "truth": 15.0,
+          "tolerance": 4.5,
+          "value": 14.0,
+          "error": -1.0,
+          "passed": true
+        }
+      ],
+      "seconds": 65.7,
+      "steps": 7,
+      "models": [
+        "muse-spark-1.3",
+        "muse-spark-1.2"
+      ],
+      "receipt": "9d60c5fc6ae65ca4be6588f9da3638808dc4634a9607f1747916c05a26de2768",
+      "error": null
+    },
+    {
+      "id": "C01",
+      "run": 3,
+      "answer": "Between 9:44 and 9:54 am about 62 people walked through the shopping centre corridor (camera phone-68).\n\nRecording covers 09:44:10 to about 09:53:40 — so almost the full 10 minutes, missing only the first ~10 seconds and the last ~20 seconds. Count is 62 unique person identities joined by re-identification in that window (416 raw track fragments, up to 10 people visible at once). Typical time in view is ~36 seconds, consistent with walking through. Confidence is high — identity join removes double-counting from track splits.",
+      "numbers": [
+        {
+          "name": "people (visits) who walked through the corridor",
+          "truth": 80.0,
+          "tolerance": 12.0,
+          "value": 62.0,
+          "error": -18.0,
+          "passed": false
+        }
+      ],
+      "seconds": 21.1,
+      "steps": 2,
+      "models": [
+        "muse-spark-1.3"
+      ],
+      "receipt": "edc9f7175819e9a27345cf83b518d49ce69a0bf2fb6a8e655ea89a5282583ccf",
+      "error": null
+    },
+    {
+      "id": "C02",
+      "run": 3,
+      "answer": "About 32 people were seen going from the corridor into a shop on the left-side shop-fronts.\n\n* 12 in the morning busy period on shopping centre corridor 09:44-09:53 (6 + 3 + 3 in three successive watches).\n* About 13 in the evening atrium/corridor 19:24-21:04 - mostly 0-2 distinct people per ~3-min clip (1+0+1+1+2+1+0+0+1+0+1+1+1+1+0), many evening clips are a short loop repeated so repeats were counted once.\n* 7 in the evening mall-corridor 21:29-22:05: 1 on phone-90, 1 on phone-91, 3 on phone-92, 3 entries on phone-93, 2 on phone-96 - phone-91 entry confirmed by the person coming back out.\n\nNot fully covered: phone-87, phone-88, phone-89, phone-94, phone-95 evening segments were not watched, and the 09:53:10-09:53:40 tail of the morning was cut from the watch, so the true total for the whole recording is higher. Counts from watch - looping repeats discounted to distinct people - medium-high confidence for morning and 21:29+ mall, lower where the view is top-down and the doorway is the seating-area entrance.",
+      "numbers": [
+        {
+          "name": "people who went into a shop",
+          "truth": 24.0,
+          "tolerance": 4.800000000000001,
+          "value": 32.0,
+          "error": 8.0,
+          "passed": false
+        }
+      ],
+      "seconds": 290.0,
+      "steps": 23,
+      "models": [
+        "muse-spark-1.3",
+        "muse-spark-1.2"
+      ],
+      "receipt": "9e0370781a58ff88a09d9860f820bd3c1f59a9993222ea0ed629466fcc1cc2c2",
+      "error": null
+    },
+    {
+      "id": "C03",
+      "run": 3,
+      "answer": "On the shopping centre corridor camera (phone-68, 09:44-09:53 UTC on 2026-11-02):\n\n- Average time a person stayed in view: ~174 seconds (~2.9 minutes), averaged over 62 person-identities.\n- Longest stay: ~568 seconds (~9.5 minutes) - a customer described as an adult in a red/maroon top with dark trousers, seen from 09:44:10 to 09:53:38, i.e. present for essentially the whole recorded window. No bag/trolley visible.\n\nFound from person re-identification spans (identity_spans) on phone-68, not raw track fragments; longest identity was phone-68:person:id-b2cdf253, noted as customer. High confidence - direct identity summary.",
+      "numbers": [
+        {
+          "name": "average seconds a person stayed in view",
+          "truth": 25.1,
+          "tolerance": 6.275,
+          "value": 174.16,
+          "error": 149.06,
+          "passed": false
+        },
+        {
+          "name": "seconds in view of the person who stayed longest",
+          "truth": 93.4,
+          "tolerance": 23.35,
+          "value": 568.38,
+          "error": 474.98,
+          "passed": false
+        }
+      ],
+      "seconds": 24.4,
+      "steps": 3,
+      "models": [
+        "muse-spark-1.3"
+      ],
+      "receipt": "55285a99daf902a4b2f4dd0b6e6d2321d85ab590ab6ac05299fbe41908985770",
+      "error": null
+    },
+    {
+      "id": "C04",
+      "run": 3,
+      "answer": "The shopping centre corridor (phone-68) was busiest at about 09:49 on Nov 2nd, with 10 people in view at once at 09:49:11. This was found from per-frame tracked person counts on the corridor camera, peak 10, checked against the data-stats maximum of 10.",
+      "numbers": [
+        {
+          "name": "people in view at the busiest moment",
+          "truth": 8.0,
+          "tolerance": 1.0,
+          "value": 10.0,
+          "error": 2.0,
+          "passed": false
+        },
+        {
+          "name": "minutes past 9:00 am of the busiest moment (e.g. 49.5 for 9:49:30)",
+          "truth": 49.47,
+          "tolerance": 0.5,
+          "value": 49.2,
+          "error": -0.269999999999996,
+          "passed": true
+        }
+      ],
+      "seconds": 107.8,
+      "steps": 6,
+      "models": [
+        "muse-spark-1.3",
+        "muse-glimmer-30b",
+        "sam-3.1"
+      ],
+      "receipt": "10cfcf1c9cf2b567928d2f7ab3b45c166483e9b9bed8f18d14ba6e0694017581",
+      "error": null
+    },
+    {
+      "id": "C05",
+      "run": 3,
+      "answer": "On average about 4.8 people were in the shopping centre corridor (camera phone-68) at any one time on 2026-11-02 09:44-09:53 UTC (range 1 to 10). This is the mean simultaneous person-track count per keyframe from the tracking data; high confidence.",
+      "numbers": [
+        {
+          "name": "average people in view at any one time",
+          "truth": 3.62,
+          "tolerance": 0.5,
+          "value": 4.78,
+          "error": 1.1600000000000001,
+          "passed": false
+        }
+      ],
+      "seconds": 21.3,
+      "steps": 3,
+      "models": [
+        "muse-spark-1.3"
+      ],
+      "receipt": "366af21b95a2956f556ab0d6ec725929dc98a0524db4287890f98437c721d279",
+      "error": null
+    },
+    {
+      "id": "C06",
+      "run": 3,
+      "answer": "About 14 people stopped to look / browse at the left-hand shop windows on the shopping-centre corridor (phone-68) on 2026-11-02 09:44-09:53 UTC, instead of just walking past.\n\n- 09:44:10-09:47:10: 7 stops including 1 very brief ~2s pause - pair in tan coat + grey overcoat together ~20s pointing in, plus 5 solo browsers\n- 09:47:07-09:50:10: 3 solo stops, ~2s, ~2s and ~7-8s facing the glass\n- 09:50:37-09:53:41: 4 stops - 3 prolonged browses ~3-~60s + 1 brief 1-2s face-to-glass look\n\nAll stops were at the glass storefronts on the left wall; the right side is railing/pillars. All other corridor users walked straight through the centre. Found by watching the full ~9.5 min corridor video in 3 clips and counting distinct people who plant feet and face the glass.",
+      "numbers": [
+        {
+          "name": "people who stopped to look or browse",
+          "truth": 13.0,
+          "tolerance": 3.9,
+          "value": 14.0,
+          "error": 1.0,
+          "passed": true
+        }
+      ],
+      "seconds": 122.0,
+      "steps": 12,
+      "models": [
+        "muse-spark-1.3",
+        "muse-glimmer-30b",
+        "muse-spark-1.2"
+      ],
+      "receipt": "f9e2c340e30907bbf69e37cc81aef317e960fd8864a638fa1cb545636dd3445d",
+      "error": null
+    },
+    {
+      "id": "C07",
+      "run": 3,
+      "answer": "At the shopping centre corridor (phone-68) there were 5 people in view at 9:45:11 am, 3 people at 9:47:31 am, and 2 people at 9:52:31 am. Counts are from direct frame counts, cross-checked against tracked-person records around the same seconds (5-6, 2-4, 2-4) and a visual check; first two times are firm, last time is +/-1-2 as people move at the far end.",
+      "numbers": [
+        {
+          "name": "people in view at 9:45:11 am",
+          "truth": 5.0,
+          "tolerance": 1.0,
+          "value": 5.0,
+          "error": 0.0,
+          "passed": true
+        },
+        {
+          "name": "people in view at 9:47:31 am",
+          "truth": 1.0,
+          "tolerance": 1.0,
+          "value": 3.0,
+          "error": 2.0,
+          "passed": false
+        },
+        {
+          "name": "people in view at 9:52:31 am",
+          "truth": 4.0,
+          "tolerance": 1.0,
+          "value": 2.0,
+          "error": -2.0,
+          "passed": false
+        }
+      ],
+      "seconds": 57.5,
+      "steps": 6,
+      "models": [
+        "muse-spark-1.3",
+        "sam-3.1",
+        "muse-glimmer-30b"
+      ],
+      "receipt": "eb441b948edb6551081da52255f5377148735b96576ad59004579a2619c633fc",
+      "error": null
+    },
+    {
+      "id": "C08",
+      "run": 3,
+      "answer": "On the shopping centre corridor camera phone-68 on 2026-11-02 09:44-09:53 UTC:\n\nNo entry is visible in still frames alone - all 5 stills checked show people only walking through. Watched 09:44:10-09:47:10 video shows 3 people go into the glass shop-fronts on the LEFT side of the corridor - the right side is pillars / open atrium, no shops there:\n\n1. ~09:44:48 UTC - person in white / off-white long-sleeve sweater, light grey trousers, dark hair, walking away from camera turns left to the glass / doorway and disappears - entering / stopping at doorway.\n\n2. ~09:45:43 UTC - person in mid-brown jacket and dark trousers walking away from camera veers left and steps into left doorway and disappears.\n\n3. ~09:46:19 UTC - person in beige / tan jacket and dark trousers walking away from camera veers left and steps into same left doorway area and disappears - second entry.\n\nWindow-shoppers at same left fronts, not entering in clip:\n- ~09:45:02 UTC tan / light-brown long coat over blue jeans with dark shoulder bag + companion in long grey coat - stop together facing window, stand side-by-side looking in, tan-coat points / touches window at ~09:45:12\n- ~09:45:32-09:45:44 UTC dark jacket, light trousers, light shoulder bag, alone stationary facing window looking in\n- ~09:46:41 UTC dark hooded top and grey trousers, hands on hips, stationary facing window then turns toward camera.\n\nHow found: looked at corridor layout - shops only on left wall - searched captions which say \"no one entering\" for most 10s clips, then watched 180s motion clip which catches veering left and disappearing that stills miss. Medium-high confidence - overhead view, low resolution, identities too blurry for reliable customer vs staff note matching.",
+      "numbers": [],
+      "seconds": 83.4,
+      "steps": 11,
+      "models": [
+        "muse-spark-1.3",
+        "muse-glimmer-30b",
+        "muse-spark-1.2"
+      ],
+      "receipt": "8e02382d1ca9f0e2ed534ed320079226b05b7b9c680b34fcce595be50f276594",
+      "error": null
+    },
+    {
+      "id": "C09",
+      "run": 3,
+      "answer": "Around 9:49 am on 2 Nov in the shopping centre corridor (phone-68) it was very quiet, low-traffic normal passing-through - no queue, no carts, no disorder.\n\nWhat was visible 09:48-09:51:\n- Typically 1-4 people in view at once, up to ~6-7 in one frame at ~09:49:30. Movement both ways, mostly toward the camera, steady walking with gaps when the corridor was empty.\n- Groups walking together: a pair - woman in brown/tan top with shoulder bag + man in dark jacket - walking south together toward camera, briefly pausing together by the right pillar / bin / railing then continuing; and a loose group of 3 behind them - white jacket, striped sweater, red/green top - and later a 3-man group - red jacket, dark coat/green shirt, brown jacket - walking side-by-side conversing.\n- Window / shop activity: No clear shop entry. One person in grey tracksuit stopped at left glass front ~09:49:32 for ~7-8s leaning to look inside then walked on; pair briefly looked over right railing; one man in dark suit walked north on phone then leaned against right railing/pillar by the bin for ~15-20s before leaving south.\n- No queues, no staff clearly identifiable, no running/crowding.\n\nNote: video overlay shows old 20-01-2004 timecode and jumps around 09:50:40-09:50:57, so it is not fully continuous, but all sources agree - calm transit with brief browsing/pauses.\n\nHow found: captions for phone-68 09:44-09:53, watch of 09:48:00-09:51:00 clip, and look at 09:48:30, 09:49:30, 09:50:30. Confidence high - three methods agree.",
+      "numbers": [],
+      "seconds": 41.8,
+      "steps": 4,
+      "models": [
+        "muse-spark-1.3",
+        "muse-spark-1.2",
+        "muse-glimmer-30b"
+      ],
+      "receipt": "42d602fc2264b2706f18ac76133381887e3cfd290c562a3f479614e84e483068",
+      "error": null
+    },
+    {
+      "id": "C10",
+      "run": 3,
+      "answer": "In the shopping centre corridor (phone-68, 09:44-09:53 UTC on 2 Nov) people walked both alone and in groups. Lone walkers were common throughout, but I also saw 8 distinct groups of 2 or more people walking together side-by-side at the same pace / talking: 6 groups in the 09:44-09:47 clip (2x dark jackets far end, 2x women in tan/grey coats who also stopped at a window together, 2x in dark blazers away, 2x by centre - black dress + beige jacket, 2x women brown jacket + dark blazer, 3x - tan jacket + suit with red tie + dark jacket) and 2 groups in the 09:50-09:53 clip (2x striped sweater + brown sweater seen twice, 2x red top + dark top away). Found by watching the full corridor recording in two clips; confidence high (0.82-0.85) but some distant pairs may be missed.",
+      "numbers": [
+        {
+          "name": "groups (two or more people walking together)",
+          "truth": 15.0,
+          "tolerance": 4.5,
+          "value": 8.0,
+          "error": -7.0,
+          "passed": false
+        }
+      ],
+      "seconds": 32.9,
+      "steps": 4,
+      "models": [
+        "muse-spark-1.3",
+        "muse-spark-1.2"
+      ],
+      "receipt": "a7cbea6f3020e47bf16c3c6cdd04ad61179f2d2d5a79b80d804b57950efc0267",
+      "error": null
+    }
+  ]
+}

@@ -13,7 +13,12 @@ many as it decides (up to `max_actions`), which run at the same time in a thread
 The results go back to Spark in the order of its actions, as the next message. Spark decides
 which tools to use, how many at once, what to count and how to read the numbers; nothing about
 the question types is written here. The loop stops at `MAX_STEPS` turns, then asks for an answer
-from what it has. Every step (turn, action, result, seconds, model) is returned with the answer.
+from what it has. Every step (turn, action, result, seconds, model, frames) is returned with the
+answer, and each is also sent as an `AskEvent` the moment it happens (`POST /ask/stream`).
+
+A follow-up names the conversation it continues (`conversation_id`): the earlier questions,
+answers and steps of that conversation (kept in memory for the last `MAX_CONVERSATIONS`) go to
+Spark with the fresh data.
 
 Nothing is cut silently (`AskLimits`): a query returns up to `max_rows` rows and says how many
 there were; a turn's results share `max_result_chars` characters and a cut result says what it
@@ -24,10 +29,14 @@ so are actions past `max_actions`.
 from __future__ import annotations
 
 import json
+import re
+import threading
 import time
+import uuid
+from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
@@ -36,7 +45,14 @@ import yaml
 
 from rulecam.ask.data import DEFAULT_MAX_ROWS, QueryResult, SqlError, TrackTables
 from rulecam.ask.results import DEFAULT_MAX_RESULT_CHARS, fit_results
-from rulecam.ask.trace import AskAction, AskAnswer, AskStep, AskTurn
+from rulecam.ask.trace import (
+    AskAction,
+    AskAnswer,
+    AskEvent,
+    AskStep,
+    AskTurn,
+    AskTurnTiming,
+)
 from rulecam.ask.vision import (
     DEFAULT_MAX_FRAMES,
     Frame,
@@ -56,6 +72,12 @@ SPARK_MODEL: Final = "muse-spark-1.3"
 SAM_MODEL: Final = "sam-3.1"
 MAX_STEPS: Final = 8
 DEFAULT_MAX_ACTIONS: Final = 6
+MAX_CONVERSATIONS: Final = 64
+STOPPED: Final = "Stopped before an answer: the request went away."
+_FRAME_NAME: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}\.jpg$")
+
+Emit = Callable[[AskEvent], None]
+"""Receives each `AskEvent` as it happens (called from worker threads too)."""
 
 
 @dataclass(frozen=True)
@@ -80,10 +102,23 @@ DEFAULT_LIMITS: Final = AskLimits()
 
 @dataclass(frozen=True)
 class _Outcome:
-    """A tool's result and the model that produced it (`None` for SQL)."""
+    """A tool's result, the model that produced it (`None` for SQL) and the frames it saw."""
 
     result: object
     model: str | None = None
+    frames: tuple[Path, ...] = ()
+
+
+@dataclass
+class _Trace:
+    """What one answer did so far: its steps and Spark's turns."""
+
+    steps: list[AskStep] = field(default_factory=list)
+    turns: list[AskTurnTiming] = field(default_factory=list)
+
+
+def _ignore(event: AskEvent) -> None:
+    """The default `Emit`: nobody is listening."""
 
 
 SYSTEM_PROMPT: Final = """\
@@ -200,50 +235,112 @@ class AskAgent:
         self._caption_every_s = caption_every_s
         self._marks_dir = marks_dir
         self._limits = limits
+        self._conversations: OrderedDict[str, list[AskAnswer]] = OrderedDict()
+        self._lock = threading.Lock()
 
-    def ask(self, question: str) -> AskAnswer:
+    def ask(
+        self,
+        question: str,
+        *,
+        conversation_id: str | None = None,
+        emit: Emit = _ignore,
+        stop: threading.Event | None = None,
+    ) -> AskAnswer:
         """Answer one question.
 
         Args:
             question: The owner's question, in any language.
+            conversation_id: The conversation a follow-up continues; `None` starts one.
+            emit: Receives each step as it happens.
+            stop: When set, no further turn starts (the asker went away).
 
         Returns:
             The answer with its steps.
         """
         started = time.perf_counter()
+        conversation = conversation_id or uuid.uuid4().hex
+        emit(AskEvent(type="start", conversation_id=conversation))
+        earlier = self._earlier(conversation)
+        trace = _Trace()
         tables = self._tables()
         try:
-            messages = self._opening(question, tables)
-            steps: list[AskStep] = []
-            for turn in range(MAX_STEPS + 1):
-                last = turn == MAX_STEPS
-                if last:
-                    messages.append({"role": "user", "content": "Steps used up: answer now."})
-                actions = self._next(messages)
-                final = _final(actions, last=last)
-                if final is not None:
-                    action, reply = final
-                    steps.append(AskStep(turn=turn, action=action, result=None, seconds=0.0))
-                    return AskAnswer(
-                        question=question,
-                        answer=reply,
-                        steps=steps,
-                        seconds=round(time.perf_counter() - started, 1),
-                        models=_models(steps),
-                    )
-                run = actions[: self._limits.max_actions]
-                done = self._run_all(turn, run, tables)
-                steps.extend(done)
-                messages.append(
-                    {"role": "assistant", "content": AskTurn(actions=run).model_dump_json()}
-                )
-                messages.append(
-                    {"role": "user", "content": self._results(done, len(actions) - len(run))}
-                )
+            messages = self._opening(question, tables, earlier)
+            reply = self._loop(messages, tables, trace, emit, stop)
         finally:
             tables.close()
+        answer = AskAnswer(
+            question=question,
+            answer=reply,
+            steps=trace.steps,
+            seconds=round(time.perf_counter() - started, 1),
+            models=_models(trace.steps),
+            conversation_id=conversation,
+            turns=trace.turns,
+        )
+        self._remember(answer)
+        emit(AskEvent(type="answer", conversation_id=conversation, answer=answer))
+        return answer
+
+    def frame_file(self, name: str) -> Path | None:
+        """A frame a step showed a model, by its file name; `None` for anything else."""
+        if not _FRAME_NAME.match(name):
+            return None
+        for folder in (self._frames.out_dir, self._marks_dir):
+            path = folder / name if folder is not None else None
+            if path is not None and path.is_file():
+                return path
+        return None
+
+    def _loop(
+        self,
+        messages: list[dict[str, object]],
+        tables: TrackTables,
+        trace: _Trace,
+        emit: Emit,
+        stop: threading.Event | None,
+    ) -> str:
+        """Spark's turns until it answers (at the latest on its last turn): the reply."""
+        for k in range(MAX_STEPS + 1):
+            if stop is not None and stop.is_set():
+                return STOPPED
+            turn, last = len(trace.turns), k == MAX_STEPS
+            if last:
+                messages.append({"role": "user", "content": "Steps used up: answer now."})
+            emit(AskEvent(type="thinking", turn=turn))
+            started = time.perf_counter()
+            actions = self._next(messages)
+            seconds = round(time.perf_counter() - started, 1)
+            trace.turns.append(
+                AskTurnTiming(turn=turn, model=SPARK_MODEL, seconds=seconds, actions=len(actions))
+            )
+            emit(AskEvent(type="actions", turn=turn, actions=actions, seconds=seconds))
+            final = _final(actions, last=last)
+            if final is not None:
+                action, reply = final
+                trace.steps.append(AskStep(turn=turn, action=action, result=None, seconds=0.0))
+                return reply
+            run = actions[: self._limits.max_actions]
+            done = self._run_all(turn, run, tables, emit)
+            trace.steps.extend(done)
+            messages.append(
+                {"role": "assistant", "content": AskTurn(actions=run).model_dump_json()}
+            )
+            messages.append(
+                {"role": "user", "content": self._results(done, len(actions) - len(run))}
+            )
         msg = "unreachable: the loop always answers on its last turn"
         raise AssertionError(msg)
+
+    def _earlier(self, conversation: str) -> list[AskAnswer]:
+        with self._lock:
+            return list(self._conversations.get(conversation, []))
+
+    def _remember(self, answer: AskAnswer) -> None:
+        with self._lock:
+            past = self._conversations.pop(answer.conversation_id, [])
+            self._conversations[answer.conversation_id] = [*past, answer]
+            while len(self._conversations) > MAX_CONVERSATIONS:
+                self._conversations.popitem(last=False)
 
     def _next(self, messages: list[dict[str, object]]) -> list[AskAction]:
         """Spark's next actions; a reply that is not a valid turn ends with an apology."""
@@ -261,13 +358,19 @@ class AskAgent:
         return turn.actions
 
     def _run_all(
-        self, turn: int, actions: Sequence[AskAction], tables: TrackTables
+        self, turn: int, actions: Sequence[AskAction], tables: TrackTables, emit: Emit
     ) -> list[AskStep]:
         """Run a turn's actions at the same time; the steps come back in the actions' order."""
+
+        def job(index: int, action: AskAction) -> AskStep:
+            step = self._step(turn, action, tables)
+            emit(AskEvent(type="step", turn=turn, index=index, step=step))
+            return step
+
         if len(actions) == 1:
-            return [self._step(turn, actions[0], tables)]
+            return [job(0, actions[0])]
         with ThreadPoolExecutor(len(actions), thread_name_prefix="ask-tool") as pool:
-            futures = [pool.submit(self._step, turn, action, tables) for action in actions]
+            futures = [pool.submit(job, k, action) for k, action in enumerate(actions)]
             return [future.result() for future in futures]
 
     def _step(self, turn: int, action: AskAction, tables: TrackTables) -> AskStep:
@@ -279,6 +382,7 @@ class AskAgent:
             result=outcome.result,
             seconds=round(time.perf_counter() - started, 1),
             model=outcome.model,
+            frames=[path.name for path in outcome.frames],
         )
 
     def _results(self, steps: Sequence[AskStep], not_run: int) -> str:
@@ -298,7 +402,9 @@ class AskAgent:
             )
         return "\n".join(lines)
 
-    def _opening(self, question: str, tables: TrackTables) -> list[dict[str, object]]:
+    def _opening(
+        self, question: str, tables: TrackTables, earlier: Sequence[AskAnswer] = ()
+    ) -> list[dict[str, object]]:
         width, height = self._frame_size
         every = f"{self._caption_every_s:g} s" if self._caption_every_s else "(off: empty)"
         system = SYSTEM_PROMPT.format(
@@ -325,11 +431,20 @@ class AskAgent:
             "recorded_video_per_camera": video,
             "recent_captions": tables.recent_captions(),
         }
+        before = ""
+        if earlier:
+            history = json.dumps(_history(earlier, self._limits.max_result_chars))
+            before = (
+                "\n\nEarlier in this conversation (the owner's new question may build on it; the "
+                f"data above is newer):\n{history}"
+            )
         return [
             {"role": "system", "content": system},
             {
                 "role": "user",
-                "content": f"Recorded data:\n{json.dumps(context)}\n\nOwner's question: {question}",
+                "content": (
+                    f"Recorded data:\n{json.dumps(context)}{before}\n\nOwner's question: {question}"
+                ),
             },
         ]
 
@@ -343,16 +458,19 @@ class AskAgent:
             notes = _frame_notes(asked, used, frames, self._limits.max_frames)
             if not frames:
                 return _Outcome({"error": "no recorded frames at those instants on that camera"})
+            shown = tuple(f.path for f in frames)
             if action.action == "count_objects":
                 counts = count_objects(self._segmenter, frames, action.concept or "person")
                 found = [c.model_dump(mode="json") for c in counts]
-                return _Outcome({"frames": found, **_notes(notes)}, SAM_MODEL)
+                return _Outcome({"frames": found, **_notes(notes)}, SAM_MODEL, shown)
             labels: dict[str, str] = {}
             if action.marks and self._marks_dir is not None:
                 frames = [self._mark(f, tables, labels) for f in frames]
             answer = look(self._glimmer, self._glimmer_model, frames, action.question or "")
             return _Outcome(
-                {**answer.model_dump(), "marks": labels, **_notes(notes)}, self._glimmer_model
+                {**answer.model_dump(), "marks": labels, **_notes(notes)},
+                self._glimmer_model,
+                tuple(f.path for f in frames),
             )
         except (SqlError, ValueError, RulecamError, OSError) as exc:
             _log.info("ask_step_failed", action=action.action, error=str(exc))
@@ -402,6 +520,25 @@ def _sql_result(results: Sequence[tuple[str, QueryResult | SqlError]]) -> object
     if len(results) == 1:
         return one(results[0][1])
     return {"results": [{"sql": sql, **one(result)} for sql, result in results]}
+
+
+def _history(earlier: Sequence[AskAnswer], max_chars: int) -> list[dict[str, object]]:
+    """Earlier questions, answers and steps of a conversation, within `max_chars` of results."""
+    share = max_chars // max(1, len(earlier))
+    out: list[dict[str, object]] = []
+    for answer in earlier:
+        tools = [s for s in answer.steps if s.action.action != "answer"]
+        texts = fit_results([s.result for s in tools], share)
+        steps = [
+            {
+                "turn": step.turn,
+                "action": step.action.model_dump(exclude_defaults=True),
+                "result": json.loads(text),
+            }
+            for step, text in zip(tools, texts, strict=True)
+        ]
+        out.append({"question": answer.question, "answer": answer.answer, "steps": steps})
+    return out
 
 
 def _notes(notes: Sequence[str]) -> dict[str, object]:

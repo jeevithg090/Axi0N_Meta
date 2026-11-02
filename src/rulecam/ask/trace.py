@@ -53,6 +53,7 @@ class AskStep(Frozen):
         result: Its result (`None` for the answer).
         seconds: How long it took.
         model: The model that ran it (`None` for SQL and the answer).
+        frames: The frames it showed a model, by file name (`GET /ask/frames/{name}`).
     """
 
     turn: int = 0
@@ -60,13 +61,68 @@ class AskStep(Frozen):
     result: object
     seconds: float
     model: str | None = None
+    frames: list[str] = Field(default_factory=list)
+
+
+class AskTurnTiming(Frozen):
+    """How long Spark took to choose one turn's actions.
+
+    Attributes:
+        turn: The turn (0-based).
+        model: The model that chose them.
+        seconds: Spark's time for the turn.
+        actions: How many actions it chose.
+    """
+
+    turn: int
+    model: str
+    seconds: float
+    actions: int
 
 
 class AskAnswer(Frozen):
-    """The answer to an owner's question, with every step that led to it."""
+    """The answer to an owner's question, with every step that led to it.
+
+    Attributes:
+        question: The owner's question.
+        answer: The reply.
+        steps: Every action, in turn order (a turn's actions ran at once).
+        seconds: Wall-clock seconds for the whole answer.
+        models: Every model used, Spark first.
+        conversation_id: Send it with the next question to ask a follow-up.
+        turns: Spark's time per turn.
+    """
 
     question: str
     answer: str
     steps: list[AskStep]
     seconds: float
     models: list[str]
+    conversation_id: str = ""
+    turns: list[AskTurnTiming] = Field(default_factory=list)
+
+
+EventType = Literal["start", "thinking", "actions", "step", "answer", "error"]
+
+
+class AskEvent(Frozen):
+    """One thing that happened while answering, sent as it happens (`POST /ask/stream`).
+
+    - `start`: the question was taken (`conversation_id`);
+    - `thinking`: Spark is choosing turn `turn`'s actions;
+    - `actions`: it chose `actions` in `seconds`;
+    - `step`: action `index` of turn `turn` finished (`step`); a turn's steps can finish in any
+      order;
+    - `answer`: the final `answer`, with the whole trace;
+    - `error`: answering failed (`detail`).
+    """
+
+    type: EventType
+    conversation_id: str | None = None
+    turn: int | None = None
+    index: int | None = None
+    seconds: float | None = None
+    actions: list[AskAction] = Field(default_factory=list)
+    step: AskStep | None = None
+    answer: AskAnswer | None = None
+    detail: str | None = None

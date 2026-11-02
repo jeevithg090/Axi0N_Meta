@@ -1,11 +1,12 @@
 """`GET /metrics`: Prometheus text exposition of the API's health and cost (task WS5).
 
 Read-only and public-safe: every value is an aggregate the API already serves as JSON
-(`/runtime/metrics`, `/metrics/perception`), plus verdict counts and whether Glimmer and the SAM
-pod answer their health checks. No traces, event ids, URLs, keys or per-person values; the only
-label beyond fixed enums is the camera id (counters are per camera, never per person or track,
-R13). Values are read when Prometheus scrapes, from a registry private to the app, so nothing is
-kept twice and tests never touch the process-global registry.
+(`/runtime/metrics`, `/metrics/perception`), plus verdict counts and whether Glimmer and SAM are
+up: a pod's open `/health`, or for a RunPod serverless endpoint its worker state from RunPod's
+REST API (`runtime.serverless`), which never wakes a worker. No traces, event ids, URLs, keys or
+per-person values; the only label beyond fixed enums is the camera id (counters are per camera,
+never per person or track, R13). Values are read when Prometheus scrapes, from a registry private
+to the app, so nothing is kept twice and tests never touch the process-global registry.
 
 Alert thresholds (docs/deploy.md "Monitoring"): `rulecam_runtime_lag_seconds > 10` and
 `rulecam_dependency_up == 0` for a minute or more.
@@ -37,6 +38,14 @@ from rulecam.perception.metrics import (
 )
 from rulecam.runtime.cost import CostReport
 from rulecam.runtime.loop import LoopMetrics
+from rulecam.runtime.serverless import (
+    BODY_KEY,
+    NO_KEY,
+    GpuHealth,
+    GpuState,
+    endpoint_id,
+    running_gpu_usd_per_hour,
+)
 
 PREFIX = "rulecam"
 PROBE_TTL_S = 10.0
@@ -76,15 +85,17 @@ class HealthProbe:
 
     Attributes:
         service: Label value, e.g. `glimmer` or `sam`.
-        url: The health URL; never exported.
-        fetch: How to GET it (injected in tests).
-        ttl_s: How long a result is reused, so scrapes never hammer a pod.
+        url: The health URL, or a serverless endpoint's id; never exported.
+        fetch: How to read it (`http_health`; `RunPodServerless.fetch` for an endpoint id).
+        serverless: `url` is a RunPod serverless endpoint id, read through RunPod's REST API.
+        ttl_s: How long a result is reused, so scrapes never hammer a pod or the REST API.
         clock: Monotonic seconds.
     """
 
     service: str
     url: str
     fetch: Fetch = http_health
+    serverless: bool = False
     ttl_s: float = PROBE_TTL_S
     clock: Callable[[], float] = time.monotonic
     _checked_at: float | None = field(default=None, init=False, repr=False)
@@ -99,6 +110,14 @@ class HealthProbe:
                 self._body = self.fetch(self.url)
                 self._checked_at = now
             return self._body
+
+    def health(self) -> GpuHealth:
+        """The dependency's state (`GET /health` → `gpus`), from the cached check."""
+        return GpuHealth.from_probe(self.check())
+
+    def up(self) -> bool:
+        """Whether requests would be served (the verifier's recovery probe)."""
+        return self.health().up
 
 
 def health_url(base_url: str, *, strip_suffix: str = "") -> str:
@@ -117,22 +136,77 @@ def health_url(base_url: str, *, strip_suffix: str = "") -> str:
     return f"{base}/health"
 
 
-def dependency_probes(glimmer_base_url: str | None, sam_base_url: str | None) -> list[HealthProbe]:
-    """Probes for the configured dependencies: llama-server (Glimmer) and the SAM pod.
+def no_runpod_key(_: str) -> Mapping[str, object]:
+    """The serverless body when no RunPod reader is configured: state `unknown`."""
+    health = GpuHealth(state="unknown", up=False, serverless=True, error=NO_KEY)
+    return {BODY_KEY: health.model_dump(mode="json")}
+
+
+def dependency_probe(
+    service: str, base_url: str, *, strip_suffix: str = "", runpod: Fetch | None = None
+) -> HealthProbe:
+    """The probe for one dependency: its open `/health`, or RunPod's state for an endpoint.
+
+    Args:
+        service: Label value.
+        base_url: The service's base URL.
+        strip_suffix: A path suffix the base URL carries for its API (Glimmer's `/v1`).
+        runpod: Reads a serverless endpoint's state (`RunPodServerless.fetch`); without it a
+            serverless base URL reports `unknown`. The GPU URL itself is never polled.
+
+    Returns:
+        The probe.
+    """
+    endpoint = endpoint_id(base_url)
+    if endpoint is None:
+        return HealthProbe(service, health_url(base_url, strip_suffix=strip_suffix))
+    return HealthProbe(service, endpoint, fetch=runpod or no_runpod_key, serverless=True)
+
+
+def dependency_probes(
+    glimmer_base_url: str | None,
+    sam_base_url: str | None,
+    *,
+    glimmer_runpod: Fetch | None = None,
+    sam_runpod: Fetch | None = None,
+) -> list[HealthProbe]:
+    """Probes for the configured dependencies: llama-server (Glimmer) and SAM.
 
     Args:
         glimmer_base_url: `GLIMMER_BASE_URL` (ends in `/v1`); `None` skips it.
         sam_base_url: `SAM_BASE_URL`; `None` when runtime SAM is hosted.
+        glimmer_runpod: Reads Glimmer's serverless state (with its RunPod key).
+        sam_runpod: Reads SAM's serverless state (with its RunPod key).
 
     Returns:
         One probe per configured service.
     """
     probes = []
     if glimmer_base_url:
-        probes.append(HealthProbe("glimmer", health_url(glimmer_base_url, strip_suffix="/v1")))
+        probes.append(
+            dependency_probe("glimmer", glimmer_base_url, strip_suffix="/v1", runpod=glimmer_runpod)
+        )
     if sam_base_url:
-        probes.append(HealthProbe("sam", health_url(sam_base_url)))
+        probes.append(dependency_probe("sam", sam_base_url, runpod=sam_runpod))
     return probes
+
+
+def serverless_gpu_rate(
+    probes: Sequence[HealthProbe], usd_per_worker_hour: float
+) -> Callable[[], float | None] | None:
+    """What the GPUs bill right now, for the cost meter, when every GPU is serverless.
+
+    Args:
+        probes: The dependency probes.
+        usd_per_worker_hour: One running worker's price (`RULECAM_GPU_WORKER_USD_PER_HOUR`).
+
+    Returns:
+        A callable giving the running workers' $/h (`None` while a state is unknown); `None`
+        when there is no GPU or one is a pod, so the meter charges `RULECAM_GPU_USD_PER_HOUR`.
+    """
+    if not probes or not all(probe.serverless for probe in probes):
+        return None
+    return lambda: running_gpu_usd_per_hour([p.health() for p in probes], usd_per_worker_hour)
 
 
 class VerdictCounter:
@@ -324,32 +398,69 @@ def _number(value: object) -> float | None:
     return float(value)
 
 
-def dependency_metrics(probes: Sequence[HealthProbe]) -> Iterator[Metric]:
-    """Yield `dependency_up` per probe, plus the SAM pod's GPU memory from its `/health`."""
+GPU_STATES: tuple[GpuState, ...] = ("warm", "cold-ready", "starting", "unhealthy", "unknown")
+WORKER_STATUSES = ("running", "idle", "initializing", "throttled", "unhealthy")
+
+
+def health_metrics(healths: Sequence[tuple[str, GpuHealth]]) -> Iterator[Metric]:
+    """Yield each service's `dependency_up` and state, and serverless worker counts and limits."""
     up = GaugeMetricFamily(
         f"{PREFIX}_dependency_up",
-        "1 when the service answers its health check.",
+        "1 when the service would serve: a pod answers its health check, or a serverless "
+        "endpoint is warm, cold-ready or starting.",
         labels=["service"],
     )
+    state = GaugeMetricFamily(
+        f"{PREFIX}_dependency_state",
+        "1 for the service's current state.",
+        labels=["service", "state"],
+    )
+    workers = GaugeMetricFamily(
+        f"{PREFIX}_dependency_workers",
+        "Serverless workers by status (only running ones bill).",
+        labels=["service", "status"],
+    )
+    limits = GaugeMetricFamily(
+        f"{PREFIX}_dependency_workers_limit",
+        "Serverless workers.min and workers.max.",
+        labels=["service", "limit"],
+    )
+    for service, health in healths:
+        up.add_metric([service], float(health.up))
+        for name in GPU_STATES:
+            state.add_metric([service, name], float(health.state == name))
+        if health.workers is not None:
+            for status in WORKER_STATUSES:
+                workers.add_metric([service, status], getattr(health.workers, status))
+        for limit, value in (("min", health.workers_min), ("max", health.workers_max)):
+            if value is not None:
+                limits.add_metric([service, limit], value)
+    yield from (up, state, workers, limits)
+
+
+def sam_memory_metrics(body: Mapping[str, object] | None) -> Iterator[Metric]:
+    """Yield the SAM pod's GPU memory and memory-guard trips from its `/health` body."""
     memory = GaugeMetricFamily(
         f"{PREFIX}_sam_gpu_memory_bytes", "Self-hosted SAM GPU memory.", labels=["kind"]
     )
+    stats = body.get("memory") if body is not None else None
     trips: float | None = None
-    for probe in probes:
-        body = probe.check()
-        up.add_metric([probe.service], 0.0 if body is None else 1.0)
-        stats = body.get("memory") if body is not None and probe.service == "sam" else None
-        if not isinstance(stats, Mapping):
-            continue
+    if isinstance(stats, Mapping):
         for kind in ("allocated", "reserved", "peak_allocated", "free", "total"):
             value = _number(stats.get(f"{kind}_bytes"))
             if value is not None:
                 memory.add_metric([kind], value)
         trips = _number(stats.get("guard_trips"))
-    yield up
     yield memory
     if trips is not None:
         yield _counter("sam_memory_guard_trips", "SAM memory guard trips.", trips)
+
+
+def dependency_metrics(probes: Sequence[HealthProbe]) -> Iterator[Metric]:
+    """Yield each probe's `dependency_up`, state and workers, and the SAM pod's GPU memory."""
+    checked = [(probe.service, probe.check()) for probe in probes]
+    yield from health_metrics([(service, GpuHealth.from_probe(body)) for service, body in checked])
+    yield from sam_memory_metrics(next((body for s, body in checked if s == "sam"), None))
 
 
 class RulecamCollector(Collector):

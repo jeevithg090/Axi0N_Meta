@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import threading
 from collections import defaultdict, deque
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -87,6 +87,7 @@ from rulecam.runtime.loop import (
 )
 from rulecam.runtime.response import Response, build_response
 from rulecam.runtime.sampling import SamplingPolicy
+from rulecam.runtime.serverless import endpoint_id
 from rulecam.runtime.strips import EpisodeStrips, face_detector
 from rulecam.runtime.timings import StageTimings
 from rulecam.verify.guard import BreakerPolicy, CircuitBreaker, GuardedVerifier, http_probe
@@ -294,23 +295,31 @@ def build_perception(
 
 
 def build_tier1(
-    settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus
+    settings: Settings,
+    *,
+    cache: ReplayCache,
+    clock: Clock,
+    bus: Bus,
+    probe: Callable[[], bool] | None = None,
 ) -> GuardedVerifier:
     """The Tier 1 verifier: Glimmer through the replay cache, behind retry and a circuit breaker.
 
     A failure never passes silently: it becomes a `verifier_error` verdict that the policy sends
-    to a person (`verify.guard`). While the circuit is open, the API's ticker probes llama-server's
-    `/health` (not in replay mode, where nothing is called).
+    to a person (`verify.guard`). While the circuit is open, the API's ticker runs `probe` (the
+    API passes Glimmer's dependency probe), by default llama-server's `/health`. Never in replay
+    mode, where nothing is called, and never a serverless Glimmer's own URL: that would start a
+    worker (`runtime.serverless`); without a `probe` the half-open trial alone recovers it.
     """
+    if settings.rulecam_mode == "replay":
+        probe = None
+    elif probe is None and endpoint_id(settings.glimmer_base_url) is None:
+        probe = http_probe(glimmer_health_url(settings.glimmer_base_url))
     client = GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
     policy = BreakerPolicy(
         retries=settings.rulecam_verify_retries,
         failure_threshold=settings.rulecam_verify_breaker_failures,
         cooldown_s=settings.rulecam_verify_breaker_cooldown_s,
     )
-    probe = None
-    if settings.rulecam_mode != "replay":
-        probe = http_probe(glimmer_health_url(settings.glimmer_base_url))
     return GuardedVerifier(
         GlimmerVerifier(client, raise_errors=True),
         model_version=client.model,

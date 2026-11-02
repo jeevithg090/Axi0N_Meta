@@ -18,6 +18,7 @@ from rulecam.api.app import (
     AppServices,
     _cameras,
     _log_task_end,
+    code_revision,
     create_app,
     find_plan,
     openapi_json,
@@ -25,6 +26,7 @@ from rulecam.api.app import (
     viewer_origins,
 )
 from rulecam.api.plans import PlanRegistry
+from rulecam.api.prometheus import HealthProbe
 from rulecam.api.ws import frame
 from rulecam.bus import Bus, Message, Topic
 from rulecam.capture.pair_phone import PairedCamera
@@ -72,6 +74,8 @@ def test_health_and_mode(services: AppServices) -> None:
             "site": "site",
             "mode": "replay",
             "runtime": False,
+            "revision": None,
+            "gpus": {},
         }
         assert client.get("/mode").json() == {"mode": "replay", "badge": "REPLAY"}
         assert client.put("/mode", json={"mode": "live"}).json() == {
@@ -80,6 +84,39 @@ def test_health_and_mode(services: AppServices) -> None:
         }
         assert services.cache.mode == "live"
         assert client.put("/mode", json={"mode": "bogus"}).status_code == 422
+
+
+def test_health_reports_the_shipped_revision(services: AppServices, tmp_path: Path) -> None:
+    shipped = tmp_path / "REVISION"
+    assert code_revision(None, shipped) is None  # a dev checkout: nothing shipped
+    shipped.write_text("")
+    assert code_revision(None, shipped) is None
+    shipped.write_text("0123abcd4567\n")
+    assert code_revision(None, shipped) == "0123abcd4567"
+    assert code_revision(" fromenv ", shipped) == "fromenv"  # RULECAM_REVISION wins
+    services.revision = code_revision(None, shipped)
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        assert client.get("/health").json()["revision"] == "0123abcd4567"
+
+
+def test_health_serves_each_gpu_state(services: AppServices) -> None:
+    services.health_probes = (
+        HealthProbe("glimmer", "g", fetch=lambda _: None),
+        HealthProbe("sam", "s", fetch=lambda _: {"status": "ok"}),
+    )
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        gpus = client.get("/health").json()["gpus"]
+    assert gpus["glimmer"]["state"] == "unhealthy"
+    assert gpus["glimmer"]["up"] is False
+    assert gpus["sam"] == {
+        "state": "warm",
+        "up": True,
+        "serverless": False,
+        "workers_min": None,
+        "workers_max": None,
+        "workers": None,
+        "error": None,
+    }
 
 
 def test_evidence_routes(services: AppServices) -> None:

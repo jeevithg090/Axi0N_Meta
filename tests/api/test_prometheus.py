@@ -24,6 +24,7 @@ from rulecam.api.prometheus import (
     health_url,
     http_health,
     render,
+    serverless_gpu_rate,
 )
 from rulecam.bus import Bus, Topic
 from rulecam.contracts.events import VerifierVerdict
@@ -32,6 +33,7 @@ from rulecam.replay.cache import ReplayCache
 from rulecam.runtime.cost import CameraSpend, CostReport
 from rulecam.runtime.idle_stop import IdleStopStatus
 from rulecam.runtime.loop import LoopMetrics, VerdictNew
+from rulecam.runtime.serverless import BODY_KEY, GpuHealth, GpuState, WorkerCounts
 from tests.fakes import FakeClock
 
 TUNNEL = {"base_url": "https://rulecam-api.proxy.runpod.net", "client": ("100.64.0.9", 4000)}
@@ -188,6 +190,89 @@ def test_health_urls() -> None:
     probes = dependency_probes("http://127.0.0.1:8080/v1", None)
     assert [(p.service, p.url) for p in probes] == [("glimmer", "http://127.0.0.1:8080/health")]
     assert [p.service for p in dependency_probes(None, "https://s")] == ["sam"]
+
+
+def serverless_body(state: GpuState, **workers: int) -> dict[str, object]:
+    counts = {"running": 0, "idle": 0, "initializing": 0, "throttled": 0, "unhealthy": 0, **workers}
+    health = GpuHealth(
+        state=state,
+        up=state in {"warm", "cold-ready", "starting"},
+        serverless=True,
+        workers_min=0,
+        workers_max=3,
+        workers=WorkerCounts(**counts, total=sum(counts.values())),
+    )
+    return {BODY_KEY: health.model_dump(mode="json")}
+
+
+def test_serverless_urls_read_runpod_state_and_never_the_gpu_url() -> None:
+    reads: list[str] = []
+
+    def runpod(endpoint: str) -> Mapping[str, object]:
+        reads.append(endpoint)
+        return serverless_body("cold-ready", idle=2)
+
+    probes = dependency_probes(
+        "https://z000o8uch2wj4i.api.runpod.ai/v1",
+        "https://imz4qu1vzwp4z6.api.runpod.ai",
+        glimmer_runpod=runpod,
+    )
+    assert [(p.service, p.url, p.serverless) for p in probes] == [
+        ("glimmer", "z000o8uch2wj4i", True),
+        ("sam", "imz4qu1vzwp4z6", True),
+    ]
+    glimmer, sam = probes
+    assert glimmer.up()  # scaled to zero but healthy: up, so no alert and the verifier recovers
+    assert reads == ["z000o8uch2wj4i"]
+    assert (sam.health().state, sam.up()) == ("unknown", False)  # no RunPod reader: no key
+    text = render(
+        MetricsSources(
+            runtime=lambda: None,
+            perception=PerceptionMetrics().report,
+            verdicts=VerdictCounter(),
+            probes=probes,
+        )
+    ).decode()
+    assert value(text, "rulecam_dependency_up", service="glimmer") == 1
+    assert value(text, "rulecam_dependency_up", service="sam") == 0
+    assert value(text, "rulecam_dependency_state", service="glimmer", state="cold-ready") == 1
+    assert value(text, "rulecam_dependency_state", service="glimmer", state="warm") == 0
+    assert value(text, "rulecam_dependency_state", service="sam", state="unknown") == 1
+    assert value(text, "rulecam_dependency_workers", service="glimmer", status="idle") == 2
+    assert value(text, "rulecam_dependency_workers_limit", service="glimmer", limit="max") == 3
+    assert "runpod" not in text
+    assert "z000o8uch2wj4i" not in text
+
+
+def test_pods_report_warm_or_unhealthy_states() -> None:
+    probes = [
+        HealthProbe("glimmer", "g", fetch=lambda _: None),
+        HealthProbe("sam", "s", fetch=lambda _: {"status": "ok"}),
+    ]
+    text = render(
+        MetricsSources(
+            runtime=lambda: None,
+            perception=PerceptionMetrics().report,
+            verdicts=VerdictCounter(),
+            probes=probes,
+        )
+    ).decode()
+    assert value(text, "rulecam_dependency_state", service="glimmer", state="unhealthy") == 1
+    assert value(text, "rulecam_dependency_state", service="sam", state="warm") == 1
+    assert value(text, "rulecam_dependency_state", service="sam", state="cold-ready") == 0
+    assert not any(name == "rulecam_dependency_workers" for name, _ in samples(text))
+
+
+def test_serverless_gpu_rate_only_when_every_gpu_is_serverless() -> None:
+    warm = HealthProbe("glimmer", "g", fetch=lambda _: serverless_body("warm", running=1))
+    cold = HealthProbe("sam", "s", fetch=lambda _: serverless_body("cold-ready", idle=1))
+    cold.serverless = warm.serverless = True
+    rate = serverless_gpu_rate([warm, cold], 1.34)
+    assert rate is not None
+    assert rate() == pytest.approx(1.34)
+    pod = HealthProbe("sam", "http://s/health", fetch=lambda _: {"status": "ok"})
+    assert serverless_gpu_rate([warm, pod], 1.34) is None
+    assert serverless_gpu_rate([], 1.34) is None
 
 
 @pytest.mark.parametrize(

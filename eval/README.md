@@ -286,3 +286,43 @@ Three of them refuse to produce figures rather than produce weak ones:
   apart from "reports something confident every time".
 - **E5-lite** compares only clip/rule pairs that *both* arms scored, so the difference is
   paired; an arm that could not score a clip is reported as unpaired, not as a wrong answer.
+
+## Tracking on stored tracks: CAVIAR and MOT17 (add-on 1.5)
+
+`rulecam eval run` scores the tracks of clips it plays. These commands score tracks already in a
+track store, such as the 2 Nov corridor test (`phone-68`: seven CAVIAR corridor clips fed once as
+one 9 min 14 s stream from 09:44:11.875 UTC, upscaled 2x, then backfilled).
+
+```bash
+# CAVIAR XML -> MOT gt.txt (several files are chained into one stream, in the order given)
+uv run rulecam eval caviar-mot WalkByShop1cor.xml TwoEnterShop1cor.xml ... --out gt.txt
+
+# HOTA / IDF1 / MOTA of the stored tracks: raw ByteTrack ids, and (with --identities) the
+# DINOv2 identities the Ask identity job linked them into, reported as separate rows
+ulimit -n 65536   # the live store has many small Parquet files
+uv run rulecam eval track --store data/tracks --camera phone-68 \
+  --start 2026-11-02T09:44:11.875Z --scale 0.5 \
+  --caviar WalkByShop1cor.xml --caviar TwoEnterShop1cor.xml ... \
+  --identities data/ask/identity/track_identity.jsonl --out reports/eval/corridor-tracking.json
+```
+
+A point's stream second is its time since `--start`, so it lands on MOT frame
+`round(s * 25) + 1`; `--scale 0.5` maps the 768x576 stored boxes back onto CAVIAR's 384x288.
+Only frames the runtime tracked are scored (as in `eval run`). Tracks the identity job has not
+linked keep their own id in the re-ID row, and the report says how many there were.
+
+**Cross-check against TrackEval** (the MOTChallenge reference implementation) on one clip of
+the stream, on the same frames; the two should agree to rounding:
+
+```bash
+uv run --with git+https://github.com/JonathonLuiten/TrackEval \
+  python scripts/eval/trackeval_crosscheck.py --store data/tracks --camera phone-68 \
+  --start 2026-11-02T09:44:11.875Z --scale 0.5 --segment TwoEnterShop1cor \
+  --caviar WalkByShop1cor.xml TwoEnterShop1cor.xml ... --out reports/eval/trackeval-check.json
+```
+
+**MOT17 train** (`scripts/eval/mot17.py`): downloads MOT17 (about 5.5 GB) once, tracks the seven
+training sequences with the runtime's own image tracker (SAM 3.1 keyframes + ByteTrack) into a
+separate store, and scores them with our scorer and, when installed, TrackEval. It needs the SAM
+endpoint, so it runs on the API pod. Only keyframes are scored, so use `--keyframe-fps 10` and
+read the numbers as keyframe-rate tracking, not as a full-frame MOT17 submission.

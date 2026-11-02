@@ -21,6 +21,8 @@ from rulecam.replay.cache import ReplayCache
 from rulecam.replay.golden import GoldenRunner
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from rulecam.advisor.seal import SealBox
     from rulecam.eval.schema import EvalSet
     from rulecam.eval.score import EvalReport
@@ -511,6 +513,104 @@ def eval_score(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=USAGE_ERROR) from exc
     _write_outputs(report, out, checks, f"replayed runs: {runs}")
+
+
+@eval_app.command("caviar-mot")
+def eval_caviar_mot(
+    xml: Annotated[list[Path], typer.Argument(help="CAVIAR ground-truth XML, in stream order")],
+    *,
+    out: Annotated[Path, typer.Option(help="MOT gt.txt to write")] = Path("gt.txt"),
+) -> None:
+    """Convert CAVIAR XML to MOT gt.txt; several files are chained into one stream in order."""
+    from rulecam.eval.caviar import chain_mot, load_caviar  # noqa: PLC0415
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+
+    try:
+        rows, segments = chain_mot([load_caviar(path) for path in xml])
+    except EvalError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(r + "\n" for r in rows), encoding="utf-8")
+    for seg in segments:
+        typer.echo(
+            f"{seg.name}: frames {seg.first_frame}-{seg.first_frame + seg.frames - 1}, "
+            f"{seg.start_s:.1f}-{seg.end_s:.1f} s"
+        )
+    typer.echo(f"wrote {len(rows)} rows to {out}")
+
+
+def _parse_utc(value: str) -> datetime:
+    from datetime import UTC, datetime  # noqa: PLC0415
+
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        typer.echo(f"not an ISO time: {value!r}", err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+@eval_app.command("track")
+def eval_track(
+    *,
+    store: Annotated[Path, typer.Option(help="Track store root (data/tracks)")],
+    camera: Annotated[str, typer.Option(help="Camera the stream was fed as")],
+    start: Annotated[str, typer.Option(help="Camera time of the stream's first frame (ISO)")],
+    gt: Annotated[Path | None, typer.Option(help="MOT gt.txt of the stream")] = None,
+    caviar: Annotated[
+        list[Path] | None, typer.Option(help="CAVIAR XML instead of --gt (repeat, stream order)")
+    ] = None,
+    end: Annotated[str | None, typer.Option(help="Stream end (default: start + GT length)")] = None,
+    fps: Annotated[float, typer.Option(help="Ground-truth frame rate")] = 25.0,
+    scale: Annotated[float, typer.Option(help="Stored px -> GT px (0.5 for a 2x upscale)")] = 1.0,
+    concept: Annotated[str, typer.Option(help="GT class 1 is this concept")] = "person",
+    identities: Annotated[
+        Path | None, typer.Option(help="track_identity.jsonl (data/ask/identity) for re-ID ids")
+    ] = None,
+    out: Annotated[Path | None, typer.Option(help="Write the JSON report here")] = None,
+) -> None:
+    """Score a camera's stored tracks (HOTA, IDF1, MOTA), raw ids and re-ID identities apart."""
+    from datetime import timedelta  # noqa: PLC0415
+
+    from rulecam.eval.caviar import chain_mot, load_caviar  # noqa: PLC0415
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+    from rulecam.eval.tracking import parse_mot  # noqa: PLC0415
+    from rulecam.eval.trackstore import load_identities, render_markdown, score_store  # noqa: PLC0415
+    from rulecam.rules.store import ParquetTrackStore  # noqa: PLC0415
+
+    if (gt is None) == (not caviar):
+        typer.echo("give exactly one of --gt or --caviar", err=True)
+        raise typer.Exit(code=USAGE_ERROR)
+    t0 = _parse_utc(start)
+    try:
+        if caviar:
+            rows, _ = chain_mot([load_caviar(path) for path in caviar])
+        else:
+            assert gt is not None  # noqa: S101 - checked above
+            rows = gt.read_text(encoding="utf-8").splitlines()
+        truth = parse_mot(rows, {1: concept})
+        last = max((f for frames in truth.values() for f in frames), default=1)
+        t1 = _parse_utc(end) if end else t0 + timedelta(seconds=last / fps)
+        with ParquetTrackStore(store) as tracks:
+            report = score_store(
+                tracks,
+                truth,
+                camera_id=camera,
+                start=t0,
+                end=t1,
+                fps=fps,
+                scale=(scale, scale),
+                identities=load_identities(identities) if identities else None,
+            )
+    except (EvalError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    typer.echo(render_markdown(report))
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(report.to_json(), encoding="utf-8")
+        typer.echo(f"wrote {out}")
 
 
 AUTO_CHECKS = "auto"

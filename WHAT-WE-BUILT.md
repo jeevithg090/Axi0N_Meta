@@ -44,6 +44,9 @@ adds a row here with its licence.
 | Muse Glimmer 30B GGUF (`meta-models/Muse-Glimmer-30B-GGUF`) served by llama.cpp `llama-server` | Tier 1 verifier (`verify/tier1.py`, P3-03) | Model: per the Muse Glimmer model card (commercial terms to confirm). llama.cpp: MIT |
 | Muse Spark Open (Baseten) | Plan audit, dispute review, Tier 2 (P3-04, P2-07) | Per its licence; "Built with Muse Spark Open" attribution in the README |
 | matplotlib, ultralytics YOLOv8 (`eval` extra) | Evaluation charts and the YOLOv8 baseline only; never imported by runtime code | Matplotlib licence (PSF-based) / **AGPL-3.0** |
+| CAVIAR ground truth and clips (EC project IST 2001 37540, University of Edinburgh) | Tracking ground truth (`eval/caviar.py`, `rulecam eval caviar-mot`, add-on 1.5) and labelled events for the eval set (add-on 1.3); downloaded by the scripts, never committed | Publicly available research dataset; cite the CAVIAR project |
+| TrackEval (github.com/JonathonLuiten/TrackEval) | Reference HOTA / CLEAR / Identity scorer to cross-check `eval/tracking.py` (`scripts/eval/trackeval_crosscheck.py`, `mot17.py`); installed only for those runs with `uv run --with git+…`, not a project dependency | MIT |
+| MOT17 (MOTChallenge) | Training sequences scored by `scripts/eval/mot17.py` so our HOTA/IDF1 sit next to published trackers; downloaded when the script runs | CC BY-NC-SA 3.0 (research use; licences are not a blocker for this hackathon) |
 
 ## Built during the hackathon
 
@@ -117,3 +120,4 @@ adds a row here with its licence.
 | `src/rulecam/api/` plan activation, camera scope, auth | Plan approval activates the runtime; per-camera rule scope and SAM cost control; owner login and protected evidence routes; pipelined segmentation; stage timings (P3-08) | #66, #73, #90, #99, #103 |
 | Runtime policy, actions and firewall wiring | Real policy, dry-run-first actions and the firewall in the live runtime; a failed Tier 1 goes to the human queue; verifier circuit breaker (P3-05/06) | #105, #109 |
 | `src/rulecam/runtime/skeleton.py` (used by `strip_draw.py`, `strips.py`) | Anonymous/strict strip additions: PPE marks on each skeleton (cap, vest, wrist rings per `without` predicate; filled = item detected in that region at the keyframe, crossed = not; one neutral colour) and strict-mode canonical bone lengths (pose kept, proportions dropped); face keypoints never drawn. The skeleton wipe video is not shipped: nothing would call it yet (P4-05) | #83 |
+| `src/rulecam/eval/{caviar,trackstore,motchallenge}.py`, `rulecam eval caviar-mot`, `rulecam eval track`, `scripts/eval/{trackeval_bridge,trackeval_crosscheck,mot17}.py` | Add-on 1.5: CAVIAR XML to MOT `gt.txt`, HOTA/IDF1/MOTA of a camera's stored tracks with raw ByteTrack ids and re-ID identities reported apart, a TrackEval cross-check on one sequence and a MOT17-train runner | this PR |

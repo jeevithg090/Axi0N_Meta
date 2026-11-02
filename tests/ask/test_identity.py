@@ -11,7 +11,16 @@ import cv2
 import numpy as np
 
 from rulecam.ask import FrameGrabber, TrackTables
-from rulecam.ask.identity import FALLBACK_THRESHOLD, IdentityMemory, _Track, crop_jpeg, link
+from rulecam.ask.identity import (
+    FALLBACK_THRESHOLD,
+    MIN_THRESHOLD,
+    IdentityMemory,
+    _same_pairs,
+    _Track,
+    calibrate,
+    crop_jpeg,
+    link,
+)
 from rulecam.contracts import Track, TrackPoint
 from rulecam.rules.store import ParquetTrackStore
 from rulecam.runtime.factory import ChunkIndex
@@ -172,4 +181,46 @@ def test_the_chunk_journal_survives_a_restart(tmp_path: Path) -> None:
     again = ChunkIndex(journal=journal)
     assert [c.chunk_id for c in again.chunks("checkout", EPOCH, EPOCH + timedelta(hours=1))] == [
         "checkout_000000"
+    ]
+
+
+def test_calibration_puts_the_threshold_where_the_two_kinds_of_pairs_cross() -> None:
+    same = [0.95, 0.9, 0.88, 0.86, 0.84, 0.83, 0.82, 0.8, 0.78, 0.76]
+    different = [0.4, 0.5, 0.55, 0.6, 0.62, 0.65, 0.7, 0.72, 0.74, 0.79]
+    threshold = calibrate(same, different)
+    assert 0.74 < threshold <= 0.8
+    assert calibrate(same[:3], different) == max(MIN_THRESHOLD, float(np.quantile(different, 0.99)))
+    assert calibrate(same, different[:3]) == FALLBACK_THRESHOLD
+
+
+def test_a_fragment_starting_where_another_ended_is_a_same_pair() -> None:
+    a = _Track(
+        "c:p:a", "c", "p", EPOCH, EPOCH + timedelta(seconds=4), end=(100.0, 400.0), width=80.0
+    )
+    b = _Track(
+        "c:p:b",
+        "c",
+        "p",
+        EPOCH + timedelta(seconds=4.5),
+        EPOCH + timedelta(seconds=8),
+        start=(120.0, 405.0),
+    )
+    far = _Track(
+        "c:p:f",
+        "c",
+        "p",
+        EPOCH + timedelta(seconds=4.5),
+        EPOCH + timedelta(seconds=8),
+        start=(600.0, 405.0),
+    )
+    late = _Track(
+        "c:p:l",
+        "c",
+        "p",
+        EPOCH + timedelta(seconds=6),
+        EPOCH + timedelta(seconds=8),
+        start=(110.0, 400.0),
+    )
+    assert [(x.track_id, y.track_id) for x, y in _same_pairs([a, b, far, late])] == [
+        ("c:p:a", "c:p:b")
     ]

@@ -11,9 +11,12 @@ re-ID vector per tracklet, then merging), in a background job:
    (`/embed`) and averaged;
 2. per camera and concept, tracks are linked in time order into identities: a track joins the
    most similar identity it never overlaps in time, if the similarity clears the threshold;
-3. the threshold comes from the data, not from a constant: two tracks seen at the same time are
-   two different objects, so their similarities are the "different" distribution, and a link
-   must beat its `IMPOSTOR_QUANTILE` quantile (with `MIN_THRESHOLD` as a floor);
+3. the threshold comes from the data, not from a constant. Two tracks seen at the same time are
+   two different objects (the "different" pairs); a track that starts within `SAME_GAP_S` of
+   another's end, less than `SAME_REACH` of a box width from where it ended, is almost surely
+   the same object lost for a moment (the "same" pairs). The threshold is where the two
+   similarity distributions cross (equal error rate), floored at `MIN_THRESHOLD`; with too few
+   "same" pairs it is the `IMPOSTOR_QUANTILE` quantile of the "different" ones;
 4. for people, Muse Glimmer writes a short note per identity from two of its crops (customer or
    staff, what they wear and carry), after FootfallCam-style behaviour labelling.
 
@@ -53,6 +56,9 @@ SETTLE_S: Final = 3.0  # a track this long unseen (before its camera's last poin
 IMPOSTOR_QUANTILE: Final = 0.99
 MIN_THRESHOLD: Final = 0.5
 MIN_IMPOSTOR_PAIRS: Final = 10
+MIN_SAME_PAIRS: Final = 10
+SAME_GAP_S: Final = 1.0
+SAME_REACH: Final = 0.5
 FALLBACK_THRESHOLD: Final = 0.8  # too few co-present pairs to learn from
 NOTES_PER_RUN: Final = 6
 PAD: Final = 0.08
@@ -93,6 +99,43 @@ class _Track:
     concept: str
     first: datetime
     last: datetime
+    start: tuple[float, float] = (0.0, 0.0)  # foot point (pixels) at the first point
+    end: tuple[float, float] = (0.0, 0.0)  # foot point at the last point
+    width: float = 0.0  # box width at the last point
+
+
+def _same_pairs(known: Sequence[_Track]) -> list[tuple[_Track, _Track]]:
+    """Pairs where one track starts right where and when another ended (the same object)."""
+    pairs = []
+    for a in known:
+        for b in known:
+            gap = (b.first - a.last).total_seconds()
+            reach = SAME_REACH * max(a.width, 1.0)
+            near = np.hypot(b.start[0] - a.end[0], b.start[1] - a.end[1]) <= reach
+            if 0 < gap <= SAME_GAP_S and near:
+                pairs.append((a, b))
+    return pairs
+
+
+def calibrate(same: Sequence[float], different: Sequence[float]) -> float:
+    """The similarity where the "same" and "different" error rates cross (pure).
+
+    Args:
+        same: Similarities of pairs that are almost surely one object.
+        different: Similarities of pairs that are surely two objects.
+
+    Returns:
+        The threshold, at least `MIN_THRESHOLD`; `FALLBACK_THRESHOLD` without data.
+    """
+    if len(different) < MIN_IMPOSTOR_PAIRS:
+        return FALLBACK_THRESHOLD
+    if len(same) < MIN_SAME_PAIRS:
+        return max(MIN_THRESHOLD, float(np.quantile(different, IMPOSTOR_QUANTILE)))
+    same_a, diff_a = np.asarray(same), np.asarray(different)
+    candidates = np.unique(np.concatenate([same_a, diff_a]))
+    false_accept = np.array([(diff_a >= t).mean() for t in candidates])
+    false_reject = np.array([(same_a < t).mean() for t in candidates])
+    return max(MIN_THRESHOLD, float(candidates[np.argmin(np.abs(false_accept - false_reject))]))
 
 
 def link(
@@ -109,16 +152,14 @@ def link(
         and the threshold used.
     """
     known = sorted((t for t in tracks if t.track_id in vectors), key=lambda t: t.first)
-    impostors = [
+    different = [
         float(vectors[a.track_id] @ vectors[b.track_id])
         for i, a in enumerate(known)
         for b in known[i + 1 :]
         if b.first <= a.last
     ]
-    if len(impostors) >= MIN_IMPOSTOR_PAIRS:
-        threshold = max(MIN_THRESHOLD, float(np.quantile(impostors, IMPOSTOR_QUANTILE)))
-    else:
-        threshold = FALLBACK_THRESHOLD
+    same = [float(vectors[a.track_id] @ vectors[b.track_id]) for a, b in _same_pairs(known)]
+    threshold = calibrate(same, different)
     identities: list[_Identity] = []
     out: dict[str, tuple[str, float]] = {}
     for track in known:
@@ -147,6 +188,10 @@ def _utc(value: object) -> datetime:
         msg = f"expected a timestamp, got {type(value).__name__}"
         raise TypeError(msg)
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _num(value: object) -> float:
+    return float(value) if isinstance(value, int | float) else 0.0
 
 
 def crop_jpeg(frame: Path, box: tuple[float, float, float, float]) -> bytes | None:
@@ -178,6 +223,7 @@ class IdentityMemory:
         glimmer_model: str,
         out_dir: Path,
         site_profile: str = "",
+        min_interval_s: float = 10.0,
     ) -> None:
         """Create the memory.
 
@@ -189,6 +235,7 @@ class IdentityMemory:
             glimmer_model: Glimmer's model name.
             out_dir: Where `track_identity.jsonl`, `identity_notes.jsonl` and the vectors live.
             site_profile: The owner's description of the site, for the notes.
+            min_interval_s: Least time between the starts of two runs.
         """
         self._root = tracks_root
         self._frames = frames
@@ -202,6 +249,8 @@ class IdentityMemory:
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ask-identity")
         self._running: Future[None] | None = None
         self._lock = threading.Lock()
+        self._min_interval_s = min_interval_s
+        self._last_start = float("-inf")
         out_dir.mkdir(parents=True, exist_ok=True)
         self._load()
 
@@ -216,8 +265,10 @@ class IdentityMemory:
         return self._dir / "identity_notes.jsonl"
 
     def tick(self) -> None:
-        """Start a run if none is going (returns at once)."""
-        if self._running is None or self._running.done():
+        """Start a run if none is going and the last started `min_interval_s` ago (no wait)."""
+        idle = self._running is None or self._running.done()
+        if idle and time.monotonic() - self._last_start >= self._min_interval_s:
+            self._last_start = time.monotonic()
             self._running = self._pool.submit(self.run)
 
     def run(self) -> None:
@@ -249,13 +300,31 @@ class IdentityMemory:
 
     def _finished(self, tables: TrackTables) -> list[_Track]:
         result = tables.query_params(
-            "SELECT s.track_id, s.camera_id, s.concept, s.first_seen, s.last_seen "
+            "SELECT s.track_id, s.camera_id, s.concept, s.first_seen, s.last_seen, "
+            "f.foot_px_x, f.foot_px_y, l.foot_px_x, l.foot_px_y, l.x2 - l.x1 "
             "FROM track_spans s JOIN (SELECT camera_id, max(last_seen) AS newest FROM track_spans "
             "GROUP BY camera_id) c USING (camera_id) "
+            "JOIN track_points f ON f.track_id = s.track_id AND f.ts = s.first_seen "
+            "JOIN track_points l ON l.track_id = s.track_id AND l.ts = s.last_seen "
             "WHERE epoch(c.newest) - epoch(s.last_seen) >= ? ORDER BY s.first_seen",
             [SETTLE_S],
         )
-        return [_Track(str(t), str(c), str(k), _utc(a), _utc(b)) for t, c, k, a, b in result]
+        tracks: dict[str, _Track] = {}
+        for t, c, k, a, b, fx, fy, lx, ly, width in result:
+            tracks.setdefault(
+                str(t),
+                _Track(
+                    str(t),
+                    str(c),
+                    str(k),
+                    _utc(a),
+                    _utc(b),
+                    (_num(fx), _num(fy)),
+                    (_num(lx), _num(ly)),
+                    _num(width),
+                ),
+            )
+        return list(tracks.values())
 
     def _embed_tracks(self, tables: TrackTables, tracks: Sequence[_Track]) -> None:
         crops: list[tuple[str, bytes]] = []

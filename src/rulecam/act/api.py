@@ -14,7 +14,7 @@ role is refused with 403. A plug that does not respond on resume returns 502.
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query, params
@@ -34,6 +34,9 @@ MAX_ROLE = 64
 MAX_ID = 128
 
 Role = Annotated[str, Field(min_length=1, max_length=MAX_ROLE, pattern=ROLE_PATTERN)]
+
+# Called with `(event_id, rule_id)` after a person taps *False alarm* (Rule CI regressions).
+FalseAlarmSink = Callable[[str, str | None], object]
 
 
 class RespondRequest(BaseModel):
@@ -74,6 +77,7 @@ def handle_button(
     escalation: EscalationManager,
     chain: EventChain,
     rule_id: str | None = None,
+    on_false_alarm: FalseAlarmSink | None = None,
 ) -> ButtonAction:
     """Apply one alert-button tap. Every ack is chained, with or without an open escalation.
 
@@ -84,6 +88,8 @@ def handle_button(
         escalation: Escalation chains.
         chain: Evidence chain for the false-alarm label.
         rule_id: The alert's rule, carried on the false-alarm label for rule health.
+        on_false_alarm: Also told about a *False alarm* (the API records it as a permanent
+            Rule CI regression, `rule_ci.hard_negatives`).
 
     Returns:
         What happened.
@@ -98,6 +104,8 @@ def handle_button(
             {"event_id": event_id, "rule_id": rule_id, "label": "false_alarm", "role": body.role},
         )
         notifier.set_status(event_id, "false_alarm")
+        if on_false_alarm is not None:
+            on_false_alarm(event_id, rule_id)
         return "false_alarm"
     notifier.set_status(event_id, "acknowledged")
     return "acknowledged"
@@ -132,6 +140,7 @@ def alerts_router(
     interlock: Interlock | None = None,
     roles: Collection[str] | None = None,
     dependencies: Sequence[params.Depends],
+    on_false_alarm: FalseAlarmSink | None = None,
 ) -> APIRouter:
     """Build the router.
 
@@ -146,6 +155,7 @@ def alerts_router(
         interlock: The interlock, if this site has one.
         roles: The site's roles (from the plan); when given, other roles are refused.
         dependencies: Authentication applied to every route.
+        on_false_alarm: Told about every *False alarm* tap (Rule CI regressions).
 
     Returns:
         The router.
@@ -176,6 +186,7 @@ def alerts_router(
             escalation=escalation,
             chain=chain,
             rule_id=alert.rule_id,
+            on_false_alarm=on_false_alarm,
         )
         return RespondResult(alert_id=alert_id, action=action)
 

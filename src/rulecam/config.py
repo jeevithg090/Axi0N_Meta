@@ -126,6 +126,10 @@ class Settings(BaseSettings):
     # role=E.164 pairs, e.g. "aide=15551234567,charge_nurse=15557654321" (kept only in .env)
     whatsapp_recipients: SecretStr | None = None
     whatsapp_api_base: str = "https://graph.facebook.com/v21.0"
+    # Telegram alerts (add-on 5.1): the token from BotFather; links come from `/telegram/link`.
+    telegram_bot_token: SecretStr | None = None
+    telegram_bot_username: str | None = None  # without @; asked from getMe when unset
+    telegram_api_base: str = "https://api.telegram.org"
     public_tunnel_url: str | None = None
     public_ui_url: str | None = None  # public origin of the web UI (worker page QR on posters)
     # Owner login (docs/deploy.md "Owner login"): `rulecam owner set-passphrase` prints the hash.

@@ -79,6 +79,7 @@ from rulecam.ask import (
     planner_profiles,
 )
 from rulecam.ask.identity import IdentityMemory, gpu_embedder
+from rulecam.ask.review import SparkOpenReviewer
 from rulecam.ask.runlog import AskRunLog, git_sha
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
@@ -830,7 +831,9 @@ def build_ask(
     Served in prototype mode only: it reads per-track spans (dwell time per tracked person). The
     caption memory runs when `RULECAM_ASK_CAPTION_EVERY_S` is above 0; the identity memory
     (DINOv2 re-identification on the GPU pod) when `SAM_BASE_URL` and `SAM_API_KEY` are set.
-    Every answer is appended to the hash-chained run log `<data>/ask/runs.jsonl`.
+    Every answer is appended to the hash-chained run log `<data>/ask/runs.jsonl`. With
+    `RULECAM_ASK_REVIEW` and a Baseten key, Muse Spark Open (the Tier 2 client) reviews each
+    draft answer and can send it back once.
 
     Returns:
         The agent and the tickers; `(None, ())` (logged) outside prototype mode or without a
@@ -879,6 +882,12 @@ def build_ask(
             out_dir=ask_dir / "identity",
             site_profile=settings.rulecam_site_profile,
         )
+    reviewer = None
+    if settings.rulecam_ask_review and settings.baseten_api_key is not None:
+        reviewer = SparkOpenReviewer(
+            SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus),
+            max_result_chars=settings.rulecam_ask_max_result_chars,
+        )
     agent = AskAgent(
         spark=spark,
         segmenter=perception.hosted,
@@ -911,6 +920,7 @@ def build_ask(
             git_sha=git_sha(settings.rulecam_git_sha),
             max_result_chars=settings.rulecam_ask_max_result_chars,
         ),
+        reviewer=reviewer,
     )
     return agent, tuple(m.tick for m in (memory, identity) if m is not None)
 

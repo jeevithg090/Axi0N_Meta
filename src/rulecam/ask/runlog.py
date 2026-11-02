@@ -1,11 +1,12 @@
 """Ask's run log: one JSON line per answer, hash-chained, under `<data>/ask/runs.jsonl`.
 
 Each row holds the question, the answer and its numbers, every step with its timing, model and
-result (as Spark saw it, within the result budget), Spark's time per turn, the models used, the
-SHA-256 of the instructions the models got (`prompt_sha256`) and the deployed commit
-(`git_sha`). Rows are chained like the evidence log: `sha256 = SHA-256(prev_sha256 + the row's
-canonical JSON without sha256)`, starting from 64 zeros, so a row edited or removed later breaks
-every hash after it. The row's `sha256` is the answer's `receipt`.
+result (as Spark saw it, within the result budget), Spark's time per turn, the second model's
+reviews of the drafts, the models used, the SHA-256 of the instructions the models got
+(`prompt_sha256`) and the deployed commit (`git_sha`). Rows are chained like the evidence log:
+`sha256 = SHA-256(prev_sha256 + the row's canonical JSON without sha256)`, starting from 64
+zeros, so a row edited or removed later breaks every hash after it. The row's `sha256` is the
+answer's `receipt`.
 
 The evidence chain itself is not used: its record kinds are fixed by the contracts, and none of
 them is an Ask answer.
@@ -123,6 +124,7 @@ class AskRunLog:
             "models": answer.models,
             "turns": [t.model_dump(mode="json") for t in answer.turns],
             "steps": steps,
+            "reviews": [r.model_dump(mode="json") for r in answer.reviews],
             "prompt_sha256": answer.prompt_sha256,
             "git_sha": self._git_sha,
         }

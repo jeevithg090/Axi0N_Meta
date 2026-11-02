@@ -11,6 +11,7 @@ import pytest
 
 from rulecam.ask import AskAgent, FrameGrabber, open_tables
 from rulecam.ask.agent import PROMPT_SHA256, SYSTEM_PROMPT, prompt_digest
+from rulecam.ask.review import REVIEW_PROMPT
 from rulecam.ask.runlog import GENESIS, AskRunLog, git_sha, row_hash, verify_run_log
 from rulecam.rules.store import ParquetTrackStore
 from tests.ask.test_ask import Chunks, Sam, person, turn, write_frame
@@ -132,8 +133,8 @@ def test_row_hash_ignores_its_own_hash_field() -> None:
 
 
 def test_the_prompt_digest_changes_with_the_prompt() -> None:
-    assert prompt_digest(SYSTEM_PROMPT) == PROMPT_SHA256
-    assert prompt_digest(SYSTEM_PROMPT + " ") != PROMPT_SHA256
+    assert prompt_digest(SYSTEM_PROMPT, REVIEW_PROMPT) == PROMPT_SHA256
+    assert prompt_digest(SYSTEM_PROMPT + " ", REVIEW_PROMPT) != PROMPT_SHA256
 
 
 def test_git_sha_prefers_the_setting(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -91,6 +91,9 @@ class Settings(BaseSettings):
     rulecam_ask_max_frames: int = Field(default=6, ge=1, le=32)
     # Tool calls one Ask turn runs at the same time (Spark picks how many, up to this).
     rulecam_ask_max_actions: int = Field(default=6, ge=1, le=16)
+    # Muse Spark Open (Baseten) checks each Ask answer against its trace and can send it back
+    # once (needs BASETEN_API_KEY; off without it).
+    rulecam_ask_review: bool = True
     # The deployed commit, for Ask's run log (empty: `git rev-parse HEAD` when run from a clone).
     rulecam_git_sha: str = ""
     # Only for command-line clients that log in to a remote API as the owner (`rulecam eval

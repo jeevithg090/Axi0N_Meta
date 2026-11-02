@@ -16,6 +16,11 @@ the question types is written here. The loop stops at `MAX_STEPS` turns, then as
 from what it has. Every step (turn, action, result, seconds, model, frames) is returned with the
 answer, and each is also sent as an `AskEvent` the moment it happens (`POST /ask/stream`).
 
+With a reviewer (add-on 2.7, `ask.review`), Muse Spark Open checks each draft answer against
+the trace and the conversation; a draft it sends back goes to Spark once with its findings, and
+Spark gets up to `REVIEW_STEPS` more turns to work on it and answer again. Every review is kept
+on the answer (`reviews`) and streamed (`reviewing`, `review`).
+
 A follow-up names the conversation it continues (`conversation_id`): the earlier questions,
 answers and steps of that conversation (kept in memory for the last `MAX_CONVERSATIONS`) go to
 Spark with the fresh data.
@@ -46,11 +51,13 @@ import yaml
 
 from rulecam.ask.data import DEFAULT_MAX_ROWS, QueryResult, SqlError, TrackTables
 from rulecam.ask.results import DEFAULT_MAX_RESULT_CHARS, fit_results
+from rulecam.ask.review import REVIEW_PROMPT, AnswerReviewer, AnswerVerdict, sent_back
 from rulecam.ask.runlog import AskRunLog
 from rulecam.ask.trace import (
     AskAction,
     AskAnswer,
     AskEvent,
+    AskReview,
     AskStep,
     AskTurn,
     AskTurnTiming,
@@ -73,9 +80,11 @@ _log = get_logger(__name__)
 SPARK_MODEL: Final = "muse-spark-1.3"
 SAM_MODEL: Final = "sam-3.1"
 MAX_STEPS: Final = 8
+REVIEW_STEPS: Final = 3
 DEFAULT_MAX_ACTIONS: Final = 6
 MAX_CONVERSATIONS: Final = 64
 STOPPED: Final = "Stopped before an answer: the request went away."
+APOLOGY: Final = "Sorry, I could not finish working that out. Please ask again."
 _FRAME_NAME: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}\.jpg$")
 
 Emit = Callable[[AskEvent], None]
@@ -113,10 +122,11 @@ class _Outcome:
 
 @dataclass
 class _Trace:
-    """What one answer did so far: its steps and Spark's turns."""
+    """What one answer did so far: its steps, Spark's turns and the reviews of its drafts."""
 
     steps: list[AskStep] = field(default_factory=list)
     turns: list[AskTurnTiming] = field(default_factory=list)
+    reviews: list[AskReview] = field(default_factory=list)
 
 
 def _ignore(event: AskEvent) -> None:
@@ -182,12 +192,14 @@ what it covers.\
 
 
 def prompt_digest(*parts: str) -> str:
-    """SHA-256 of the instructions the models get: the prompts, then Spark's turn schema."""
-    schema = json.dumps(AskTurn.model_json_schema(), sort_keys=True)
-    return hashlib.sha256("\n\n".join([*parts, schema]).encode("utf-8")).hexdigest()
+    """SHA-256 of the instructions the models get: the prompts, then the reply schemas."""
+    schemas = [
+        json.dumps(model.model_json_schema(), sort_keys=True) for model in (AskTurn, AnswerVerdict)
+    ]
+    return hashlib.sha256("\n\n".join([*parts, *schemas]).encode("utf-8")).hexdigest()
 
 
-PROMPT_SHA256: Final = prompt_digest(SYSTEM_PROMPT)
+PROMPT_SHA256: Final = prompt_digest(SYSTEM_PROMPT, REVIEW_PROMPT)
 
 
 class AskAgent:
@@ -212,6 +224,7 @@ class AskAgent:
         marks_dir: Path | None = None,
         limits: AskLimits = DEFAULT_LIMITS,
         runs: AskRunLog | None = None,
+        reviewer: AnswerReviewer | None = None,
     ) -> None:
         """Create the agent.
 
@@ -233,6 +246,7 @@ class AskAgent:
             limits: How much tool output reaches Spark (the snapshot's row cap is set where
                 `tables` is built, see `open_tables`).
             runs: The run log each answer is appended to (its row hash is the receipt).
+            reviewer: A second model that checks each draft and can send it back once.
         """
         self._spark = spark
         self._segmenter = segmenter
@@ -250,6 +264,7 @@ class AskAgent:
         self._marks_dir = marks_dir
         self._limits = limits
         self._runs = runs
+        self._reviewer = reviewer
         self._conversations: OrderedDict[str, list[AskAnswer]] = OrderedDict()
         self._lock = threading.Lock()
 
@@ -282,7 +297,17 @@ class AskAgent:
         tables = self._tables()
         try:
             messages = self._opening(question, tables, earlier, numbers)
-            final = self._loop(messages, tables, trace, emit, stop)
+            final = self._loop(messages, tables, trace, emit, stop, steps=MAX_STEPS)
+            final = self._reviewed(
+                question,
+                final,
+                messages=messages,
+                tables=tables,
+                trace=trace,
+                earlier=earlier,
+                emit=emit,
+                stop=stop,
+            )
         finally:
             tables.close()
         answer = self._logged(
@@ -291,16 +316,48 @@ class AskAgent:
                 answer=final.answer or final.thought,
                 steps=trace.steps,
                 seconds=round(time.perf_counter() - started, 1),
-                models=_models(trace.steps),
+                models=_models(trace.steps, trace.reviews),
                 conversation_id=conversation,
                 turns=trace.turns,
                 numbers=final.numbers,
                 prompt_sha256=PROMPT_SHA256,
+                reviews=trace.reviews,
             )
         )
         self._remember(answer)
         emit(AskEvent(type="answer", conversation_id=conversation, answer=answer))
         return answer
+
+    def _reviewed(
+        self,
+        question: str,
+        final: AskAction,
+        *,
+        messages: list[dict[str, object]],
+        tables: TrackTables,
+        trace: _Trace,
+        earlier: Sequence[AskAnswer],
+        emit: Emit,
+        stop: threading.Event | None,
+    ) -> AskAction:
+        """The answer after the reviewer's check: the draft, or Spark's answer once sent back."""
+        if self._reviewer is None or final.answer in (STOPPED, APOLOGY):
+            return final
+        if stop is not None and stop.is_set():
+            return final
+        turn = trace.turns[-1].turn if trace.turns else 0
+        emit(AskEvent(type="reviewing", turn=turn))
+        review = self._reviewer.review(question, final, trace.steps, earlier)
+        review = review.model_copy(update={"turn": turn})
+        trace.reviews.append(review)
+        emit(AskEvent(type="review", turn=turn, review=review))
+        if review.verdict != "revise":
+            return final
+        messages.append(
+            {"role": "assistant", "content": AskTurn(actions=[final]).model_dump_json()}
+        )
+        messages.append({"role": "user", "content": sent_back(review)})
+        return self._loop(messages, tables, trace, emit, stop, steps=REVIEW_STEPS)
 
     def _logged(self, answer: AskAnswer) -> AskAnswer:
         """The answer with its run-log receipt (unchanged when there is no log or it fails)."""
@@ -330,12 +387,14 @@ class AskAgent:
         trace: _Trace,
         emit: Emit,
         stop: threading.Event | None,
+        *,
+        steps: int,
     ) -> AskAction:
-        """Spark's turns until it answers (at the latest on its last turn): the answer action."""
-        for k in range(MAX_STEPS + 1):
+        """Spark's turns until it answers (at the latest after `steps` tool turns)."""
+        for k in range(steps + 1):
             if stop is not None and stop.is_set():
                 return AskAction(thought=STOPPED, action="answer", answer=STOPPED)
-            turn, last = len(trace.turns), k == MAX_STEPS
+            turn, last = len(trace.turns), k == steps
             if last:
                 messages.append({"role": "user", "content": "Steps used up: answer now."})
             emit(AskEvent(type="thinking", turn=turn))
@@ -383,7 +442,7 @@ class AskAgent:
                 AskAction(
                     thought=f"Muse Spark did not return a valid step ({type(exc).__name__}).",
                     action="answer",
-                    answer="Sorry, I could not finish working that out. Please ask again.",
+                    answer=APOLOGY,
                 )
             ]
         return turn.actions
@@ -539,12 +598,12 @@ def _final(actions: Sequence[AskAction], *, last: bool) -> AskAction | None:
     return actions[0] if last else None
 
 
-def _models(steps: Sequence[AskStep]) -> list[str]:
-    """Spark, then every other model in the order the steps first used it."""
+def _models(steps: Sequence[AskStep], reviews: Sequence[AskReview] = ()) -> list[str]:
+    """Spark, then every other model in the order the steps first used it, then the reviewer."""
     models = [SPARK_MODEL]
-    for step in steps:
-        if step.model is not None and step.model not in models:
-            models.append(step.model)
+    for name in [s.model for s in steps] + [r.model for r in reviews]:
+        if name and name not in models:
+            models.append(name)
     return models
 
 

@@ -87,6 +87,33 @@ class AskTurnTiming(Frozen):
     actions: int
 
 
+class AskReview(Frozen):
+    """A second model's check of a draft answer against its trace (add-on 2.7).
+
+    Attributes:
+        verdict: `accept`, `revise` (sent back to Spark once), or `error` (the review failed and
+            the draft stood).
+        problems: What the reviewer found wrong or missing.
+        advice: What it told Spark to check or change.
+        draft: The draft it reviewed.
+        turn: The turn whose answer it reviewed.
+        model: The reviewing model.
+        seconds: How long the review took.
+        reasoning_ref: Id of the reviewer's stored reasoning (`data/reasoning/<id>.txt`).
+        detail: Why the review failed (for `error`).
+    """
+
+    verdict: Literal["accept", "revise", "error"]
+    problems: list[str] = Field(default_factory=list)
+    advice: str = ""
+    draft: str = ""
+    turn: int = 0
+    model: str = ""
+    seconds: float = 0.0
+    reasoning_ref: str | None = None
+    detail: str | None = None
+
+
 class AskAnswer(Frozen):
     """The answer to an owner's question, with every step that led to it.
 
@@ -101,6 +128,7 @@ class AskAnswer(Frozen):
         numbers: The numbers the answer gives, in the order asked (for grading without prose).
         prompt_sha256: SHA-256 of the instructions the models got (prompt and schema).
         receipt: SHA-256 of this answer's row in the hash-chained run log (empty if unlogged).
+        reviews: The second model's checks of the drafts, in order (empty when off).
     """
 
     question: str
@@ -113,9 +141,12 @@ class AskAnswer(Frozen):
     numbers: list[float | None] = Field(default_factory=list)
     prompt_sha256: str = ""
     receipt: str = ""
+    reviews: list[AskReview] = Field(default_factory=list)
 
 
-EventType = Literal["start", "thinking", "actions", "step", "answer", "error"]
+EventType = Literal[
+    "start", "thinking", "actions", "step", "reviewing", "review", "answer", "error"
+]
 
 
 class AskEvent(Frozen):
@@ -126,6 +157,8 @@ class AskEvent(Frozen):
     - `actions`: it chose `actions` in `seconds`;
     - `step`: action `index` of turn `turn` finished (`step`); a turn's steps can finish in any
       order;
+    - `reviewing`: a second model is checking turn `turn`'s draft answer;
+    - `review`: its `review` (a `revise` sends the draft back: more turns follow);
     - `answer`: the final `answer`, with the whole trace;
     - `error`: answering failed (`detail`).
     """
@@ -138,4 +171,5 @@ class AskEvent(Frozen):
     actions: list[AskAction] = Field(default_factory=list)
     step: AskStep | None = None
     answer: AskAnswer | None = None
+    review: AskReview | None = None
     detail: str | None = None

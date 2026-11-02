@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 
 import {
   frameUrl,
@@ -8,6 +8,7 @@ import {
   toolLabel,
   type ActionView,
   type AskAnswer,
+  type AskReview,
   type AskStep,
   type Exchange,
   type TurnView,
@@ -223,14 +224,65 @@ function AnswerView({ answer }: { answer: AskAnswer }) {
   );
 }
 
-/** One question and its live timeline: Spark's turns, each turn's tools, then the answer. */
+const REVIEW_LABEL: Record<AskReview["verdict"], string> = {
+  accept: "accepted the answer",
+  revise: "sent the answer back to Muse Spark",
+  error: "could not review (the answer stands)",
+};
+
+/** Muse Spark Open's check of a draft: its verdict, problems and advice, and the draft itself. */
+function ReviewRow({ review }: { review: AskReview }) {
+  return (
+    <li className={`ask-review ask-review-${review.verdict}`} data-testid="ask-review">
+      <div className="ask-turn-head">
+        <strong>Review</strong>
+        <span className="muted">
+          {" "}
+          · {review.model || "second model"} {REVIEW_LABEL[review.verdict]} ·{" "}
+          {review.seconds.toFixed(1)} s
+        </span>
+      </div>
+      {review.problems.length > 0 && (
+        <ul className="ask-review-problems">
+          {review.problems.map((p, k) => (
+            <li key={k}>{p}</li>
+          ))}
+        </ul>
+      )}
+      {review.advice && review.verdict === "revise" && <p className="muted">{review.advice}</p>}
+      {review.detail && <p className="muted">{review.detail}</p>}
+      {review.verdict === "revise" && review.draft && (
+        <details>
+          <summary>Draft it sent back</summary>
+          <p className="ask-answer-text">{review.draft}</p>
+        </details>
+      )}
+    </li>
+  );
+}
+
+/** One question and its live timeline: Spark's turns, each turn's tools, reviews, the answer. */
 export function AskTimeline({ exchange }: { exchange: Exchange }) {
   return (
     <article className="ask-exchange" data-testid="ask-exchange">
       <h3 className="ask-question">{exchange.question}</h3>
       <ol className="ask-turns">
         {exchange.turns.map((turn) => (
-          <TurnRow key={turn.turn} turn={turn} />
+          <Fragment key={turn.turn}>
+            <TurnRow turn={turn} />
+            {exchange.reviews
+              .filter((r) => r.turn === turn.turn)
+              .map((review, k) => (
+                <ReviewRow key={`review-${k}`} review={review} />
+              ))}
+            {exchange.reviewing === turn.turn && (
+              <li className="ask-review ask-review-running" data-testid="ask-reviewing">
+                <span className="muted">
+                  Muse Spark Open is checking the answer against the steps…
+                </span>
+              </li>
+            )}
+          </Fragment>
         ))}
       </ol>
       {exchange.answer && <AnswerView answer={exchange.answer} />}

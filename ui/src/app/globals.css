@@ -1236,6 +1236,24 @@ button.num-hidden,
   white-space: pre-wrap;
   margin: 0 0 4px;
 }
+.ask-review {
+  padding: 6px 8px;
+  border-left: 4px dashed var(--line);
+  min-width: 0;
+}
+.ask-review-accept {
+  border-left-color: var(--live);
+}
+.ask-review-revise {
+  border-left-color: var(--medium);
+}
+.ask-review-running {
+  border-left-color: var(--replay);
+}
+.ask-review-problems {
+  margin: 4px 0;
+  padding-left: 18px;
+}
 .ask-error {
   color: var(--high);
 }

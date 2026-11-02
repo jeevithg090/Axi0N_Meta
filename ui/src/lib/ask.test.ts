@@ -48,6 +48,31 @@ describe("parseSse", () => {
 });
 
 describe("askReducer", () => {
+  it("tracks a review in progress, then the review, then the answer's reviews", () => {
+    const review = {
+      verdict: "revise" as const,
+      problems: ["counts a cut result"],
+      advice: "page the rows",
+      draft: "Ten.",
+      turn: 0,
+      model: "muse-spark-open",
+      seconds: 4.2,
+    };
+    const events: AskEvent[] = [
+      { type: "thinking", turn: 0 },
+      { type: "actions", turn: 0, actions: [{ thought: "d", action: "answer", answer: "Ten." }] },
+      { type: "reviewing", turn: 0 },
+    ];
+    const reviewing = events.reduce(askReducer, newExchange("q"));
+    expect(reviewing.reviewing).toBe(0);
+    const reviewed = askReducer(reviewing, { type: "review", turn: 0, review });
+    expect(reviewed.reviewing).toBeNull();
+    expect(reviewed.reviews).toEqual([review]);
+    const done = askReducer(reviewed, { type: "answer", answer: { ...answer, reviews: [review] } });
+    expect(done.reviews).toEqual([review]);
+    expect(isRunning(done)).toBe(false);
+  });
+
   it("builds the timeline turn by turn, steps finishing in any order", () => {
     const events: AskEvent[] = [
       { type: "start", conversation_id: "abc" },

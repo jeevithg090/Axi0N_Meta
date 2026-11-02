@@ -18,6 +18,7 @@ export interface AskAction {
   question?: string | null;
   marks?: boolean;
   answer?: string | null;
+  numbers?: (number | null)[];
 }
 
 /** What one action did: its result, seconds, the model that ran it and the frames it saw. */
@@ -37,6 +38,19 @@ export interface AskTurnTiming {
   actions: number;
 }
 
+/** A second model's check of a draft answer (Muse Spark Open; `revise` sends it back once). */
+export interface AskReview {
+  verdict: "accept" | "revise" | "error";
+  problems: string[];
+  advice: string;
+  draft: string;
+  turn: number;
+  model: string;
+  seconds: number;
+  reasoning_ref?: string | null;
+  detail?: string | null;
+}
+
 export interface AskAnswer {
   question: string;
   answer: string;
@@ -51,9 +65,19 @@ export interface AskAnswer {
   prompt_sha256?: string;
   /** SHA-256 of this answer's row in the hash-chained run log (empty if unlogged). */
   receipt?: string;
+  /** The second model's checks of the drafts, in order. */
+  reviews?: AskReview[];
 }
 
-export type AskEventType = "start" | "thinking" | "actions" | "step" | "answer" | "error";
+export type AskEventType =
+  | "start"
+  | "thinking"
+  | "actions"
+  | "step"
+  | "reviewing"
+  | "review"
+  | "answer"
+  | "error";
 
 export interface AskEvent {
   type: AskEventType;
@@ -64,6 +88,7 @@ export interface AskEvent {
   actions?: AskAction[];
   step?: AskStep | null;
   answer?: AskAnswer | null;
+  review?: AskReview | null;
   detail?: string | null;
 }
 
@@ -91,12 +116,23 @@ export interface Exchange {
   question: string;
   conversationId: string | null;
   turns: TurnView[];
+  /** The second model's reviews so far, and the turn it is reviewing now (or null). */
+  reviews: AskReview[];
+  reviewing: number | null;
   answer: AskAnswer | null;
   error: string | null;
 }
 
 export function newExchange(question: string, conversationId: string | null = null): Exchange {
-  return { question, conversationId, turns: [], answer: null, error: null };
+  return {
+    question,
+    conversationId,
+    turns: [],
+    reviews: [],
+    reviewing: null,
+    answer: null,
+    error: null,
+  };
 }
 
 /** Whether an exchange is still being answered. */
@@ -142,9 +178,19 @@ export function askReducer(exchange: Exchange, event: AskEvent): Exchange {
         );
         return { ...t, actions, status: settled(actions) ? "done" : t.status };
       });
+    case "reviewing":
+      return { ...exchange, reviewing: turn };
+    case "review":
+      return {
+        ...exchange,
+        reviewing: null,
+        reviews: event.review ? [...exchange.reviews, event.review] : exchange.reviews,
+      };
     case "answer":
       return {
         ...exchange,
+        reviewing: null,
+        reviews: event.answer?.reviews ?? exchange.reviews,
         answer: event.answer ?? null,
         conversationId: event.answer?.conversation_id ?? exchange.conversationId,
         turns: exchange.turns.map((t) => ({ ...t, status: "done" })),

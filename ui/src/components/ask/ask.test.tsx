@@ -89,4 +89,34 @@ describe("AskTimeline", () => {
     expect(answer).toContain("muse-spark-1.3, sam-3.1");
     expect(answer).toContain("receipt 0123456789ab");
   });
+
+  it("shows a review that sent the draft back, with its problems and the draft", () => {
+    const review = {
+      verdict: "revise" as const,
+      problems: ["contradicts the earlier answer"],
+      advice: "explain the difference",
+      draft: "Ten people.",
+      turn: 0,
+      model: "muse-spark-open",
+      seconds: 3.1,
+    };
+    const evts: AskEvent[] = [
+      { type: "thinking", turn: 0 },
+      {
+        type: "actions",
+        turn: 0,
+        actions: [{ thought: "d", action: "answer", answer: "Ten people." }],
+      },
+      { type: "reviewing", turn: 0 },
+    ];
+    const running = evts.reduce(askReducer, newExchange("How many?"));
+    const { rerender } = render(<AskTimeline exchange={running} />);
+    expect(screen.getByTestId("ask-reviewing").textContent).toContain("Spark Open");
+    rerender(<AskTimeline exchange={askReducer(running, { type: "review", turn: 0, review })} />);
+    const row = screen.getByTestId("ask-review").textContent ?? "";
+    expect(row).toContain("sent the answer back");
+    expect(row).toContain("contradicts the earlier answer");
+    expect(row).toContain("Ten people.");
+    expect(screen.queryByTestId("ask-reviewing")).toBeNull();
+  });
 });

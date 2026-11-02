@@ -302,3 +302,130 @@ Three of them refuse to produce figures rather than produce weak ones:
   apart from "reports something confident every time".
 - **E5-lite** compares only clip/rule pairs that *both* arms scored, so the difference is
   paired; an arm that could not score a clip is reported as unpaired, not as a wrong answer.
+
+## Tracking on stored tracks: CAVIAR and MOT17 (add-on 1.5)
+
+`rulecam eval run` scores the tracks of clips it plays. These commands score tracks already in a
+track store, such as the 2 Nov corridor test (`phone-68`: seven CAVIAR corridor clips fed once as
+one 9 min 14 s stream from 09:44:11.875 UTC, upscaled 2x, then backfilled).
+
+```bash
+# CAVIAR XML -> MOT gt.txt (several files are chained into one stream, in the order given)
+uv run rulecam eval caviar-mot WalkByShop1cor.xml TwoEnterShop1cor.xml ... --out gt.txt
+
+# HOTA / IDF1 / MOTA of the stored tracks: raw ByteTrack ids, and (with --identities) the
+# DINOv2 identities the Ask identity job linked them into, reported as separate rows
+ulimit -n 65536   # the live store has many small Parquet files
+uv run rulecam eval track --store data/tracks --camera phone-68 \
+  --start 2026-11-02T09:44:11.875Z --scale 0.5 \
+  --caviar WalkByShop1cor.xml --caviar TwoEnterShop1cor.xml ... \
+  --identities data/ask/identity/track_identity.jsonl --out reports/eval/corridor-tracking.json
+```
+
+A point's stream second is its time since `--start`, so it lands on MOT frame
+`round(s * 25) + 1`; `--scale 0.5` maps the 768x576 stored boxes back onto CAVIAR's 384x288.
+Only frames the runtime tracked are scored (as in `eval run`). Tracks the identity job has not
+linked keep their own id in the re-ID row, and the report says how many there were.
+
+**Cross-check against TrackEval** (the MOTChallenge reference implementation) on one clip of
+the stream, on the same frames; the two should agree to rounding:
+
+```bash
+uv run --with git+https://github.com/JonathonLuiten/TrackEval \
+  python scripts/eval/trackeval_crosscheck.py --store data/tracks --camera phone-68 \
+  --start 2026-11-02T09:44:11.875Z --scale 0.5 --segment TwoEnterShop1cor \
+  --caviar WalkByShop1cor.xml TwoEnterShop1cor.xml ... --out reports/eval/trackeval-check.json
+```
+
+**MOT17 train** (`scripts/eval/mot17.py`): downloads MOT17 (about 5.5 GB) once, tracks the seven
+training sequences with the runtime's own image tracker (SAM 3.1 keyframes + ByteTrack) into a
+separate store, and scores them with our scorer and, when installed, TrackEval. It needs the SAM
+endpoint, so it runs on the API pod. Only keyframes are scored, so use `--keyframe-fps 10` and
+read the numbers as keyframe-rate tracking, not as a full-frame MOT17 submission.
+
+## CAVIAR events: rule accuracy on someone else's labels (add-on 1.3)
+
+`eval/clips/caviar_*` turns CAVIAR's own activity labels into events for four plain-language
+rules (`src/rulecam/eval/caviar_events.py`); `scripts/eval/caviar_clips.py` writes the entries:
+
+| Rule id | Request | Labels | Clips |
+|---|---|---|---|
+| `caviar_fall` | Tell me if anyone falls down or ends up lying on the floor. | "fall", "fell", "down" | Rest_FallOnFloor, Fight_OneManDown; negative: Rest_InChair, Browse1 |
+| `caviar_fight` | Alert me if people start fighting or someone is being attacked. | "fight" | Fight_RunAway1/2, Fight_OneManDown, Fight_Chase; negative: Meet_WalkTogether1, Browse1 |
+| `caviar_left_bag` | Warn me when a bag or box is left behind with nobody looking after it. | left / abandoned object | LeftBag, LeftBag_AtChair, LeftBag_BehindChair, LeftBox, LeftBag_PickedUp; negative: Browse1 |
+| `caviar_shop_enter` | Let me know each time someone walks into one of the shops. | situation "shop enter" | the 7 corridor clips of the 2 Nov test (19 events) |
+
+An event is the span during which some person or group carries a matching label (gaps under
+1 s closed, people merged, at least 1 s long). The 7 corridor clips are labelled and runnable now
+(video pinned by URL + sha256, each with a MOT `gt.txt` so `--track-store` also gives HOTA/IDF1).
+The 13 INRIA lobby clips are placeholders until their labels and video are downloaded:
+
+```bash
+uv run python scripts/eval/caviar_clips.py inria --src data/caviar/inria --fetch  # labels + video
+uv run rulecam eval validate                                     # every caviar_* clip validates
+make eval-caviar TRACK_STORE=/workspace/rulecam/data/tracks      # on the API pod: all caviar_* clips
+```
+
+A label vocabulary that does not match (the script refuses a positive clip with no matching
+label, and a negative control with any) is checked with
+`scripts/eval/caviar_clips.py inventory <file.xml>`; change the event type's needles, not the
+labels.
+
+## Labelled verifier set (add-on 1.4)
+
+The 1 Nov campaign has 29 Glimmer verdicts (27 from run 2, 2 from run 1); their strips are on the
+API pod under `data/strips/<camera>/<event>/`. Nobody has labelled them, so Tier 1 accuracy
+(target ≥ 90 %) is unmeasured.
+
+```bash
+# on the API pod: copy the strips into a blind sheet (shuffled, neutral ids v01..v29)
+uv run rulecam eval verifier-sheet --strips data/strips --out data/verifier-sheet
+# hand data/verifier-sheet/ (minus key.json) to two people; each opens index.html, labels every
+# item violation / no violation / unsure from the frames alone, and sends back labels-<name>.csv
+uv run rulecam eval verifier-score labels-alice.csv labels-bob.csv \
+  --key data/verifier-sheet/key.json --out reports/eval/verifier-labels.json
+# 6 blurred frames at 640 px vs 8 raw at 960 px on the same strips (calls Glimmer, ~58 calls)
+uv run python scripts/eval/verifier_replay.py --key data/verifier-sheet/key.json \
+  --strips data/strips --out reports/eval/verifier-replay.jsonl --labels labels-alice.csv labels-bob.csv
+```
+
+The viewer shows the request and the frames only; Glimmer's verdict, score and reason are in
+`key.json`. The score reports Glimmer's accuracy against each labeller and against their
+consensus (items both labelled the same decisive way; a Glimmer `unsure` there counts as not
+correct, and accuracy among its decisive answers is reported too), with a Wilson 95 % interval,
+the `unsure` rates, raw agreement and Cohen's kappa. The `blur6_640` strips are built from the
+raw ones (6 of 8 frames, scaled to 640 px with the annotation band, faces blurred with YuNet when
+`RULECAM_FACE_MODEL` is set), not re-rendered from the chunks.
+
+## Serverless latency and cold starts (add-on 1.6)
+
+Every latency figure in the 1 Nov reports predates the move of SAM 3.1 and Glimmer to RunPod
+serverless load balancers. `scripts/eval/serverless_load.py` replays recorded inputs in bursts of
+1, 5 and 20 alert jobs, **cold** (both endpoints scaled to zero first) and **warm** (straight
+after): an alert job is a chunk's 6 keyframes to SAM's `/segment_image`, then an evidence strip
+to Glimmer's `/chat/completions`. It reports p50 / p95 per stage (`sam`, `glimmer`, `total`) and
+dollars per verified alert at $1.34/h per running RTX 4090 worker.
+
+```bash
+# on the API pod (same data center as the endpoints); URLs and keys from the environment only
+set -a; . ./.env; set +a
+export SAM_EDGE_KEY=$(cat .sam_edge_key) GLIMMER_EDGE_KEY=$(cat .glimmer_edge_key)
+export RUNPOD_API_KEY=...   # optional: measured worker time, and waiting until truly cold
+uv run python scripts/eval/serverless_load.py --strips data/strips --chunks data/chunks \
+  --out reports/eval/$(date +%F)-serverless-load
+```
+
+With `RUNPOD_API_KEY` the script samples each endpoint's worker count (`/v2/<id>/health`, which
+does not wake workers) every 5 s and bills initializing + idle + running workers; without it,
+worker time is a lower bound (the union of request time per endpoint plus one 300 s idle tail)
+and the report says `estimate`. A cold burst waits until both endpoints report no worker (or
+330 s without the key). Expect 20 to 30 minutes and a few dollars for the full run.
+
+## README and RESULTS numbers (add-on 1.1)
+
+The results tables in `README.md` and `eval/RESULTS.md` are generated: each row is a fact in
+`eval/results.yaml` (a result file under `reports/eval/` and a path to the number in it), shown
+with its run, date and the commit that added the file. After a new result file lands, add facts
+for it and run `uv run rulecam eval results` (`--check` only reports staleness).
+`tests/eval/test_results_doc.py` fails when a number in either table is not in the file its row
+cites, or when the tables no longer match the facts.

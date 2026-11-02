@@ -71,7 +71,7 @@ During the judging and community voting window, P2 coordinates **1 hour per day*
    - Render the resulting SVG/PNG Rule Card or Declined Card using `rulecam.cards.build`.
    - Reply directly to the tweet with the generated card image and the exact clause grounding.
 2. **When someone asks about privacy or surveillance**:
-   - Reply with the architectural invariant: *"Rulecam only evaluates station-level predicates. It has no face recognition, no person re-identification, and discards all worker voice audio immediately upon transcription."*
+   - Reply with what the code does (README, "What we claim, and what we don't"): *"Rulecam has no face recognition. By default it blurs faces in evidence, keeps no person pixels in its anonymous modes and re-identifies no one. Our hackathon deployment runs prototype mode, which is different: the verifier sees raw frames, and the Ask feature links a person's track fragments by appearance (body crops, never faces, never names) so an owner can ask about visitors and dwell time. Worker voice audio is discarded immediately upon transcription."*
 3. **When someone asks about hard-coded demos**:
    - Point to `plans/heldout/`: 60 independently published plans across 20 outside requests proving zero per-use-case hardcoding.
 

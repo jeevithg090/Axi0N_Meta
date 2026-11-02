@@ -16,3 +16,7 @@ rules:
   - id: forklift_4m
     request: Keep people at least 4 metres away from a moving forklift.
     status: unlabelled
+  - id: forklift_4m_es  # the 1 Nov campaign's T03: the 4 m rule asked in Spanish
+    request: Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento.
+    lang: es
+    status: unlabelled

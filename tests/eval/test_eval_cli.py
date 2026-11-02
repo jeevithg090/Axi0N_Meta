@@ -25,7 +25,7 @@ def test_validate_the_seed_set() -> None:
     result = cli.invoke(app, ["eval", "validate", "--set", str(SEED)])
     assert result.exit_code == 0, result.output
     assert "warehouse_45848: forklift_2m=negative" in result.output
-    assert "4 runnable" in result.output
+    assert "11 runnable" in result.output  # 4 stock clips + 7 CAVIAR corridor clips
 
 
 def test_validate_reports_errors(tmp_path: Path) -> None:

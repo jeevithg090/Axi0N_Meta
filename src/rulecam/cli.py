@@ -21,6 +21,8 @@ from rulecam.replay.cache import ReplayCache
 from rulecam.replay.golden import GoldenRunner
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from rulecam.advisor.seal import SealBox
     from rulecam.eval.schema import EvalSet
     from rulecam.eval.score import EvalReport
@@ -99,6 +101,34 @@ def golden_verify(
     typer.echo(f"{scenario}: {report.steps - len(report.diffs)}/{report.steps} steps reproduced")
     if not report.ok:
         raise typer.Exit(code=1)
+
+
+@golden_app.command("gate")
+def golden_gate(
+    scenario: Annotated[
+        list[str] | None, typer.Argument(help="Scenario names (default: all)")
+    ] = None,
+    *,
+    scenarios_dir: Annotated[Path, typer.Option(help="Scenario directory")] = SCENARIOS_DIR,
+) -> None:
+    """Re-score every golden run (`eval score`) and fail if a `demo.score` gate is broken."""
+    from rulecam.demo.gate import gate_all  # noqa: PLC0415
+
+    results = gate_all(scenarios_dir, scenario)
+    for result in results:
+        score = result.score
+        summary = (
+            f"alerts {score.get('alerts')}, tier1 {score.get('tier1')}, "
+            f"false alerts on negative {score.get('false_alerts_on_negative')}"
+        )
+        typer.echo(f"{'✓' if result.ok else '✗'} {result.scenario}: {summary}")
+        for failure in result.failures:
+            typer.echo(f"    {failure}")
+    if not results:
+        typer.echo(f"no scenario under {scenarios_dir}", err=True)
+        raise typer.Exit(code=USAGE_ERROR)
+    if not all(r.ok for r in results):
+        raise typer.Exit(code=AUDIT_FAILED)
 
 
 @golden_app.command("capture")
@@ -425,6 +455,7 @@ def eval_run(
     survey_s: Annotated[float, typer.Option(help="Seconds fed before the request")] = 80.0,
     plan_timeout_s: Annotated[float, typer.Option(help="How long the planner may take")] = 900.0,
     include_unlabelled: Annotated[bool, typer.Option(help="Also run unlabelled rules")] = False,
+    rule: Annotated[list[str] | None, typer.Option(help="Only these rule ids")] = None,
     bus: Annotated[bool, typer.Option(help="Listen on /ws for alert times")] = True,
     track_store: Annotated[Path | None, typer.Option(help="The API's track store")] = None,
     cache_dir: Annotated[Path, typer.Option(help="Git-ignored clip cache")] = EVAL_CACHE,
@@ -467,6 +498,7 @@ def eval_run(
             work_dir=cache_dir / "chunks",
             runs_dir=runs_dir,
             include_unlabelled=include_unlabelled,
+            rules=rule or (),
         )
     finally:
         client.close()
@@ -572,6 +604,222 @@ def eval_ask(
     json_path, md_path = save_benchmark(benchmark, out)
     typer.echo(render_markdown(benchmark))
     typer.echo(f"wrote {json_path} and {md_path}")
+
+
+@eval_app.command("caviar-mot")
+def eval_caviar_mot(
+    xml: Annotated[list[Path], typer.Argument(help="CAVIAR ground-truth XML, in stream order")],
+    *,
+    out: Annotated[Path, typer.Option(help="MOT gt.txt to write")] = Path("gt.txt"),
+) -> None:
+    """Convert CAVIAR XML to MOT gt.txt; several files are chained into one stream in order."""
+    from rulecam.eval.caviar import chain_mot, load_caviar  # noqa: PLC0415
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+
+    try:
+        rows, segments = chain_mot([load_caviar(path) for path in xml])
+    except EvalError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("".join(r + "\n" for r in rows), encoding="utf-8")
+    for seg in segments:
+        typer.echo(
+            f"{seg.name}: frames {seg.first_frame}-{seg.first_frame + seg.frames - 1}, "
+            f"{seg.start_s:.1f}-{seg.end_s:.1f} s"
+        )
+    typer.echo(f"wrote {len(rows)} rows to {out}")
+
+
+def _parse_utc(value: str) -> datetime:
+    from datetime import UTC, datetime  # noqa: PLC0415
+
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        typer.echo(f"not an ISO time: {value!r}", err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+@eval_app.command("track")
+def eval_track(
+    *,
+    store: Annotated[Path, typer.Option(help="Track store root (data/tracks)")],
+    camera: Annotated[str, typer.Option(help="Camera the stream was fed as")],
+    start: Annotated[str, typer.Option(help="Camera time of the stream's first frame (ISO)")],
+    gt: Annotated[Path | None, typer.Option(help="MOT gt.txt of the stream")] = None,
+    caviar: Annotated[
+        list[Path] | None, typer.Option(help="CAVIAR XML instead of --gt (repeat, stream order)")
+    ] = None,
+    end: Annotated[str | None, typer.Option(help="Stream end (default: start + GT length)")] = None,
+    fps: Annotated[float, typer.Option(help="Ground-truth frame rate")] = 25.0,
+    scale: Annotated[float, typer.Option(help="Stored px -> GT px (0.5 for a 2x upscale)")] = 1.0,
+    concept: Annotated[str, typer.Option(help="GT class 1 is this concept")] = "person",
+    identities: Annotated[
+        Path | None, typer.Option(help="track_identity.jsonl (data/ask/identity) for re-ID ids")
+    ] = None,
+    out: Annotated[Path | None, typer.Option(help="Write the JSON report here")] = None,
+) -> None:
+    """Score a camera's stored tracks (HOTA, IDF1, MOTA), raw ids and re-ID identities apart."""
+    from datetime import timedelta  # noqa: PLC0415
+
+    from rulecam.eval.caviar import chain_mot, load_caviar  # noqa: PLC0415
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+    from rulecam.eval.tracking import parse_mot  # noqa: PLC0415
+    from rulecam.eval.trackstore import load_identities, render_markdown, score_store  # noqa: PLC0415
+    from rulecam.rules.store import ParquetTrackStore  # noqa: PLC0415
+
+    if (gt is None) == (not caviar):
+        typer.echo("give exactly one of --gt or --caviar", err=True)
+        raise typer.Exit(code=USAGE_ERROR)
+    t0 = _parse_utc(start)
+    try:
+        if caviar:
+            rows, _ = chain_mot([load_caviar(path) for path in caviar])
+        else:
+            assert gt is not None  # noqa: S101 - checked above
+            rows = gt.read_text(encoding="utf-8").splitlines()
+        truth = parse_mot(rows, {1: concept})
+        last = max((f for frames in truth.values() for f in frames), default=1)
+        t1 = _parse_utc(end) if end else t0 + timedelta(seconds=last / fps)
+        with ParquetTrackStore(store) as tracks:
+            report = score_store(
+                tracks,
+                truth,
+                camera_id=camera,
+                start=t0,
+                end=t1,
+                fps=fps,
+                scale=(scale, scale),
+                identities=load_identities(identities) if identities else None,
+            )
+    except (EvalError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    typer.echo(render_markdown(report))
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(report.to_json(), encoding="utf-8")
+        typer.echo(f"wrote {out}")
+
+
+README_INTRO = (
+    "Measured on the deployed stack and on public hand-labelled footage. Each row is read from "
+    "the result file it cites by `uv run rulecam eval results`, with its run, date and the "
+    "commit that recorded it; a test fails if a number here is not in that file. Rule accuracy "
+    "on labelled clips, the verifier against human labels, tracking scores and serverless "
+    "latency are not measured yet: see [`eval/RESULTS.md`](eval/RESULTS.md) and "
+    "[`eval/README.md`](eval/README.md)."
+)
+RESULTS_INTRO = (
+    "Every number below is read from the result file its row cites (`uv run rulecam eval "
+    "results`, facts in `eval/results.yaml`), with the run, the date and the commit that "
+    "recorded the file. The formal evaluations further down have not been run yet."
+)
+
+
+@eval_app.command("results")
+def eval_results(
+    *,
+    facts: Annotated[Path, typer.Option(help="The facts file")] = Path("eval/results.yaml"),
+    readme: Annotated[Path, typer.Option(help="README with RESULTS markers")] = Path("README.md"),
+    results: Annotated[Path, typer.Option(help="RESULTS.md with markers")] = Path(
+        "eval/RESULTS.md"
+    ),
+    check: Annotated[bool, typer.Option(help="Only report whether the files are current")] = False,
+) -> None:
+    """Regenerate the README and RESULTS.md results tables from reports/eval/*.json."""
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+    from rulecam.eval.results_doc import load_facts, render_section, splice  # noqa: PLC0415
+
+    try:
+        found = load_facts(facts, Path.cwd())
+        targets = [
+            (readme, splice(readme.read_text("utf-8"), render_section(found, README_INTRO))),
+            (
+                results,
+                splice(
+                    results.read_text("utf-8"), render_section(found, RESULTS_INTRO), prefix="../"
+                ),
+            ),
+        ]
+    except (EvalError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    stale = [path for path, text in targets if path.read_text("utf-8") != text]
+    if check:
+        for path in stale:
+            typer.echo(f"{path} is out of date: run `uv run rulecam eval results`", err=True)
+        raise typer.Exit(code=AUDIT_FAILED if stale else 0)
+    for path, text in targets:
+        path.write_text(text, encoding="utf-8")
+    typer.echo(f"{len(found)} numbers written to {readme} and {results}")
+
+
+CAMPAIGN = (
+    "run1=reports/eval/2026-11-01-live-test-campaign-run1.json",
+    "run2=reports/eval/2026-11-01-live-test-campaign.json",
+)
+
+
+@eval_app.command("verifier-sheet")
+def eval_verifier_sheet(
+    *,
+    campaign: Annotated[
+        list[str] | None, typer.Option(help="NAME=campaign.json (repeat; default: both 1 Nov runs)")
+    ] = None,
+    strips: Annotated[Path, typer.Option(help="The API's strip folder")] = Path("data/strips"),
+    out: Annotated[Path, typer.Option(help="Sheet folder")] = Path("data/verifier-sheet"),
+    seed: Annotated[int, typer.Option(help="Shuffle seed")] = 1101,
+) -> None:
+    """Write a blind labelling sheet of the campaign's Glimmer verdicts (verdicts hidden)."""
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+    from rulecam.eval.verifier_set import blind, collect_items, write_sheet  # noqa: PLC0415
+
+    runs = []
+    for spec in campaign or CAMPAIGN:
+        name, sep, path = spec.partition("=")
+        if not sep:
+            typer.echo(f"--campaign wants NAME=path, got {spec!r}", err=True)
+            raise typer.Exit(code=USAGE_ERROR)
+        runs.append((name, Path(path)))
+    try:
+        items = blind(collect_items(runs), seed=seed)
+    except EvalError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    done, missing = write_sheet(items, out, strips)
+    typer.echo(f"{len(done)} verdicts -> {out}/index.html and {out}/labels.csv")
+    typer.echo(f"answer key: {out}/key.json (do not show it to the labellers)")
+    if missing:
+        typer.echo(f"no strip found under {strips} for: {', '.join(missing)}", err=True)
+
+
+@eval_app.command("verifier-score")
+def eval_verifier_score(
+    labels: Annotated[list[Path], typer.Argument(help="One or two labellers' CSVs")],
+    *,
+    key: Annotated[Path, typer.Option(help="The sheet's key.json")] = Path(
+        "data/verifier-sheet/key.json"
+    ),
+    out: Annotated[Path | None, typer.Option(help="Write the JSON report here")] = None,
+) -> None:
+    """Score Glimmer's verdicts against the labels: accuracy, unsure rate, Cohen's kappa."""
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+    from rulecam.eval.verifier_set import load_key, read_labels, score_labels  # noqa: PLC0415
+
+    try:
+        verdicts = {item.item: item.verdict for item in load_key(key)}
+        given = {path.stem: read_labels(path) for path in labels}
+    except EvalError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    report = score_labels(verdicts, given)
+    typer.echo(report.to_json())
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(report.to_json(), encoding="utf-8")
 
 
 AUTO_CHECKS = "auto"

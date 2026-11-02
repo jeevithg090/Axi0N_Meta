@@ -1,0 +1,12 @@
+# PLACEHOLDER for CAVIAR Meet_WalkTogether1: `scripts/eval/caviar_clips.py inria --src DIR
+# --fetch` downloads its labels and video and replaces this with the labelled entry.
+name: caviar_meet_walk_together1
+description: 'Two people meet and walk on (no fight). Video: https://groups.inf.ed.ac.uk/vision/DATASETS/CAVIAR/CAVIARDATA1/Meet_WalkTogether1/Meet_WalkTogether1.mpg'
+camera_id: caviar-inria-lobby
+license: 'CAVIAR project (EC IST 2001 37540), University of Edinburgh: publicly available for research;
+  cite the CAVIAR project'
+placeholder: true
+rules:
+- id: caviar_fight
+  request: Alert me if people start fighting or someone is being attacked.
+  status: unlabelled

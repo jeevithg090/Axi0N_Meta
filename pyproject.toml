@@ -126,6 +126,7 @@ disallow_untyped_defs = false
 module = [
   "cv2.*", "kasa.*", "modal.*", "transformers.*", "duckdb.*", "shapely.*",
   "qrcode.*", "ultralytics.*", "onnxruntime.*", "playwright.*", "motmetrics.*", "boxmot.*",
+  "defusedxml.*",
 ]
 ignore_missing_imports = true
 

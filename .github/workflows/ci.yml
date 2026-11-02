@@ -52,6 +52,8 @@ jobs:
           enable-cache: true
       - run: uv sync --group dev
       - run: make golden-verify
+      # Add-on 1.2: gate each golden run's eval score (scenarios/*.yaml `demo.score` gates).
+      - run: make golden-gate
 
   guardrails:
     runs-on: ubuntu-latest

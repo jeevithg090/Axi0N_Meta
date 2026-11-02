@@ -1,0 +1,333 @@
+{
+ "date": "2026-11-02",
+ "source": "CAVIAR (University of Edinburgh), shopping-centre corridor view, CC BY-SA",
+ "camera_id": "phone-68",
+ "stream_start_utc": "2026-11-02T09:44:11.875Z",
+ "ground_truth": {
+  "stream_s": 553.6,
+  "visits": 80,
+  "entered_shop": 24,
+  "left_shop": 18,
+  "browsed_or_window_shopped": 13,
+  "in_view_s_mean": 25.1,
+  "in_view_s_median": 16.7,
+  "in_view_s_max": 93.4,
+  "peak_people_at_once": 8,
+  "peak_first_at_s": 316.5,
+  "peak_seconds": 2.04,
+  "mean_people_in_view": 3.62,
+  "segments": [
+   {
+    "clip": "WalkByShop1cor",
+    "start_s": 0.0,
+    "end_s": 94.4
+   },
+   {
+    "clip": "TwoEnterShop1cor",
+    "start_s": 94.4,
+    "end_s": 160.2
+   },
+   {
+    "clip": "ShopAssistant2cor",
+    "start_s": 160.2,
+    "end_s": 308.2
+   },
+   {
+    "clip": "ThreePastShop1cor",
+    "start_s": 308.2,
+    "end_s": 374.2
+   },
+   {
+    "clip": "OneStopEnter2cor",
+    "start_s": 374.2,
+    "end_s": 483.2
+   },
+   {
+    "clip": "OneShopOneWait1cor",
+    "start_s": 483.2,
+    "end_s": 538.3
+   },
+   {
+    "clip": "EnterExitCrossingPaths1cor",
+    "start_s": 538.3,
+    "end_s": 553.6
+   }
+  ]
+ },
+ "perception_score": {
+  "seconds_compared": 537,
+  "count_error_mean": 1.13,
+  "count_error_mean_abs": 1.44,
+  "exact_share": 0.227,
+  "within_one_share": 0.534,
+  "system_mean_in_view": 4.93,
+  "truth_mean_in_view_compared_seconds": 3.8,
+  "system_peak": {
+   "count": 10,
+   "at_s": 293
+  },
+  "truth_peak": {
+   "count": 8,
+   "at_s": 316.5
+  },
+  "spot_counts": [
+   {
+    "at_s": 60,
+    "system": 6,
+    "truth": 5
+   },
+   {
+    "at_s": 200,
+    "system": 3,
+    "truth": 1
+   },
+   {
+    "at_s": 316,
+    "system": 9,
+    "truth": 8
+   },
+   {
+    "at_s": 500,
+    "system": 2,
+    "truth": 4
+   }
+  ],
+  "person_tracks": 416,
+  "person_identities": 39,
+  "identity_span_s": {
+   "mean": 276.7,
+   "median": 276.4,
+   "max": 563.4
+  }
+ },
+ "backfill": {
+  "chunks": 185,
+  "points": 5301,
+  "seconds": 409
+ },
+ "runs": {
+  "run1_no_tracks": [
+   {
+    "id": "C01",
+    "question": "How many people walked through the shopping centre corridor between 9:44 and 9:54 am?",
+    "answer": "Between 9:44am and 9:54am on 2 Nov the shopping centre corridor (phone-68) was quiet and low-traffic.\n\nI cannot give an exact unique total for \"how many walked through\" because this camera has no tracked-object / identity data stored for that period (track tables are empty for phone-68), so entries vs passers-by cannot be de-duplicated.\n\nWhat was recorded (coverage is 09:44:10 to 09:53:39, so up to ~09:53:40, not the full minute to 09:54):\n- Instantaneous occupancy: 1 to 8 people visible at a time. My frame checks: 6 at 09:44:15, 8 at 09:46:00, 4 at 09:48:00, 8 at 09:50:00, 1 at 09:52:00, 6 at 09:53:30.\n- Caption logs for the same window typically report 4-6 people, occasionally 7-11 when far-background figures are included.\n\nAll visible figures are described as customers walking through in both directions; no queues, carts/trolleys or clearly identifiable staff.\n\nHow I got this: checked track tables (no data) then counted persons on 6 frames and cross-checked the 10-sec caption people-counts - medium confidence for occupancy level, low confidence for any total-throughflow number.",
+    "seconds": 42.5,
+    "steps": 4,
+    "models": [
+     "muse-spark-1.3",
+     "sam-3.1"
+    ]
+   },
+   {
+    "id": "C02",
+    "question": "How many people went into a shop from the corridor?",
+    "answer": "No one — 0 people — were seen going into a shop from the shopping centre corridor (camera phone-68) during the recorded period 09:44-09:53 UTC on 2 Nov 2026 (~9.5 minutes). Everyone visible was just walking through the corridor in either direction, with no one entering/exiting a doorway or stopping at a window. How I got it: I searched all corridor captions for entering/exiting and visually checked 6 frames spread across the whole recording — both say zero; fairly confident for this short window, but it only covers what was recorded.",
+    "seconds": 36.2,
+    "steps": 4,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C03",
+    "question": "On average, how long did a person stay in view of the corridor camera, and who stayed the longest?",
+    "answer": "For the corridor camera (shopping centre corridor / phone-68) I cannot give a measured average dwell time yet.\n\nRecorded coverage I checked: 2026-11-02 09:44:10 to 09:53:39 UTC (~9.5 min). In that window the object memory has 0 person track_points / track_spans and 0 person identities for phone-68, so there is no average-seconds or longest-identity to report - tracking for this camera is not yet in the tables.\n\nWhat I could check instead:\n- Captions for phone-68 repeatedly say ~5-6 people visible, described as a small group moving through / walking toward or away from the camera.\n- I looked at 5 frames spread across the 9.5 min (09:44:30, 09:47:00, 09:49:30, 09:52:00, 09:53:30): every person visible was walking through the corridor toward or away from the camera; no one was stationary, loitering at a window, or seen in the same spot across frames. That pattern is normal pass-through traffic of seconds to ~1 minute, not long stays.\n\nSo: no one could be identified as the longest stayer from tracks, and visually no long-stayer stands out - all appear to be transient passers-by. Confidence low for a numeric average because it is visual only; once person tracks for phone-68 are processed the average / max seconds can be computed from track_spans / identity_spans.",
+    "seconds": 42.7,
+    "steps": 5,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C04",
+    "question": "When was the corridor busiest, and how many people were there at that moment?",
+    "answer": "The shopping centre corridor camera (phone-68) only covers 09:44 to 09:53 UTC on 2 Nov.\n\nBusiest moment in that window was around 09:46:50 UTC - the 09:46:45 to 09:46:55 caption interval:\n- Temporal memory count: 11 people\n- Second check with detector on that frame: 7 clearly visible people, 7-8 at nearby peaks (09:47:20 = 7, 09:50:05 = 8)\n\nThe difference is far-background / partial figures at the far end and right edge counted in the 11. So about 7-8 clearly visible, up to ~11 including distant partial figures, all customers walking through in both directions. No queue or staff group.\n\nHow I got it: ranked all phone-68 caption people-counts (peak 11), then re-counted the peak frames with the person detector and a visual look - moderate confidence because the corridor has no track data and far figures are hard to separate.",
+    "seconds": 30.6,
+    "steps": 6,
+    "models": [
+     "muse-spark-1.3",
+     "sam-3.1",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C05",
+    "question": "On average, how many people were in the corridor at any one time?",
+    "answer": "On average about 5 people were in the corridor (shopping centre corridor camera) at any one time.\n\nCoverage: 09:44:10 to 09:53:39 UTC on 2 Nov 2026 - about 9.5 minutes.\n\nHow I got it: there is no person-track data for this camera, so I sampled 6 frames spread across the recording and counted people: 6, 5, 5, 9, 2, 4 = average 5.2. As a second check, the corridor captions over the same period average 4.4 people per 10-s clip (23 clips). So ~4-5 people is typical, with a brief peak of 9. Medium confidence - based on sampled frames, not continuous tracking.",
+    "seconds": 19.5,
+    "steps": 4,
+    "models": [
+     "muse-spark-1.3",
+     "sam-3.1"
+    ]
+   },
+   {
+    "id": "C06",
+    "question": "How many people stopped to look at shop windows or browse, instead of just walking past?",
+    "answer": "On the shopping centre corridor camera (phone-68) on 2026-11-02 09:44-09:53 UTC (~9.5 min recorded): 0 people stopped to look at shop windows or browse – everyone visible was just walking past through the corridor. I checked 6 frames spread across the whole recording with visual inspection and cross-checked the 10-second captions for the whole period, which describe all visible figures as customers walking through / in motion, with explicitly \"no one is entering/exiting a shop or stopping at a window\" and \"no one is stopping at windows\". Confidence high for this period; there is no tracking data for this camera to count dwell automatically.",
+    "seconds": 27.7,
+    "steps": 4,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C07",
+    "question": "How many people were in the corridor at 9:45:11 am, at 9:47:31 am and at 9:52:31 am?",
+    "answer": "In the shopping centre corridor (phone-68): 5 people at 9:45:11 am, 3 people at 9:47:31 am, and 2 people at 9:52:31 am on Nov 2 (UTC). Found by direct visual detection on the recorded frames at those exact instants; counts are high-confidence.",
+    "seconds": 10.5,
+    "steps": 2,
+    "models": [
+     "muse-spark-1.3",
+     "sam-3.1"
+    ]
+   },
+   {
+    "id": "C08",
+    "question": "Describe the people who went into shops.",
+    "answer": "On the shopping centre corridor camera (phone-68) covering 09:44:10 to 09:53:39 UTC on 2 Nov 2026 (~9.5 min), no one was recorded going into a shop.\n\nWhat was seen instead was low-traffic through-walking along the central walkway with shop fronts on the left:\n- man in dark suit / white shirt looking to side\n- man in light tan/beige jacket and dark trousers toward camera, woman in white top/light trousers with bag toward camera, man in dark top/jeans away\n- person in light top away on left, person in dark top with white plastic bag toward camera\n- woman with long dark hair in grey sweatshirt with dark sleeves/light grey trousers, man in dark jacket/blue jeans\n- lone person in dark clothing far distance\n- two men side-by-side toward camera: one brown striped sweater/dark trousers, one cream/white striped sweater/brown trousers\n\nNo one was seen stopping to look at windows in the sampled frames; all were walking past.\n\nHow I got this: searched all corridor captions for enter/exit/shop/door (3 hits, all explicitly say \"no one is entering/exiting\"), visually checked 6 frames spread across the whole recording (09:44, 09:46, 09:47, 09:49, 09:51, 09:53) for left-side doorway entries, and checked track_points has 0 rows for phone-68. Fairly confident for the recorded window - entries outside it wouldn't be covered.",
+    "seconds": 39.6,
+    "steps": 5,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C09",
+    "question": "What happened in the corridor around 9:49 am?",
+    "answer": "Around 9:49am in the shopping centre corridor (camera phone-68) it was quiet / low traffic - no queues, no carts, no window-shopping.\n\n~09:48:51-09:49:01: A pair walking together toward the camera down the centre - woman in brown/tan top + dark trousers with shoulder bag on the left, man in dark jacket + dark trousers on the right. The man then moves to / pauses by the stone pillar / metal rail / bin on the right side. The woman joins him there - they stop/slow together by the right-hand pillar. A new woman in white top + dark trousers comes toward the camera in mid-distance, plus 1-2 distant figures far down the mall.\n\n~09:49:12-09:49:22: About 5-6 people visible. Three men walk toward the camera in foreground then leave view. A man in dark suit by the right pillar - described as likely staff/security - stands checking something in his hands. Then a woman with red hair/sunglasses in foreground facing camera, a person in dark jacket/jeans mid-corridor left, a person in light clothing by right pillar, plus 2+ figures far down the corridor.\n\nNote: on-screen overlay in frames shows 20-01-2004 10:42 - that is archival source data, recording time is 2026-11-02 09:49 UTC.\n\nHow I got it: corridor captions for 09:48:30-09:50:30, visually checked with Glimmer look at 09:48:51 and 09:49:12 - both agree. Medium-high confidence - exact identities/pauses at pillar edge are partly occluded.",
+    "seconds": 37.9,
+    "steps": 5,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C10",
+    "question": "Did people walk alone or in groups? How many groups did we see?",
+    "answer": "In the shopping centre corridor (phone-68) on 2 Nov 2026, approx 09:44 to 09:53 UTC, people walked BOTH alone and in small groups.\n\nWhat we saw in 5 spot-checks across those ~9 minutes:\n- Solo walkers: e.g. a man in red/green foreground ~09:47, a man with a sling foreground ~09:50, a woman's head foreground ~09:52\n- Groups of 2-3 walking together: a pair of women ~09:44, a trio of men ~09:47, a trio of men ~09:50, a pair of men walking away ~09:52, a pair (red plaid + black) ~09:53, plus 2-4 people further up the corridor in most views\n- Typical group size 2-3; counts per view were 5-8 people (detector counts: 8 at 09:47, 8 at 09:50, 5 at 09:52, captions say 5-6)\n\nHow many groups? We cannot give an exact unique-group total: this camera has no person tracks/identities saved for this period, so we cannot link the same pair across frames. We observed about 5-6 group sightings across the 5 frames, but some are likely the same people moving down the corridor.\n\nHow I got this: visual review of 5 frames from phone-68 plus an automatic person count as a second check. Confidence medium - grouping is by visual proximity/direction, and frames are spot-checks, not a full continuous count.",
+    "seconds": 40.2,
+    "steps": 5,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b",
+     "sam-3.1"
+    ]
+   }
+  ],
+  "run2_tracks_and_identities": [
+   {
+    "id": "C01",
+    "question": "How many people walked through the shopping centre corridor between 9:44 and 9:54 am?",
+    "answer": "Between 9:44 and 9:54 am on Nov 2, 39 different people walked through the shopping centre corridor (camera phone-68).\n\nTime covered: recording runs 09:44:10 to 09:53:41 UTC, so it covers almost all of your 9:44-9:54 window except the last ~20 seconds.\n\nHow I got it: 416 person track fragments in that interval collapse by appearance re-identification into 39 unique identities - I use identities for unique visitors because one real person can be split into many track_ids. High confidence - identity time range exactly matches the video.",
+    "seconds": 17.8,
+    "steps": 4,
+    "models": [
+     "muse-spark-1.3"
+    ]
+   },
+   {
+    "id": "C02",
+    "question": "How many people went into a shop from the corridor?",
+    "answer": "0 people were seen going into a shop from the shopping centre corridor (camera \"shopping centre corridor\") in the recorded period 09:44:10 - 09:53:41 UTC on 2 Nov 2026.\n\nHow I checked: I reviewed the corridor view across 6 moments spanning the whole recording plus all 27 captions for that camera. The left side is continuous glass shop fronts, the right is pillars/open mall. All visible people were walking along the central walkway, or one couple stood looking at the window glazing without going in. One caption noted a distant figure \"possibly pausing or entering/exiting\" far down the corridor around 09:44:28 - I re-viewed those frames and confirmed 0 entering/exiting a doorway. Confidence high that no clear shop entry was captured; very distant/occluded entries cannot be 100% ruled out.",
+    "seconds": 45.4,
+    "steps": 8,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C03",
+    "question": "On average, how long did a person stay in view of the corridor camera, and who stayed the longest?",
+    "answer": "On the corridor camera (phone-68) on 2 Nov 2026, 09:44:10 to 09:53:41 UTC (~9.5 min recording):\n\n- Average time in view per person (identity, Re-ID joined across fragments): 276 seconds (~4 min 36 sec). Median 277 sec. Based on 39 distinct person identities.\n- Longest stay: ~563 seconds (~9 min 23 sec) – identity phone-68:person:id-e665be8a, visible 09:44:10 to 09:53:33, i.e. essentially the whole recording (34 track fragments joined). Note classed as staff in notes but crops are extremely low-resolution/blurred so clothing cannot be reliably described.\n\nNext longest: id-16b14361 at 557 sec (staff, light-blue lower clothing with dark top, associated with a service trolley/push-cart) and id-131e6d72 at 556 sec (customer in dark red/maroon top with dark skirt/kilt).\n\nHow found: averaged identity_spans.seconds for camera phone-68 / concept person, and ranked by seconds with identity_notes for description. High confidence on durations; low confidence on appearance details due to low resolution.",
+    "seconds": 8.1,
+    "steps": 3,
+    "models": [
+     "muse-spark-1.3"
+    ]
+   },
+   {
+    "id": "C04",
+    "question": "When was the corridor busiest, and how many people were there at that moment?",
+    "answer": "The shopping centre corridor (phone-68) was busiest at about 09:49 UTC on 2 Nov 2026 - 10 people present at once from 09:49:05 to 09:49:11, e.g. at 09:49:07.\n\nRecording covers 09:44:10 to 09:53:41 on 2 Nov, so this is the peak within that morning window. How checked: counted tracked persons per timestamp in the object memory (peak = 10), then visually verified on the frame - Glimmer sees 9-10 people spread along the walkway on both sides. High confidence that this was the busiest moment, count accurate to +/-1.",
+    "seconds": 21.5,
+    "steps": 3,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C05",
+    "question": "On average, how many people were in the corridor at any one time?",
+    "answer": "On average about 4.8 people were visible in the shopping centre corridor (phone-68) at any one moment between 09:44 and 09:53 UTC on 2 Nov 2026 (about 9.5 minutes, ranging from 1 to 10 people). Calculated as the average number of distinct person tracks present per keyframe over 1,108 keyframes; very reliable as a direct count of what was in view.",
+    "seconds": 7.0,
+    "steps": 2,
+    "models": [
+     "muse-spark-1.3"
+    ]
+   },
+   {
+    "id": "C06",
+    "question": "How many people stopped to look at shop windows or browse, instead of just walking past?",
+    "answer": "On the shopping centre corridor (phone-68), 09:44-09:53 UTC on 2 Nov 2026 (~9.5 min covered):\n\n39 distinct person-identities were seen in total.\n\n- ~12 just walked past: seen for <10 sec ( 7.5, 4.5, 4.0, 3.5, 1.0, 0.5, 0x4 sec ) - single brief fragment crossing the view.\n- ~27 lingered / were in view for >=10 sec, up to ~9 min:\n  - 18 customers with 39 sec to ~9.3 min in view\n  - 9 staff with ~3.7 min to ~9.4 min in view\n\nThat is the best proxy for \"stopped to look / browse vs just walking past\" from the tracks: short = through-walker, long + small pixel movement = standing at the left-side shop glazing or by the right-side pillar / rail / bin, or going in/out of a shop.\n\nHow checked: identity_spans dwell times for phone-68 person + identity_notes role (customer vs staff) + foot-pixel spread per identity (small rx+ry = standing, large rx ~400-600 px = walking the length of the corridor) + visual check of 6 frames across the period showing 5-6 people at once along the left glazing and right pillar. Camera is not calibrated in metres and there is no gaze / shop-door zone, and long identities spanning the whole 9 min suggest some re-identification merging, so treat 18 browsing customers vs 12 quick passers as approximate, not an exact window-gaze count.",
+    "seconds": 56.9,
+    "steps": 9,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C07",
+    "question": "How many people were in the corridor at 9:45:11 am, at 9:47:31 am and at 9:52:31 am?",
+    "answer": "In the shopping centre corridor (phone-68) on 2 Nov:\n\n- 9:45:11 am: 6 people tracked at the nearest keyframe 09:45:11.3, 5 clearly visible on visual check - so 5-6 people.\n- 9:47:31 am: 3 people tracked at 09:47:31.2, confirmed visually as 3 people.\n- 9:52:31 am: 4 people tracked at 09:52:31.4, confirmed visually as 4 people.\n\nHow I got it: counted person tracks present at keyframes bracketing each time you asked, then visually checked the same 3 frames with Glimmer. Confidence high - tracker and visual agree exactly at 9:47:31 and 9:52:31, and differ by 1 at 9:45:11 due to a person entering/exiting the view between half-second keyframes.",
+    "seconds": 27.2,
+    "steps": 3,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C08",
+    "question": "Describe the people who went into shops.",
+    "answer": "On the shopping centre corridor (phone-68, 2 Nov 09:44-09:53 UTC) I could not confirm anyone clearly stepping into a shop.\n\nWhat I checked:\n- Glimmer looked at 6 instants across the recording. The left side is continuous glazed shop fronts/doors, the right side pillars/bays with railing. All tracked people stay in the central walkway walking toward the camera; no turn-through-doorway is visible.\n- Track end positions: most tracks end far away (small y) or at the bottom edge near the camera (y~567-568 = walking out past the camera), not at left/right doorway edges.\n\nThe closest to \"going into a shop\" is one woman seen at ~09:45:05 standing in line with a left-hand doorway:\n- Woman in long light-tan/beige coat over blue jeans, dark shoulder bag on right side, facing the left shop front. In identity memory this is part of the customer group seen through the whole 09:44-09:53 period (e.g. id-0734978d: dark hooded jacket/top over blue jeans with dark shoulder bag; id-693a1500: woman dark shoulder-length hair, white top / light grey trousers).\n\nOther corridor users in the same period were all customers except 2-3 blurred staff figures (one apparently with a service trolley/cart) - e.g. red/maroon top with dark trousers, dark red top with dark skirt/tights, dark hooded overcoat with light hood, middle-aged man in dark suit/light shirt. Crops are very low-resolution/blurred so descriptions are low confidence.\n\nIn short: no verifiable shop entries in the ~9.5 min recorded; one beige-coated woman lingered at a left-hand shop front but entry motion is not shown.",
+    "seconds": 74.3,
+    "steps": 8,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C09",
+    "question": "What happened in the corridor around 9:49 am?",
+    "answer": "Around 9:49 am in the shopping centre corridor (phone-68) it was very quiet / low-traffic.\n\n* About 3-6 people visible: captions say 4 people at 09:48:51-09:49:01 and 3 people at 09:49:12-09:49:22.\n* What I saw looking at 09:48:55 and 09:49:15: one person walking alone down the centre toward the camera, a small loose group of 2-3 people stopped/standing by the railing/atrium on the right side looking over, and 2 people far down the corridor near the shopfronts.\n* No queues, no shopping carts/trolleys, no clearly identifiable staff, no one stopping to look at shop windows or going into shops in those frames - just ordinary walking through + standing at the railing.\n\nHow I got it: corridor captions for 09:48-09:50 plus a visual look at 2 frames at 09:48:55 and 09:49:15 with tracked boxes. Fairly confident - both sources agree it was a quiet period with a handful of people.",
+    "seconds": 39.9,
+    "steps": 4,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   },
+   {
+    "id": "C10",
+    "question": "Did people walk alone or in groups? How many groups did we see?",
+    "answer": "On the shopping centre corridor (phone-68) on 2 Nov 2026, 09:44-09:53 UTC - about 9.5 min covered:\n\nMost people walked alone.\n- 39 person-identities in total, max 7 visible at one instant, typically 1-3.\n- Visual check at 09:44:15, 09:47:30, 09:50:00, 09:52:30: 15 person boxes seen, all as solitary walkers in the foreground/mid-ground - no confirmed close pair walking arm-in-arm.\n- Captions repeatedly describe \"a single person walks... walking alone\" and \"very quiet corridor\" - e.g. 09:51:38-09:51:48 one customer alone, 09:51:26 one person pauses at shopfront then continues alone.\n\nGroups seen: 2-3 small background groups:\n- Early 09:44:18-09:44:30: 6 people clustered far down the corridor (foot-x 158-268px) + 1 foreground person alone - likely 1 group of 3-4 plus other singles.\n- 09:47:39 caption: \"small group of shoppers visible walking away / standing near the far end\" behind a single woman in foreground.\n- 09:52:35 caption: \"small group moving through + two people standing farther down\" - 5 people in view.\n\nSo: ~ 80-90% singles, plus about 2-3 small groups of 2-4 people in the far background. Low confidence on exact group count because the view is long-distance, low-resolution and far figures overlap.\n\nHow I got it: counted identity_spans (39), counted simultaneous track_points per timestamp, looked at 4 marked frames with Glimmer, and searched captions for group/pair/together/alone.",
+    "seconds": 78.3,
+    "steps": 8,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b"
+    ]
+   }
+  ]
+ }
+}

@@ -96,6 +96,9 @@ class Settings(BaseSettings):
     spark_open_images_supported: bool = False
     glimmer_base_url: str = "http://127.0.0.1:8080/v1"
     glimmer_api_key: SecretStr | None = None
+    # The Glimmer URLs are RunPod serverless load balancers: their edge takes this RunPod API key
+    # as `Authorization`, and GLIMMER_API_KEY goes in `X-Rulecam-Key` (`llama_edge` checks it).
+    glimmer_edge_key: SecretStr | None = None
     glimmer_model: str = "muse-glimmer-30b"
     # More llama-server URLs serving the same model, comma-separated: Tier 1 calls are spread
     # over all of them, least busy first, with failover (`clients.transport.PooledTransport`).

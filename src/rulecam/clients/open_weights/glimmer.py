@@ -31,6 +31,7 @@ from pydantic import BaseModel, ValidationError
 from rulecam.bus import Bus
 from rulecam.clients.errors import ModelHTTPError, ModelResponseError
 from rulecam.clients.open_weights.evidence_log import EvidenceLog, InferenceLine
+from rulecam.clients.open_weights.llama_edge import KEY_HEADER
 from rulecam.clients.ratelimit import TokenBucket
 from rulecam.clients.relay import ModelUsed, publish_model_used
 from rulecam.clients.transport import (
@@ -74,6 +75,33 @@ IMAGE_TYPES: Mapping[str, str] = {
 def glimmer_extra_urls(settings: Settings) -> list[str]:
     """The extra Glimmer servers of `GLIMMER_EXTRA_BASE_URLS`, in order, blanks dropped."""
     return [url.strip() for url in settings.glimmer_extra_base_urls.split(",") if url.strip()]
+
+
+def glimmer_headers(settings: Settings) -> dict[str, str]:
+    """Headers that authenticate to llama-server, directly or behind a RunPod load balancer.
+
+    Args:
+        settings: Application settings.
+
+    Returns:
+        `Authorization: Bearer GLIMMER_API_KEY`, or with `GLIMMER_EDGE_KEY` set that RunPod key
+        as the bearer and the Glimmer key in `X-Rulecam-Key`; empty without a key.
+    """
+    if settings.glimmer_api_key is None:
+        return {}
+    key = settings.glimmer_api_key.get_secret_value()
+    if settings.glimmer_edge_key is None:
+        return {"Authorization": f"Bearer {key}"}
+    edge = settings.glimmer_edge_key.get_secret_value()
+    return {"Authorization": f"Bearer {edge}", KEY_HEADER: key}
+
+
+def glimmer_transport(url: str, settings: Settings) -> HttpxTransport:
+    """`HttpxTransport` to one llama-server (see `glimmer_headers`)."""
+    # llama-server ignores the key unless started with --api-key (needed when it is remote).
+    headers = glimmer_headers(settings)
+    bearer = headers.pop("Authorization", "Bearer local").removeprefix("Bearer ")
+    return HttpxTransport(url, bearer, timeout_s=DEFAULT_TIMEOUT_S, headers=headers)
 
 
 def image_data_url(path: Path) -> str:
@@ -223,10 +251,8 @@ class GlimmerClient:
             hardware=settings.glimmer_hardware,
             schema_in_prompt=settings.glimmer_schema_in_prompt,
         )
-        # llama-server ignores the key unless started with --api-key (needed when it is remote).
-        key = settings.glimmer_api_key.get_secret_value() if settings.glimmer_api_key else "local"
         urls = [settings.glimmer_base_url, *glimmer_extra_urls(settings)]
-        servers = [HttpxTransport(url, key, timeout_s=DEFAULT_TIMEOUT_S) for url in urls]
+        servers = [glimmer_transport(url, settings) for url in urls]
         http: Transport = servers[0] if len(servers) == 1 else PooledTransport(servers)
         transport = cache.wrap_transport(PROVIDER, config.model, http)
         evidence = EvidenceLog(settings.evidence_dir / "glimmer" / "inference-log.jsonl")

@@ -23,6 +23,7 @@ from pathlib import Path
 import httpx
 import numpy as np
 
+from rulecam.clients.open_weights.glimmer import glimmer_headers
 from rulecam.config import Settings, get_settings
 from rulecam.contracts import Frozen
 from rulecam.voice_out.wav import encode_wav
@@ -185,15 +186,12 @@ def check_spark_open(deps: PreflightDeps) -> CheckResult:
 def check_glimmer(deps: PreflightDeps) -> CheckResult:
     """The llama-server answers `GET /v1/models` with at least one model.
 
-    A remote server started with `--api-key` also guards `/v1/models`, so send `GLIMMER_API_KEY`.
+    A remote server started with `--api-key` also guards `/v1/models`, so send `GLIMMER_API_KEY`
+    (behind a RunPod load balancer with `GLIMMER_EDGE_KEY`, as the Glimmer client does).
     """
     s = deps.settings
     url = f"{s.glimmer_base_url.rstrip('/')}/models"
-    headers = (
-        {"Authorization": f"Bearer {s.glimmer_api_key.get_secret_value()}"}
-        if s.glimmer_api_key
-        else {}
-    )
+    headers = glimmer_headers(s)
     try:
         data = deps.http.get(url, headers=headers).json()["data"]
         names = [str(item["id"]) for item in data]

@@ -2,6 +2,58 @@
 
 A store owner asks anything about what the cameras saw ("how many customers at 11 pm?", "how long do people stay?", "which lane is busier?") and the system works out how to answer. Nothing about the questions is coded: **Muse Spark 1.3** reads the question and all the context, picks its own tools step by step, and writes the answer. Prototype mode is on: no guardrails. Everything ran live on the deployed stack. The raw data (every answer, every step, the captions) is in `2026-11-01-supermarket-ask.json`.
 
+## Update (2 Nov): tracking fixed with appearance re-identification
+
+**The problem.** The runtime tracker split the checkout's roughly 10 people into 412 short tracks. On the real data, 236 of those 412 tracks end with another track starting within 3 s and less than one body-width away (median gap 1.0 s). When SAM misses someone for a keyframe or two in a crowd, ByteTrack, which only compares box positions, starts a new ID. So the agent could not answer "how long did customers stay" or "how many different customers" from the tracks.
+
+**What the research pointed to** (second round):
+
+| Source | Idea | Applied as |
+|---|---|---|
+| [DINO-CoDT](https://arxiv.org/pdf/2506.07375) | DINOv2 crop features, merge tracks by cosine similarity | Each track gets a **DINOv2** appearance vector (Meta, ViT-S/14, Apache-2.0) from a new `/embed` route on our SAM GPU pod |
+| [MOTS20 offline tracker](https://motchallenge.net/workshops/bmtt2020/papers/DD_Vision_MOTS20.pdf) | One averaged re-ID vector per tracklet, then merge tracklets | 3 crops per track, averaged; fragments linked into identities in time order |
+| [Thermal identity continuity](https://arxiv.org/pdf/2606.01694), [geometry stitching](https://arxiv.org/pdf/2608.07579) | Offline repair; never merge objects seen at the same time | Co-present tracks are never merged |
+| [Deep Video Discovery (Microsoft)](https://arxiv.org/html/2505.18079v4) | Multi-level memory (summaries, clip captions, frames) searched by an agent | Captions + identities + raw frames, all queryable by Spark |
+| [FootfallCam VLM](https://www.footfallcam.com/blog/2025/11/beyond-counting-understanding-shopper-behaviour-with-vision-language-models-vlm/), [Store Intelligence](https://github.com/Yashh1214/store-intelligence) | VLM behaviour labels per shopper; per-person dwell events | Glimmer writes a note per person identity: customer or staff, clothing, what they carry |
+
+**How the link threshold is set (no hand-picked number).** Tracks seen at the same time are certainly different objects; a track that starts within 1 s and half a box-width of where another ended is almost certainly the same object. The threshold is where those two similarity distributions cross (equal error rate). On the checkout camera it came out at 0.63 for `person` and 0.62 for `customer`. The first version used the 99th percentile of the "different" pairs alone (0.815), which left too many fragments apart.
+
+**Result on the live checkout camera** (5.5 min recorded):
+
+| Concept | Raw tracks | Identities, first threshold | Identities, calibrated |
+|---|---|---|---|
+| person | 664 | 78 | **27** |
+| customer | 61 | 46 | **18** |
+| cashier | 23 | 18 | 18 |
+| shopping cart | 36 | 33 | 33 |
+
+The clip has roughly 8–10 real people, so person identities are now within about 3× and customer identities within about 2×, down from 40–60× for raw tracks. Raising the keyframe rate from 2/s to 4/s did **not** help (121 versus 103 raw tracks per minute), so it is back at 2/s.
+
+**What the owner gets now** (same questions, live, with identities):
+
+| Question | Before identities | With identities |
+|---|---|---|
+| Average time a customer spent at the checkout | "tracks average 3.9 s" (fragments), then a rough guess from frames | **~22 s (median 25 s) over 18 customer identities** |
+| How many different customers today (both cameras) | 427 raw tracks, "real number much lower" | **28: 7 at the entrance, 21 at the checkout (+5 staff)**, with the caveat that one person seen on both cameras would count twice |
+| List each customer, what they looked like, how long they stayed (new) | not possible | 21 identities with descriptions that match the video (older man in navy-and-white striped polo with a fruit trolley, woman in red-and-white striped top with a red handbag, man in red T-shirt by the Alcohol Policy sign, …) and each one's time in view |
+| Who stayed longest, and why (new) | not possible | the man in the red T-shirt (237 s in view), with a frame check showing the queue standing still |
+| How many cashiers | 2 (one doubtful) | **1 clearly working**, matching the video |
+
+All 15 questions were answered (median 42 s; 9–81 s). The extra time over round 2 is the agent cross-checking identities against frames.
+
+**Still not right:**
+- **Over-count of about 2×.** Some people are still split into two identities (the striped-polo man appears as two customers), and a few identities are built from blurred crops ("cannot describe").
+- **Looped footage inflates time in view.** Customers' identities span the whole 5-minute recording because the 35 s clip loops; the agent says so ("a lower bound on their stay").
+- **Concepts disagree.** Dwell from `customer` identities (22 s) and from `person` identities (most span the loop) differ; the agent reports which one it used.
+- **One visual over-claim.** Q09 said "2–3 women with red bags"; the clip has one clearly.
+- **No cross-camera re-ID yet.** Same-day totals across cameras can double-count.
+- **Storage.** The track store writes one small Parquet file per chunk per camera (677 files so far). One side process hit "Too many open files"; the API now runs with a higher limit, and compaction is the proper fix.
+
+**Also fixed on the way:**
+- Recorded video now survives an API restart (the chunk index keeps a journal).
+- The identity job runs at most every 10 s.
+- Notes of identities retired by relinking are dropped, which stopped a 71-customer miscount.
+
 ## How the harness works (and where the ideas come from)
 
 Before building the second version I looked at how the strongest open video question-answering systems are put together:
@@ -92,11 +144,11 @@ On the busy kitchen test with the pool, decisions came 21–27 s after each even
 
 ## Limits and next steps
 
-- **One person, many tracks.** The keyframe tracker split the checkout's ~10 people into 412 tracks over the looped recording. The agent knows this and says so, but dwell time and unique-visitor counts need re-identification. VideoAgent merges track fragments by appearance features (CLIP); the same could be done here, or by asking SAM 3.1's video mode to track across chunks.
+- **One person, many tracks.** Fixed on 2 Nov with DINOv2 re-identification (see the update at the top); about a 2× over-count remains.
 - **Test footage is a loop.** A real store camera (or a longer clip) is needed to judge totals, dwell and timelines properly.
 - **Captions can be thin.** 1 of 19 captions came back nearly empty, and captions add about 22 s of Glimmer time per camera per 10 s of video. On many cameras they need their own GPU or a lower rate.
 - **Consistency across answers.** Q09 and Q11 disagreed about a phone. Running the final answer past a second `look` for each concrete visual claim would catch this.
-- **Restarts clear the video index.** After an API restart the recorded video of earlier cameras cannot be looked at (the chunk index lives in memory); the tracks and captions remain.
+- **Restarts clear the video index.** Fixed on 2 Nov: the chunk index keeps a journal.
 - `/ask` is served only with `RULECAM_PROTOTYPE_MODE=true`, and `src/rulecam/ask/data.py` is exempted from the team's `track_id` guardrail tests on the team lead's decision (dwell time needs one row per track).
 
 ## Per-question details

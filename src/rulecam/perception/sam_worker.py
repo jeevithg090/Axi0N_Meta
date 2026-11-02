@@ -53,7 +53,7 @@ from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 
@@ -71,6 +71,10 @@ IMAGE_THRESH_ENV = "SAM_IMAGE_THRESH"
 # this floor (ByteTrack's low-confidence second pass), every other caller keeps 0.5.
 DEFAULT_IMAGE_THRESH = 0.1
 LEGACY_MIN_CONFIDENCE = 0.5  # the cut for requests that do not name `min_confidence`
+# Add-on 3.6: encode up to this many keyframes in one backbone pass (`Sam3Processor.
+# set_image_batch`), then ground each concept on each image of the batch. 0 or 1: one image at a
+# time, as before (the default until a live GPU check shows the batch matches and pays).
+IMAGE_BATCH_ENV = "SAM_IMAGE_BATCH"
 DEFAULT_GPU = "L4"
 WARM_CONTAINERS = 1
 SCALEDOWN_WINDOW_S = 600
@@ -505,12 +509,42 @@ class ImagePredictor(Protocol):
         ...
 
 
+@runtime_checkable
+class BatchImagePredictor(ImagePredictor, Protocol):
+    """An `ImagePredictor` that can also encode several images in one backbone pass."""
+
+    def set_images(self, images: Sequence[np.ndarray]) -> list[Any]:
+        """Encode RGB `uint8` images together; return one `detect` state per image."""
+        ...
+
+
+@dataclass(frozen=True)
+class BatchSlot:
+    """One image's place in a batch encoded by `Sam3ProcessorPredictor.set_images`."""
+
+    state: dict[str, Any]
+    index: int
+
+
 class Sam3ProcessorPredictor:  # pragma: no cover - needs a CUDA GPU and the sam3 package
-    """`ImagePredictor` over `sam3.model.sam3_image_processor.Sam3Processor`."""
+    """`BatchImagePredictor` over `sam3.model.sam3_image_processor.Sam3Processor`.
+
+    Upstream `set_image_batch` encodes a batch, but its grounding always reads image 0
+    (`find_stage.img_ids`) and a single `original_height`. So a batch is grounded per image the
+    way SAM 3's own detector selects images: a `FindStage` whose `img_ids` names that image in
+    the shared backbone output (`Sam3Image._get_img_feats`).
+    """
 
     def __init__(self, processor: Any) -> None:
         """Wrap a processor built on a loaded SAM 3.1 detector."""
         self._processor = processor
+
+    def set_images(self, images: Sequence[np.ndarray]) -> list[Any]:
+        """Encode the images in one backbone pass."""
+        from PIL import Image  # noqa: PLC0415 - GPU image only
+
+        state = self._processor.set_image_batch([Image.fromarray(image) for image in images])
+        return [BatchSlot(state, index) for index in range(len(images))]
 
     def set_image(self, image: np.ndarray) -> Any:
         """Encode the image (the processor takes a PIL image for HWC pixels)."""
@@ -519,13 +553,45 @@ class Sam3ProcessorPredictor:  # pragma: no cover - needs a CUDA GPU and the sam
         return self._processor.set_image(Image.fromarray(image))
 
     def detect(self, state: Any, concept: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Run the text prompt on the encoded image."""
-        self._processor.reset_all_prompts(state)
-        out = self._processor.set_text_prompt(prompt=concept, state=state)
+        """Run the text prompt on the encoded image (or on its image of a batch)."""
+        if isinstance(state, BatchSlot):
+            out = self._ground_in_batch(state, concept)
+        else:
+            self._processor.reset_all_prompts(state)
+            out = self._processor.set_text_prompt(prompt=concept, state=state)
         boxes = out["boxes"].float().cpu().numpy().reshape(-1, 4)
         scores = out["scores"].float().cpu().numpy().reshape(-1)
         masks = out["masks"].cpu().numpy().astype(bool)
         return boxes, scores, masks.reshape(len(scores), *masks.shape[-2:])
+
+    def _ground_in_batch(self, slot: BatchSlot, concept: str) -> dict[str, Any]:
+        import torch  # noqa: PLC0415 - GPU image only
+        from sam3.model.data_misc import FindStage  # type: ignore[import-not-found]  # noqa: PLC0415
+
+        processor, shared = self._processor, slot.state
+        processor.reset_all_prompts(shared)
+        model, device = processor.model, processor.device
+        shared["backbone_out"].update(model.backbone.forward_text([concept], device=device))
+        view = {
+            "backbone_out": shared["backbone_out"],
+            "geometric_prompt": model._get_dummy_prompt(),
+            "original_height": shared["original_heights"][slot.index],
+            "original_width": shared["original_widths"][slot.index],
+        }
+        single = processor.find_stage
+        processor.find_stage = FindStage(
+            img_ids=torch.tensor([slot.index], device=device, dtype=torch.long),
+            text_ids=torch.tensor([0], device=device, dtype=torch.long),
+            input_boxes=None,
+            input_boxes_mask=None,
+            input_boxes_label=None,
+            input_points=None,
+            input_points_mask=None,
+        )
+        try:
+            return dict(processor._forward_grounding(view))
+        finally:
+            processor.find_stage = single
 
 
 class BoxEmbedder(Protocol):
@@ -628,7 +694,9 @@ def image_objects(
 class Sam31ImageEngine:
     """SAM 3.1 image detection for runtime keyframes; serves `POST /segment_image`.
 
-    Every image is encoded once and each concept detected on it. With a re-ID model, the objects
+    Every image is encoded once and each concept detected on it; with `batch_size` above 1 and a
+    `BatchImagePredictor`, up to that many images share one backbone pass (add-on 3.6), and the
+    answer is the same. With a re-ID model, the objects
     of the request's `embed_concepts` get a person re-ID vector, all of a call's boxes in one
     batch. After every call, also a failed one, GPU memory is released and the guard checked, as
     after a video session.
@@ -643,6 +711,7 @@ class Sam31ImageEngine:
         memory_guard_bytes: int | None = None,
         decode: Callable[[bytes], np.ndarray] = decode_jpeg,
         reid: BoxEmbedder | None = None,
+        batch_size: int = 0,
     ) -> None:
         """Wrap a loaded image predictor.
 
@@ -653,8 +722,10 @@ class Sam31ImageEngine:
             memory_guard_bytes: Allocated bytes after a call that trigger a second release.
             decode: Decodes an image's bytes into RGB pixels.
             reid: Person re-ID model for `embed_concepts`; `None` returns no vectors.
+            batch_size: Images per backbone pass; 0 or 1 encodes one image at a time.
         """
         self._reid = reid
+        self._batch_size = batch_size
         self._predictor = predictor
         self._inference_context = inference_context
         self._memory: GpuMemory = memory or NoGpuMemory()
@@ -671,22 +742,25 @@ class Sam31ImageEngine:
 
         The confidence floor comes from `SAM_IMAGE_THRESH` (default 0.1); each request cuts
         higher with its `min_confidence`. `reid` embeds people (`reid_worker.load_reid`).
+        `SAM_IMAGE_BATCH` (default 0, off) batches the backbone.
         """
         from sam3.model.sam3_image_processor import (  # type: ignore[import-not-found]  # noqa: PLC0415
             Sam3Processor,
         )
 
         threshold = float(os.environ.get(IMAGE_THRESH_ENV) or DEFAULT_IMAGE_THRESH)
+        batch_size = int(os.environ.get(IMAGE_BATCH_ENV) or 0)
         video_predictor: Any = engine.predictor
         detector = video_predictor.model.detector
         processor = Sam3Processor(detector, confidence_threshold=threshold)
-        _log.info("sam_image_engine_loaded threshold=%s", threshold)
+        _log.info("sam_image_engine_loaded threshold=%s batch=%d", threshold, batch_size)
         return cls(
             Sam3ProcessorPredictor(processor),
             inference_context=engine.inference_context,
             memory=engine.memory,
             memory_guard_bytes=engine.memory_guard_bytes,
             reid=reid,
+            batch_size=batch_size,
         )
 
     def segment_images(self, images: list[bytes], request: dict[str, Any]) -> dict[str, Any]:
@@ -709,13 +783,10 @@ class Sam31ImageEngine:
         floor = float(request.get("min_confidence", LEGACY_MIN_CONFIDENCE))
         embed = set(request.get("embed_concepts") or ()) if self._reid is not None else set()
         objects: list[WireObject] = []
-        pixels: list[np.ndarray] = []
         try:
+            pixels = [self._decode(data) for data in images]
             with self._inference_context():
-                for image_idx, data in enumerate(images):
-                    image = self._decode(data)
-                    pixels.append(image)
-                    state = self._predictor.set_image(image)
+                for image_idx, state in enumerate(self._encoded(pixels)):
                     for concept in concepts:
                         found = self._predictor.detect(state, concept)
                         objects.extend(
@@ -740,10 +811,29 @@ class Sam31ImageEngine:
             "model_version": IMAGE_MODEL_VERSION,
         }
 
+    def _encoded(self, pixels: Sequence[np.ndarray]) -> Iterator[Any]:
+        """Each image's encoder state, in order: one at a time, or a batch per backbone pass.
+
+        One at a time keeps a single image's features on the GPU, as before; a batch keeps up to
+        `batch_size`.
+        """
+        predictor, size = self._predictor, self._batch_size
+        if size <= 1 or not isinstance(predictor, BatchImagePredictor):
+            for image in pixels:
+                yield predictor.set_image(image)
+            return
+        for start in range(0, len(pixels), size):
+            yield from predictor.set_images(pixels[start : start + size])
+
     def memory_stats(self) -> dict[str, Any]:
         """The image engine's own counters for `/health` (device memory is the video engine's)."""
         reid = self._reid.model_name if self._reid is not None else None
-        return {"calls": self._calls, "guard_trips": self._guard_trips, "reid": reid}
+        return {
+            "calls": self._calls,
+            "guard_trips": self._guard_trips,
+            "reid": reid,
+            "batch": max(1, self._batch_size),
+        }
 
     def _after_call(self) -> None:
         self._calls += 1

@@ -15,7 +15,8 @@
 # $(dirname HF_HOME)/reid/ (override: SAM_REID_WEIGHTS; SAM_REID=0 turns re-ID off).
 #
 # Paths can be overridden with RULECAM_DIR, SAM_VENV, HF_HOME, SAM_LOG, SAM_PORT. Engine settings
-# (SAM_MEMORY_GUARD_GB, SAM_COMPILE, SAM_DET_THRESH, SAM_NEW_DET_THRESH, SAM_HOTSTART_*; see
+# (SAM_MEMORY_GUARD_GB, SAM_COMPILE, SAM_DET_THRESH, SAM_NEW_DET_THRESH, SAM_HOTSTART_*,
+# SAM_IMAGE_THRESH, SAM_IMAGE_BATCH, SAM_REID, SAM_REID_WEIGHTS; see
 # docs/deploy.md) come from the environment or from /workspace/sam.env (KEY=value lines, no
 # secrets), which also survives a reboot through boot.sh.
 set -euo pipefail

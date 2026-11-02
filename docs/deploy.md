@@ -817,7 +817,10 @@ What runs where:
   `uv sync --extra reid`; otherwise ByteTrack, as before. `/embed` serves the same model for
   `"model": "person"`: Ask's identity memory (prototype mode only) joins people's track fragments
   with it and keeps DINOv2 for objects (`RULECAM_ASK_PERSON_REID`, on by default; a pod without
-  the model makes people fall back to DINOv2). Image calls wait in their own queue,
+  the model makes people fall back to DINOv2). `SAM_IMAGE_BATCH` (0, off) encodes up to that
+  many keyframes of a call in one backbone pass (`set_image_batch`) and grounds each concept per
+  image (`FindStage.img_ids`); `/health` reports it as `image.batch`. Turn it on only after a GPU
+  check that its boxes match the default and that it is faster. Image calls wait in their own queue,
   `SAM_IMAGE_MAX_WAITING` (8), for the same GPU. `/health` reports `image` (loaded, waiting,
   calls, guard trips). The body is
   `{"request": <SamRequest JSON>, "video_b64": ...}` (32 MB limit, `SAM_MAX_BODY_BYTES`), the

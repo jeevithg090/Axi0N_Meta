@@ -14,6 +14,7 @@ from rulecam.perception.masks import NO_MASK, decode_rle
 from rulecam.perception.sam_runtime import SamImageRequest, parse_image_response
 from rulecam.perception.sam_worker import (
     IMAGE_MODEL_VERSION,
+    BatchImagePredictor,
     BoxEmbedder,
     ImagePredictor,
     Sam31ImageEngine,
@@ -158,6 +159,46 @@ def test_fake_reid_satisfies_the_protocol() -> None:
     assert reid.model_name == "fake-osnet"
 
 
+class FakeBatchPredictor(FakeImagePredictor):
+    """Also encodes several images at once; records the batch sizes."""
+
+    def __init__(
+        self, by_concept: dict[str, list[tuple[float, tuple[int, int, int, int]]]]
+    ) -> None:
+        super().__init__(by_concept)
+        self.batches: list[int] = []
+
+    def set_images(self, images: Sequence[np.ndarray]) -> list[Any]:
+        self.batches.append(len(images))
+        return [self.set_image(image) for image in images]
+
+
+def test_batched_encoding_gives_the_same_answer_in_fewer_backbone_passes() -> None:
+    found = {
+        "person": [(0.6, (0, 0, 2, 3)), (0.9, (4, 1, 7, 5))],
+        "forklift": [(0.7, (1, 1, 3, 3))],
+    }
+    images = [jpeg(v) for v in (10, 60, 110, 160, 210)]
+    single = Sam31ImageEngine(FakeImagePredictor(found)).segment_images(images, request(n_images=5))
+    predictor = FakeBatchPredictor(found)
+    engine = Sam31ImageEngine(predictor, batch_size=2)
+    batched = engine.segment_images(images, request(n_images=5))
+    assert predictor.batches == [2, 2, 1]
+    assert batched["objects"] == single["objects"]
+    assert engine.memory_stats()["batch"] == 2
+
+
+def test_batching_is_off_by_default_and_needs_a_batch_predictor() -> None:
+    predictor = FakeBatchPredictor({"person": [(0.9, (0, 0, 2, 3))]})
+    Sam31ImageEngine(predictor).segment_images([jpeg(), jpeg()], request())
+    assert predictor.batches == []
+    plain = FakeImagePredictor({"person": [(0.9, (0, 0, 2, 3))]})
+    reply = Sam31ImageEngine(plain, batch_size=4).segment_images([jpeg(), jpeg()], request())
+    assert reply["images_processed"] == 2
+    assert not isinstance(plain, BatchImagePredictor)
+    assert isinstance(predictor, BatchImagePredictor)
+
+
 def test_masks_and_confidences_on_request() -> None:
     predictor = FakeImagePredictor({"person": [(0.7, (1, 1, 3, 4))]})
     reply = Sam31ImageEngine(predictor).segment_images(
@@ -189,7 +230,7 @@ def test_inference_context_and_memory_release_around_every_call() -> None:
     engine.segment_images([jpeg()], request(n_images=1))
     assert entered == ["in", "out"]
     assert memory.calls == ["release", "stats"]
-    assert engine.memory_stats() == {"calls": 1, "guard_trips": 0, "reid": None}
+    assert engine.memory_stats() == {"calls": 1, "guard_trips": 0, "reid": None, "batch": 1}
 
 
 def test_memory_guard_frees_again_and_counts() -> None:

@@ -91,6 +91,9 @@ class Settings(BaseSettings):
     rulecam_ask_caption_every_s: float = Field(default=0.0, ge=0.0)
     # Ask's identity memory: join track fragments by DINOv2 appearance on the GPU pod's /embed.
     rulecam_ask_identities: bool = True
+    # ... and people by OSNet-AIN person re-ID vectors (`/embed` model "person", add-on 3.2) instead
+    # of DINOv2; falls back to DINOv2 when the GPU pod has no re-ID model. Prototype mode only.
+    rulecam_ask_person_reid: bool = True
     # Evidence strips sent to Glimmer: frames per strip and their width in pixels.
     rulecam_strip_frames: int = Field(default=6, ge=1, le=12)
     rulecam_strip_max_width: int = Field(default=640, ge=320, le=1920)

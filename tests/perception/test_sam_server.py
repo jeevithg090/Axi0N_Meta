@@ -597,6 +597,7 @@ def test_embed_picks_the_person_model_on_request() -> None:
         assert unknown.status_code == 404
         bad = httpx.post(url, json={"images_b64": crops, "model": 3}, headers=_auth())
         assert bad.status_code == 400
+        assert gpu_embedder(server.url, KEY, model="person")([b"abc"]) == [[0.0, 1.0]]
     finally:
         server.close()
 

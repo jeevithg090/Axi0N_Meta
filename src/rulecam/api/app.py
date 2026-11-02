@@ -827,7 +827,8 @@ def build_ask(
 
     Served in prototype mode only: it reads per-track spans (dwell time per tracked person). The
     caption memory runs when `RULECAM_ASK_CAPTION_EVERY_S` is above 0; the identity memory
-    (DINOv2 re-identification on the GPU pod) when `SAM_BASE_URL` and `SAM_API_KEY` are set.
+    (re-identification on the GPU pod: OSNet-AIN for people, DINOv2 for objects) when
+    `SAM_BASE_URL` and `SAM_API_KEY` are set.
 
     Returns:
         The agent and the tickers; `(None, ())` (logged) outside prototype mode or without a
@@ -861,15 +862,16 @@ def build_ask(
     )
     identity = None
     if settings.rulecam_ask_identities and settings.sam_base_url and settings.sam_api_key:
+        base_url, key = settings.sam_base_url, settings.sam_api_key.get_secret_value()
+        edge = settings.sam_edge_key.get_secret_value() if settings.sam_edge_key else None
         identity = IdentityMemory(
             tracks_root=settings.rulecam_data_dir / "tracks",
             frames=frames,
-            embed=gpu_embedder(
-                settings.sam_base_url,
-                settings.sam_api_key.get_secret_value(),
-                edge_key=(
-                    settings.sam_edge_key.get_secret_value() if settings.sam_edge_key else None
-                ),
+            embed=gpu_embedder(base_url, key, edge_key=edge),
+            embed_person=(
+                gpu_embedder(base_url, key, edge_key=edge, model="person")
+                if settings.rulecam_ask_person_reid
+                else None
             ),
             glimmer=glimmer,
             glimmer_model=glimmer.model,

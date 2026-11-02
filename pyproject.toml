@@ -37,6 +37,11 @@ ui = ["playwright>=1.45"]
 eval = ["matplotlib>=3.8", "ultralytics>=8.2"]
 # Tracking metrics for the WS0 eval harness (IDF1, ID switches): py-motmetrics is MIT.
 tracking = ["motmetrics>=1.4"]
+# BoT-SORT with person re-ID between SAM keyframes (add-on 3.1): BoxMOT is AGPL-3.0, allowed by
+# the team lead's Nov 2 decision (WHAT-WE-BUILT.md). Install it on the API pod
+# (`uv sync --extra reid`); without it people are tracked by ByteTrack as before. The GPU venv
+# installs the same release for OSNet-AIN (`sam_worker.BOXMOT_PACKAGE`, scripts/sam_pod).
+reid = ["boxmot==26.0.0", "torch>=2.3"]
 
 [project.scripts]
 rulecam = "rulecam.cli:app"
@@ -117,7 +122,7 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = [
   "cv2.*", "kasa.*", "modal.*", "transformers.*", "duckdb.*", "shapely.*",
-  "qrcode.*", "ultralytics.*", "onnxruntime.*", "playwright.*", "motmetrics.*",
+  "qrcode.*", "ultralytics.*", "onnxruntime.*", "playwright.*", "motmetrics.*", "boxmot.*",
 ]
 ignore_missing_imports = true
 
@@ -140,6 +145,15 @@ branch = true
 [tool.uv]
 # `trackers` (Apache-2.0) declares opencv-python; the repo ships opencv-python-headless, which
 # provides the same `cv2` module without the GUI libraries. Never install both.
-override-dependencies = ["opencv-python; sys_platform == 'never'"]
+#
+# BoxMOT (the `reid` extra) caps pyarrow < 24 and pandas < 3 for its dataset and eval tools, which
+# the tracker never imports; without these overrides the lock would downgrade the whole product's
+# pyarrow and pandas. pyarrow keeps the repo's own bound; pandas (else only motmetrics', dev)
+# keeps 2.x and newer.
+override-dependencies = [
+  "opencv-python; sys_platform == 'never'",
+  "pyarrow>=16",
+  "pandas>=2.0",
+]
 # Transitive pins of `trackers`/`supervision` to releases at least two weeks old (repo rule).
 constraint-dependencies = ["av==19.0.1"]

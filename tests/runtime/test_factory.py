@@ -22,6 +22,7 @@ from rulecam.replay.cache import ReplayCache
 from rulecam.replay.errors import ReplayMiss
 from rulecam.rules.backtest import DecisionContext, candidate_payload, read_candidate_payload
 from rulecam.rules.store import ParquetTrackStore
+from rulecam.runtime import factory
 from rulecam.runtime.factory import (
     ChainEventSource,
     ChunkIndex,
@@ -32,6 +33,7 @@ from rulecam.runtime.factory import (
     build_tier1,
     glimmer_health_url,
     hosted_sam,
+    person_tracker,
     self_hosted_worker,
 )
 from rulecam.runtime.loop import RuntimeLoop
@@ -282,6 +284,29 @@ def test_image_mode_on_our_gpu_pod_falls_back_to_hosted_images_and_counts_it(
     assert chain.degraded
     assert perception.metrics.report().total.sam_fallbacks == 1
     assert tracker.estimate(make_chunk(), 1) == 75  # hosted prices while degraded
+
+
+def test_person_botsort_runs_only_in_prototype_mode_with_boxmot(tmp_path: Path) -> None:
+    proto = settings(tmp_path, rulecam_prototype_mode=True)
+    assert Settings(_env_file=None).rulecam_person_tracker == "botsort"
+    assert person_tracker(settings(tmp_path), available=True) is None  # never outside prototype
+    assert person_tracker(proto, available=False) is None  # no `reid` extra: ByteTrack
+    off = settings(tmp_path, rulecam_prototype_mode=True, rulecam_person_tracker="bytetrack")
+    assert person_tracker(off, available=True) is None
+    assert callable(person_tracker(proto, available=True))
+
+
+def test_image_mode_asks_for_low_confidence_and_person_vectors_only_with_botsort(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(factory, "boxmot_available", lambda: True)
+    _, loop = _image_runtime(tmp_path, rulecam_prototype_mode=True, **SAM_HTTP)
+    primary = loop._tracker._keyframes._primary  # type: ignore[attr-defined]
+    assert primary._min_confidence == 0.1
+    assert primary._embed("person")
+    assert not primary._embed("forklift")
+    _, plain = _image_runtime(tmp_path / "plain", **SAM_HTTP)
+    assert plain._tracker._keyframes._primary._embed is None  # type: ignore[attr-defined]
 
 
 def test_bad_keyframe_rate_overrides_fail_at_startup(tmp_path: Path) -> None:

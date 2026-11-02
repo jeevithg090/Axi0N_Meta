@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     # Image mode: the lowest SAM score the keyframe tracker gets (ByteTrack's second pass, which
     # only extends existing tracks); everything else keeps SAM's 0.5 cut.
     rulecam_tracker_low_confidence: float = Field(default=0.1, ge=0.0, le=0.5)
+    # Image mode: the tracker for people. `botsort` (BoT-SORT with OSNet-AIN person re-ID vectors
+    # from the SAM pod, `perception.botsort`) runs only in prototype mode with the `reid` extra
+    # installed; otherwise, and for every other concept, ByteTrack.
+    rulecam_person_tracker: Literal["botsort", "bytetrack"] = "botsort"
     # Rule ids whose owner turned operator exclusion off (comma-separated; rules/operators.py):
     # for these, a person riding a forklift counts as a pedestrian next to it.
     rulecam_operator_exclusion_off: str = ""

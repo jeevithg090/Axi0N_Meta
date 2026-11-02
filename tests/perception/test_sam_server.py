@@ -579,6 +579,28 @@ def test_embed_round_trip_and_limits() -> None:
         server.close()
 
 
+class FakePersonEmbedder:
+    def embed(self, images: list[bytes]) -> dict[str, Any]:
+        return {"model": "fake-osnet", "embeddings": [[0.0, 1.0] for _ in images]}
+
+
+def test_embed_picks_the_person_model_on_request() -> None:
+    server = Running(FakeEngine(), embedder=FakeEmbedder(), person_embedder=FakePersonEmbedder())
+    try:
+        crops = [base64.b64encode(b"abc").decode()]
+        url = f"{server.url}/embed"
+        person = httpx.post(url, json={"images_b64": crops, "model": "person"}, headers=_auth())
+        assert person.json() == {"model": "fake-osnet", "embeddings": [[0.0, 1.0]]}
+        default = httpx.post(url, json={"images_b64": crops}, headers=_auth())
+        assert default.json()["model"] == "fake-dinov2"
+        unknown = httpx.post(url, json={"images_b64": crops, "model": "face"}, headers=_auth())
+        assert unknown.status_code == 404
+        bad = httpx.post(url, json={"images_b64": crops, "model": 3}, headers=_auth())
+        assert bad.status_code == 400
+    finally:
+        server.close()
+
+
 def test_embed_is_404_without_an_embedder(running: Running) -> None:
     body = {"images_b64": [base64.b64encode(b"abc").decode()]}
     assert httpx.post(f"{running.url}/embed", json=body, headers=_auth()).status_code == 404

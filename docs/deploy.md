@@ -805,8 +805,16 @@ What runs where:
   state, memory released and guarded after every call. `SAM_IMAGE=0` turns it off (404),
   `SAM_IMAGE_THRESH` (0.1) is the lowest confidence it keeps; each request cuts higher at its
   `min_confidence` (0.5 unless the runtime tracker asks for its low-confidence floor,
-  `RULECAM_TRACKER_LOW_CONFIDENCE`, 0.1, which only ByteTrack's second pass uses), and image calls
-  wait in their own queue,
+  `RULECAM_TRACKER_LOW_CONFIDENCE`, 0.1, which only ByteTrack's second pass uses). Objects of a
+  request's `embed_concepts` (people, when the API pod runs BoT-SORT) also get a 512-d OSNet-AIN
+  person re-ID vector (`reid_worker`): BoxMOT 26.0.0 is installed in the GPU venv without its
+  numpy >= 2 pin, and the weights `osnet_ain_x1_0_msmt17.pt` live at
+  `$(dirname $HF_HOME)/reid/` (`SAM_REID_WEIGHTS` overrides; `SAM_REID=0` turns re-ID off;
+  without BoxMOT or the file the server logs `reid_unavailable` and serves boxes only).
+  `scripts/sam_pod/setup.sh` (also `--stage` for the serverless volume) and
+  `deploy/sam-entrypoint.sh` fetch the weights once. On the API pod, people are tracked by
+  BoT-SORT (`RULECAM_PERSON_TRACKER=botsort`, the default) only in prototype mode and only with
+  `uv sync --extra reid`; otherwise ByteTrack, as before. Image calls wait in their own queue,
   `SAM_IMAGE_MAX_WAITING` (8), for the same GPU. `/health` reports `image` (loaded, waiting,
   calls, guard trips). The body is
   `{"request": <SamRequest JSON>, "video_b64": ...}` (32 MB limit, `SAM_MAX_BODY_BYTES`), the

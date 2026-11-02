@@ -21,10 +21,12 @@ The API pod reaches it through `sam_runtime.HttpSamWorker`. Routes:
   it needs no extra weights and keeps no session state. 404 when the server runs without it
   (`SAM_IMAGE=0`).
 
-- `POST /embed`: DINOv2 appearance embeddings of object crops (`appearance_worker`), same key.
-  The body is `{"images_b64": ["<base64 JPEG>", ...]}` (at most `MAX_EMBED_IMAGES`), the answer
-  `{"model": ..., "embeddings": [[...], ...]}`. The model loads on the first call and shares
-  the GPU with SAM 3.1.
+- `POST /embed`: appearance embeddings of object crops, same key. The body is
+  `{"images_b64": ["<base64 JPEG>", ...], "model": "appearance" | "person"}` (at most
+  `MAX_EMBED_IMAGES`; `model` defaults to `appearance`), the answer
+  `{"model": ..., "embeddings": [[...], ...]}`. `appearance` is DINOv2 (`appearance_worker`, any
+  object); `person` is OSNet-AIN person re-ID (`reid_worker`), 404 when the pod has no re-ID
+  model. Models load on their first call and share the GPU with SAM 3.1.
 
 Errors are `{"error": {"message": ...}}` with 400 (malformed body), 401 (missing or wrong key),
 404, 411 (no `Content-Length`), 413 (body over the limit), 500 (the engine failed) or 503 (the
@@ -73,6 +75,8 @@ SEGMENT_PATH = "/segment"
 SEGMENT_IMAGE_PATH = "/segment_image"
 EMBED_PATH = "/embed"
 MAX_EMBED_IMAGES = 64
+APPEARANCE_MODEL = "appearance"  # DINOv2, any object
+PERSON_MODEL = "person"  # OSNet-AIN person re-ID
 
 _log = logging.getLogger("rulecam.sam_server")
 
@@ -206,19 +210,23 @@ class Embedder(Protocol):
         ...
 
 
-def parse_embed_body(body: bytes) -> list[bytes]:
-    """Decode a `/embed` body into the crops.
+def parse_embed_body(body: bytes) -> tuple[list[bytes], str]:
+    """Decode a `/embed` body into the crops and the model to embed them with.
 
     Raises:
-        BadRequestError: Not JSON, no `images_b64` list, too many images, or bad base64.
+        BadRequestError: Not JSON, no `images_b64` list, too many images, bad base64, or a
+            `model` that is not a string.
     """
     data = _json_object(body)
     images = data.get("images_b64")
     if not isinstance(images, list) or not images or len(images) > MAX_EMBED_IMAGES:
         msg = f"images_b64 must be a list of 1 to {MAX_EMBED_IMAGES} base64 images"
         raise BadRequestError(msg)
+    model = data.get("model", APPEARANCE_MODEL)
+    if not isinstance(model, str):
+        raise BadRequestError("model must be a string")
     try:
-        return [base64.b64decode(str(item), validate=True) for item in images]
+        return [base64.b64decode(str(item), validate=True) for item in images], model
     except (binascii.Error, ValueError) as exc:
         raise BadRequestError("images_b64 holds invalid base64") from exc
 
@@ -274,6 +282,7 @@ class SamHTTPServer(ThreadingHTTPServer):
         image_engine: ImageEngine | None = None,
         image_max_waiting: int = DEFAULT_IMAGE_MAX_WAITING,
         embedder: Embedder | None = None,
+        person_embedder: Embedder | None = None,
     ) -> None:
         """Bind the server.
 
@@ -286,6 +295,8 @@ class SamHTTPServer(ThreadingHTTPServer):
             image_engine: Serves `/segment_image` (runtime keyframes); `None` answers 404 there.
             image_max_waiting: Image calls allowed to wait for the GPU.
             embedder: Serves `/embed` (appearance re-identification); `None` answers 404 there.
+            person_embedder: Serves `/embed` with `"model": "person"` (person re-ID); `None`
+                answers 404 for it.
 
         Raises:
             ValueError: If `api_key` is empty.
@@ -301,7 +312,11 @@ class SamHTTPServer(ThreadingHTTPServer):
         self.slot = GpuSlot(max_waiting, gpu)
         self.image_engine = image_engine
         self.image_slot = GpuSlot(image_max_waiting, gpu)
-        self.embedder = embedder
+        self.embedders = {
+            name: model
+            for name, model in ((APPEARANCE_MODEL, embedder), (PERSON_MODEL, person_embedder))
+            if model is not None
+        }
         self.embed_slot = GpuSlot(image_max_waiting, gpu)
 
     def handle_error(self, request: Any, client_address: Any) -> None:  # noqa: ARG002
@@ -350,8 +365,8 @@ class SamRequestHandler(BaseHTTPRequestHandler):
         if self.path == SEGMENT_IMAGE_PATH and self.server.image_engine is not None:
             self._segment_images(self.server.image_engine)
             return
-        if self.path == EMBED_PATH and self.server.embedder is not None:
-            self._embed(self.server.embedder)
+        if self.path == EMBED_PATH and self.server.embedders:
+            self._embed()
             return
         if self.path != SEGMENT_PATH:
             self._error(HTTPStatus.NOT_FOUND, "not found")
@@ -380,16 +395,20 @@ class SamRequestHandler(BaseHTTPRequestHandler):
             self.server.image_slot, lambda: engine.segment_images(images, request), "sam_images"
         )
 
-    def _embed(self, embedder: Embedder) -> None:
+    def _embed(self) -> None:
         body = self._read_body()
         if body is None:
             return
         try:
-            images = parse_embed_body(body)
+            images, model = parse_embed_body(body)
         except BadRequestError as exc:
             self._error(HTTPStatus.BAD_REQUEST, str(exc))
             return
-        self._run(self.server.embed_slot, lambda: embedder.embed(images), "embed")
+        embedder = self.server.embedders.get(model)
+        if embedder is None:
+            self._error(HTTPStatus.NOT_FOUND, f"no {model!r} embedding model on this server")
+            return
+        self._run(self.server.embed_slot, lambda: embedder.embed(images), f"embed_{model}")
 
     def _run(self, slot: GpuSlot, work: Callable[[], dict[str, Any]], name: str) -> None:
         if not slot.try_admit():
@@ -505,6 +524,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
         argv: Command-line arguments (defaults to `sys.argv[1:]`).
     """
     from rulecam.perception.appearance_worker import DinoEmbedder  # noqa: PLC0415
+    from rulecam.perception.reid_worker import load_reid  # noqa: PLC0415
     from rulecam.perception.sam_worker import Sam31Engine, Sam31ImageEngine  # noqa: PLC0415
 
     parser = argparse.ArgumentParser(description="Serve self-hosted SAM 3.1 over HTTP.")
@@ -521,7 +541,8 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
     _log.info("sam_loading model=%s", MODEL_VERSION)
     engine = Sam31Engine.load()
     image_on = os.environ.get(IMAGE_ENV, "1").strip().lower() not in {"0", "false", "no"}
-    image_engine = Sam31ImageEngine.from_video_engine(engine) if image_on else None
+    reid = load_reid(os.environ)
+    image_engine = Sam31ImageEngine.from_video_engine(engine, reid=reid) if image_on else None
     embedder = DinoEmbedder()
     loading.shutdown()
     loading.server_close()
@@ -534,8 +555,9 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
         image_engine=image_engine,
         image_max_waiting=int(os.environ.get(IMAGE_MAX_WAITING_ENV, DEFAULT_IMAGE_MAX_WAITING)),
         embedder=embedder,
+        person_embedder=reid,
     )
-    _log.info("sam_serving port=%d", args.port)
+    _log.info("sam_serving port=%d reid=%s", args.port, reid.model_name if reid else None)
     server.serve_forever()
 
 

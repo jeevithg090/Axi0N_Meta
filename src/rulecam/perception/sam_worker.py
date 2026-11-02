@@ -49,7 +49,7 @@ import logging
 import os
 import tempfile
 import time
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -59,6 +59,7 @@ import numpy as np
 
 from rulecam.perception.errors import PerceptionError
 from rulecam.perception.masks import NO_MASK, decode_rle, encode_rle
+from rulecam.perception.reid_worker import wire_vector
 
 MODAL_APP_NAME = "rulecam-sam"
 MODAL_CLASS_NAME = "Sam31Worker"
@@ -90,6 +91,12 @@ IMAGE_PACKAGES = (
     "pycocotools",
     "psutil",
 )
+
+# Person re-ID on the SAM pod (`reid_worker`, add-ons 3.1/3.2), read by scripts/sam_pod/setup.sh.
+# BoxMOT is installed with --no-deps (it pins numpy >= 2; sam3 needs < 2), plus REID_DEPENDENCIES.
+BOXMOT_PACKAGE = "boxmot==26.0.0"
+REID_DEPENDENCIES = "rich>=15 platformdirs filterpy<2 lapcpp<2 gdown<6 scikit-learn<2 pandas<3"
+REID_WEIGHTS_URL = "https://drive.google.com/uc?id=1SigwBE6mPdqiJMqhuIY4aqC7--5CsMal"
 
 # GPU memory guard (see the module docstring).
 MEMORY_GUARD_ENV = "SAM_MEMORY_GUARD_GB"
@@ -521,6 +528,43 @@ class Sam3ProcessorPredictor:  # pragma: no cover - needs a CUDA GPU and the sam
         return boxes, scores, masks.reshape(len(scores), *masks.shape[-2:])
 
 
+class BoxEmbedder(Protocol):
+    """Person re-ID vectors for boxes (`reid_worker.OsnetEmbedder` on a GPU, a fake in tests)."""
+
+    @property
+    def model_name(self) -> str:
+        """The re-ID model's name."""
+        ...
+
+    def embed_boxes(
+        self, images: Sequence[np.ndarray], boxes: Sequence[np.ndarray]
+    ) -> list[np.ndarray]:
+        """Return unit vectors `(N_i, D)` for the `xyxy` boxes `(N_i, 4)` of each RGB image."""
+        ...
+
+
+def attach_embeddings(
+    objects: Sequence[WireObject],
+    pixels: Sequence[np.ndarray],
+    reid: BoxEmbedder,
+) -> None:
+    """Add each object's re-ID vector (`embedding`) in place, one batch for every image.
+
+    Args:
+        objects: Wire objects from `image_objects`, of the concepts to embed.
+        pixels: The request's decoded images, indexed by the objects' `image_idx`.
+        reid: Embeds the boxes.
+    """
+    by_image: list[list[WireObject]] = [[] for _ in pixels]
+    for obj in objects:
+        by_image[obj["image_idx"]].append(obj)
+    boxes = [np.array([o["box_xyxy"] for o in found], dtype=np.float32) for found in by_image]
+    vectors = reid.embed_boxes(pixels, boxes)
+    for found, rows in zip(by_image, vectors, strict=True):
+        for obj, vector in zip(found, rows, strict=True):
+            obj["embedding"] = wire_vector(vector)
+
+
 def decode_jpeg(data: bytes) -> np.ndarray:
     """Decode JPEG or PNG bytes into RGB `uint8` pixels.
 
@@ -584,8 +628,10 @@ def image_objects(
 class Sam31ImageEngine:
     """SAM 3.1 image detection for runtime keyframes; serves `POST /segment_image`.
 
-    Every image is encoded once and each concept detected on it. After every call, also a failed
-    one, GPU memory is released and the guard checked, as after a video session.
+    Every image is encoded once and each concept detected on it. With a re-ID model, the objects
+    of the request's `embed_concepts` get a person re-ID vector, all of a call's boxes in one
+    batch. After every call, also a failed one, GPU memory is released and the guard checked, as
+    after a video session.
     """
 
     def __init__(
@@ -596,6 +642,7 @@ class Sam31ImageEngine:
         memory: GpuMemory | None = None,
         memory_guard_bytes: int | None = None,
         decode: Callable[[bytes], np.ndarray] = decode_jpeg,
+        reid: BoxEmbedder | None = None,
     ) -> None:
         """Wrap a loaded image predictor.
 
@@ -605,7 +652,9 @@ class Sam31ImageEngine:
             memory: Reads and frees GPU memory (defaults to `NoGpuMemory`).
             memory_guard_bytes: Allocated bytes after a call that trigger a second release.
             decode: Decodes an image's bytes into RGB pixels.
+            reid: Person re-ID model for `embed_concepts`; `None` returns no vectors.
         """
+        self._reid = reid
         self._predictor = predictor
         self._inference_context = inference_context
         self._memory: GpuMemory = memory or NoGpuMemory()
@@ -615,11 +664,13 @@ class Sam31ImageEngine:
         self._guard_trips = 0
 
     @classmethod
-    def from_video_engine(cls, engine: Sam31Engine) -> Sam31ImageEngine:  # pragma: no cover
+    def from_video_engine(
+        cls, engine: Sam31Engine, *, reid: BoxEmbedder | None = None
+    ) -> Sam31ImageEngine:  # pragma: no cover - needs a CUDA GPU and the sam3 package
         """Serve images with the detector of an already loaded video engine (needs a GPU).
 
         The confidence floor comes from `SAM_IMAGE_THRESH` (default 0.1); each request cuts
-        higher with its `min_confidence`.
+        higher with its `min_confidence`. `reid` embeds people (`reid_worker.load_reid`).
         """
         from sam3.model.sam3_image_processor import (  # type: ignore[import-not-found]  # noqa: PLC0415
             Sam3Processor,
@@ -635,6 +686,7 @@ class Sam31ImageEngine:
             inference_context=engine.inference_context,
             memory=engine.memory,
             memory_guard_bytes=engine.memory_guard_bytes,
+            reid=reid,
         )
 
     def segment_images(self, images: list[bytes], request: dict[str, Any]) -> dict[str, Any]:
@@ -655,11 +707,15 @@ class Sam31ImageEngine:
         concepts = [str(c) for c in request["concepts"]]
         masks, confidence = bool(request.get("masks")), bool(request["include_confidence"])
         floor = float(request.get("min_confidence", LEGACY_MIN_CONFIDENCE))
+        embed = set(request.get("embed_concepts") or ()) if self._reid is not None else set()
         objects: list[WireObject] = []
+        pixels: list[np.ndarray] = []
         try:
             with self._inference_context():
                 for image_idx, data in enumerate(images):
-                    state = self._predictor.set_image(self._decode(data))
+                    image = self._decode(data)
+                    pixels.append(image)
+                    state = self._predictor.set_image(image)
                     for concept in concepts:
                         found = self._predictor.detect(state, concept)
                         objects.extend(
@@ -672,6 +728,9 @@ class Sam31ImageEngine:
                                 min_confidence=floor,
                             )
                         )
+                people = [o for o in objects if o["concept"] in embed]
+                if people and self._reid is not None:
+                    attach_embeddings(people, pixels, self._reid)
         finally:
             self._after_call()
         return {
@@ -683,7 +742,8 @@ class Sam31ImageEngine:
 
     def memory_stats(self) -> dict[str, Any]:
         """The image engine's own counters for `/health` (device memory is the video engine's)."""
-        return {"calls": self._calls, "guard_trips": self._guard_trips}
+        reid = self._reid.model_name if self._reid is not None else None
+        return {"calls": self._calls, "guard_trips": self._guard_trips, "reid": reid}
 
     def _after_call(self) -> None:
         self._calls += 1

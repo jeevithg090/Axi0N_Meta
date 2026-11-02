@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import threading
 from collections import defaultdict, deque
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -50,8 +50,9 @@ from rulecam.config import Settings
 from rulecam.contracts import Chunk, Clock, EventRecord, Track
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.log import get_logger
+from rulecam.perception.botsort import boxmot_available, by_concept, new_botsort_stream
 from rulecam.perception.errors import SamRuntimeError
-from rulecam.perception.keyframe_tracker import KeyframeIdentities, KeyframeTracker
+from rulecam.perception.keyframe_tracker import KeyframeIdentities, KeyframeTracker, StreamTracker
 from rulecam.perception.keyframes import HostedKeyframes, KeyframeRates, SelfHostedKeyframes
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.perception.motion_gate import MotionGate
@@ -73,7 +74,7 @@ from rulecam.perception.sam_runtime import (
 from rulecam.perception.static_cache import StaticCache, StaticServedSegmenter
 from rulecam.perception.tracking import Tracker
 from rulecam.replay.cache import ReplayCache
-from rulecam.rules.operators import OperatorExclusion
+from rulecam.rules.operators import OperatorExclusion, is_person_like
 from rulecam.rules.store import ParquetTrackStore
 from rulecam.runtime.cost import CostMeter
 from rulecam.runtime.loop import (
@@ -441,11 +442,44 @@ def _video_tracker(
     )
 
 
+def person_tracker(
+    settings: Settings, *, available: bool | None = None
+) -> Callable[[float], StreamTracker] | None:
+    """BoT-SORT for people (add-on 3.1), or `None` to keep ByteTrack (logged).
+
+    Appearance re-ID of people runs only in prototype mode (the owner's analytics), never
+    outside it, and needs BoxMOT (the `reid` extra) on this pod.
+
+    Args:
+        settings: Application settings (`RULECAM_PERSON_TRACKER`, prototype mode, the floor).
+        available: Whether BoxMOT is installed (checked when `None`).
+
+    Returns:
+        A person tracker builder, or `None`.
+    """
+    if settings.rulecam_person_tracker != "botsort":
+        return None
+    if not settings.rulecam_prototype_mode:
+        _log.info("person_tracker_bytetrack", reason="botsort re-ID runs in prototype mode only")
+        return None
+    if not (boxmot_available() if available is None else available):
+        _log.warning(
+            "person_tracker_bytetrack", reason="boxmot not installed (uv sync --extra reid)"
+        )
+        return None
+    low = settings.rulecam_tracker_low_confidence
+    return lambda lost_track_s: new_botsort_stream(lost_track_s, low_confidence=low)
+
+
 def _image_tracker(
     settings: Settings, perception: Perception, *, clock: Clock, bus: Bus, timings: StageTimings
 ) -> RuntimeTracker:
-    """Image mode: SAM 3.1 image keyframes (self-hosted, then hosted) joined by ByteTrack."""
+    """Image mode: SAM 3.1 image keyframes (self-hosted, then hosted) joined by ByteTrack.
+
+    People go on BoT-SORT with re-ID vectors when `person_tracker` allows it.
+    """
     metrics = perception.metrics
+    people = person_tracker(settings)
     hosted = HostedKeyframes(
         perception.runtime_hosted or perception.hosted,
         max_concurrency=settings.rulecam_sam_max_concurrency,
@@ -460,6 +494,7 @@ def _image_tracker(
             metrics=metrics,
             timings=timings.record,
             min_confidence=settings.rulecam_tracker_low_confidence,
+            embed=is_person_like if people is not None else None,
         )
         if worker is not None
         else None
@@ -478,7 +513,10 @@ def _image_tracker(
         ),
         store=perception.store,
         bus=bus,
-        identities=KeyframeIdentities(low_confidence=settings.rulecam_tracker_low_confidence),
+        identities=KeyframeIdentities(
+            low_confidence=settings.rulecam_tracker_low_confidence,
+            new_tracker=by_concept(is_person_like, people),
+        ),
         timings=timings,
     )
     return RuntimeTracker(

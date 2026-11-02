@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timedelta
@@ -14,6 +15,7 @@ from rulecam.contracts import Chunk, Detection, Mask
 from rulecam.perception.keyframe_tracker import (
     IMAGE_FRAME_EQUIVALENT,
     LOST_TRACK_S,
+    ByteTrackStream,
     KeyframeIdentities,
     KeyframeTracker,
     new_bytetrack,
@@ -204,6 +206,36 @@ def test_time_going_backwards_restarts_the_stream() -> None:
     a = identities.assign("cam1", "person", keyframes(later)[:1], [det(later, 0, box)])
     b = identities.assign("cam1", "person", keyframes(earlier)[:1], [det(earlier, 0, box)])
     assert ids_of(a) != ids_of(b)
+
+
+def test_stitch_hands_each_concepts_vectors_to_its_tracker() -> None:
+    seen: list[tuple[str, list[object]]] = []
+
+    class Recording(ByteTrackStream):
+        def __init__(self, concept: str) -> None:
+            super().__init__(new_bytetrack())
+            self.concept = concept
+
+        def step(self, detections, embeddings, timestamp_s):
+            seen.append((self.concept, list(embeddings)))
+            return super().step(detections, embeddings, timestamp_s)
+
+    vectors = {(0, 0): (1.0, 0.0)}
+
+    class WithVectors(ScriptedKeyframes):
+        def segment_keyframes(self, chunk, frames, concepts):
+            batch = super().segment_keyframes(chunk, frames, concepts)
+            return dataclasses.replace(batch, embeddings={"person": vectors})
+
+    world = {"person": [static_box], "cart": [static_box]}
+    identities = KeyframeIdentities(new_tracker=lambda concept, _: Recording(concept))
+    tracker = KeyframeTracker(WithVectors(world), decoder=fake_decoder([]), identities=identities)
+    chunk = make_chunk()
+    segmented = tracker.segment(chunk, ["person", "cart"])
+    assert segmented.embeddings == {"person": vectors}
+    tracker.stitch(chunk, segmented)
+    assert seen[0] == ("person", [(1.0, 0.0)])
+    assert ("cart", [None]) in seen
 
 
 def test_new_bytetrack_counts_its_lost_buffer_in_reference_frames() -> None:

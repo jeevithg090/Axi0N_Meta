@@ -643,6 +643,59 @@ def eval_track(
         typer.echo(f"wrote {out}")
 
 
+README_INTRO = (
+    "Measured on the deployed stack and on public hand-labelled footage. Each row is read from "
+    "the result file it cites by `uv run rulecam eval results`, with its run, date and the "
+    "commit that recorded it; a test fails if a number here is not in that file. Rule accuracy "
+    "on labelled clips, the verifier against human labels, tracking scores and serverless "
+    "latency are not measured yet: see [`eval/RESULTS.md`](eval/RESULTS.md) and "
+    "[`eval/README.md`](eval/README.md)."
+)
+RESULTS_INTRO = (
+    "Every number below is read from the result file its row cites (`uv run rulecam eval "
+    "results`, facts in `eval/results.yaml`), with the run, the date and the commit that "
+    "recorded the file. The formal evaluations further down have not been run yet."
+)
+
+
+@eval_app.command("results")
+def eval_results(
+    *,
+    facts: Annotated[Path, typer.Option(help="The facts file")] = Path("eval/results.yaml"),
+    readme: Annotated[Path, typer.Option(help="README with RESULTS markers")] = Path("README.md"),
+    results: Annotated[Path, typer.Option(help="RESULTS.md with markers")] = Path(
+        "eval/RESULTS.md"
+    ),
+    check: Annotated[bool, typer.Option(help="Only report whether the files are current")] = False,
+) -> None:
+    """Regenerate the README and RESULTS.md results tables from reports/eval/*.json."""
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+    from rulecam.eval.results_doc import load_facts, render_section, splice  # noqa: PLC0415
+
+    try:
+        found = load_facts(facts, Path.cwd())
+        targets = [
+            (readme, splice(readme.read_text("utf-8"), render_section(found, README_INTRO))),
+            (
+                results,
+                splice(
+                    results.read_text("utf-8"), render_section(found, RESULTS_INTRO), prefix="../"
+                ),
+            ),
+        ]
+    except (EvalError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    stale = [path for path, text in targets if path.read_text("utf-8") != text]
+    if check:
+        for path in stale:
+            typer.echo(f"{path} is out of date: run `uv run rulecam eval results`", err=True)
+        raise typer.Exit(code=AUDIT_FAILED if stale else 0)
+    for path, text in targets:
+        path.write_text(text, encoding="utf-8")
+    typer.echo(f"{len(found)} numbers written to {readme} and {results}")
+
+
 CAMPAIGN = (
     "run1=reports/eval/2026-11-01-live-test-campaign-run1.json",
     "run2=reports/eval/2026-11-01-live-test-campaign.json",

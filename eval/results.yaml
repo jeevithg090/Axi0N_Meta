@@ -1,0 +1,86 @@
+# The numbers the README and eval/RESULTS.md show, each read from a result file under
+# reports/eval/ by `uv run rulecam eval results` (src/rulecam/eval/results_doc.py). Add a fact
+# here, never a number by hand: tests/eval/test_results_doc.py fails on any README number that is
+# not in the result file its row cites (it reads the Value column; labels and runs are names).
+sources:
+  campaign:
+    file: reports/eval/2026-11-01-live-test-campaign.json
+    run: live test campaign, run 2
+  corridor:
+    file: reports/eval/2026-11-02-corridor-ground-truth.json
+    run: CAVIAR corridor, phone-68
+    date: date
+  baseline:
+    file: reports/eval/2026-10-31.json
+    run: first recorded run (warehouse driver only)
+    date: generated_at
+
+facts:
+  - source: campaign
+    run: T02
+    date: "[id=T02].started_at"
+    label: Distance measured, worker passing a moving forklift
+    path: "[id=T02].events[0].measurement.value"
+    format: "{:.2f} m"
+  - source: campaign
+    run: T02
+    date: "[id=T02].started_at"
+    label: Glimmer P(violation), worker inside the 4 m rule (verified alert)
+    path: "[id=T02].events[0].verdict.score"
+    format: "{:.2f}"
+  - source: campaign
+    run: T02
+    date: "[id=T02].started_at"
+    label: Event to verified decision
+    path: "[id=T02].events[0].event_to_decision_s"
+    format: "{:.1f} s"
+  - source: campaign
+    run: T03
+    date: "[id=T03].started_at"
+    label: Glimmer P(violation), same rule asked in Spanish (warning queued in Spanish)
+    path: "[id=T03].events[0].verdict.score"
+    format: "{:.2f}"
+  - source: campaign
+    run: T04
+    date: "[id=T04].started_at"
+    label: Glimmer P(violation), seated driver flagged by the engine (rejected, no alert)
+    path: "[id=T04].events[0].verdict.score"
+    format: "{:.2f}"
+  - source: campaign
+    run: T02
+    date: "[id=T02].started_at"
+    label: Request to plan ready (planner, live models)
+    path: "[id=T02].plan_s"
+    format: "{:.1f} s"
+  - source: campaign
+    run: T02
+    date: "[id=T02].started_at"
+    label: SAM 3.1 per 3 s chunk, p95 (self-hosted GPU)
+    path: "[id=T02].metrics.segment_latency_p95_s"
+    format: "{:.2f} s"
+  - source: corridor
+    label: Seconds with the exact people count (real CCTV, hand labels)
+    path: perception_score.exact_share
+    scale: 100
+    format: "{:.1f}%"
+  - source: corridor
+    label: Seconds with the count within one person
+    path: perception_score.within_one_share
+    scale: 100
+    format: "{:.1f}%"
+  - source: corridor
+    label: Peak people at once, system vs labels
+    path: [perception_score.system_peak.count, perception_score.truth_peak.count]
+    format: "{} vs {}"
+  - source: corridor
+    label: Person tracks and identities vs labelled visits
+    path: [perception_score.person_tracks, perception_score.person_identities, ground_truth.visits]
+    format: "{} tracks, {} identities vs {} visits"
+  - source: corridor
+    label: Backfill of recorded chunks (tracked points in seconds)
+    path: [backfill.points, backfill.seconds]
+    format: "{} points in {} s"
+  - source: baseline
+    label: Glimmer decisive before the strip renderer existed
+    path: ["runs[0].decisive", "runs[0].candidates"]
+    format: "{} of {} candidates"

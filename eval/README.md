@@ -404,3 +404,12 @@ does not wake workers) every 5 s and bills initializing + idle + running workers
 worker time is a lower bound (the union of request time per endpoint plus one 300 s idle tail)
 and the report says `estimate`. A cold burst waits until both endpoints report no worker (or
 330 s without the key). Expect 20 to 30 minutes and a few dollars for the full run.
+
+## README and RESULTS numbers (add-on 1.1)
+
+The results tables in `README.md` and `eval/RESULTS.md` are generated: each row is a fact in
+`eval/results.yaml` (a result file under `reports/eval/` and a path to the number in it), shown
+with its run, date and the commit that added the file. After a new result file lands, add facts
+for it and run `uv run rulecam eval results` (`--check` only reports staleness).
+`tests/eval/test_results_doc.py` fails when a number in either table is not in the file its row
+cites, or when the tables no longer match the facts.

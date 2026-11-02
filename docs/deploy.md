@@ -742,6 +742,51 @@ without frames.
   and `LLAMA_CACHE=/workspace/llama-cache`. Without the key the GPU is open to anyone with the URL.
   The API sends the same key as `GLIMMER_API_KEY`.
 
+### Serverless Glimmer (RunPod load balancer)
+
+Glimmer can also run as a RunPod serverless **load-balancing** endpoint, beside serverless SAM
+("Serverless SAM" below) and on the same network volume. It fits a 24 GB RTX 4090: the GGUF
+header gives 52 layers, 2 KV heads of 128 and a 2,048-token sliding window on 39 of them, so the
+KV cache of 64k context is about 1 GB next to 16.7 GB of weights and the 1.4 GB vision
+projector.
+
+- **Image**: the stock `ghcr.io/ggml-org/llama.cpp:server-cuda-b11669`, entrypoint
+  `bash /runpod-volume/rulecam/scripts/glimmer_pod/serverless.sh`, port `8080/http`, env
+  `PORT=8080`, `PORT_HEALTH=8080`, `GLIMMER_API_KEY` (`{{ RUNPOD_SECRET_rulecam_glimmer_api_key }}`),
+  `GLIMMER_PARALLEL=4`, `GLIMMER_CTX=65536` (16k per slot, as on the pods).
+- **Front**: `serverless.sh` starts llama-server on `127.0.0.1:8081` without `--api-key` and
+  runs `rulecam.clients.open_weights.llama_edge` on `PORT` with the standalone Python from the
+  volume. The proxy answers the load balancer's `GET /ping` (204 while llama-server loads, 200
+  when its `/health` is 200, 503 if it dies after being ready), checks the Glimmer key
+  (`X-Rulecam-Key`, or a Bearer token) and forwards everything else unchanged.
+- **Volume**: `scripts/glimmer_pod/stage.sh` (any pod mounting the volume at `/runpod-volume`, no
+  GPU) downloads the public GGUF and projector into `/runpod-volume/glimmer` (18 GB, about two
+  minutes) and a standalone Python if SAM's staging has not.
+- **Endpoint**: GPU pool `ADA_24`, `minCudaVersion` 12.8, workers min 0 / max 3, idle timeout
+  300 s, scaler `REQUEST_COUNT` 4, FlashBoot on.
+- **API pod**: `GLIMMER_BASE_URL=https://<endpoint-id>.api.runpod.ai/v1`, no
+  `GLIMMER_EXTRA_BASE_URLS` (the endpoint scales out itself), and a RunPod API key in
+  `/workspace/rulecam/.glimmer_edge_key` (mode 600) that `start.sh` exports as
+  `GLIMMER_EDGE_KEY`; the client then sends the Glimmer key in `X-Rulecam-Key`.
+
+Measured on 2 Nov 2026 from the API pod (US-IL-1), against an L40S pod:
+
+| | Serverless (RTX 4090) | Pod (L40S) |
+|---|---|---|
+| Cold start (the first request waits) | 144 s the first time (2 min of it loading 18 GB from the volume); 36 s on a later start | none while running |
+| Text answer, 64 tokens | 1.8 to 2.2 s | 1.9 to 2.1 s |
+| One store frame (975 prompt tokens) | 4.0 to 6.0 s | 3.7 to 4.4 s |
+| Generation | 42 to 50 tokens/s | 40 tokens/s |
+| Live Tier 1 checks, warm, 4 slots | 19.6 and 24.3 s | 21 to 25 s (two pods) |
+
+With 2 slots per worker the checks queued behind the caption memory, which keeps one request
+open while cameras stream, and took 31 to 76 s; 4 slots fixed that. Four simultaneous 6-frame
+requests (4,000 tokens each) finish in 9, 9, 19 and 19 s with 2 slots and 16, 16, 16 and 24 s
+with 4: image prompts are compute-bound, so slots help mixed traffic, not raw throughput. Once,
+right after the worker limit went from 0 to 3, a request sent during the cold start waited at
+the load balancer until the client's timeout while another worker served other requests; the
+client's 60 s timeout and retry cover that. Cost: $1.34/h per running worker, like SAM.
+
 ## Self-hosted SAM 3.1
 
 Why: with hosted SAM on the continuous runtime, each call took **6 to 17 s** live and billed

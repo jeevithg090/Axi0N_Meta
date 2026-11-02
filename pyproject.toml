@@ -41,7 +41,9 @@ tracking = ["motmetrics>=1.4"]
 # the team lead's Nov 2 decision (WHAT-WE-BUILT.md). Install it on the API pod
 # (`uv sync --extra reid`); without it people are tracked by ByteTrack as before. The GPU venv
 # installs the same release for OSNet-AIN (`sam_worker.BOXMOT_PACKAGE`, scripts/sam_pod).
-reid = ["boxmot==26.0.0", "torch>=2.3"]
+# torchvision is named so it comes from the CPU index with torch (a PyPI build next to CPU torch
+# fails to import).
+reid = ["boxmot==26.0.0", "torch>=2.3", "torchvision>=0.18"]
 
 [project.scripts]
 rulecam = "rulecam.cli:app"
@@ -61,6 +63,7 @@ dev = [
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

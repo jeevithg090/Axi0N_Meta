@@ -970,6 +970,17 @@ four chunks waited 23 to 63 s, none fell back to hosted SAM, and the next chunk 
 (6 keyframes, 3 concepts). A longer idle timeout, or one warm worker (`workers.min` 1, billed
 around the clock), avoids that wait at the start of a demo.
 
+**Warm-up and keep-alive** (both endpoints, from any machine with `RUNPOD_API_KEY` set):
+`scripts/ops/warm.sh on` sets `workers.min` 1 on SAM and Glimmer and waits until both `/ping`
+answer 200; `off` sets it back to 0 (do it right after the demo: a warm worker bills $1.34/h);
+`status` prints min, max, idle timeout and workers by status. RunPod lowers `workers.max` on an
+endpoint without requests (to 2 after 3 days, to 0 after 7, until raised by hand), so
+`warm.sh keepalive` sends one authenticated `/ping` to each and prints a loud warning when
+`workers.max` is under 2 (SAM) or 3 (Glimmer). On the API pod, `scripts/ops/keepalive_loop.sh`
+runs it once a day for 16 days (key from `/workspace/rulecam/.runpod_api_key`):
+`setsid nohup bash /workspace/rulecam/scripts/ops/keepalive_loop.sh >> /workspace/keepalive.log
+2>&1 < /dev/null &`.
+
 ## Checks
 
 - `curl https://rulecam.vercel.app/rulecam-api/mode` → `{"mode":"live","badge":"LIVE"}`.

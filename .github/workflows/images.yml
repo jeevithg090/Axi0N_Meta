@@ -17,6 +17,7 @@ on:
       - ".dockerignore"
       - "scripts/deploy/**"
       - "scripts/sam_pod/**"
+      - "scripts/ops/**"
       - "tests/deploy/**"
       - ".github/workflows/images.yml"
   pull_request:
@@ -28,6 +29,7 @@ on:
       - ".dockerignore"
       - "scripts/deploy/**"
       - "scripts/sam_pod/**"
+      - "scripts/ops/**"
       - "tests/deploy/**"
       - ".github/workflows/images.yml"
   workflow_dispatch:
@@ -79,7 +81,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: shellcheck --version
-      - run: shellcheck -x deploy/*.sh scripts/deploy/*.sh scripts/sam_pod/*.sh
+      - run: shellcheck -x deploy/*.sh scripts/deploy/*.sh scripts/sam_pod/*.sh scripts/glimmer_pod/*.sh scripts/ops/*.sh
 
   api-image:
     runs-on: ubuntu-latest

@@ -146,7 +146,11 @@ class OsnetEmbedder:
                     sample_id=sample,
                 )
             )
-        encoded = self._ready().encode(tuple(frames), tuple(detections))
+        # `/segment_image` calls this inside SAM's bfloat16 autocast (`bf16_inference`). OSNet's
+        # weights are float32, and under autocast its output is bfloat16, which BoxMOT then hands
+        # to numpy (no bfloat16): every call failed with a TypeError. Run it in float32.
+        with torch.autocast("cuda", enabled=False), torch.autocast("cpu", enabled=False):
+            encoded = self._ready().encode(tuple(frames), tuple(detections))
         return [np.asarray(vectors.detach().cpu().numpy(), dtype=np.float32) for vectors in encoded]
 
     def embed(self, images: list[bytes]) -> dict[str, Any]:  # pragma: no cover - GPU

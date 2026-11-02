@@ -42,3 +42,21 @@ def test_reid_needs_boxmot_and_the_weights(tmp_path: Path, monkeypatch: pytest.M
     loaded = load_reid(env)
     assert isinstance(loaded, OsnetEmbedder)
     assert loaded.model_name == REID_MODEL
+
+
+def test_vectors_survive_sams_bfloat16_autocast(tmp_path: Path) -> None:
+    """`/segment_image` embeds people inside SAM's bfloat16 autocast; vectors must stay float32."""
+    pytest.importorskip("boxmot")
+    torch = pytest.importorskip("torch")
+    from boxmot.reid.backbones.families.osnet import osnet_ain_x1_0  # noqa: PLC0415
+
+    weights = tmp_path / f"{REID_MODEL}.pt"
+    torch.save(osnet_ain_x1_0(num_classes=10, pretrained=False).state_dict(), weights)
+    embedder = OsnetEmbedder(weights, device="cpu")
+    pixels = np.random.default_rng(0).integers(0, 255, (288, 384, 3), dtype=np.uint8)
+    boxes = np.array([[10, 20, 60, 160], [200, 40, 250, 200]], dtype=np.float32)
+    with torch.inference_mode(), torch.autocast("cpu", dtype=torch.bfloat16):
+        (vectors,) = embedder.embed_boxes([pixels], [boxes])
+    assert vectors.shape == (2, 512)
+    assert vectors.dtype == np.float32
+    assert np.allclose(np.linalg.norm(vectors, axis=1), 1.0, atol=1e-3)

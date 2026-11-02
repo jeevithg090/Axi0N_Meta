@@ -5,7 +5,7 @@
 import { ApiError, withCsrf } from "./api";
 import { API_PROXY } from "./config";
 
-export type AskActionKind = "sql" | "count_objects" | "look" | "answer";
+export type AskActionKind = "sql" | "count_objects" | "look" | "watch" | "answer";
 
 /** One action of a turn: a tool call, or the final answer. */
 export interface AskAction {
@@ -272,6 +272,7 @@ const TOOL_LABEL: Record<AskActionKind, string> = {
   sql: "SQL",
   count_objects: "Count (SAM 3.1)",
   look: "Look (Glimmer)",
+  watch: "Watch (Spark video)",
   answer: "Answer",
 };
 

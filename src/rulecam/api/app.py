@@ -81,6 +81,7 @@ from rulecam.ask import (
 from rulecam.ask.identity import IdentityMemory, gpu_embedder
 from rulecam.ask.review import SparkOpenReviewer
 from rulecam.ask.runlog import AskRunLog, git_sha
+from rulecam.ask.watch import ClipJoiner
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
 from rulecam.clients.errors import ClientConfigError
@@ -833,7 +834,8 @@ def build_ask(
     (DINOv2 re-identification on the GPU pod) when `SAM_BASE_URL` and `SAM_API_KEY` are set.
     Every answer is appended to the hash-chained run log `<data>/ask/runs.jsonl`. With
     `RULECAM_ASK_REVIEW` and a Baseten key, Muse Spark Open (the Tier 2 client) reviews each
-    draft answer and can send it back once.
+    draft answer and can send it back once. Its `watch` tool joins recorded chunks into one clip
+    for Spark (`muse-spark-1.2`) to watch as video.
 
     Returns:
         The agent and the tickers; `(None, ())` (logged) outside prototype mode or without a
@@ -921,6 +923,11 @@ def build_ask(
             max_result_chars=settings.rulecam_ask_max_result_chars,
         ),
         reviewer=reviewer,
+        clips=ClipJoiner(
+            perception.chunks, ask_dir / "clips", max_seconds=settings.rulecam_ask_max_watch_s
+        ),
+        files=spark,
+        watch_model=settings.rulecam_ask_watch_model,
     )
     return agent, tuple(m.tick for m in (memory, identity) if m is not None)
 

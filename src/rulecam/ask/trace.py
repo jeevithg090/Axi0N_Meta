@@ -8,7 +8,7 @@ from pydantic import Field
 
 from rulecam.contracts import Frozen
 
-Action = Literal["sql", "count_objects", "look", "answer"]
+Action = Literal["sql", "count_objects", "look", "watch", "answer"]
 
 
 class AskAction(Frozen):
@@ -21,11 +21,17 @@ class AskAction(Frozen):
         description="For sql: one or more SELECT/WITH statements separated by ';'.",
     )
     concept: str | None = Field(default=None, description="For count_objects: a noun phrase.")
-    camera_id: str | None = Field(default=None, description="For count_objects and look.")
+    camera_id: str | None = Field(default=None, description="For count_objects, look and watch.")
     times: list[str] = Field(
-        default_factory=list, description="For count_objects and look: ISO-8601 UTC instants."
+        default_factory=list,
+        description=(
+            "ISO-8601 UTC instants. For count_objects and look: the instants to see; for watch: "
+            "[start, end] of the window to watch."
+        ),
     )
-    question: str | None = Field(default=None, description="For look: what Glimmer should answer.")
+    question: str | None = Field(
+        default=None, description="For look and watch: what the model looking should answer."
+    )
     marks: bool = Field(
         default=True, description="For look: draw the tracked objects as numbered boxes."
     )

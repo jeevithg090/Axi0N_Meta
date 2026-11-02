@@ -8,6 +8,8 @@ many as it decides (up to `max_actions`), which run at the same time in a thread
 - `count_objects`: SAM 3.1 (Meta hosted) prompted with any noun phrase on the recorded frames of
   a camera at chosen instants;
 - `look`: Muse Glimmer answers a question about the recorded frames at chosen instants;
+- `watch`: Muse Spark watches the recorded clip of a chosen window as video (`ask.watch`), with
+  Glimmer on evenly spaced stills as the fallback when the video call fails;
 - `answer`: the final answer (on its own).
 
 The results go back to Spark in the order of its actions, as the next message. Spark decides
@@ -69,6 +71,14 @@ from rulecam.ask.vision import (
     count_objects,
     look,
     marked,
+)
+from rulecam.ask.watch import (
+    DEFAULT_MAX_WATCH_S,
+    WATCH_MODEL,
+    ClipJoiner,
+    FileAttacher,
+    spaced,
+    watch,
 )
 from rulecam.contracts import Clock, StructuredLLM
 from rulecam.errors import RulecamError
@@ -178,7 +188,11 @@ instants (times); returns the count and boxes [x1, y1, x2, y2, confidence] per f
 and answers your question in words (and a count if asked). With marks (default) the tracked \
 objects are drawn as numbered boxes and the result maps each number to its track_id, so you can \
 join what Glimmer says to the tables.
-4. answer: the final reply in the owner's language, with the numbers, the time range they cover \
+4. watch: Muse Spark watches the recorded video of camera_id from times[0] to times[1] (one \
+clip of up to {max_watch_s} s) and answers your question, with the moments it relies on as UTC \
+instants. Stills miss what only shows as movement: someone entering or leaving a shop, people \
+walking together, a queue forming; watch sees it.
+5. answer: the final reply in the owner's language, with the numbers, the time range they cover \
 and one short sentence on how you got them and how sure you are. Also list the numbers the \
 reply gives in `numbers`, in the order the question asks for them.
 
@@ -225,6 +239,9 @@ class AskAgent:
         limits: AskLimits = DEFAULT_LIMITS,
         runs: AskRunLog | None = None,
         reviewer: AnswerReviewer | None = None,
+        clips: ClipJoiner | None = None,
+        files: FileAttacher | None = None,
+        watch_model: str = WATCH_MODEL,
     ) -> None:
         """Create the agent.
 
@@ -247,6 +264,9 @@ class AskAgent:
                 `tables` is built, see `open_tables`).
             runs: The run log each answer is appended to (its row hash is the receipt).
             reviewer: A second model that checks each draft and can send it back once.
+            clips: Joins recorded chunks into one clip for `watch` (`None`: watch unavailable).
+            files: Uploads a clip for Spark (`SparkClient.attach`; `None`: watch unavailable).
+            watch_model: The Spark model that takes video.
         """
         self._spark = spark
         self._segmenter = segmenter
@@ -265,6 +285,9 @@ class AskAgent:
         self._limits = limits
         self._runs = runs
         self._reviewer = reviewer
+        self._clips = clips
+        self._files = files
+        self._watch_model = watch_model
         self._conversations: OrderedDict[str, list[AskAnswer]] = OrderedDict()
         self._lock = threading.Lock()
 
@@ -509,6 +532,7 @@ class AskAgent:
             max_rows=self._limits.max_rows,
             max_frames=self._limits.max_frames,
             max_actions=self._limits.max_actions,
+            max_watch_s=f"{self._clips.max_seconds if self._clips else DEFAULT_MAX_WATCH_S:g}",
         )
         video = {
             camera: {"first": first.isoformat(), "last": last.isoformat()}
@@ -553,6 +577,8 @@ class AskAgent:
         try:
             if action.action == "sql":
                 return _Outcome(_sql_result(tables.run_sql(action.sql or "")))
+            if action.action == "watch":
+                return self._watch(action)
             asked = _instants(action.times)
             used = asked[: self._limits.max_frames]
             frames = self._frames.frames(action.camera_id or "", used)
@@ -576,6 +602,51 @@ class AskAgent:
         except (SqlError, ValueError, RulecamError, OSError) as exc:
             _log.info("ask_step_failed", action=action.action, error=str(exc))
             return _Outcome({"error": str(exc)})
+
+    def _watch(self, action: AskAction) -> _Outcome:
+        """Spark watches the window's clip; Glimmer looks at stills of it if that fails.
+
+        Raises:
+            ValueError: For a window that is not `[start, end]` or has nothing recorded.
+            OSError: When the clip cannot be joined.
+        """
+        if self._clips is None or self._files is None:
+            return _Outcome({"error": "watch is not available here (no video upload); use look"})
+        window = _instants(action.times)
+        if len(window) != 2:  # noqa: PLR2004 - a window is a start and an end
+            msg = "watch needs times = [start, end]"
+            raise ValueError(msg)
+        camera = action.camera_id or ""
+        clip = self._clips.clip(camera, window[0], window[1])
+        about = {
+            "camera_id": camera,
+            "start": clip.start.isoformat(),
+            "end": clip.end.isoformat(),
+            "seconds": round(clip.seconds, 1),
+            "chunks": clip.chunks,
+        }
+        question = action.question or "What happens in this clip?"
+        try:
+            seen = watch(self._spark, self._files, clip, question, model=self._watch_model)
+        except (RulecamError, OSError, ValueError) as exc:
+            _log.warning("ask_watch_failed", camera_id=camera, error=repr(exc)[:300])
+            failed = f"{type(exc).__name__}: {str(exc)[:200]}"
+        else:
+            return _Outcome({"clip": about, **seen, **_notes(clip.notes)}, self._watch_model)
+        instants = spaced(clip.start, clip.end, self._limits.max_frames)
+        frames = self._frames.frames(camera, instants)
+        if not frames:
+            return _Outcome({"clip": about, "error": f"watching failed ({failed})"})
+        answer = look(self._glimmer, self._glimmer_model, frames, question)
+        fallback = (
+            f"watching failed ({failed}); instead Glimmer looked at {len(frames)} evenly "
+            "spaced stills of the window"
+        )
+        return _Outcome(
+            {"clip": about, "fallback": fallback, **answer.model_dump(), **_notes(clip.notes)},
+            self._glimmer_model,
+            tuple(f.path for f in frames),
+        )
 
     def _mark(self, frame: Frame, tables: TrackTables, labels: dict[str, str]) -> Frame:
         """The frame with every track near its instant drawn as a numbered box."""

@@ -91,6 +91,10 @@ class Settings(BaseSettings):
     rulecam_ask_max_frames: int = Field(default=6, ge=1, le=32)
     # Tool calls one Ask turn runs at the same time (Spark picks how many, up to this).
     rulecam_ask_max_actions: int = Field(default=6, ge=1, le=16)
+    # Ask's `watch` tool: the longest window joined into one clip for Spark, and the Spark model
+    # that takes video (Spark's video limits are not published; the clip is capped to this).
+    rulecam_ask_max_watch_s: float = Field(default=180.0, ge=3.0, le=1800.0)
+    rulecam_ask_watch_model: str = "muse-spark-1.2"
     # Muse Spark Open (Baseten) checks each Ask answer against its trace and can send it back
     # once (needs BASETEN_API_KEY; off without it).
     rulecam_ask_review: bool = True

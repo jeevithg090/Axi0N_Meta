@@ -1236,6 +1236,10 @@ button.num-hidden,
   white-space: pre-wrap;
   margin: 0 0 4px;
 }
+.ask-moments {
+  margin: 4px 0;
+  padding-left: 18px;
+}
 .ask-review {
   padding: 6px 8px;
   border-left: 4px dashed var(--line);

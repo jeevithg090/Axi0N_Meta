@@ -126,13 +126,24 @@ function ResultView({ step }: { step: AskStep }) {
   }
   if (Array.isArray(result.rows)) return <TableView result={result} />;
   const notes = Array.isArray(result.notes) ? result.notes.map(text) : [];
+  const moments = Array.isArray(result.moments) ? result.moments.filter(isRecord) : [];
   return (
     <>
+      {typeof result.fallback === "string" && <p className="muted">{result.fallback}</p>}
       {typeof result.answer === "string" && (
         <p>
           {result.answer}
           {typeof result.count === "number" && <strong> · count {result.count}</strong>}
         </p>
+      )}
+      {moments.length > 0 && (
+        <ul className="ask-moments" data-testid="ask-moments">
+          {moments.map((m, k) => (
+            <li key={k}>
+              <span className="muted">{text(m.at)}</span> {text(m.what)}
+            </li>
+          ))}
+        </ul>
       )}
       {step.frames.length > 0 && <FrameStrip step={step} />}
       {notes.map((note) => (
@@ -171,7 +182,11 @@ function ActionRow({ view }: { view: ActionView }) {
         ) : (
           <p className="muted">
             {what}
-            {action.times?.length ? ` · at ${action.times.join(", ")}` : ""}
+            {action.times?.length
+              ? action.action === "watch"
+                ? ` · from ${action.times.join(" to ")}`
+                : ` · at ${action.times.join(", ")}`
+              : ""}
           </p>
         )}
         {step && <ResultView step={step} />}

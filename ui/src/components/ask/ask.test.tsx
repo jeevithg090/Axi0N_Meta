@@ -119,4 +119,43 @@ describe("AskTimeline", () => {
     expect(row).toContain("Ten people.");
     expect(screen.queryByTestId("ask-reviewing")).toBeNull();
   });
+
+  it("shows a watch step's answer with its moments and window", () => {
+    const watch = {
+      thought: "entries show as movement",
+      action: "watch" as const,
+      camera_id: "corridor",
+      times: ["09:44:00", "09:46:00"],
+      question: "Who goes into a shop?",
+    };
+    const evts: AskEvent[] = [
+      { type: "thinking", turn: 0 },
+      { type: "actions", turn: 0, actions: [watch] },
+      {
+        type: "step",
+        turn: 0,
+        index: 0,
+        step: {
+          turn: 0,
+          action: watch,
+          result: {
+            answer: "One person enters the left shop.",
+            count: 1,
+            moments: [{ at: "09:45:02", what: "enters the left shop" }],
+          },
+          seconds: 12.5,
+          model: "muse-spark-1.2",
+          frames: [],
+        },
+      },
+    ];
+    render(<AskTimeline exchange={evts.reduce(askReducer, newExchange("q"))} />);
+    const row = screen.getByTestId("ask-action").textContent ?? "";
+    expect(row).toContain("Watch (Spark video)");
+    expect(row).toContain("from 09:44:00 to 09:46:00");
+    expect(row).toContain("muse-spark-1.2");
+    expect(screen.getByTestId("ask-moments").textContent).toContain(
+      "09:45:02 enters the left shop",
+    );
+  });
 });

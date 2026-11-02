@@ -326,3 +326,31 @@ training sequences with the runtime's own image tracker (SAM 3.1 keyframes + Byt
 separate store, and scores them with our scorer and, when installed, TrackEval. It needs the SAM
 endpoint, so it runs on the API pod. Only keyframes are scored, so use `--keyframe-fps 10` and
 read the numbers as keyframe-rate tracking, not as a full-frame MOT17 submission.
+
+## CAVIAR events: rule accuracy on someone else's labels (add-on 1.3)
+
+`eval/clips/caviar_*` turns CAVIAR's own activity labels into events for four plain-language
+rules (`src/rulecam/eval/caviar_events.py`); `scripts/eval/caviar_clips.py` writes the entries:
+
+| Rule id | Request | Labels | Clips |
+|---|---|---|---|
+| `caviar_fall` | Tell me if anyone falls down or ends up lying on the floor. | "fall", "fell", "down" | Rest_FallOnFloor, Fight_OneManDown; negative: Rest_InChair, Browse1 |
+| `caviar_fight` | Alert me if people start fighting or someone is being attacked. | "fight" | Fight_RunAway1/2, Fight_OneManDown, Fight_Chase; negative: Meet_WalkTogether1, Browse1 |
+| `caviar_left_bag` | Warn me when a bag or box is left behind with nobody looking after it. | left / abandoned object | LeftBag, LeftBag_AtChair, LeftBag_BehindChair, LeftBox, LeftBag_PickedUp; negative: Browse1 |
+| `caviar_shop_enter` | Let me know each time someone walks into one of the shops. | situation "shop enter" | the 7 corridor clips of the 2 Nov test (19 events) |
+
+An event is the span during which some person or group carries a matching label (gaps under
+1 s closed, people merged, at least 1 s long). The 7 corridor clips are labelled and runnable now
+(video pinned by URL + sha256, each with a MOT `gt.txt` so `--track-store` also gives HOTA/IDF1).
+The 13 INRIA lobby clips are placeholders until their labels and video are downloaded:
+
+```bash
+uv run python scripts/eval/caviar_clips.py inria --src data/caviar/inria --fetch  # labels + video
+uv run rulecam eval validate                                     # every caviar_* clip validates
+make eval-caviar TRACK_STORE=/workspace/rulecam/data/tracks      # on the API pod: all caviar_* clips
+```
+
+A label vocabulary that does not match (the script refuses a positive clip with no matching
+label, and a negative control with any) is checked with
+`scripts/eval/caviar_clips.py inventory <file.xml>`; change the event type's needles, not the
+labels.

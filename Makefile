@@ -1,6 +1,6 @@
 # Rulecam developer commands (task book §3.3). `make check` must pass before every push.
 .PHONY: setup fmt lint type test check ui-check api ui openapi preflight golden live-test \
-	eval-replay golden-verify verify-page-sync
+	eval-replay golden-verify verify-page-sync eval-caviar
 
 UI_EXISTS := $(wildcard ui/package.json)
 
@@ -69,3 +69,9 @@ golden-verify:
 
 verify-page-sync:
 	cp src/rulecam/evidence/verify_page/index.html src/rulecam/evidence/verify_page/chain.js ui/public/verify/
+
+# Add-on 1.3: play every runnable CAVIAR clip (eval/clips/caviar_*) into the API and score it.
+# Run ON THE API POD (owner calls are loopback-only); approving each plan replaces the active one.
+eval-caviar:
+	uv run rulecam eval run $(foreach c,$(notdir $(wildcard eval/clips/caviar_*)),--clip $(c)) \
+		--track-store $(or $(TRACK_STORE),data/tracks) $(EVAL_ARGS)

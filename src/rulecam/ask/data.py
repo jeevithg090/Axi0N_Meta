@@ -213,18 +213,23 @@ class TrackTables:
         return list(found.values())
 
     def stats(self) -> list[dict[str, object]]:
-        """Per camera and concept: tracks, most at once, median track length, keyframes/s."""
+        """Per camera and concept: tracks, identities, most at once, median lengths, keyframes/s."""
         result = self.query(
             "WITH per_ts AS (SELECT camera_id, concept, ts, count(*) AS n FROM track_points "
             "GROUP BY camera_id, concept, ts), rate AS (SELECT camera_id, "
             "count(DISTINCT ts) / greatest(epoch(max(ts)) - epoch(min(ts)), 1) AS hz "
-            "FROM track_points GROUP BY camera_id) "
+            "FROM track_points GROUP BY camera_id), ids AS (SELECT camera_id, concept, "
+            "count(*) AS identities, round(median(seconds), 1) AS median_identity_s "
+            "FROM identity_spans GROUP BY camera_id, concept) "
             "SELECT s.camera_id, s.concept, count(*) AS tracks, "
+            "any_value(i.identities) AS identities, "
             "(SELECT max(n) FROM per_ts p WHERE p.camera_id = s.camera_id "
             "AND p.concept = s.concept) AS most_at_once, "
             "round(median(s.seconds), 1) AS median_track_s, "
+            "any_value(i.median_identity_s) AS median_identity_s, "
             "round(any_value(r.hz), 2) AS keyframes_per_s "
             "FROM track_spans s JOIN rate r USING (camera_id) "
+            "LEFT JOIN ids i USING (camera_id, concept) "
             "GROUP BY s.camera_id, s.concept ORDER BY s.camera_id, s.concept"
         )
         return [dict(zip(result.columns, row, strict=True)) for row in result.rows]

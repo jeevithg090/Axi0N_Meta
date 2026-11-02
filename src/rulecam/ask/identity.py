@@ -246,6 +246,7 @@ class IdentityMemory:
         self._profile = site_profile
         self._vectors: dict[str, Vector] = {}
         self._noted: set[str] = set()
+        self._uncroppable: set[str] = set()
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ask-identity")
         self._running: Future[None] | None = None
         self._lock = threading.Lock()
@@ -282,7 +283,11 @@ class IdentityMemory:
                 for t in self._finished(tables)
                 if t.camera_id in video and t.first >= video[t.camera_id][0]
             ]
-            fresh = [t for t in tracks if t.track_id not in self._vectors]
+            fresh = [
+                t
+                for t in tracks
+                if t.track_id not in self._vectors and t.track_id not in self._uncroppable
+            ]
             self._embed_tracks(tables, fresh)
             rows = self._relink(tracks)
             self._write_notes(tables, rows)
@@ -342,6 +347,7 @@ class IdentityMemory:
             ):
                 if vector:
                     by_track.setdefault(track_id, []).append(np.asarray(vector, dtype=np.float32))
+        self._uncroppable.update(t.track_id for t in tracks if t.track_id not in by_track)
         with self._lock:
             for track_id, vectors in by_track.items():
                 mean = np.mean(vectors, axis=0)

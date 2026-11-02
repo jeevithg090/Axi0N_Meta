@@ -183,6 +183,31 @@ def test_a_run_writes_identities_spans_and_notes(tmp_path: Path) -> None:
     assert sum(seen) == 9
 
 
+def test_a_track_that_cannot_be_cropped_is_not_retried(tmp_path: Path) -> None:
+    root = tmp_path / "tracks"
+    store_tracks(root)
+    calls: list[int] = []
+
+    def embed(crops: list[bytes]) -> list[list[float]]:
+        calls.append(len(crops))
+        return [[] for _ in crops]  # nothing usable comes back
+
+    def frame_writer(chunk: Path, indices: Sequence[int], out_dir: Path) -> None:
+        cv2.imwrite(str(out_dir / "1.jpg"), np.full((720, 1280, 3), 90, dtype=np.uint8))
+
+    memory = IdentityMemory(
+        tracks_root=root,
+        frames=FrameGrabber(Chunks(), tmp_path / "f", extract=frame_writer),  # type: ignore[arg-type]
+        embed=embed,
+        glimmer=None,
+        glimmer_model="muse-glimmer-30b",
+        out_dir=tmp_path / "id",
+    )
+    memory.run()
+    memory.run()
+    assert sum(calls) == 9  # tried once, never again
+
+
 def test_the_chunk_journal_survives_a_restart(tmp_path: Path) -> None:
     journal = tmp_path / "chunks" / "index.jsonl"
     video = tmp_path / "c0.mp4"

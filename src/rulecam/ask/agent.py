@@ -166,12 +166,12 @@ look and filter on the foot point yourself.
 - track_spans(track_id, camera_id, concept, first_seen, last_seen, seconds, points): one row per \
 track.
 - track_identity(track_id, camera_id, concept, identity_id, similarity, threshold): track \
-fragments joined into identities by appearance (DINOv2 re-identification of each track's \
-crops; similarity is how alike the fragment was to its identity, threshold the bar learned \
-from objects seen at the same time). identity_spans(identity_id, camera_id, concept, \
-first_seen, last_seen, seconds, fragments, seen_seconds) summarises each identity. Use \
-identities, not track_ids, for unique visitors and dwell time; tracks still being recorded \
-have no identity yet.
+fragments joined into identities by appearance (person re-ID vectors for people, DINOv2 for \
+objects, from each track's crops; similarity is how alike the fragment was to its identity, \
+threshold the bar learned from objects seen at the same time). identity_spans(identity_id, \
+camera_id, concept, first_seen, last_seen, seconds, fragments, seen_seconds) summarises each \
+identity. Use identities, not track_ids, for unique visitors and dwell time; tracks still \
+being recorded have no identity yet.
 - identity_notes(identity_id, role, description, carrying): Muse Glimmer's note on each \
 person identity (customer or staff, clothing, what they carry).
 - captions(camera_id, t0, t1, caption, people, events): the temporal memory. What Muse Glimmer \

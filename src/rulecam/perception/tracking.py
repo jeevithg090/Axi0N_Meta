@@ -27,7 +27,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from uuid import uuid4
 
@@ -144,11 +144,18 @@ class _ConceptState:
 
 @dataclass(frozen=True)
 class SegmentedChunk:
-    """A chunk's concept pass: what `Tracker.segment` found, before identities are handed off."""
+    """A chunk's concept pass: what `Tracker.segment` found, before identities are handed off.
+
+    `embeddings` (image mode, people) holds each concept's person re-ID vectors by the detection's
+    `(frame_idx, object_id)`, for BoT-SORT; empty when the server sent none.
+    """
 
     chunk_id: str
     concepts: tuple[str, ...]
     detections: Mapping[str, tuple[Detection, ...]]
+    embeddings: Mapping[str, Mapping[tuple[int, int], tuple[float, ...]]] = field(
+        default_factory=dict
+    )
 
 
 def _new_suffix() -> str:

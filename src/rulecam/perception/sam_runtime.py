@@ -55,6 +55,7 @@ HTTP_HEALTH_PATH = "/health"
 SAM_KEY_HEADER = "X-Rulecam-Key"  # sam_server.KEY_HEADER
 MAX_IMAGES_PER_CALL = 32  # keyframes of one chunk: 3 s at up to 10 fps
 MAX_IMAGE_CONCEPTS = 16
+DEFAULT_MIN_CONFIDENCE = 0.5  # what every caller but the runtime tracker keeps
 HTTP_TIMEOUT_S = 60.0
 HTTP_RETRY = RetryPolicy(max_attempts=2, base_delay_s=0.25, max_delay_s=1.0)
 HTTP_RATE_PER_MINUTE = 1200.0  # far above what one GPU serves; the server's queue pushes back
@@ -140,6 +141,10 @@ class SamImageRequest(Frozen):
     The server runs the image encoder once per image and the text-conditioned detector once per
     concept on it, so one call for all of a chunk's concepts costs far less GPU than one per
     concept. `masks` false returns boxes only (the runtime needs foot points, not masks).
+    `min_confidence` is the lowest detection score returned: 0.5 by default, lower for the
+    runtime tracker, whose low-confidence pass only extends tracks it already has.
+    `embed_concepts` (people, for BoT-SORT) get a person re-ID vector per object when the server
+    has the re-ID model loaded (`reid_worker`); a server without it leaves `embedding` empty.
     """
 
     concepts: tuple[str, ...] = Field(min_length=1, max_length=MAX_IMAGE_CONCEPTS)
@@ -148,6 +153,8 @@ class SamImageRequest(Frozen):
     height: int = Field(gt=0)
     include_confidence: bool = True
     masks: bool = False
+    min_confidence: float = Field(default=DEFAULT_MIN_CONFIDENCE, ge=0.0, le=1.0)
+    embed_concepts: tuple[str, ...] = ()
 
     @model_validator(mode="after")
     def _check_concepts(self) -> Self:
@@ -157,11 +164,17 @@ class SamImageRequest(Frozen):
         if len(set(self.concepts)) != len(self.concepts):
             msg = "an image request's concepts must be distinct"
             raise ValueError(msg)
+        if not set(self.embed_concepts) <= set(self.concepts):
+            msg = "an image request can only embed concepts it asks for"
+            raise ValueError(msg)
         return self
 
 
 class SamImageObject(Frozen):
-    """One object of one concept in one image, as returned by the server."""
+    """One object of one concept in one image, as returned by the server.
+
+    `embedding` is its unit person re-ID vector (OSNet-AIN) when the request embedded its concept.
+    """
 
     image_idx: int = Field(ge=0)
     concept: str
@@ -169,6 +182,7 @@ class SamImageObject(Frozen):
     rle: str
     box_xyxy: BoxXYXY
     confidence: float | None = None
+    embedding: tuple[float, ...] | None = None
 
 
 class SamImageResponse(Frozen):

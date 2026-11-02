@@ -97,6 +97,10 @@ class Settings(BaseSettings):
     # enlarged head and hand crops of each person, at probe time and as Tier 0 before Glimmer.
     # Served by the GPU pod's /segment_crops when SAM_BASE_URL is set, else by hosted SAM.
     rulecam_crop_zoom: bool = True
+    # Ground calibration from MoGe-2 on the GPU pod (add-on 3.5): `auto` uses it when the pod's
+    # /health says it is installed, `moge` always tries it, `off` keeps only the reference
+    # objects and the 1.7 m-person guess. Off in replay mode (its calls were never recorded).
+    rulecam_calibration_model: Literal["auto", "moge", "off"] = "auto"
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None

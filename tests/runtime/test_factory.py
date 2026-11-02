@@ -17,6 +17,7 @@ from rulecam.perception.crop_zoom import FallbackCrops, LocalCrops
 from rulecam.perception.keyframe_tracker import KeyframeTracker
 from rulecam.perception.keyframes import HostedKeyframes, Keyframe, SelfHostedKeyframes
 from rulecam.perception.metrics import Backend, PerceptionMetrics
+from rulecam.perception.point_map import WorkerGeometry
 from rulecam.perception.router import KeyframeFallback, LimitedSegmenter, Purpose
 from rulecam.perception.sam_runtime import HttpSamWorker, ModalWorker
 from rulecam.replay.cache import ReplayCache
@@ -33,6 +34,7 @@ from rulecam.runtime.factory import (
     build_tier0,
     build_tier1,
     crop_segmenter,
+    geometry_estimator,
     glimmer_health_url,
     hosted_sam,
     self_hosted_worker,
@@ -323,3 +325,22 @@ def test_tier0_is_built_outside_replay_and_reaches_glimmer(tmp_path: Path) -> No
     cache = ReplayCache(tmp_path / "replay", "live", clock=clock, bus=bus)
     tier1 = build_tier1(live, cache=cache, clock=clock, bus=bus, tier0=tier0)
     assert tier1._inner._context is tier0  # type: ignore[attr-defined]
+
+
+def test_moge_calibration_is_auto_on_the_pod_and_off_without_it_or_in_replay(
+    tmp_path: Path,
+) -> None:
+    pod = _perception(tmp_path, rulecam_mode="live", **SAM_HTTP)
+    auto = geometry_estimator(settings(tmp_path, rulecam_mode="live"), pod)
+    assert isinstance(auto, WorkerGeometry)
+    assert auto._check is True
+    forced = geometry_estimator(
+        settings(tmp_path, rulecam_mode="live", rulecam_calibration_model="moge"), pod
+    )
+    assert forced is not None
+    assert forced.available() is True  # `moge` never asks the pod's health
+    off = settings(tmp_path, rulecam_mode="live", rulecam_calibration_model="off")
+    assert geometry_estimator(off, pod) is None
+    assert geometry_estimator(settings(tmp_path, rulecam_mode="replay"), pod) is None
+    hosted = _perception(tmp_path, rulecam_mode="live")
+    assert geometry_estimator(settings(tmp_path, rulecam_mode="live"), hosted) is None

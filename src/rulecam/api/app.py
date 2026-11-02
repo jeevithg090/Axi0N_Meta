@@ -114,6 +114,7 @@ from rulecam.runtime.factory import (
     build_tier0,
     build_tier1,
     crop_segmenter,
+    geometry_estimator,
 )
 from rulecam.runtime.idle_stop import IdleGpuStop
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
@@ -597,6 +598,7 @@ def build_planner(
         audit=audit_hook(SparkOpenVerifier(spark_open), glimmer, glimmer_model=glimmer.model),
         prove=prove_plan_hook(bus, calibrations=run_calibrations(PlanStore(PLANS_DIR))),
         zoom=crop_segmenter(settings, perception),
+        geometry=geometry_estimator(settings, perception),
     )
     frames = ChunkFrames(
         perception.chunks,

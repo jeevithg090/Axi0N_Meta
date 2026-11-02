@@ -13,6 +13,8 @@ it can.
 | `sam_worker.py` | P1-03 | `Sam31Engine` (runs SAM 3.1 video on a GPU), `Sam31ImageEngine` (image mode on the same loaded detector), `build_app()` and `deploy()` for the Modal app `rulecam-sam` |
 | `sam_server.py` | P1-03 | HTTP front on our GPU pod: `GET /health`, `POST /segment`, `POST /segment_image`, `POST /segment_crops` (add-on 3.3), `POST /embed` |
 | `crop_worker.py` | add-on 3.3 | `CropEngine`: SAM 3.1's loaded detector on crops of one frame (`/segment_crops`, `SAM_CROP_THRESH` 0.3), boxes back in frame pixels |
+| `geometry_worker.py` | add-on 3.5 | `MogeEngine`: MoGe-2 (`Ruicheng/moge-2-vitl-normal`) on the GPU pod, `POST /geometry`; a metric point map sampled on a grid plus normalised intrinsics |
+| `point_map.py` | add-on 3.5 | `WorkerGeometry` (the pod's `/geometry`, `available()` from `/health` once), `PointMap`, `grid_mask`; `calibration.calibrate_point_map` turns a point map plus SAM's floor into a ground homography |
 | `crop_zoom.py` | add-on 3.3 | `person_crops` (head, hands, body crops from a person box and pose), `WorkerCrops` (the pod), `LocalCrops` (hosted SAM on crops cut here), `FallbackCrops`; used by the planner probe and Tier 0 |
 | `motion_gate.py` | P1-03 | `MotionGate`, pure `motion_stats` / `decide`, `GateConfig`, `GateDecision` |
 | `static_cache.py` | P1-03 | `StaticCache` (listens on `coverage.changed`), `moved_camera`, `StaticServedSegmenter` (runtime) |

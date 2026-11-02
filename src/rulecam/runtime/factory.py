@@ -64,6 +64,7 @@ from rulecam.perception.keyframe_tracker import KeyframeTracker
 from rulecam.perception.keyframes import HostedKeyframes, KeyframeRates, SelfHostedKeyframes
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.perception.motion_gate import MotionGate
+from rulecam.perception.point_map import WorkerGeometry
 from rulecam.perception.router import (
     CallMeter,
     LimitedSegmenter,
@@ -330,6 +331,24 @@ def crop_segmenter(settings: Settings, perception: Perception) -> CropSegmenter 
     if isinstance(worker, HttpSamWorker):
         return FallbackCrops(WorkerCrops(worker), hosted)
     return hosted
+
+
+def geometry_estimator(settings: Settings, perception: Perception) -> WorkerGeometry | None:
+    """MoGe-2 on the GPU pod for the planner's calibration (add-on 3.5), or `None`.
+
+    Args:
+        settings: Application settings (`rulecam_calibration_model`, `rulecam_mode`).
+        perception: From `build_perception` (the pod's client).
+
+    Returns:
+        `None` when the setting is `off`, the run is a replay, or there is no GPU pod; else the
+        estimator, which in `auto` mode asks the pod's `/health` once whether MoGe is installed.
+    """
+    mode = settings.rulecam_calibration_model
+    worker = perception.image_worker
+    if mode == "off" or settings.rulecam_mode == "replay" or not isinstance(worker, HttpSamWorker):
+        return None
+    return WorkerGeometry(worker, check_health=mode == "auto")
 
 
 def build_tier0(settings: Settings, perception: Perception) -> CropZoomCheck | None:

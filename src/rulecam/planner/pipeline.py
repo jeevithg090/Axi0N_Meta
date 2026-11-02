@@ -57,6 +57,7 @@ from rulecam.contracts.plan import (
 from rulecam.contracts.rule_ir import RuleIR
 from rulecam.log import get_logger
 from rulecam.perception.crop_zoom import CropRegion, CropSegmenter
+from rulecam.perception.point_map import GeometryEstimator
 from rulecam.planner.acceptance import CitationResult, PlannedRule, RepairLoop, SiteFacts
 from rulecam.planner.errors import GuardrailDeclinedError, PipelineError, RuleCompilationError
 from rulecam.planner.feasibility import gauge_plan_feasibility
@@ -66,9 +67,11 @@ from rulecam.planner.geometry import (
     SiteGeometry,
     frame_size,
     metric_cameras,
+    model_calibrations,
     probe_references,
     scene_calibrations,
     scene_zones,
+    standing_people,
     trusted_calibrations,
 )
 from rulecam.planner.lint import CameraViews, LintFinding, lint_plan
@@ -507,6 +510,7 @@ class PlannerPipeline:
         audit: PlanHook | None = None,
         prove: PlanHook | None = None,
         zoom: CropSegmenter | None = None,
+        geometry: GeometryEstimator | None = None,
     ) -> None:
         """Create the pipeline.
 
@@ -524,6 +528,8 @@ class PlannerPipeline:
             prove: Step 10 hook (P2-08/09, `rule_ci.prove_plan_hook`).
             zoom: Crop-zoom SAM 3.1 (add-on 3.3): the probe looks for worn concepts on
                 enlarged crops of each person where the full frame missed them.
+            geometry: MoGe-2 on the GPU pod (add-on 3.5): the survey calibrates each camera
+                from a metric point map and SAM's floor when it is available.
         """
         self._spark = spark
         self._files = files
@@ -533,6 +539,7 @@ class PlannerPipeline:
         self._grounding = grounding
         self._standards = standards
         self._zoom = zoom
+        self._geometry = geometry
         self.store = store
         self._hooks: dict[StepName, PlanHook | None] = dict(
             zip(HOOK_STEPS, (audit, prove), strict=True)
@@ -711,8 +718,23 @@ class PlannerPipeline:
             segmenter=recorder,
             seed=inputs.seed,
         )
-        calibrations = scene_calibrations(recorder.sightings)
+        model = self._model_calibrations(inputs, recorder)
+        calibrations = scene_calibrations(recorder.sightings, model=model)
         return SurveyResult(inventory=inventory, calibrations=calibrations)
+
+    def _model_calibrations(
+        self, inputs: PipelineInput, recorder: RecordingSegmenter
+    ) -> dict[str, Calibration]:
+        if self._geometry is None or not self._geometry.available():
+            _log.info("model_calibration_skipped", geometry=self._geometry is not None)
+            return {}
+        return model_calibrations(
+            inputs.camera_frames,
+            geometry=self._geometry,
+            segmenter=recorder,
+            seed=inputs.seed,
+            people=standing_people(recorder.sightings),
+        )
 
     def _probe(
         self, inputs: PipelineInput, understood: UnderstandResult, survey: SurveyResult

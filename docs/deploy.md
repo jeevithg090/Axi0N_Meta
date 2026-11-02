@@ -857,6 +857,58 @@ and checkpoint stay on the volume, so the next boot only loads the model. The ru
 to hosted SAM while it is stopped, so stop it only together with the runtime, or the hosted bill
 returns.
 
+### Serverless SAM (RunPod load balancer)
+
+The same `sam_server` can run as a RunPod serverless **load-balancing** endpoint instead of a pod:
+workers start on demand, scale to zero when idle, and a worker on a bad host is replaced by
+RunPod instead of hanging at "awaiting container". Nothing is built or pushed: the endpoint runs
+a stock public image (`runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04`) and everything
+else lives on a network volume, which workers see at `/runpod-volume`.
+
+- **Volume** (once): a network volume (25 GB is enough: venv 8.7 GB, checkpoints 3.4 GB, Python
+  0.3 GB) in a data center with RTX 4090 serverless stock. Stage it from any pod that mounts it
+  at `/runpod-volume`; no GPU is needed:
+
+  ```bash
+  RULECAM_DIR=/runpod-volume/rulecam SAM_VENV=/runpod-volume/sam-venv \
+    HF_HOME=/runpod-volume/hf-cache UV_PYTHON_INSTALL_DIR=/runpod-volume/uv-python \
+    HF_TOKEN_FILE=/root/.hf_token scripts/sam_pod/setup.sh --stage
+  ```
+
+  after copying the code to `/runpod-volume/rulecam` (`git archive HEAD src scripts`). Keep the
+  Hugging Face token on the staging pod's own disk, not on the volume; workers never need it.
+  A code update is the same copy from a pod mounting the volume; new workers pick it up.
+- **Secret**: the SAM key as a RunPod secret (`rulecam_sam_api_key`), referenced in the endpoint
+  env as `{{ RUNPOD_SECRET_rulecam_sam_api_key }}`.
+- **Endpoint**: type `LOAD_BALANCER`, the image above with entrypoint
+  `bash /runpod-volume/rulecam/scripts/sam_pod/serverless.sh`, port `8090/http`, env
+  `PORT=8090`, `PORT_HEALTH=8090`, `SAM_API_KEY`, GPU pool `ADA_24`, `minCudaVersion` 12.8, the
+  volume mounted, workers min 0 / max 2, idle timeout 300 s, scaler `REQUEST_COUNT` 6, FlashBoot
+  on. `GET /ping` answers 204 while SAM loads and 200 once it serves.
+- **API pod**: `SAM_BASE_URL=https://<endpoint-id>.api.runpod.ai` in `.env`, and a RunPod API key
+  in `/workspace/rulecam/.sam_edge_key` (mode 600) that `start.sh` exports as `SAM_EDGE_KEY`.
+  RunPod's edge checks that key in `Authorization`, so the client then sends the SAM key in
+  `X-Rulecam-Key`, and the worker still refuses requests without it. Prefer a RunPod API key
+  restricted to this endpoint.
+
+Measured on 2 Nov 2026 from the API pod in the same data center (US-IL-1), one RTX 4090 each:
+
+| | Serverless | Pod |
+|---|---|---|
+| Cold start (the first request waits) | 49 s (container start 2 s, model load 41 s) | none while running |
+| One keyframe, two concepts (median, warm) | 0.81 s | 0.62 s |
+| Six keyframes (one chunk) | 1.9 to 2.0 s | 1.6 s |
+| `/embed`, 8 crops (warm) | 0.15 to 0.26 s | 0.26 s |
+
+Cost: $1.34/h per running worker (4090 serverless pool) against $0.89/h for a 4090 pod, plus
+about $0.06/day for the 25 GB volume. Workers bill from model load until the idle timeout after
+the last request, so a camera running all day costs more than a pod; nights and quiet hours cost
+nothing. During a cold start, requests wait at the load balancer (up to 2 minutes) instead of
+failing: in a live checkout run that started 20 s after the worker had scaled to zero, the first
+four chunks waited 23 to 63 s, none fell back to hosted SAM, and the next chunk took 2.0 s
+(6 keyframes, 3 concepts). A longer idle timeout, or one warm worker (`workers.min` 1, billed
+around the clock), avoids that wait at the start of a demo.
+
 ## Checks
 
 - `curl https://rulecam.vercel.app/rulecam-api/mode` → `{"mode":"live","badge":"LIVE"}`.

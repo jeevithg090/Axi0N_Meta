@@ -120,6 +120,15 @@ class Settings(BaseSettings):
     # Hosted OpenAI-compatible Glimmer (e.g. Routeway) may honour JSON mode but not a strict
     # schema: also state the schema in a system message. Off for llama-server (grammar-enforced).
     glimmer_schema_in_prompt: bool = False
+    # Glimmer's output cap per call, reasoning included. A reply cut at it (finish_reason
+    # `length`) is retried with the cap doubled, up to the ceiling, then reported.
+    glimmer_max_tokens: int = Field(default=1024, ge=64, le=32768)
+    glimmer_max_tokens_ceiling: int = Field(default=4096, ge=64, le=32768)
+    # llama.cpp's per-request `reasoning_budget_tokens` (thinking tokens before the model must
+    # answer). -1: not sent, the server's --reasoning-budget applies (unlimited by default); 0: no
+    # thinking. Off by default so recorded Tier 1 replies keep their replay keys; pick a value with
+    # scripts/eval/glimmer_budget_sweep.py.
+    glimmer_reasoning_budget_tokens: int = Field(default=-1, ge=-1, le=32768)
     evidence_dir: Path = Path("./evidence")
     hf_token: SecretStr | None = None
     modal_token_id: SecretStr | None = None

@@ -146,6 +146,20 @@ def scene_text_of(candidate: CandidateEvent, scene_text: str) -> str:
     return cleaned
 
 
+def tier1_messages(candidate: CandidateEvent, rule: RuleIR) -> list[dict[str, object]]:
+    """The chat messages Tier 1 sends about a candidate: instructions, question and its strip.
+
+    Raises:
+        OSError: If a strip frame cannot be read.
+        ValueError: For a strip frame of an unsupported type.
+    """
+    frames = [Path(p) for p in candidate.strip_paths[:MAX_STRIP_FRAMES]]
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        user_message(build_prompt(candidate, rule), frames),
+    ]
+
+
 class GlimmerVerifier:
     """`Verifier` implementation backed by Glimmer."""
 
@@ -211,14 +225,9 @@ class GlimmerVerifier:
         )
 
     def _ask(self, candidate: CandidateEvent, rule: RuleIR) -> Tier1Answer:
-        frames = [Path(p) for p in candidate.strip_paths[:MAX_STRIP_FRAMES]]
-        messages: list[dict[str, object]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            user_message(build_prompt(candidate, rule), frames),
-        ]
         return self._client.structured(
             model=self._client.model,
-            messages=messages,
+            messages=tier1_messages(candidate, rule),
             schema=Tier1Answer,
             reasoning_effort="low",
             camera_id=candidate.camera_id,

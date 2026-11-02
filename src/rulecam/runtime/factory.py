@@ -31,6 +31,11 @@ privacy mode, under `<data dir>/strips`. With `RULECAM_POSE_ONNX` (RTMPose-l bod
 person in a strip gets its real pose (`pose.keypoints.load_pose_estimator`). The policy is
 P3-05's `VerificationPolicy` and the actions P3-06's `ActionExecutor`, dry-run by default
 (`RULECAM_ACTIONS_DRY_RUN`).
+
+Crop-zoom (add-on 3.3, `RULECAM_CROP_ZOOM`, on by default): `crop_segmenter` runs SAM 3.1 on
+enlarged head and hand crops, on the GPU pod's `/segment_crops` with hosted SAM as the fallback,
+or hosted SAM alone without a pod. The planner's probe uses it for worn items, and `build_tier0`
+makes it Tier 0 before Glimmer (not in replay mode, where it would change Glimmer's prompts).
 """
 
 from __future__ import annotations
@@ -40,6 +45,7 @@ from collections import defaultdict, deque
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from functools import cache
 from pathlib import Path
 
 from rulecam.bus import Bus
@@ -52,6 +58,7 @@ from rulecam.config import Settings
 from rulecam.contracts import Chunk, Clock, EventRecord, Track
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.log import get_logger
+from rulecam.perception.crop_zoom import CropSegmenter, FallbackCrops, LocalCrops, WorkerCrops
 from rulecam.perception.errors import SamRuntimeError
 from rulecam.perception.keyframe_tracker import KeyframeTracker
 from rulecam.perception.keyframes import HostedKeyframes, KeyframeRates, SelfHostedKeyframes
@@ -74,7 +81,7 @@ from rulecam.perception.sam_runtime import (
 )
 from rulecam.perception.static_cache import StaticCache, StaticServedSegmenter
 from rulecam.perception.tracking import Tracker
-from rulecam.pose.keypoints import load_pose_estimator
+from rulecam.pose.keypoints import RtmposeOnnx, load_pose_estimator
 from rulecam.replay.cache import ReplayCache
 from rulecam.rules.operators import OperatorExclusion
 from rulecam.rules.store import ParquetTrackStore
@@ -90,9 +97,10 @@ from rulecam.runtime.loop import (
 )
 from rulecam.runtime.response import Response, build_response
 from rulecam.runtime.sampling import SamplingPolicy
-from rulecam.runtime.strips import EpisodeStrips, face_detector
+from rulecam.runtime.strips import EpisodeFrames, EpisodeStrips, face_detector
 from rulecam.runtime.timings import StageTimings
 from rulecam.verify.guard import BreakerPolicy, CircuitBreaker, GuardedVerifier, http_probe
+from rulecam.verify.tier0 import CropZoomCheck
 from rulecam.verify.tier1 import GlimmerVerifier
 
 _log = get_logger(__name__)
@@ -296,14 +304,69 @@ def build_perception(
     )
 
 
+@cache
+def runtime_pose(model_path: Path | None, sha256: str) -> RtmposeOnnx | None:
+    """The runtime's pose model, loaded once per file (strips and Tier 0 share it)."""
+    return load_pose_estimator(model_path, sha256=sha256)
+
+
+def crop_segmenter(settings: Settings, perception: Perception) -> CropSegmenter | None:
+    """Crop-zoom SAM 3.1 (add-on 3.3): the GPU pod, falling back to hosted SAM; `None` when off.
+
+    Off in replay mode too: its extra SAM calls were never recorded, and Tier 0's lines would
+    change Glimmer's prompts, so a replay would no longer match its recording.
+
+    Args:
+        settings: Application settings (`rulecam_crop_zoom`, `rulecam_mode`).
+        perception: From `build_perception` (the pod's client and hosted SAM).
+
+    Returns:
+        The crop segmenter, or `None` when `RULECAM_CROP_ZOOM` is off or the run is a replay.
+    """
+    if not settings.rulecam_crop_zoom or settings.rulecam_mode == "replay":
+        return None
+    hosted = LocalCrops(perception.hosted)
+    worker = perception.image_worker
+    if isinstance(worker, HttpSamWorker):
+        return FallbackCrops(WorkerCrops(worker), hosted)
+    return hosted
+
+
+def build_tier0(settings: Settings, perception: Perception) -> CropZoomCheck | None:
+    """Tier 0: crop-zoom findings on the rule's PPE regions, given to Glimmer as context.
+
+    Args:
+        settings: Application settings.
+        perception: The chunk index, track store and SAM clients.
+
+    Returns:
+        The check, or `None` when crop-zoom is off or the run is a replay (`crop_segmenter`).
+    """
+    crops = crop_segmenter(settings, perception)
+    if crops is None:
+        return None
+    return CropZoomCheck(
+        frames=EpisodeFrames(perception.chunks),
+        store=perception.store,
+        crops=crops,
+        pose=runtime_pose(settings.rulecam_pose_onnx, settings.rulecam_pose_sha256),
+    )
+
+
 def build_tier1(
-    settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus
+    settings: Settings,
+    *,
+    cache: ReplayCache,
+    clock: Clock,
+    bus: Bus,
+    tier0: CropZoomCheck | None = None,
 ) -> GuardedVerifier:
     """The Tier 1 verifier: Glimmer through the replay cache, behind retry and a circuit breaker.
 
     A failure never passes silently: it becomes a `verifier_error` verdict that the policy sends
     to a person (`verify.guard`). While the circuit is open, the API's ticker probes llama-server's
-    `/health` (not in replay mode, where nothing is called).
+    `/health` (not in replay mode, where nothing is called). With `tier0` (`build_tier0`), its
+    crop-zoom findings are added to each prompt.
     """
     client = GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
     policy = BreakerPolicy(
@@ -315,7 +378,7 @@ def build_tier1(
     if settings.rulecam_mode != "replay":
         probe = http_probe(glimmer_health_url(settings.glimmer_base_url))
     return GuardedVerifier(
-        GlimmerVerifier(client, raise_errors=True),
+        GlimmerVerifier(client, raise_errors=True, context=tier0),
         model_version=client.model,
         breaker=CircuitBreaker(policy),
         probe=probe,
@@ -363,7 +426,13 @@ def build_runtime(
     if response is None:
         response = build_response(
             settings,
-            tier1=build_tier1(settings, cache=cache, clock=clock, bus=bus),
+            tier1=build_tier1(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                tier0=build_tier0(settings, perception),
+            ),
             segmenter=perception.hosted,
             cache=cache,
             clock=clock,
@@ -386,9 +455,7 @@ def build_runtime(
             frames=settings.rulecam_strip_frames,
             max_width=settings.rulecam_strip_max_width,
             raw=settings.rulecam_prototype_mode,
-            pose=load_pose_estimator(
-                settings.rulecam_pose_onnx, sha256=settings.rulecam_pose_sha256
-            ),
+            pose=runtime_pose(settings.rulecam_pose_onnx, settings.rulecam_pose_sha256),
         ),
         chain=chain,
         sampling=SamplingPolicy.from_settings(settings),

@@ -21,6 +21,12 @@ The API pod reaches it through `sam_runtime.HttpSamWorker`. Routes:
   it needs no extra weights and keeps no session state. 404 when the server runs without it
   (`SAM_IMAGE=0`).
 
+- `POST /segment_crops`: crop-zoom SAM 3.1 (add-on 3.3, `crop_worker.CropEngine`), same key.
+  The body is `{"request": {"concepts": [...], "crops": [[x0, y0, x1, y1], ...],
+  "include_confidence": bool}, "image_b64": "<base64 JPEG>"}`: one frame and the head or hand
+  boxes to enlarge; the answer lists each crop's detections with boxes in frame pixels. 404 when
+  the server runs without image mode.
+
 - `POST /embed`: DINOv2 appearance embeddings of object crops (`appearance_worker`), same key.
   The body is `{"images_b64": ["<base64 JPEG>", ...]}` (at most `MAX_EMBED_IMAGES`), the answer
   `{"model": ..., "embeddings": [[...], ...]}`. The model loads on the first call and shares
@@ -55,6 +61,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Protocol
 
+from rulecam.perception.crop_worker import check_crops_request
 from rulecam.perception.sam_worker import MODEL_VERSION
 
 DEFAULT_PORT = 8090
@@ -72,6 +79,7 @@ KEY_HEADER = "X-Rulecam-Key"  # the key behind RunPod's edge, which keeps `Autho
 SEGMENT_PATH = "/segment"
 SEGMENT_IMAGE_PATH = "/segment_image"
 EMBED_PATH = "/embed"
+SEGMENT_CROPS_PATH = "/segment_crops"
 MAX_EMBED_IMAGES = 64
 
 _log = logging.getLogger("rulecam.sam_server")
@@ -98,6 +106,18 @@ class ImageEngine(Protocol):
 
     def memory_stats(self) -> dict[str, Any]:
         """Return the image engine's counters for `/health`."""
+        ...
+
+
+class CropEngine(Protocol):
+    """What the server needs from `crop_worker.CropEngine` (a fake in tests)."""
+
+    def segment_crops(self, image: bytes, request: dict[str, Any]) -> dict[str, Any]:
+        """Return the crop-zoom answer for one frame and its crop boxes."""
+        ...
+
+    def memory_stats(self) -> dict[str, Any]:
+        """Return the crop engine's counters for `/health`."""
         ...
 
 
@@ -198,6 +218,20 @@ def parse_segment_image_body(body: bytes) -> tuple[list[bytes], dict[str, Any]]:
     return [_b64(item, "images_b64") for item in encoded], request
 
 
+def parse_image_body(body: bytes) -> tuple[bytes, dict[str, Any]]:
+    """Decode a one-image body (`/segment_crops`) into the image and the request dict.
+
+    Raises:
+        BadRequestError: If the body is not JSON, or lacks a `request` object or `image_b64`.
+    """
+    payload = _json_object(body)
+    request, image_b64 = payload.get("request"), payload.get("image_b64")
+    if not isinstance(request, dict) or not isinstance(image_b64, str) or not image_b64:
+        msg = "body needs a `request` object and an `image_b64` string"
+        raise BadRequestError(msg)
+    return _b64(image_b64, "image_b64"), request
+
+
 class Embedder(Protocol):
     """What `/embed` needs (`appearance_worker.DinoEmbedder`)."""
 
@@ -274,6 +308,7 @@ class SamHTTPServer(ThreadingHTTPServer):
         image_engine: ImageEngine | None = None,
         image_max_waiting: int = DEFAULT_IMAGE_MAX_WAITING,
         embedder: Embedder | None = None,
+        crop_engine: CropEngine | None = None,
     ) -> None:
         """Bind the server.
 
@@ -286,6 +321,7 @@ class SamHTTPServer(ThreadingHTTPServer):
             image_engine: Serves `/segment_image` (runtime keyframes); `None` answers 404 there.
             image_max_waiting: Image calls allowed to wait for the GPU.
             embedder: Serves `/embed` (appearance re-identification); `None` answers 404 there.
+            crop_engine: Serves `/segment_crops` (crop-zoom); `None` answers 404 there.
 
         Raises:
             ValueError: If `api_key` is empty.
@@ -303,6 +339,8 @@ class SamHTTPServer(ThreadingHTTPServer):
         self.image_slot = GpuSlot(image_max_waiting, gpu)
         self.embedder = embedder
         self.embed_slot = GpuSlot(image_max_waiting, gpu)
+        self.crop_engine = crop_engine
+        self.crop_slot = GpuSlot(image_max_waiting, gpu)
 
     def handle_error(self, request: Any, client_address: Any) -> None:  # noqa: ARG002
         """Log a failed connection instead of printing a traceback to stderr.
@@ -337,14 +375,15 @@ class SamRequestHandler(BaseHTTPRequestHandler):
                     "waiting": slot.waiting,
                     "memory": self.server.engine.memory_stats(),
                     "image": self._image_health(),
+                    "crops": self._crops_health(),
                 },
             )
             return
         if self._authorized():
             self._error(HTTPStatus.NOT_FOUND, "not found")
 
-    def do_POST(self) -> None:
-        """Serve `/segment` and `/segment_image`."""
+    def do_POST(self) -> None:  # noqa: PLR0911 - one early return per route
+        """Serve `/segment`, `/segment_image`, `/segment_crops` and `/embed`."""
         if not self._authorized():
             return
         if self.path == SEGMENT_IMAGE_PATH and self.server.image_engine is not None:
@@ -352,6 +391,9 @@ class SamRequestHandler(BaseHTTPRequestHandler):
             return
         if self.path == EMBED_PATH and self.server.embedder is not None:
             self._embed(self.server.embedder)
+            return
+        if self.path == SEGMENT_CROPS_PATH and self.server.crop_engine is not None:
+            self._segment_crops(self.server.crop_engine)
             return
         if self.path != SEGMENT_PATH:
             self._error(HTTPStatus.NOT_FOUND, "not found")
@@ -379,6 +421,18 @@ class SamRequestHandler(BaseHTTPRequestHandler):
         self._run(
             self.server.image_slot, lambda: engine.segment_images(images, request), "sam_images"
         )
+
+    def _segment_crops(self, engine: CropEngine) -> None:
+        body = self._read_body()
+        if body is None:
+            return
+        try:
+            image, request = parse_image_body(body)
+            check_crops_request(request)
+        except ValueError as exc:  # BadRequestError, or a malformed crop request
+            self._error(HTTPStatus.BAD_REQUEST, str(exc))
+            return
+        self._run(self.server.crop_slot, lambda: engine.segment_crops(image, request), "sam_crops")
 
     def _embed(self, embedder: Embedder) -> None:
         body = self._read_body()
@@ -417,6 +471,12 @@ class SamRequestHandler(BaseHTTPRequestHandler):
         if engine is None:
             return {"loaded": False}
         return {"loaded": True, "waiting": self.server.image_slot.waiting, **engine.memory_stats()}
+
+    def _crops_health(self) -> dict[str, Any]:
+        engine = self.server.crop_engine
+        if engine is None:
+            return {"loaded": False}
+        return {"loaded": True, "waiting": self.server.crop_slot.waiting, **engine.memory_stats()}
 
     def log_message(self, format: str, *args: Any) -> None:
         """Route the stdlib access log to `logging` (never prints headers)."""
@@ -505,6 +565,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
         argv: Command-line arguments (defaults to `sys.argv[1:]`).
     """
     from rulecam.perception.appearance_worker import DinoEmbedder  # noqa: PLC0415
+    from rulecam.perception.crop_worker import CropEngine as SamCropEngine  # noqa: PLC0415
     from rulecam.perception.sam_worker import Sam31Engine, Sam31ImageEngine  # noqa: PLC0415
 
     parser = argparse.ArgumentParser(description="Serve self-hosted SAM 3.1 over HTTP.")
@@ -522,6 +583,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
     engine = Sam31Engine.load()
     image_on = os.environ.get(IMAGE_ENV, "1").strip().lower() not in {"0", "false", "no"}
     image_engine = Sam31ImageEngine.from_video_engine(engine) if image_on else None
+    crop_engine = SamCropEngine.from_video_engine(engine) if image_on else None
     embedder = DinoEmbedder()
     loading.shutdown()
     loading.server_close()
@@ -534,6 +596,7 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
         image_engine=image_engine,
         image_max_waiting=int(os.environ.get(IMAGE_MAX_WAITING_ENV, DEFAULT_IMAGE_MAX_WAITING)),
         embedder=embedder,
+        crop_engine=crop_engine,
     )
     _log.info("sam_serving port=%d", args.port)
     server.serve_forever()

@@ -966,3 +966,22 @@ def test_strip_with_a_pose_model_draws_the_real_skeleton(tmp_path: Path) -> None
     image = read_image(out.strip_paths[0])
     column = image[110:170, 120].astype(int)  # the skeleton runs down the box's centre line
     assert (np.abs(column - np.array(SENTINEL)).sum(axis=1) > 60).any()
+
+
+def test_episode_frames_decode_the_strip_keyframes_at_full_size() -> None:
+    decode = FakeDecode(fail=["cam1_000000"])
+    sizes: list[tuple[int, int]] = []
+
+    def sized(chunk: Chunk, indices: Sequence[int], size: tuple[int, int]) -> list[Frame]:
+        sizes.append(size)
+        return decode(chunk, indices, size)
+
+    source = strips_module.EpisodeFrames(
+        Chunks([make_chunk(index=0), make_chunk(index=1), make_chunk("other", index=1)]), sized
+    )
+    frames = source.frames(candidate(), 3)
+    assert sizes == [(1280, 720), (1280, 720)]  # the chunk's own size, one call per chunk
+    assert [ts for ts, _ in frames] == sorted(ts for ts, _ in frames)
+    assert frames
+    assert all(frame.shape == (720, 1280, 3) for _, frame in frames)
+    assert strips_module.EpisodeFrames(Chunks([]), sized).frames(candidate(), 3) == []

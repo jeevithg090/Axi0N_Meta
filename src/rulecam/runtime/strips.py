@@ -250,6 +250,44 @@ def ffmpeg_decode(chunk: Chunk, indices: Sequence[int], size: tuple[int, int]) -
     return [pixels[k].copy() for k in range(len(indices))]
 
 
+class EpisodeFrames:
+    """Full-resolution keyframes of a candidate's episode, for Tier 0 (`verify.tier0`).
+
+    The same keyframe choice as the strip (`strip_span`, `pick_keyframes`), from the camera's
+    chunks on disk, decoded in memory at the chunk's own size (one ffmpeg call per chunk). A
+    chunk that cannot be decoded is skipped.
+    """
+
+    def __init__(self, chunks: ChunkSource, decode: Decode = ffmpeg_decode) -> None:
+        """Read chunks from `chunks` and decode them with `decode`."""
+        self._chunks = chunks
+        self._decode = decode
+
+    def frames(self, candidate: CandidateEvent, n: int) -> list[tuple[datetime, Frame]]:
+        """Up to `n` BGR frames spread over the episode, with their times, oldest first."""
+        start, end = strip_span(candidate)
+        known = [
+            c
+            for c in self._chunks.chunks(candidate.camera_id, start, end)
+            if c.camera_id == candidate.camera_id
+        ]
+        by_chunk: dict[str, list[Keyframe]] = {}
+        for key in pick_keyframes(start, end, known, n) if known else []:
+            by_chunk.setdefault(key.chunk.chunk_id, []).append(key)
+        out: list[tuple[datetime, Frame]] = []
+        for keys in by_chunk.values():
+            chunk = keys[0].chunk
+            try:
+                frames = self._decode(
+                    chunk, [k.frame_idx for k in keys], (chunk.width, chunk.height)
+                )
+            except (OSError, subprocess.SubprocessError, ValueError) as exc:
+                _log.warning("tier0_chunk_failed", chunk_id=chunk.chunk_id, error=str(exc))
+                continue
+            out.extend((k.ts, f) for k, f in zip(keys, frames, strict=True))
+        return sorted(out, key=lambda pair: pair[0])
+
+
 def is_person(concept: str, rule: RuleIR) -> bool:
     """Whether a concept names people or body parts (its key or its SAM prompt)."""
     spec = rule.concepts.get(concept)

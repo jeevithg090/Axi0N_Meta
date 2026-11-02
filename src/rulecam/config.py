@@ -93,6 +93,10 @@ class Settings(BaseSettings):
     # means no pose.
     rulecam_pose_onnx: Path | None = None
     rulecam_pose_sha256: str = "cff059fd58a2c0d5fabaddcd66a96abcfb327563bcb0149ea59c9de4a8990fe2"
+    # Crop-zoom SAM 3.1 (add-on 3.3): look for small worn items (hats, hair nets, gloves) on
+    # enlarged head and hand crops of each person, at probe time and as Tier 0 before Glimmer.
+    # Served by the GPU pod's /segment_crops when SAM_BASE_URL is set, else by hosted SAM.
+    rulecam_crop_zoom: bool = True
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None

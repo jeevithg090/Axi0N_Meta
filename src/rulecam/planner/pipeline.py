@@ -56,6 +56,7 @@ from rulecam.contracts.plan import (
 )
 from rulecam.contracts.rule_ir import RuleIR
 from rulecam.log import get_logger
+from rulecam.perception.crop_zoom import CropRegion, CropSegmenter
 from rulecam.planner.acceptance import CitationResult, PlannedRule, RepairLoop, SiteFacts
 from rulecam.planner.errors import GuardrailDeclinedError, PipelineError, RuleCompilationError
 from rulecam.planner.feasibility import gauge_plan_feasibility
@@ -81,7 +82,7 @@ from rulecam.planner.standards import (
 from rulecam.planner.steps.ask import Question, propose_clarifying_questions
 from rulecam.planner.steps.audit import audit_summary
 from rulecam.planner.steps.compile import compile_rule
-from rulecam.planner.steps.probe import concepts_for_concerns, probe_concepts
+from rulecam.planner.steps.probe import ProbeZoom, concept_needs, probe_concepts
 from rulecam.planner.steps.survey import ImageSegmenter, survey_cameras
 from rulecam.planner.steps.understand import FileAttacher, understand
 from rulecam.prototype import prototype_mode
@@ -163,11 +164,13 @@ class ProbeResult(Frozen):
     `reference_probes` are the reference prompts tried for the metric concerns' cameras and
     `calibrations` what they gave (cameras the owner or the survey calibrated are not probed).
     `distrusted` are cameras whose survey calibration the people seen by the probe contradict;
-    the plan never uses those calibrations.
+    the plan never uses those calibrations. `worn` are the needed concepts Spark said a person
+    wears or holds, with the body region crop-zoom looked at (add-on 3.3).
     """
 
     needs: dict[str, tuple[str, ...]]
     probes: tuple[Probe, ...]
+    worn: dict[str, CropRegion] = Field(default_factory=dict)
     zones: tuple[Zone, ...] = ()
     reference_probes: tuple[ReferenceProbe, ...] = ()
     calibrations: dict[str, Calibration] = Field(default_factory=dict)
@@ -503,6 +506,7 @@ class PlannerPipeline:
         standards: StandardsLibrary | None = None,
         audit: PlanHook | None = None,
         prove: PlanHook | None = None,
+        zoom: CropSegmenter | None = None,
     ) -> None:
         """Create the pipeline.
 
@@ -518,6 +522,8 @@ class PlannerPipeline:
                 rule citing a standard fails that check.
             audit: Step 9 hook (P2-07, `planner.steps.audit.audit_hook`).
             prove: Step 10 hook (P2-08/09, `rule_ci.prove_plan_hook`).
+            zoom: Crop-zoom SAM 3.1 (add-on 3.3): the probe looks for worn concepts on
+                enlarged crops of each person where the full frame missed them.
         """
         self._spark = spark
         self._files = files
@@ -526,6 +532,7 @@ class PlannerPipeline:
         self._bus = bus
         self._grounding = grounding
         self._standards = standards
+        self._zoom = zoom
         self.store = store
         self._hooks: dict[StepName, PlanHook | None] = dict(
             zip(HOOK_STEPS, (audit, prove), strict=True)
@@ -710,13 +717,19 @@ class PlannerPipeline:
     def _probe(
         self, inputs: PipelineInput, understood: UnderstandResult, survey: SurveyResult
     ) -> ProbeResult:
-        needs = concepts_for_concerns(
+        planned = concept_needs(
             understood.concerns, [i.concept for i in survey.inventory], spark=self._spark
         )
+        needs = planned.needs
         concepts = [c for needed in needs.values() for c in needed]
         recorder = RecordingSegmenter(self._segmenter)
         probes = probe_concepts(
-            concepts, inputs.camera_frames, segmenter=recorder, seed=inputs.seed
+            concepts,
+            inputs.camera_frames,
+            segmenter=recorder,
+            seed=inputs.seed,
+            zoom=ProbeZoom(recorder, self._zoom) if self._zoom is not None else None,
+            worn=planned.worn,
         )
         zones = scene_zones(recorder.sightings, concepts)
         trusted = trusted_calibrations(survey.calibrations, recorder.sightings)
@@ -736,6 +749,7 @@ class PlannerPipeline:
         return ProbeResult(
             needs=needs,
             probes=probes,
+            worn=planned.worn,
             zones=zones,
             reference_probes=tried,
             calibrations=calibrations,

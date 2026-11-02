@@ -11,7 +11,9 @@ it can.
 |---|---|---|
 | `sam_runtime.py` | P1-03 | `ModalSam31` (a `Segmenter`), `ModalWorker`, `HttpSamWorker`, `SamRequest` / `SamResponse` and `SamImageRequest` / `SamImageResponse` (wire formats), `SamWorker`, `SamImageWorker` |
 | `sam_worker.py` | P1-03 | `Sam31Engine` (runs SAM 3.1 video on a GPU), `Sam31ImageEngine` (image mode on the same loaded detector), `build_app()` and `deploy()` for the Modal app `rulecam-sam` |
-| `sam_server.py` | P1-03 | HTTP front on our GPU pod: `GET /health`, `POST /segment`, `POST /segment_image` |
+| `sam_server.py` | P1-03 | HTTP front on our GPU pod: `GET /health`, `POST /segment`, `POST /segment_image`, `POST /segment_crops` (add-on 3.3), `POST /embed` |
+| `crop_worker.py` | add-on 3.3 | `CropEngine`: SAM 3.1's loaded detector on crops of one frame (`/segment_crops`, `SAM_CROP_THRESH` 0.3), boxes back in frame pixels |
+| `crop_zoom.py` | add-on 3.3 | `person_crops` (head, hands, body crops from a person box and pose), `WorkerCrops` (the pod), `LocalCrops` (hosted SAM on crops cut here), `FallbackCrops`; used by the planner probe and Tier 0 |
 | `motion_gate.py` | P1-03 | `MotionGate`, pure `motion_stats` / `decide`, `GateConfig`, `GateDecision` |
 | `static_cache.py` | P1-03 | `StaticCache` (listens on `coverage.changed`), `moved_camera`, `StaticServedSegmenter` (runtime) |
 | `router.py` | P1-03 | `SegmenterRouter`, `Purpose`, `RoutingPolicy`, `FallbackSegmenter`, `MeteredSegmenter`, `CallMeter`; image mode: `KeyframeFallback`, `keyframe_chain` |

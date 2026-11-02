@@ -415,8 +415,12 @@ uv run python scripts/eval/serverless_load.py --strips data/strips --chunks data
   --out reports/eval/$(date +%F)-serverless-load
 ```
 
-With `RUNPOD_API_KEY` the script samples each endpoint's worker count (`/v2/<id>/health`, which
-does not wake workers) every 5 s and bills initializing + idle + running workers; without it,
+With `RUNPOD_API_KEY` the script samples each endpoint's worker list
+(`/v2/serverless/<id>/workers`, which does not wake workers) every 5 s and bills the workers
+with a container up (an `uptimeSeconds`). The legacy `/v2/<id>/health` is not used: it counts
+parked workers (scaled down, image cached) as `idle`/`ready`, so it never reaches zero on a cold
+endpoint, and the status alone does not tell either (parked workers are listed as `IDLE` or
+`INITIALIZING` with no uptime); without the key,
 worker time is a lower bound (the union of request time per endpoint plus one 300 s idle tail)
 and the report says `estimate`. A cold burst waits until both endpoints report no worker (or
 330 s without the key). Expect 20 to 30 minutes and a few dollars for the full run.

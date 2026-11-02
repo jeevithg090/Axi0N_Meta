@@ -10,7 +10,7 @@ Endpoints and keys come from environment variables only:
 
     SAM_BASE_URL, SAM_API_KEY, SAM_EDGE_KEY (the RunPod key the load balancer checks)
     GLIMMER_BASE_URL (ends in /v1), GLIMMER_API_KEY, GLIMMER_EDGE_KEY, GLIMMER_MODEL
-    RUNPOD_API_KEY (optional: worker counts for measured cost and for detecting "cold")
+    RUNPOD_API_KEY (optional: billed worker counts for measured cost and for detecting "cold")
     SAM_ENDPOINT_ID, GLIMMER_ENDPOINT_ID (optional: default from https://<id>.api.runpod.ai)
 
 Run from the API pod (same data center as the endpoints, as the deploy.md figures were), e.g.:
@@ -43,8 +43,8 @@ from rulecam.eval.loadtest import (
     JobResult,
     Payload,
     ScenarioReport,
+    billed_workers,
     integrate_workers,
-    live_workers,
     render_markdown,
     run_burst,
     run_job,
@@ -52,7 +52,7 @@ from rulecam.eval.loadtest import (
     to_json,
 )
 
-HEALTH = "https://api.runpod.ai/v2/{id}/health"
+WORKERS = "https://api.runpod.io/v2/serverless/{id}/workers"  # never wakes a worker
 KEYFRAMES = 6
 SAMPLE_EVERY_S = 5.0
 
@@ -112,15 +112,15 @@ def load_payloads(strips: Path, chunks: Path | None, limit: int) -> list[Payload
 
 
 async def workers(client: httpx.AsyncClient, ep: Endpoint, key: str | None) -> int | None:
-    """Live workers of an endpoint from RunPod's health route (`None` without a key or id)."""
+    """Billed workers of an endpoint from RunPod's worker list (`None` without a key or id)."""
     if not key or not ep.endpoint_id:
         return None
     try:
         reply = await client.get(
-            HEALTH.format(id=ep.endpoint_id), headers={"Authorization": f"Bearer {key}"}
+            WORKERS.format(id=ep.endpoint_id), headers={"Authorization": f"Bearer {key}"}
         )
         reply.raise_for_status()
-        return live_workers(reply.json())
+        return billed_workers(reply.json())
     except (httpx.HTTPError, ValueError):
         return None
 
@@ -234,7 +234,8 @@ async def main_async(args: argparse.Namespace) -> int:
         "payloads": len(payloads),
         "strip_frames": sorted({len(p.strip) for p in payloads}),
         "usd_per_worker_hour": 1.34,
-        "note": "worker time measured from RunPod health samples when RUNPOD_API_KEY is set, "
+        "note": "worker time measured from RunPod worker-list samples (workers with an uptime) "
+        "when RUNPOD_API_KEY is set, "
         "else a lower-bound estimate (request time union + one 300 s idle tail per endpoint)",
     }
     args.out.parent.mkdir(parents=True, exist_ok=True)

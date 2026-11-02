@@ -380,3 +380,27 @@ correct, and accuracy among its decisive answers is reported too), with a Wilson
 the `unsure` rates, raw agreement and Cohen's kappa. The `blur6_640` strips are built from the
 raw ones (6 of 8 frames, scaled to 640 px with the annotation band, faces blurred with YuNet when
 `RULECAM_FACE_MODEL` is set), not re-rendered from the chunks.
+
+## Serverless latency and cold starts (add-on 1.6)
+
+Every latency figure in the 1 Nov reports predates the move of SAM 3.1 and Glimmer to RunPod
+serverless load balancers. `scripts/eval/serverless_load.py` replays recorded inputs in bursts of
+1, 5 and 20 alert jobs, **cold** (both endpoints scaled to zero first) and **warm** (straight
+after): an alert job is a chunk's 6 keyframes to SAM's `/segment_image`, then an evidence strip
+to Glimmer's `/chat/completions`. It reports p50 / p95 per stage (`sam`, `glimmer`, `total`) and
+dollars per verified alert at $1.34/h per running RTX 4090 worker.
+
+```bash
+# on the API pod (same data center as the endpoints); URLs and keys from the environment only
+set -a; . ./.env; set +a
+export SAM_EDGE_KEY=$(cat .sam_edge_key) GLIMMER_EDGE_KEY=$(cat .glimmer_edge_key)
+export RUNPOD_API_KEY=...   # optional: measured worker time, and waiting until truly cold
+uv run python scripts/eval/serverless_load.py --strips data/strips --chunks data/chunks \
+  --out reports/eval/$(date +%F)-serverless-load
+```
+
+With `RUNPOD_API_KEY` the script samples each endpoint's worker count (`/v2/<id>/health`, which
+does not wake workers) every 5 s and bills initializing + idle + running workers; without it,
+worker time is a lower bound (the union of request time per endpoint plus one 300 s idle tail)
+and the report says `estimate`. A cold burst waits until both endpoints report no worker (or
+330 s without the key). Expect 20 to 30 minutes and a few dollars for the full run.

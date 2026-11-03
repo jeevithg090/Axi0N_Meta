@@ -55,6 +55,13 @@ class WatchRequest(BaseModel):
         max_length=8,
         description="Named areas to measure besides the whole view (a gate approach, a stair).",
     )
+    concept: str | None = Field(
+        default=None,
+        max_length=64,
+        description="What SAM 3.1 counts here: 'head' for a camera looking down, 'person' "
+        "(the default) for one looking across.",
+    )
+    grid: int | None = Field(default=None, ge=1, le=4, description="Tiles per side.")
 
 
 class CameraStatus(BaseModel):
@@ -183,6 +190,8 @@ def crowd_router(
                 role=body.role,
                 floor=body.floor,
                 zones=body.zones,
+                concept=body.concept,
+                grid=body.grid,
             )
         except PerceptionError as exc:
             raise HTTPException(HTTP_UNPROCESSABLE, f"floor points: {exc}") from exc

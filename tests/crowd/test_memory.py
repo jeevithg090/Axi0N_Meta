@@ -36,6 +36,7 @@ def memory(tmp_path: Path, grabber: FrameGrabber, calibrations: Calibrations) ->
         zones=lambda camera: [
             CrowdZone(name="gate", polygon_px=[(0, 0), (200, 0), (200, 300), (0, 300)])
         ],
+        counting=lambda camera: ("head", 1),
     )
 
 
@@ -51,6 +52,7 @@ def test_a_tick_records_one_row_per_zone(tmp_path: Path, grabber: FrameGrabber) 
     rows = [json.loads(line) for line in crowd.path.read_text().splitlines()]
     assert [r["zone"] for r in rows] == ["view", "gate"]
     assert rows[0]["people"] == 5
+    assert rows[0]["concept"] == "head"
     assert crowd.cameras() == ["gate"]
     assert crowd.readings("gate") == [latest]
     assert crowd.readings("gate", since=latest.at) == []

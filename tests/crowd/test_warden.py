@@ -284,9 +284,11 @@ def test_marked_floor_points_calibrate_and_watches_survive_a_restart(
     )
     chosen, _ = warden(tmp_path, crowd, grabber, FakeLLM([]), FakeLLM([]))
     gate = CrowdZone(name="gate", polygon_px=[(0, 0), (100, 0), (100, 100)])
-    chosen.watch("gate", INSTRUCTION, ["hi"], floor=floor, zones=[gate])
+    chosen.watch("gate", INSTRUCTION, ["hi"], floor=floor, zones=[gate], concept="head", grid=1)
     assert chosen.zones("gate") == [gate]
     assert chosen.zones("other") == []
+    assert chosen.counting("gate") == ("head", 1)
+    assert chosen.counting("other") == (None, None)
     reading = latest(crowd)
     found = crowd.calibrations.get("gate", Frame(camera_id="gate", at=EPOCH, path=Path("x")), [])
     assert found is not None

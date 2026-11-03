@@ -163,6 +163,7 @@ class CrowdMemory:
         gap_s: float = DEFAULT_GAP_S,
         cameras: Callable[[], Collection[str]] | None = None,
         zones: Callable[[str], Sequence[CrowdZone]] | None = None,
+        counting: Callable[[str], tuple[str | None, int | None]] | None = None,
         clock: Clock | None = None,
         max_age_s: float = DEFAULT_MAX_AGE_S,
     ) -> None:
@@ -177,6 +178,7 @@ class CrowdMemory:
             gap_s: Seconds between the two frames motion is measured from.
             cameras: The cameras to measure (default: every camera with video).
             zones: Each camera's named zones (default: none, only the whole view).
+            counting: Each camera's concept and tiles per side (`None`s: the scanner's).
             clock: Current time; with it, cameras without video newer than `max_age_s` are
                 skipped.
             max_age_s: Seconds after which a camera's newest video is too old to measure.
@@ -189,6 +191,7 @@ class CrowdMemory:
         self._gap = timedelta(seconds=gap_s)
         self._cameras = cameras
         self._zones = zones
+        self._counting = counting
         self._clock = clock
         self._max_age = timedelta(seconds=max_age_s)
         self._done: dict[str, datetime] = {}
@@ -285,8 +288,9 @@ class CrowdMemory:
     def _record(self, camera_id: str, at: datetime) -> None:
         self._done[camera_id] = at
         zones = self._zones(camera_id) if self._zones is not None else ()
+        concept, grid = self._counting(camera_id) if self._counting is not None else (None, None)
         try:
-            reading = self.measure(camera_id, at, zones)
+            reading = self.measure(camera_id, at, zones, concept=concept, grid=grid)
         except (ValueError, OSError, RulecamError) as exc:
             _log.warning("crowd_reading_failed", camera_id=camera_id, error=str(exc)[:200])
             return

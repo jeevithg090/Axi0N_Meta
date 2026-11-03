@@ -1211,6 +1211,9 @@ def build_crowd(
     def named_zones(camera_id: str) -> list[CrowdZone]:
         return warden.zones(camera_id)  # the warden is made below; called only once ticking
 
+    def counting(camera_id: str) -> tuple[str | None, int | None]:
+        return warden.counting(camera_id)
+
     memory = CrowdMemory(
         frames=frames,
         scanner=CrowdScanner(
@@ -1224,6 +1227,7 @@ def build_crowd(
         every_s=settings.rulecam_crowd_every_s,
         cameras=(lambda: cameras) if cameras else None,
         zones=named_zones,
+        counting=counting,
         clock=clock,
     )
     names = camera_names(settings.rulecam_camera_names)

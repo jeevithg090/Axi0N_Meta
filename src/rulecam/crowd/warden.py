@@ -125,6 +125,8 @@ class Watch(Frozen):
     since: datetime
     floor: FloorPoints | None = None
     zones: list[CrowdZone] = Field(default_factory=list, max_length=8)
+    concept: str | None = None
+    grid: int | None = Field(default=None, ge=1, le=4)
 
 
 class CrowdAlert(Frozen):
@@ -269,6 +271,8 @@ class CrowdWarden:
         role: str = "",
         floor: FloorPoints | None = None,
         zones: Sequence[CrowdZone] = (),
+        concept: str | None = None,
+        grid: int | None = None,
     ) -> Watch:
         """Start (or replace) the operator's standing instruction for a camera.
 
@@ -283,6 +287,8 @@ class CrowdWarden:
             since=self._clock.now(),
             floor=floor,
             zones=list(zones),
+            concept=concept or None,
+            grid=grid,
         )
         self._start(made)
         self._save()
@@ -304,6 +310,12 @@ class CrowdWarden:
         with self._lock:
             watch = self._watches.get(camera_id)
         return list(watch.zones) if watch is not None else []
+
+    def counting(self, camera_id: str) -> tuple[str | None, int | None]:
+        """What SAM counts on a camera and on how many tiles (`None`: the site's setting)."""
+        with self._lock:
+            watch = self._watches.get(camera_id)
+        return (watch.concept, watch.grid) if watch is not None else (None, None)
 
     def unwatch(self, camera_id: str) -> bool:
         """Stop watching a camera; false if it was not watched."""

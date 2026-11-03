@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from rulecam.contracts.rule_ir import Count, StateCheck
+from rulecam.rules.extension import is_extension_state, unknown_values
 from rulecam.rules.geometry import FloatArray
 from rulecam.rules.ir import parse_ref, state_concepts
 from rulecam.rules.scene import Scene, ref_points, zone_contains
@@ -53,11 +54,25 @@ def state(node: StateCheck, scene: Scene) -> Signal:
     """A visual state is the presence of its state concept: `door`/`open` → `"open door"`.
 
     The concept may also be declared as `"door/open"`; the state `present` means the object
-    itself is visible.
+    itself is visible. A state `ext:<name>@<sha12>` runs that approved extension through the
+    scene's hook (`rules.extension`).
     """
+    if is_extension_state(node.state):
+        return extension_state(node, scene)
     by_id = {t.track_id: t for name in state_concepts(node) for t in scene.tracks_of(name)}
     counts = count_present(scene, tuple(by_id[key] for key in sorted(by_id)))
     known = np.ones(scene.timeline.n, dtype=np.bool_)
     return Signal(
         subject=None, unit="count", series={SCENE: make_series(0, counts > 0, counts, known)}
     )
+
+
+def extension_state(node: StateCheck, scene: Scene) -> Signal:
+    """An extension's answers as a scene-level 0/1 signal; unknown without a working hook."""
+    found = scene.extensions.evaluate(node, scene) if scene.extensions is not None else None
+    if found is None:
+        truth, value, known = unknown_values(scene.timeline.n)
+    else:
+        truth, known = found.truth, found.known
+        value = np.where(known, truth.astype(float), np.nan)
+    return Signal(subject=None, unit=None, series={SCENE: make_series(0, truth, value, known)})

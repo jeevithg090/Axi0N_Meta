@@ -1,5 +1,10 @@
 # Rulecam
 
+[![ci](https://github.com/jeevithg090/Axi0N_Meta/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jeevithg090/Axi0N_Meta/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](.python-version)
+[![Demo: no login](https://img.shields.io/badge/demo-no%20login-brightgreen.svg)](https://rulecam.vercel.app/demo?demo=1)
+
 **Tell Rulecam what worries you. It works out what to watch, tells you what a camera can't check,
 proves every rule before it goes live, has a second model check every alert, and lets your crew
 check it.**
@@ -42,6 +47,21 @@ Prototype mode is on in the hackathon deployment (see [What we claim](#what-we-c
    action and acknowledgement goes into a hash-chained, Merkle-rooted log that anyone can check in
    the browser with no server.
 
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="evidence/screenshots/P3-09b-feasibility-375px.jpg" width="240" alt="The feasibility screen: what each camera can and cannot check, with probe evidence and a fix"></td>
+    <td align="center" width="33%"><img src="evidence/screenshots/P3-09a-monitor-375px.jpg" width="240" alt="The live monitor: rule cards, model latency and the Tier 1 Glimmer verdict on an event"></td>
+    <td align="center" width="33%"><img src="evidence/screenshots/P3-07b-verify-intact.jpg" width="240" alt="The browser verify page: chain intact, every SHA-256 recomputed in the browser"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Plan it:</b> what the cameras can check</td>
+    <td align="center"><b>Trust it:</b> a second model checks the alert</td>
+    <td align="center"><b>Verify it:</b> your browser rechecks the log</td>
+  </tr>
+</table>
+
+More screenshots, and what each one shows, are in [`evidence/`](evidence/README.md).
+
 ## Documents
 
 | File | Purpose |
@@ -57,6 +77,8 @@ Prototype mode is on in the hackathon deployment (see [What we claim](#what-we-c
 | [`WHAT-WE-BUILT.md`](WHAT-WE-BUILT.md) | What we wrote during the hackathon vs. what we reused, with licences |
 | [`evidence/`](evidence/README.md) | Screenshots and verify-page captures behind our claims |
 | [`eval/RESULTS.md`](eval/RESULTS.md) | Measured evaluation results |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | How to set up, branch, test and open a pull request |
+| [`SECURITY.md`](SECURITY.md) | How to report a security or privacy problem privately |
 
 ## Quick start
 
@@ -82,11 +104,27 @@ cd ui && npm ci && npm run dev          # the web UI on http://localhost:3000
 - **Check an evidence log:** `uv run rulecam audit <YYYY-MM-DD> <site>` re-verifies a day's chain and
   re-derives every decision; or drop the chain file on the browser verify page, which recomputes every SHA-256 and the Merkle root itself.
 
+### Where things are
+
+| Folder | What is in it |
+|---|---|
+| [`src/rulecam/`](src/rulecam/) | The Python package: planner, Rule CI, perception, rule engine, verifier, actions, evidence log, Ask agent, API |
+| [`ui/`](ui/README.md) | The Next.js web UI: planner, plans, live monitor, worker page, verify page |
+| [`tests/`](tests/) | Unit tests (no network, `tests/fakes`) and the [`guardrails`](tests/guardrails/) tests |
+| [`eval/`](eval/README.md) | Labelled clip manifests (no video), eval runners and the measured results |
+| [`reports/eval/`](reports/eval/) | The result files every number in [Results](#results) is read from |
+| [`scenarios/`](scenarios/README.md) | Golden runs, replayed in CI with no model calls |
+| [`deploy/`](deploy/) | Dockerfiles and entrypoints for the API, SAM and Glimmer machines |
+| [`scripts/`](scripts/) | Deploy, ops, eval and GPU pod scripts |
+| [`docs/`](docs/) | Task books, design docs, the deploy guide and the demo script |
+| [`evidence/`](evidence/README.md) | Screenshots behind our claims |
+
 ## How we work
 
 Code, pull requests and **CI all live on GitHub** (GitHub Actions, `.github/workflows/ci.yml`: the
 `check`, `guardrails` and `ml-cpu` jobs). Every task ends in a pull request with all
-checks green; see `docs/TASKS.md` §0 and §3.4, and `CLAUDE.md`.
+checks green; see [`CONTRIBUTING.md`](CONTRIBUTING.md), `docs/TASKS.md` §0 and §3.4, and
+`CLAUDE.md`.
 
 ## Architecture
 
@@ -214,6 +252,8 @@ An earlier E3 figure came from a simulated harness and was withdrawn on Oct 31 (
 
 ## Licences
 
-The code in this repository was written during the hackathon. Third-party components are used as
-dependencies under their own licences; see [`WHAT-WE-BUILT.md`](WHAT-WE-BUILT.md).
+The code in this repository was written during the hackathon and is released under the
+[MIT License](LICENSE). Third-party components are used as dependencies under their own licences,
+some of them not MIT (for example AGPL-3.0, GPL-3.0 and non-commercial model licences); see
+[`WHAT-WE-BUILT.md`](WHAT-WE-BUILT.md).
 Llama Prompt Guard 2 is used under the Llama 4 Community License: **Built with Llama**.

@@ -1,0 +1,64 @@
+name: Bug report
+description: Something does not work the way the docs say it should.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. **Security or privacy problems go through
+        [SECURITY.md](https://github.com/jeevithg090/Axi0N_Meta/blob/main/SECURITY.md), not a public issue.**
+        Never paste keys, tokens or unblurred footage here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. `uv run rulecam ...`
+        2. ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Planner / Rule CI
+        - Perception / tracking
+        - Verifier / alerts
+        - Evidence log / verify page
+        - Ask agent / site tools
+        - API / deploy
+        - UI
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options:
+        - REPLAY (no model calls)
+        - LIVE
+        - Tests / CI
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: The relevant lines only. Remove anything secret first.
+      render: shell
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: "`git rev-parse --short HEAD`"

@@ -1,0 +1,55 @@
+name: Task
+description: A piece of work from the task book (docs/TASKS.md), or a follow-up to one.
+title: "[P?-??] "
+labels: [task]
+body:
+  - type: input
+    id: task
+    attributes:
+      label: Task ID
+      description: From docs/TASKS.md or your task book docs/tasks/P<N>.md.
+      placeholder: P2-06
+    validations:
+      required: true
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Owner
+      options:
+        - P1
+        - P2
+        - P3
+        - P4
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - must
+        - should
+        - stretch
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What needs doing
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: The acceptance criteria, as a checklist.
+      placeholder: |
+        - [ ] ...
+        - [ ] Required tests added and passing
+    validations:
+      required: true
+  - type: input
+    id: links
+    attributes:
+      label: Depends on / unblocks
+      placeholder: "#12, P3-04"

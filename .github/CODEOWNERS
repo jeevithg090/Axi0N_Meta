@@ -1,33 +1,48 @@
-# Ownership by directory (task book §2). P1 = @jeevithg090.
-# Replace @p2-handle / @p3-handle / @p4-handle with teammates' GitHub handles once they are added
-# as collaborators; until then they are inactive placeholders.
+# Ownership by directory (task book §2): P1 = @jeevithg090 (team lead), P2 = @nav6x,
+# P3 = @R3unakk, P4 = @UchihaVegito.
+#
+# GitHub uses the LAST line that matches a path. So the broad folders come first, and the single
+# files or sub-folders that belong to someone else come after them (a file listed above its folder
+# would be overridden by the folder's line).
 *                                        @jeevithg090
-/src/rulecam/contracts/                  @jeevithg090 @p2-handle @p3-handle @p4-handle
+
+# P1: capture, perception, rules, voice out
 /src/rulecam/capture/                    @jeevithg090
 /src/rulecam/perception/                 @jeevithg090
 /src/rulecam/rules/                      @jeevithg090
 /src/rulecam/voice_out/                  @jeevithg090
+
+# P2: hosted Meta clients, planner, Rule CI, cards, worker
+/src/rulecam/clients/meta_hosted/        @nav6x
+/src/rulecam/planner/                    @nav6x
+/src/rulecam/rule_ci/                    @nav6x
+/src/rulecam/cards/                      @nav6x
+/src/rulecam/worker/                     @nav6x
+
+# P3: open-weight clients, verifier, actions, evidence, API, replay, UI
+/src/rulecam/clients/open_weights/       @R3unakk
+/src/rulecam/verify/                     @R3unakk
+/src/rulecam/act/                        @R3unakk
+/src/rulecam/evidence/                   @R3unakk
+/src/rulecam/api/                        @R3unakk
+/src/rulecam/replay/                     @R3unakk
+/ui/                                     @R3unakk
+
+# P4: world model, pose, privacy, eval, advisor stats and what-if
+/src/rulecam/worldmodel/                 @UchihaVegito
+/src/rulecam/pose/                       @UchihaVegito
+/src/rulecam/privacy/                    @UchihaVegito
+/src/rulecam/eval/                       @UchihaVegito
+/src/rulecam/advisor/stats/              @UchihaVegito
+/src/rulecam/advisor/whatif/             @UchihaVegito
+
+# Files and sub-folders inside another owner's folder: keep these below the folder lines.
 /src/rulecam/clients/meta_hosted/sam.py  @jeevithg090
 /src/rulecam/advisor/process.py          @jeevithg090
-/src/rulecam/clients/meta_hosted/        @p2-handle
-/src/rulecam/planner/                    @p2-handle
-/src/rulecam/rule_ci/                    @p2-handle
-/src/rulecam/cards/                      @p2-handle
-/src/rulecam/worker/                     @p2-handle
-/src/rulecam/advisor/pipeline.py         @p2-handle
-/ui/app/worker/                          @p2-handle
-/src/rulecam/clients/open_weights/       @p3-handle
-/src/rulecam/verify/                     @p3-handle
-/src/rulecam/act/                        @p3-handle
-/src/rulecam/evidence/                   @p3-handle
-/src/rulecam/api/                        @p3-handle
-/src/rulecam/replay/                     @p3-handle
-/src/rulecam/advisor/api.py              @p3-handle
-/ui/                                     @p3-handle
-/src/rulecam/worldmodel/                 @p4-handle
-/src/rulecam/pose/                       @p4-handle
-/src/rulecam/privacy/                    @p4-handle
-/src/rulecam/eval/                       @p4-handle
-/src/rulecam/advisor/stats/              @p4-handle
-/src/rulecam/advisor/whatif/             @p4-handle
-/tests/guardrails/                       @jeevithg090 @p2-handle @p3-handle @p4-handle
+/src/rulecam/advisor/pipeline.py         @nav6x
+/src/rulecam/advisor/api.py              @R3unakk
+/ui/src/app/worker/                      @nav6x
+
+# Shared: everyone reviews the contracts and the guardrail tests.
+/src/rulecam/contracts/                  @jeevithg090 @nav6x @R3unakk @UchihaVegito
+/tests/guardrails/                       @jeevithg090 @nav6x @R3unakk @UchihaVegito

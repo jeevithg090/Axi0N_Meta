@@ -1,0 +1,39 @@
+"""Alert when a pallet stack reaches above the owner's yellow line on the rack."""
+
+LINE = "yellow"
+CONCEPT = "pallet"
+MARGIN_PX = 0
+
+
+def line_y_at(line, x):
+    x1 = line[0][0]
+    y1 = line[0][1]
+    x2 = line[1][0]
+    y2 = line[1][1]
+    if x2 == x1:
+        return min(y1, y2)
+    return y1 + (y2 - y1) * (x - x1) / (x2 - x1)
+
+
+def check(sample):
+    line = sample.get("lines", {}).get(LINE)
+    if not line:
+        return {"value": False, "measure": None, "why": "no yellow line drawn"}
+    highest = None
+    for obj in sample.get("objects", []):
+        if CONCEPT not in str(obj.get("concept", "")).lower():
+            continue
+        box = obj["box_xyxy_px"]
+        top = obj["mask_top_y_px"]
+        above_px = line_y_at(line, (box[0] + box[2]) / 2) - top
+        if highest is None or above_px > highest:
+            highest = above_px
+    if highest is None:
+        return {"value": False, "measure": None, "why": "no pallet in view"}
+    over = highest > MARGIN_PX
+    word = "above" if over else "below"
+    return {
+        "value": over,
+        "measure": round(highest, 1),
+        "why": f"pallet top {abs(highest):.0f} px {word} the yellow line",
+    }

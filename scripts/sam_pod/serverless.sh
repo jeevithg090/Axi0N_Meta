@@ -3,7 +3,7 @@
 # "Serverless SAM").
 #
 # Everything runs from the endpoint's network volume, which workers see at /runpod-volume: the
-# code, the venv and the cached checkpoints (SAM 3.1 and DINOv2). Stage them once from a pod
+# code, the venv and the cached checkpoints (SAM 3.1, DINOv2, OSNet-AIN). Stage them once from a pod
 # that mounts the same volume at the same path (no GPU needed):
 #
 #   RULECAM_DIR=/runpod-volume/rulecam SAM_VENV=/runpod-volume/sam-venv \

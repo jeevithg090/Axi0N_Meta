@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     rulecam_runtime_sam_mode: Literal["image", "video"] = "image"
     rulecam_keyframe_fps: float = Field(default=2.0, ge=2.0, le=10.0)  # keyframes per second
     rulecam_keyframe_fps_cameras: str = ""  # per-camera overrides, e.g. "dock=4,kitchen=3"
+    # Image mode: the lowest SAM score the keyframe tracker gets (ByteTrack's second pass, which
+    # only extends existing tracks); everything else keeps SAM's 0.5 cut.
+    rulecam_tracker_low_confidence: float = Field(default=0.1, ge=0.0, le=0.5)
+    # Image mode: the tracker for people. `botsort` (BoT-SORT with OSNet-AIN person re-ID vectors
+    # from the SAM pod, `perception.botsort`) runs only in prototype mode with the `reid` extra
+    # installed; otherwise, and for every other concept, ByteTrack.
+    rulecam_person_tracker: Literal["botsort", "bytetrack"] = "botsort"
     # Rule ids whose owner turned operator exclusion off (comma-separated; rules/operators.py):
     # for these, a person riding a forklift counts as a pedestrian next to it.
     rulecam_operator_exclusion_off: str = ""
@@ -89,6 +96,9 @@ class Settings(BaseSettings):
     rulecam_ask_caption_every_s: float = Field(default=0.0, ge=0.0)
     # Ask's identity memory: join track fragments by DINOv2 appearance on the GPU pod's /embed.
     rulecam_ask_identities: bool = True
+    # ... and people by OSNet-AIN person re-ID vectors (`/embed` model "person", add-on 3.2) instead
+    # of DINOv2; falls back to DINOv2 when the GPU pod has no re-ID model. Prototype mode only.
+    rulecam_ask_person_reid: bool = True
     # How much tool output reaches Spark in Ask (anything cut is reported to it, never silent):
     # rows per SQL query, characters of results per turn, instants per count/look call.
     rulecam_ask_max_rows: int = Field(default=1000, ge=1)
@@ -108,6 +118,7 @@ class Settings(BaseSettings):
     # Only for command-line clients that log in to a remote API as the owner (`rulecam eval
     # ask`); the API itself never reads it (it checks OWNER_PASSPHRASE_HASH).
     rulecam_owner_passphrase: SecretStr | None = None
+
     # Evidence strips sent to Glimmer: frames per strip and their width in pixels.
     rulecam_strip_frames: int = Field(default=6, ge=1, le=12)
     rulecam_strip_max_width: int = Field(default=640, ge=320, le=1920)

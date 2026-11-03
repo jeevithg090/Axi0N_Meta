@@ -155,7 +155,11 @@ def scene_text_of(candidate: CandidateEvent, scene_text: str) -> str:
     return cleaned
 
 
-def tier1_messages(candidate: CandidateEvent, rule: RuleIR, extra: Sequence[str] = ()) -> list[dict[str, object]]:
+def tier1_messages(
+    candidate: CandidateEvent,
+    rule: RuleIR,
+    extra: Sequence[str] = (),
+) -> list[dict[str, object]]:
     """The chat messages Tier 1 sends about a candidate: instructions, question and its strip.
 
     Raises:

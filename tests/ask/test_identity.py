@@ -14,6 +14,9 @@ from rulecam.ask import FrameGrabber, TrackTables
 from rulecam.ask.identity import (
     FALLBACK_THRESHOLD,
     MIN_THRESHOLD,
+    PERSON,
+    PERSON_FALLBACK_THRESHOLD,
+    PERSON_MIN_THRESHOLD,
     IdentityMemory,
     _same_pairs,
     _Track,
@@ -261,3 +264,94 @@ def test_a_fragment_starting_where_another_ended_is_a_same_pair() -> None:
     assert [(x.track_id, y.track_id) for x, y in _same_pairs([a, b, far, late])] == [
         ("c:p:a", "c:p:b")
     ]
+
+
+def test_person_vectors_have_their_own_floor_and_fallback() -> None:
+    different = [0.1, 0.15, 0.2, 0.22, 0.25, 0.3, 0.32, 0.35, 0.38, 0.4]
+    same = [0.9, 0.85, 0.8, 0.78, 0.75, 0.72, 0.7, 0.68, 0.66, 0.6]
+    assert calibrate(same, different[:3], PERSON) == PERSON_FALLBACK_THRESHOLD
+    assert calibrate(same[:3], different, PERSON) == PERSON_MIN_THRESHOLD  # 0.99 quantile < floor
+    assert PERSON_MIN_THRESHOLD <= calibrate(same, different, PERSON) <= 0.6
+    assert calibrate(same[:3], different) == MIN_THRESHOLD  # DINOv2's floor is higher
+    a, b = unit(1, 0.1), unit(0.6, 0.8)  # cosine 0.67: one person for OSNet, not for DINOv2
+    tracks = [track("cam:person:x", 0, 5), track("cam:person:y", 6, 9)]
+    vectors = {"cam:person:x": a, "cam:person:y": b}
+    assert link(tracks, vectors, PERSON)[0]["cam:person:y"][0] == "cam:person:id-x"
+    assert link(tracks, vectors)[0]["cam:person:y"][0] == "cam:person:id-y"
+
+
+def frame_writer(chunk: Path, indices: Sequence[int], out_dir: Path) -> None:
+    cv2.imwrite(str(out_dir / "1.jpg"), np.full((720, 1280, 3), 90, dtype=np.uint8))
+
+
+def test_people_are_embedded_by_the_person_model_and_objects_by_dinov2(tmp_path: Path) -> None:
+    root = tmp_path / "tracks"
+    store_tracks(root)
+    with ParquetTrackStore(root) as store:
+        points = tuple(point(k * 0.5, 900) for k in range(9))
+        store.append(
+            [
+                Track(
+                    track_id="checkout:cart:c1", camera_id="checkout", concept="cart", points=points
+                )
+            ]
+        )
+    calls: dict[str, int] = {"appearance": 0, "person": 0}
+
+    def embed(crops: list[bytes]) -> list[list[float]]:
+        calls["appearance"] += len(crops)
+        return [[1.0, 0.0, 0.0] for _ in crops]
+
+    def embed_person(crops: list[bytes]) -> list[list[float]]:
+        calls["person"] += len(crops)
+        return [[0.0, 1.0] for _ in crops]
+
+    def memory() -> IdentityMemory:
+        return IdentityMemory(
+            tracks_root=root,
+            frames=FrameGrabber(Chunks(), tmp_path / "f", extract=frame_writer),  # type: ignore[arg-type]
+            embed=embed,
+            embed_person=embed_person,
+            glimmer=None,
+            glimmer_model="muse-glimmer-30b",
+            out_dir=tmp_path / "id",
+        )
+
+    first = memory()
+    first.run()
+    assert calls == {"appearance": 3, "person": 9}  # one cart, three finished people
+    assert (tmp_path / "id" / "vectors-person.npz").is_file()
+    rows = [json.loads(line) for line in first.identities_path.read_text().splitlines()]
+    assert {r["threshold"] for r in rows if r["concept"] == "person"} == {PERSON_FALLBACK_THRESHOLD}
+    memory().run()  # the vectors survive a restart: nothing is embedded again
+    assert calls == {"appearance": 3, "person": 9}
+
+
+def test_a_pod_without_person_reid_falls_back_to_dinov2(tmp_path: Path) -> None:
+    root = tmp_path / "tracks"
+    store_tracks(root)
+    calls: list[str] = []
+
+    def embed(crops: list[bytes]) -> list[list[float]]:
+        calls.append("appearance")
+        return [[1.0, 0.0] for _ in crops]
+
+    def embed_person(crops: list[bytes]) -> list[list[float]]:
+        calls.append("person")
+        raise ConnectionError("/embed failed: HTTPStatusError")
+
+    memory = IdentityMemory(
+        tracks_root=root,
+        frames=FrameGrabber(Chunks(), tmp_path / "f", extract=frame_writer),  # type: ignore[arg-type]
+        embed=embed,
+        embed_person=embed_person,
+        glimmer=None,
+        glimmer_model="muse-glimmer-30b",
+        out_dir=tmp_path / "id",
+    )
+    memory.run()
+    rows = [json.loads(line) for line in memory.identities_path.read_text().splitlines()]
+    assert calls == ["person", "appearance"]
+    assert {r["threshold"] for r in rows} == {FALLBACK_THRESHOLD}
+    memory.run()
+    assert calls == ["person", "appearance"]  # not asked again

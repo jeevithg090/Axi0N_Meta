@@ -11,8 +11,12 @@
 #   /workspace/.hf_token      Hugging Face token with access to facebook/sam3.1 (setup only)
 #   /workspace/.sam_api_key   Bearer key the API pod sends as SAM_API_KEY
 #
+# Person re-ID (BoxMOT's OSNet-AIN) is installed into the same venv and its weights go to
+# $(dirname HF_HOME)/reid/ (override: SAM_REID_WEIGHTS; SAM_REID=0 turns re-ID off).
+#
 # Paths can be overridden with RULECAM_DIR, SAM_VENV, HF_HOME, SAM_LOG, SAM_PORT. Engine settings
-# (SAM_MEMORY_GUARD_GB, SAM_COMPILE, SAM_DET_THRESH, SAM_NEW_DET_THRESH, SAM_HOTSTART_*; see
+# (SAM_MEMORY_GUARD_GB, SAM_COMPILE, SAM_DET_THRESH, SAM_NEW_DET_THRESH, SAM_HOTSTART_*,
+# SAM_IMAGE_THRESH, SAM_IMAGE_BATCH, SAM_REID, SAM_REID_WEIGHTS; see
 # docs/deploy.md) come from the environment or from /workspace/sam.env (KEY=value lines, no
 # secrets), which also survives a reboot through boot.sh.
 set -euo pipefail
@@ -98,6 +102,39 @@ install_venv() {
   touch "$marker"
 }
 
+install_reid() {  # BoxMOT for OSNet-AIN person re-ID (add-ons 3.1/3.2; sam_worker.BOXMOT_PACKAGE)
+  # BoxMOT pins numpy >= 2 and opencv-python; sam3 needs numpy < 2 and we ship the headless
+  # OpenCV, so install it without its dependencies and add the ones its ReID path imports.
+  local package deps
+  package="$(pinned BOXMOT_PACKAGE)"
+  deps="$(pinned REID_DEPENDENCIES)"
+  [[ -n "$package" && -n "$deps" ]] || die "BOXMOT_PACKAGE/REID_DEPENDENCIES not found in $WORKER_PY"
+  if "$PY" -c "import boxmot.reid.factory, sys; sys.exit(boxmot.__version__ != '${package#*==}')" \
+    >/dev/null 2>&1; then
+    log "re-ID ready ($package)"
+    return
+  fi
+  log "installing $package (no deps) for person re-ID"
+  uv pip install --quiet --python "$PY" --no-deps "$package"
+  # shellcheck disable=SC2086 # the pinned list is space-separated requirements
+  uv pip install --quiet --python "$PY" "numpy<2" $deps
+  "$PY" -c "import boxmot.reid.factory" || die "boxmot does not import in $SAM_VENV"
+}
+
+download_reid_weights() {  # OSNet-AIN x1.0 MSMT17 for /segment_image and /embed (person)
+  local weights url
+  weights="${SAM_REID_WEIGHTS:-$(dirname "$HF_HOME")/reid/osnet_ain_x1_0_msmt17.pt}"
+  if [[ -s "$weights" ]]; then
+    log "re-ID weights cached at $weights"
+    return
+  fi
+  url="$(pinned REID_WEIGHTS_URL)"
+  mkdir -p "$(dirname "$weights")"
+  log "downloading OSNet-AIN weights into $weights"
+  "$PY" -m gdown --quiet "$url" -O "$weights" \
+    || log "WARNING: re-ID weights download failed; people are tracked without appearance"
+}
+
 download_checkpoint() {
   if HF_HUB_OFFLINE=1 "$PY" -c \
     "from huggingface_hub import hf_hub_download as d; d('facebook/sam3.1', 'config.json'); d('facebook/sam3.1', 'sam3.1_multiplex.pt')" \
@@ -166,8 +203,10 @@ main() {
   [[ "$STAGE" == "1" ]] || command -v nvidia-smi >/dev/null 2>&1 \
     || die "no NVIDIA GPU visible (nvidia-smi missing)"
   install_venv
+  install_reid
   download_checkpoint
   download_appearance_model
+  download_reid_weights
   [[ "$STAGE" == "1" ]] && { log "staged in $RULECAM_DIR, $SAM_VENV and $HF_HOME"; return; }
   start_server "$restart"
 }

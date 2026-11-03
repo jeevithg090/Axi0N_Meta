@@ -20,7 +20,9 @@ it can.
 | `static_cache.py` | P1-03 | `StaticCache` (listens on `coverage.changed`), `moved_camera`, `StaticServedSegmenter` (runtime) |
 | `router.py` | P1-03 | `SegmenterRouter`, `Purpose`, `RoutingPolicy`, `FallbackSegmenter`, `MeteredSegmenter`, `CallMeter`; image mode: `KeyframeFallback`, `keyframe_chain` |
 | `keyframes.py` | P1-03 (WS2b) | `keyframe_indices`, `KeyframeRates`, `decode_keyframes`, `KeyframeSegmenter`, `HostedKeyframes`, `SelfHostedKeyframes` |
-| `keyframe_tracker.py` | P1-04 (WS2b) | `KeyframeTracker` (image-mode `ChunkTracker`: static cache, cost meter, budget estimate), `KeyframeIdentities` (Roboflow `trackers` ByteTrack per camera and concept) |
+| `keyframe_tracker.py` | P1-04 (WS2b) | `KeyframeTracker` (image-mode `ChunkTracker`: static cache, cost meter, budget estimate), `KeyframeIdentities` (one `StreamTracker` per camera and concept: Roboflow `trackers` ByteTrack by default) |
+| `botsort.py` | add-on 3.1 | BoxMOT `BotSort` with person re-ID for people (`reid` extra, prototype mode), `by_concept` routing people to it and the rest to ByteTrack |
+| `reid_worker.py` | add-ons 3.1/3.2 | GPU side: OSNet-AIN person re-ID vectors (BoxMOT) for `/segment_image` people and `/embed` `model=person` |
 | `metrics.py` | P1-03 | `PerceptionMetrics` (`report()` is the body of `GET /metrics/perception`) |
 | `masks.py` | P1-02 | `encode_rle` / `decode_rle`: `Mask.rle` as JSON `{"size": [h, w], "counts": "<COCO RLE>"}` |
 | `errors.py` | shared | `PerceptionError`; P1-03 adds `SamRuntimeError`, `SamRuntimeUnavailableError`, `SamResponseError` |

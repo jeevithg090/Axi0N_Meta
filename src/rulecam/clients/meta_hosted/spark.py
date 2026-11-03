@@ -12,7 +12,9 @@ One `POST /responses` per call, the same Responses + Files shape as hosted SAM 3
   polled until it leaves `queued`/`in_progress` (background cannot be combined with `stream`, so
   every call sends `stream: false` unless it is a background call);
 - `tools` (function tools, a `{"type": "web_search"}` grounding tool), capped by
-  `max_tool_calls`. `tool_choice` is never sent: the API accepts `"auto"` only, its default;
+  `max_tool_calls`. `tool_choice` is never sent: the API accepts `"auto"` only, its default.
+  `grounded` also asks for `include: ["web_search_call.results"]` and returns the pages each
+  search retrieved and the cited URLs with the answer (`grounding.py`);
 - media goes in as content parts that reference `POST /files` uploads (`upload`, `file_part`);
 - `usage.input_tokens_details.cached_tokens` is recorded so the stable system prefix can be
   checked for prompt-cache hits.
@@ -35,6 +37,7 @@ from pydantic import BaseModel, ValidationError
 
 from rulecam.bus import Bus
 from rulecam.clients.errors import ModelResponseError, StructuredOutputError
+from rulecam.clients.meta_hosted.grounding import INCLUDE_RESULTS, Grounded, grounded
 from rulecam.clients.meta_hosted.responses import (
     PENDING_STATUSES,
     REPLAY_PROVIDER,
@@ -103,6 +106,8 @@ def build_request(
     tools: list[dict[str, object]] | None = None,
     web_search: bool = False,
     max_tool_calls: int | None = None,
+    web_search_options: Mapping[str, object] | None = None,
+    include: list[str] | None = None,
 ) -> dict[str, object]:
     """Build the `POST /responses` body for one structured call.
 
@@ -115,6 +120,9 @@ def build_request(
         tools: Function or other tool definitions, passed through unchanged.
         web_search: Whether to add the `web_search` grounding tool.
         max_tool_calls: Cap on tool calls; must be at least 1 when given.
+        web_search_options: Extra fields of the `web_search` tool (`user_location`,
+            `search_context_size`); only with `web_search`.
+        include: Extra output to return, e.g. `web_search_call.results`.
 
     Returns:
         The request body.
@@ -126,8 +134,8 @@ def build_request(
     if any("tool_choice" in tool for tool in all_tools):
         msg = "tool_choice is 'auto' only on the hosted API; do not set it"
         raise ValueError(msg)
-    if web_search and WEB_SEARCH_TOOL not in all_tools:
-        all_tools.append(dict(WEB_SEARCH_TOOL))
+    if web_search and not any(t.get("type") == "web_search" for t in all_tools):
+        all_tools.append({**WEB_SEARCH_TOOL, **(web_search_options or {})})
     body: dict[str, object] = {
         "model": model,
         "input": messages,
@@ -152,6 +160,8 @@ def build_request(
             msg = f"max_tool_calls must be at least 1, got {max_tool_calls}"
             raise ValueError(msg)
         body["max_tool_calls"] = max_tool_calls
+    if include:
+        body["include"] = list(include)
     return body
 
 
@@ -358,6 +368,72 @@ class SparkClient:
             msg = f"Spark output failed validation twice against {schema.__name__}: {second}"
             raise StructuredOutputError(msg) from second
 
+    def grounded(
+        self,
+        *,
+        model: str = DEFAULT_MODEL,
+        messages: list[dict[str, object]],
+        schema: type[M],
+        reasoning_effort: Effort = "low",
+        user_location: Mapping[str, str] | None = None,
+        search_context_size: Literal["low", "medium", "high"] | None = None,
+        max_tool_calls: int | None = None,
+    ) -> Grounded[M]:
+        """Call Muse Spark with `web_search` and return its answer with what the search returned.
+
+        Like `structured` (one retry with the validation errors), but the reply's raw search
+        results (`include: ["web_search_call.results"]`) and `url_citation` URLs come back with
+        the answer, so a caller can check each claimed source against the pages actually
+        retrieved (`Grounded.retrieved`).
+
+        Args:
+            model: The model id.
+            messages: Input items.
+            schema: The pydantic model to validate against.
+            reasoning_effort: `reasoning.effort`.
+            user_location: The `web_search` tool's approximate location (`country` as ISO
+                3166-1 alpha-2, `region`, `city`, `timezone`); fields left out are not sent.
+            search_context_size: How much retrieved content reaches the model.
+            max_tool_calls: Cap on tool calls.
+
+        Returns:
+            The validated answer with its sources and citations.
+
+        Raises:
+            StructuredOutputError: If the output fails validation twice.
+            ModelHTTPError: When the API keeps failing or rejects the request.
+            ModelResponseError: When a reply cannot be understood or the response failed.
+        """
+        options: dict[str, object] = {}
+        if user_location:
+            options["user_location"] = {"type": "approximate", **dict(user_location)}
+        if search_context_size is not None:
+            options["search_context_size"] = search_context_size
+        request = partial(
+            build_request,
+            model=model,
+            schema=schema,
+            reasoning_effort=reasoning_effort,
+            background=False,
+            web_search=True,
+            web_search_options=options,
+            include=[INCLUDE_RESULTS],
+            max_tool_calls=max_tool_calls,
+        )
+        bodies = [self._call_body(request(messages=messages), model, None)]
+        text = output_text(bodies[0])
+        try:
+            return grounded(_validate(schema, text), bodies)
+        except ValidationError as first:
+            _log.warning("spark_validation_retry", model=model, errors=first.error_count())
+            retry = _retry_messages(messages, text, str(first))
+        bodies.append(self._call_body(request(messages=retry), model, None))
+        try:
+            return grounded(_validate(schema, output_text(bodies[-1])), bodies)
+        except ValidationError as second:
+            msg = f"Spark output failed validation twice against {schema.__name__}: {second}"
+            raise StructuredOutputError(msg) from second
+
     # --- internals ------------------------------------------------------------------------------
 
     def _send(self, request: dict[str, object]) -> TimedReply:
@@ -370,6 +446,11 @@ class SparkClient:
         )
 
     def _call(self, body: dict[str, object], model: str, camera_id: str | None) -> str:
+        return output_text(self._call_body(body, model, camera_id))
+
+    def _call_body(
+        self, body: dict[str, object], model: str, camera_id: str | None
+    ) -> Mapping[str, object]:
         start = self._monotonic()
         reply = self._send({"method": "POST", "path": RESPONSES_PATH, "json": body})
         attempts, recorded_ms = reply.attempts, reply.latency_ms
@@ -393,7 +474,7 @@ class SparkClient:
             ),
         )
         _log.info("spark_call", model=model, attempts=attempts, cached_tokens=tokens)
-        return output_text(final)
+        return final
 
     def _poll(self, created: Mapping[str, object]) -> tuple[Mapping[str, object], int, int]:
         response_id = created.get("id")

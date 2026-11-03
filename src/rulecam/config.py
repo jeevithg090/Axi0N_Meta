@@ -88,6 +88,14 @@ class Settings(BaseSettings):
     rulecam_prototype_mode: bool = False
     # The site's time zone (IANA name), for owner questions like "how many customers at 1 pm".
     rulecam_site_timezone: str = "UTC"
+    # The site's approximate location for `/context` (Spark's web search is localised by it).
+    rulecam_site_city: str = ""
+    rulecam_site_region: str = ""
+    rulecam_site_country: str = Field(default="", pattern=r"^([A-Za-z]{2})?$")  # ISO 3166-1
+    # Crowd density levels for `/crowd`, persons per m² (rulecam.crowd.density).
+    rulecam_crowd_busy_per_m2: float = Field(default=2.0, gt=0)
+    rulecam_crowd_crowded_per_m2: float = Field(default=4.0, gt=0)
+    rulecam_crowd_critical_per_m2: float = Field(default=5.0, gt=0)
     # Context for `POST /ask` (the owner's words, given to the models as they are): what the site
     # is, and camera id -> name pairs ("phone-62=checkout lanes,phone-61=entrance queue").
     rulecam_site_profile: str = ""

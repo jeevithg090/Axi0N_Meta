@@ -79,7 +79,8 @@ def test_prototype_mode_still_declines_profiling(prototype: None, request_text: 
     assert declined.reason == PROFILING_REASON
 
 
-def test_without_prototype_mode_the_guardrails_decline() -> None:
+def test_without_prototype_mode_the_guardrails_decline(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RULECAM_PROTOTYPE_MODE", "false")
     get_settings.cache_clear()
     assert isinstance(check_request("Alert me if a cook has a fever."), Declined)
 

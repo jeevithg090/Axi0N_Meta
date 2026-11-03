@@ -1,10 +1,13 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    One-command production & demo launcher for Rulecam (FastAPI Runtime + Next.js Cockpit).
+    Local UI-development launcher for Rulecam with SAMPLE data (FastAPI + Next.js cockpit).
+    Not a production deploy (see docs/deploy.md) and not a live run: never record a demo
+    video or quote a number from what it shows.
 .DESCRIPTION
-    1. Seeds all 11 HD camera streams, 33 JPEG evidence strips, 3 SitePlan versions, and
-       cryptographically verified SHA-256 chains (`scripts/seed_live_backend.py`).
+    1. Seeds hand-made SAMPLE data (`scripts/seed_live_backend.py`): stock clips and stills,
+       two sample SitePlans and a sample evidence chain whose verdicts and outcomes were
+       written by hand (every record is labelled "[SAMPLE ...]"; see samples/seed/README.md).
     2. Starts the FastAPI backend on http://localhost:8000 with RULECAM_RUNTIME=true.
     3. Starts the Next.js operational cockpit on http://localhost:3000.
     4. Verifies live health and registers all plans in runtime memory.
@@ -17,7 +20,7 @@ Set-Location $RepoRoot
 $env:PYTHONIOENCODING = "utf-8"
 $env:RULECAM_RUNTIME = "true"
 
-Write-Host "==> [1/4] Seeding Rulecam live backend, HD camera streams, strips, plans & SHA-256 chains..." -ForegroundColor Cyan
+Write-Host "==> [1/4] Seeding the local backend with hand-made SAMPLE data (not a live run)..." -ForegroundColor Cyan
 uv run python scripts/seed_live_backend.py
 
 # Check if FastAPI is already listening on port 8000
@@ -64,8 +67,8 @@ if (-not $uiUp) {
     Write-Host "==> [3/4] Next.js Operational Cockpit already running on http://localhost:3000." -ForegroundColor Green
 }
 
-Write-Host "==> [4/4] Rulecam Production Stack Ready!" -ForegroundColor Green
-Write-Host "    - Live Cockpit : http://localhost:3000/monitor" -ForegroundColor Yellow
+Write-Host "==> [4/4] Local cockpit ready, running on SAMPLE data (not a live run)." -ForegroundColor Green
+Write-Host "    - Cockpit      : http://localhost:3000/monitor" -ForegroundColor Yellow
 Write-Host "    - Camera Fleet : http://localhost:3000/streams" -ForegroundColor Yellow
 Write-Host "    - Rule Planner : http://localhost:3000/planner" -ForegroundColor Yellow
 Write-Host "    - Merkle Audit : http://localhost:3000/audit" -ForegroundColor Yellow

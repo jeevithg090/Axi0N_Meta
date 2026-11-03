@@ -127,6 +127,7 @@ from rulecam.evidence.incident import (
 )
 from rulecam.evidence.merkle import chain_root, read_day_roots
 from rulecam.evidence.packs import Thumbnail, render_pdf
+from rulecam.extensions.api import build_extensions
 from rulecam.log import get_logger
 from rulecam.perception.correction import CorrectionService
 from rulecam.perception.correction_api import correction_router
@@ -871,6 +872,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     cache = ReplayCache.from_settings(settings, clock=clock, bus=bus)
     chain_root = settings.rulecam_data_dir / "evidence" / "chain"
     chain = EventChain(chain_root, site, clock=clock)
+    extensions = build_extensions(settings, cache=cache, clock=clock, bus=bus, chain=chain)
     perception = build_perception(settings, cache=cache, clock=clock, bus=bus)
     probes = dependency_probes(
         settings.glimmer_base_url,
@@ -910,6 +912,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             chain=chain,
             response=response,
             cost=meter,
+            extensions=extensions.hook,
         )
         if settings.rulecam_runtime
         else None
@@ -1013,6 +1016,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 site_name=site,
                 dependencies=_OWNER,
             ),
+            extensions.router(_OWNER),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
         ),

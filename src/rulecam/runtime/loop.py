@@ -116,6 +116,7 @@ from rulecam.perception.motion_gate import MotionGate, MotionStats, is_still
 from rulecam.perception.tracking import SegmentedChunk
 from rulecam.rules.backtest import DecisionContext, candidate_payload
 from rulecam.rules.engine import relevant_concepts
+from rulecam.rules.extension import ExtensionHook
 from rulecam.rules.ir import walk
 from rulecam.rules.operators import OperatorExclusion
 from rulecam.runtime.sampling import CameraSampler, SamplingPolicy, has_high
@@ -488,6 +489,7 @@ class RuntimeLoop:
         operators: OperatorExclusion | None = None,
         bill_estimate: BillEstimate = video_bill_estimate,
         over_budget: Callable[[str], bool] | None = None,
+        extensions: ExtensionHook | None = None,
     ) -> None:
         """Create the loop; it does nothing until a plan is set.
 
@@ -518,6 +520,8 @@ class RuntimeLoop:
                 new timings on `clock`).
             verify_workers: Tier 1 verifications `run()` runs at once, off the in-order path.
             operators: Per-rule operator exclusion (`rules.operators`); default on for all.
+            extensions: Runs approved model-written checks (`rules.extension`); without it a
+                rule's `ext:` states are unknown.
             bill_estimate: What a chunk about to be segmented reserves against the budget
                 (default: hosted video; image mode passes `KeyframeTracker.estimate`).
             over_budget: Whether a camera is over its dollar budget (`runtime.cost`); such a
@@ -542,6 +546,7 @@ class RuntimeLoop:
         self._companions = tuple(companions)
         self._depth = max(1, pipeline_depth)
         self._operators = operators or OperatorExclusion()
+        self._extensions = extensions
         self._bill_estimate = bill_estimate
         self._plan: ActivePlan | None = None
         self._prompts: dict[str, dict[str, bool]] = {}
@@ -986,7 +991,8 @@ class RuntimeLoop:
             operator_warmup_s=self._operators.warmup_s,
         )
         tracks = self._store.window(chunk.camera_id, t0, t1)
-        return [(c, context) for c in context.evaluate(tracks) if self._is_new(c)]
+        found = context.evaluate(tracks, extensions=self._extensions)
+        return [(c, context) for c in found if self._is_new(c)]
 
     def _forget_before(self, camera_id: str, t0: datetime) -> None:
         """Drop de-duplication entries that can no longer merge with a window starting at `t0`."""

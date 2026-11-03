@@ -119,16 +119,23 @@ def foot_points(boxes: Sequence[Box]) -> FloatArray:
     return np.column_stack([(array[:, 0] + array[:, 2]) / 2.0, array[:, 3]])
 
 
-def homography(cal: Calibration) -> FloatArray:
-    """The calibration's 3 x 3 image-pixel -> ground-metre homography."""
-    return np.asarray(cal.homography, dtype=np.float64).reshape(3, 3)
+def homography(cal: Calibration, ground_px: tuple[float, float] = (0.0, 0.0)) -> FloatArray:
+    """The calibration's 3 x 3 image-pixel -> ground-metre homography, signed for `to_ground`.
+
+    A homography is defined up to scale, so its third row's sign is arbitrary: it is flipped
+    when needed to make `w` positive at `ground_px`, a pixel known to be on the floor (callers
+    pass the bottom centre of the frame; a ground camera's bottom row always sees floor).
+    """
+    h = np.asarray(cal.homography, dtype=np.float64).reshape(3, 3)
+    w = float(h[2] @ np.array([ground_px[0], ground_px[1], 1.0]))
+    return -h if w < 0 else h
 
 
 def to_ground(h: FloatArray, points_px: FloatArray) -> tuple[FloatArray, BoolArray]:
     """Map pixels to ground metres; `valid` is false at or above the horizon and out of range.
 
     Args:
-        h: The homography.
+        h: The homography, signed by `homography` (positive `w` on the floor).
         points_px: `(N, 2)` pixels.
 
     Returns:
@@ -139,22 +146,12 @@ def to_ground(h: FloatArray, points_px: FloatArray) -> tuple[FloatArray, BoolArr
     lifted = np.column_stack([points_px, np.ones(len(points_px))])
     mapped = lifted @ h.T
     w = mapped[:, 2]
-    valid = w * _sign(h) > _HORIZON_EPS
+    valid = w > _HORIZON_EPS
     ground = np.full((len(points_px), 2), np.nan)
     ground[valid] = mapped[valid, :2] / w[valid, None]
     valid &= np.hypot(ground[:, 0], ground[:, 1]) <= MAX_RANGE_M
     ground[~valid] = np.nan
     return ground, valid
-
-
-def _sign(h: FloatArray) -> float:
-    """Which sign of `w` is in front of the camera: the sign at the bottom centre of the view.
-
-    The bottom row of a ground camera's view is always on the floor, so the sign of `w` there
-    picks the side of the horizon that is ground (homographies are defined up to scale).
-    """
-    w = float(h[2, 1] * 1e4 + h[2, 2])  # a far-down pixel; only the sign matters
-    return 1.0 if w >= 0 else -1.0
 
 
 def area_map(h: FloatArray, width: int, height: int, step: int = AREA_STEP_PX) -> FloatArray:

@@ -15,7 +15,7 @@ from rulecam.crowd.memory import Calibrations, CrowdMemory
 from rulecam.crowd.scan import CrowdScanner
 from rulecam.crowd.zones import CrowdZone
 from tests.crowd.conftest import Sam, top_down, wait_for
-from tests.fakes import EPOCH
+from tests.fakes import EPOCH, FakeClock
 
 # Standing people at three depths, taller nearer the camera: a ruler for `calibrate_people`.
 STANDING = [
@@ -101,3 +101,17 @@ def test_the_plan_wins_over_everything(frame_at: Callable[[int, datetime], Frame
     plan = top_down(0.02)
     lookup = Calibrations(plan=lambda: {"gate": plan}, model=lambda c, p: top_down())
     assert lookup.get("gate", frame_at(1, EPOCH), []) == (plan, "plan")
+
+
+def test_cameras_without_recent_video_are_skipped(tmp_path: Path, grabber: FrameGrabber) -> None:
+    stale = CrowdMemory(
+        frames=grabber,
+        scanner=CrowdScanner(segmenter=Sam(STANDING), out_dir=tmp_path / "heat", grid=1),
+        calibrations=Calibrations(),
+        path=tmp_path / "readings.jsonl",
+        every_s=5.0,
+        clock=FakeClock(EPOCH + timedelta(hours=1)),
+    )
+    stale.tick()
+    assert stale.cameras() == []
+    assert not stale.path.exists()

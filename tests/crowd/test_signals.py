@@ -143,3 +143,16 @@ def test_a_rising_series_is_fitted_and_projected() -> None:
     assert fit.in_5_min == pytest.approx(7.5)
     assert signals.trend([0, 1], [1.0, 2.0]) is None
     assert signals.trend([5, 5, 5], [1.0, 2.0, 3.0]) is None
+
+
+def test_the_homography_is_signed_so_the_floor_is_in_front() -> None:
+    flipped = Calibration(
+        camera_id="gate",
+        homography=((-0.01, 0.0, 0.0), (0.0, -0.01, 0.0), (0.0, 0.0, -1.0)),
+        method="clicks4",
+        err_m=0.1,
+    )
+    h = signals.homography(flipped, (200.0, 299.0))
+    ground, valid = signals.to_ground(h, np.array([[100.0, 100.0]]))
+    assert valid.tolist() == [True]
+    assert ground[0].tolist() == pytest.approx([1.0, 1.0])

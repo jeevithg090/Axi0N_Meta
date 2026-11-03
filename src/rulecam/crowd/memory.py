@@ -6,9 +6,12 @@ per zone to a JSON-lines file, which `POST /ask` loads as the `crowd_readings` t
 readings per camera also stay in memory for the warden (`crowd.warden`) and `GET /crowd/status`.
 
 A density needs ground metres, so each camera's calibration comes from, in order (`Calibrations`):
-the active plan's calibration (the owner's or the planner's), MoGe-2's point map with SAM's floor
-(add-on 3.5), or the crowd itself: the people SAM found are the ruler (`calibrate_people`). The
-reading says which one it used and its error, so a model reading it can weigh it.
+floor points the operator marked with the watch (`owner`), the active plan's calibration (the
+owner's or the planner's), MoGe-2's point map with SAM's floor (add-on 3.5), or the crowd itself:
+the people SAM found are the ruler (`calibrate_people`; only for cameras that see people from the
+side). The reading says which one it used and its error, so a model reading it can weigh it.
+
+Only live cameras are measured: a camera whose newest video is older than `max_age_s` is skipped.
 
 `tick` never blocks: one scan at a time runs on its own worker thread, as the caption memory does.
 """
@@ -27,7 +30,7 @@ from typing import Final
 import cv2
 
 from rulecam.ask.vision import Frame, FrameGrabber
-from rulecam.contracts import Calibration
+from rulecam.contracts import Calibration, Clock
 from rulecam.crowd.scan import CrowdReading, CrowdScanner
 from rulecam.crowd.signals import Box
 from rulecam.crowd.zones import CrowdZone
@@ -42,6 +45,7 @@ DEFAULT_GAP_S: Final = 0.5  # seconds between the two frames motion is measured 
 KEEP_READINGS: Final = 720  # per camera in memory: an hour at one reading every 5 s
 NEWEST_OFFSET_S: Final = 1.0  # the newest chunk's start + this is a recorded instant
 MODEL_RETRY_S: Final = 300.0  # a failed MoGe-2 calibration is tried again after this
+DEFAULT_MAX_AGE_S: Final = 120.0  # a camera with no newer video than this is not measured
 
 PlanCalibrations = Callable[[], dict[str, Calibration]]
 """Camera id -> the active plan's calibration."""
@@ -70,8 +74,14 @@ class Calibrations:
         self._model = model
         self._clock = clock
         self._found: dict[str, tuple[Calibration, str]] = {}
+        self._owner: dict[str, Calibration] = {}
         self._tried: dict[str, datetime] = {}
         self._lock = threading.Lock()
+
+    def set_owner(self, calibration: Calibration) -> None:
+        """Use floor points the operator marked for this camera (wins over every other source)."""
+        with self._lock:
+            self._owner[calibration.camera_id] = calibration
 
     def get(
         self, camera_id: str, frame: Frame, boxes: Sequence[Box]
@@ -84,8 +94,13 @@ class Calibrations:
             boxes: People SAM found on that frame (the ruler of last resort).
 
         Returns:
-            `(calibration, source)` with source `plan`, `moge2` or `people`, or `None`.
+            `(calibration, source)` with source `owner`, `plan`, `moge2` or `people`, or
+            `None`.
         """
+        with self._lock:
+            owner = self._owner.get(camera_id)
+        if owner is not None:
+            return owner, "owner"
         planned = self._plan().get(camera_id)
         if planned is not None:
             return planned, "plan"
@@ -148,6 +163,8 @@ class CrowdMemory:
         gap_s: float = DEFAULT_GAP_S,
         cameras: Callable[[], Collection[str]] | None = None,
         zones: Callable[[str], Sequence[CrowdZone]] | None = None,
+        clock: Clock | None = None,
+        max_age_s: float = DEFAULT_MAX_AGE_S,
     ) -> None:
         """Create the memory.
 
@@ -160,6 +177,9 @@ class CrowdMemory:
             gap_s: Seconds between the two frames motion is measured from.
             cameras: The cameras to measure (default: every camera with video).
             zones: Each camera's named zones (default: none, only the whole view).
+            clock: Current time; with it, cameras without video newer than `max_age_s` are
+                skipped.
+            max_age_s: Seconds after which a camera's newest video is too old to measure.
         """
         self._frames = frames
         self._scanner = scanner
@@ -169,6 +189,8 @@ class CrowdMemory:
         self._gap = timedelta(seconds=gap_s)
         self._cameras = cameras
         self._zones = zones
+        self._clock = clock
+        self._max_age = timedelta(seconds=max_age_s)
         self._done: dict[str, datetime] = {}
         self._readings: dict[str, deque[CrowdReading]] = {}
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="crowd-memory")
@@ -185,6 +207,11 @@ class CrowdMemory:
     def heatmaps(self) -> Path:
         """Where the readings' heatmaps are written."""
         return self._scanner.out_dir
+
+    @property
+    def calibrations(self) -> Calibrations:
+        """Each camera's ground calibration."""
+        return self._calibrations
 
     def tick(self) -> None:
         """Start the next due reading, if none is running (returns at once)."""
@@ -243,8 +270,11 @@ class CrowdMemory:
 
     def _due(self) -> tuple[str, datetime] | None:
         wanted = set(self._cameras()) if self._cameras is not None else None
+        now = self._clock.now() if self._clock is not None else None
         for camera_id, (_, last) in sorted(self._frames.cameras().items()):
             if wanted is not None and camera_id not in wanted:
+                continue
+            if now is not None and now - last > self._max_age:
                 continue
             at = last + timedelta(seconds=NEWEST_OFFSET_S)
             done = self._done.get(camera_id)

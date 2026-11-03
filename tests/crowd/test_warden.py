@@ -7,13 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from rulecam.ask.vision import FrameGrabber
+from rulecam.ask.vision import Frame, FrameGrabber
 from rulecam.contracts import PrivacyMode
 from rulecam.crowd.memory import Calibrations, CrowdMemory
 from rulecam.crowd.scan import CrowdReading, CrowdScanner
-from rulecam.crowd.warden import CrowdWarden
+from rulecam.crowd.warden import CrowdWarden, FloorPoints
 from rulecam.evidence.chain import EventChain, read_chain, verify_chain
 from rulecam.evidence.incident import build_incident, candidates
+from rulecam.perception.errors import PerceptionError
 from tests.crowd.conftest import Sam, top_down, wait_for
 from tests.fakes import EPOCH, FakeClock, FakeLLM
 
@@ -271,3 +272,34 @@ def test_a_failing_spark_is_logged_not_raised(
     chosen.tick()
     wait_for(lambda: chosen.assessments_path.exists() or True)
     assert chosen.alerts() == []
+
+
+def test_marked_floor_points_calibrate_and_watches_survive_a_restart(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    floor = FloorPoints(
+        image_px=[(0, 0), (400, 0), (400, 300), (0, 300)],
+        ground_m=[(0, 0), (8, 0), (8, 6), (0, 6)],
+    )
+    chosen, _ = warden(tmp_path, crowd, grabber, FakeLLM([]), FakeLLM([]))
+    chosen.watch("gate", INSTRUCTION, ["hi"], floor=floor)
+    reading = latest(crowd)
+    found = crowd.calibrations.get("gate", Frame(camera_id="gate", at=EPOCH, path=Path("x")), [])
+    assert found is not None
+    assert found[1] == "owner"
+    assert reading is not None
+    again, _ = warden(tmp_path, crowd, grabber, FakeLLM([]), FakeLLM([]))
+    (state,) = again.states()
+    assert state.watch.floor == floor
+    assert state.watch.languages == ["hi"]
+    with pytest.raises(PerceptionError):
+        chosen.watch("gate", INSTRUCTION, floor=floor.model_copy(update={"ground_m": [(0, 0)] * 4}))
+
+
+def test_an_unreadable_watches_file_is_skipped(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    (tmp_path / "crowd").mkdir()
+    (tmp_path / "crowd" / "watches.json").write_text("[{]")
+    chosen, _ = warden(tmp_path, crowd, grabber, FakeLLM([]), FakeLLM([]))
+    assert chosen.states() == []

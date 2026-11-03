@@ -26,9 +26,11 @@ from pydantic import BaseModel, Field
 
 from rulecam.crowd.memory import CrowdMemory
 from rulecam.crowd.scan import CrowdReading
-from rulecam.crowd.warden import CrowdAlert, CrowdWarden, Watch
+from rulecam.crowd.warden import CrowdAlert, CrowdWarden, FloorPoints, Watch
+from rulecam.perception.errors import PerceptionError
 
 HTTP_NOT_FOUND = 404
+HTTP_UNPROCESSABLE = 422
 HTTP_UNAVAILABLE = 503
 UNAVAILABLE: Final = "crowd watch needs RULECAM_PROTOTYPE_MODE=true and RULECAM_CROWD_EVERY_S > 0"
 SERIES_S: Final = 600.0  # the live page's charts cover the last ten minutes
@@ -42,6 +44,11 @@ class WatchRequest(BaseModel):
     instruction: str = Field(min_length=1, max_length=2000)
     languages: list[str] = Field(default_factory=list, max_length=8)
     role: str = Field(default="security", min_length=1, max_length=32)
+    floor: FloorPoints | None = Field(
+        default=None,
+        description="Floor points the operator marked (pixels and metres), for cameras the "
+        "crowd cannot calibrate itself, such as an overhead view.",
+    )
 
 
 class CameraStatus(BaseModel):
@@ -162,7 +169,12 @@ def crowd_router(
     def watch(body: WatchRequest) -> Watch:
         """Start (or replace) the warden's instruction for a camera."""
         _, chosen = ready()
-        return chosen.watch(body.camera_id, body.instruction, body.languages, body.role)
+        try:
+            return chosen.watch(
+                body.camera_id, body.instruction, body.languages, body.role, body.floor
+            )
+        except PerceptionError as exc:
+            raise HTTPException(HTTP_UNPROCESSABLE, f"floor points: {exc}") from exc
 
     @router.delete("/crowd/watch/{camera_id}", tags=["crowd"])
     def unwatch(camera_id: str) -> dict[str, bool]:

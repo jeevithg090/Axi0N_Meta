@@ -97,3 +97,15 @@ def test_off_answers_503() -> None:
     api = client(None, None)
     assert api.get("/crowd/status").status_code == 503
     assert api.post("/crowd/watch", json={"camera_id": "g", "instruction": "x"}).status_code == 503
+
+
+def test_bad_floor_points_answer_422(parts: tuple[CrowdMemory, CrowdWarden]) -> None:
+    bad = {
+        "image_px": [[0, 0], [1, 1], [2, 2], [3, 3]],
+        "ground_m": [[0, 0], [1, 1], [2, 2], [3, 3]],
+    }
+    answer = client(*parts).post(
+        "/crowd/watch", json={"camera_id": "gate", "instruction": "x", "floor": bad}
+    )
+    assert answer.status_code == 422
+    assert "floor points" in answer.text

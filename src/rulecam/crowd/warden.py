@@ -47,6 +47,8 @@ from rulecam.crowd.signals import trend
 from rulecam.errors import RulecamError
 from rulecam.evidence.chain import EventChain
 from rulecam.log import get_logger
+from rulecam.perception.calibration import calibrate_clicks
+from rulecam.perception.errors import PerceptionError
 
 _log = get_logger(__name__)
 
@@ -105,6 +107,13 @@ class CrowdCheck(Frozen):
     confidence: float = Field(ge=0.0, le=1.0)
 
 
+class FloorPoints(Frozen):
+    """Floor points the operator marked: pixels and their positions in metres (four or more)."""
+
+    image_px: list[tuple[float, float]] = Field(min_length=4, max_length=32)
+    ground_m: list[tuple[float, float]] = Field(min_length=4, max_length=32)
+
+
 class Watch(Frozen):
     """The operator's standing instruction for one camera."""
 
@@ -113,6 +122,7 @@ class Watch(Frozen):
     languages: list[str] = Field(default_factory=list)
     role: str = "security"
     since: datetime
+    floor: FloorPoints | None = None
 
 
 class CrowdAlert(Frozen):
@@ -226,6 +236,7 @@ class CrowdWarden:
         self._running: Future[None] | None = None
         self._lock = threading.Lock()
         out_dir.mkdir(parents=True, exist_ok=True)
+        self._restore()
 
     @property
     def assessments_path(self) -> Path:
@@ -242,29 +253,70 @@ class CrowdWarden:
         """Where announcement WAVs are written."""
         return self._out_dir / "audio"
 
+    @property
+    def watches_path(self) -> Path:
+        """The standing instructions, kept across restarts."""
+        return self._out_dir / "watches.json"
+
     def watch(
-        self, camera_id: str, instruction: str, languages: Sequence[str] = (), role: str = ""
+        self,
+        camera_id: str,
+        instruction: str,
+        languages: Sequence[str] = (),
+        role: str = "",
+        floor: FloorPoints | None = None,
     ) -> Watch:
-        """Start (or replace) the operator's standing instruction for a camera."""
+        """Start (or replace) the operator's standing instruction for a camera.
+
+        Raises:
+            CalibrationError: The marked floor points do not give a ground calibration.
+        """
         made = Watch(
             camera_id=camera_id,
             instruction=instruction,
             languages=[lang.strip().lower() for lang in languages if lang.strip()],
             role=role or "security",
             since=self._clock.now(),
+            floor=floor,
         )
-        with self._lock:
-            self._watches[camera_id] = made
-            self._states[camera_id] = WardenState(watch=made)
-            self._assessed.pop(camera_id, None)
-        _log.info("crowd_watch", camera_id=camera_id, languages=made.languages)
+        self._start(made)
+        self._save()
+        _log.info("crowd_watch", camera_id=camera_id, languages=made.languages, floor=bool(floor))
         return made
+
+    def _start(self, watch: Watch) -> None:
+        if watch.floor is not None:
+            self._memory.calibrations.set_owner(
+                calibrate_clicks(watch.camera_id, watch.floor.image_px, watch.floor.ground_m)
+            )
+        with self._lock:
+            self._watches[watch.camera_id] = watch
+            self._states[watch.camera_id] = WardenState(watch=watch)
+            self._assessed.pop(watch.camera_id, None)
 
     def unwatch(self, camera_id: str) -> bool:
         """Stop watching a camera; false if it was not watched."""
         with self._lock:
             self._states.pop(camera_id, None)
-            return self._watches.pop(camera_id, None) is not None
+            found = self._watches.pop(camera_id, None) is not None
+        self._save()
+        return found
+
+    def _save(self) -> None:
+        with self._lock:
+            watches = [w.model_dump(mode="json") for w in self._watches.values()]
+        self.watches_path.write_text(json.dumps(watches, indent=1), encoding="utf-8")
+
+    def _restore(self) -> None:
+        """Start the watches saved before a restart (a bad file is logged and skipped)."""
+        if not self.watches_path.is_file():
+            return
+        try:
+            saved = [Watch.model_validate(w) for w in json.loads(self.watches_path.read_text())]
+            for watch in saved:
+                self._start(watch)
+        except (ValueError, PerceptionError) as exc:
+            _log.warning("crowd_watches_unreadable", error=str(exc)[:200])
 
     def watched(self) -> list[str]:
         """The watched cameras."""

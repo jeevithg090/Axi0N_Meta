@@ -1218,6 +1218,7 @@ def build_crowd(
         path=crowd_dir / "readings.jsonl",
         every_s=settings.rulecam_crowd_every_s,
         cameras=(lambda: cameras) if cameras else None,
+        clock=clock,
     )
     names = camera_names(settings.rulecam_camera_names)
     warden = CrowdWarden(

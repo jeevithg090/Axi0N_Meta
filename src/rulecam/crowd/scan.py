@@ -227,7 +227,8 @@ class CrowdScanner:
         found = list(boxes) if boxes is not None else self.detect(frame, concept, grid)
         feet = signals.foot_points(found)
         notes: list[str] = []
-        h = signals.homography(calibration[0]) if calibration is not None else None
+        bottom = (width / 2.0, height - 1.0)
+        h = signals.homography(calibration[0], bottom) if calibration is not None else None
         ground = _Ground.of(h, width, height) if h is not None else None
         if h is None:
             notes.append("no ground calibration: areas, densities and m/s speeds are unknown")

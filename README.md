@@ -10,9 +10,10 @@ bothered.**
 Built for the Meta Global AI Developer Hackathon (build window Oct 26 – Nov 4 2026), track
 **Build for Your World**.
 
-> **Runs Muse Glimmer (Meta open weights) on our own GPU.** · **Built with Llama** (Llama Prompt
-> Guard 2). Muse Spark Open is wired in, but it is not live yet: the hackathon deployment has no
-> working Baseten key, so those calls are skipped and logged.
+> **Runs Muse Glimmer (Meta open weights) on our own GPU.** · **Built with Muse Spark Open** ·
+> **Built with Llama** (Llama Prompt Guard 2). Muse Spark Open is wired in for plan audit, dispute
+> review and Ask review, but it is not live yet: the hackathon deployment has no working Baseten
+> key, so those calls are skipped and logged.
 
 ## The problem
 

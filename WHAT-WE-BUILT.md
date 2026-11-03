@@ -46,7 +46,7 @@ adds a row here with its licence.
 | SAM 3.1 weights (self-hosted on Modal) | Runtime segmentation and tracking (P1-03) | **SAM License** (same terms as meta-sam-parser above) |
 | MMS-TTS checkpoints (`facebook/mms-tts-<lang>`) | Spoken warnings (`voice_out/`, P1-11) | **CC-BY-NC-4.0 (non-commercial)**: demo and research use only; a commercial release needs a different TTS |
 | Muse Glimmer 30B GGUF (`meta-models/Muse-Glimmer-30B-GGUF`) served by llama.cpp `llama-server` | Tier 1 verifier (`verify/tier1.py`, P3-03) | Model: per the Muse Glimmer model card (commercial terms to confirm). llama.cpp: MIT |
-| Muse Spark Open (Baseten) | Plan audit, dispute review, Tier 2 (P3-04, P2-07) | Per its licence; "Built with Muse Spark Open" attribution in the README |
+| Muse Spark Open (Baseten) | Plan audit, dispute review, Tier 2 (P3-04, P2-07); wired, skipped in the hackathon deployment (no Baseten key) | Per its licence; "Built with Muse Spark Open" attribution in the README |
 | matplotlib, ultralytics YOLOv8 (`eval` extra) | Evaluation charts and the YOLOv8 baseline only; never imported by runtime code | Matplotlib licence (PSF-based) / **AGPL-3.0** |
 | CAVIAR ground truth and clips (EC project IST 2001 37540, University of Edinburgh) | Tracking ground truth (`eval/caviar.py`, `rulecam eval caviar-mot`, add-on 1.5) and labelled events for the eval set (add-on 1.3); downloaded by the scripts, never committed | Publicly available research dataset; cite the CAVIAR project |
 | TrackEval (github.com/JonathonLuiten/TrackEval) | Reference HOTA / CLEAR / Identity scorer to cross-check `eval/tracking.py` (`scripts/eval/trackeval_crosscheck.py`, `mot17.py`); installed only for those runs with `uv run --with git+…`, not a project dependency | MIT |

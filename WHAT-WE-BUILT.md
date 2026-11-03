@@ -136,3 +136,26 @@ adds a row here with its licence.
 | `src/rulecam/crowd/`, `/crowd/scan` | Festival crowd watch: peak local density (people per m² in a 1 m disc) from SAM 3.1 person tracks, crowded or critical spells, each watched as video by Muse Spark for surges, people down, pushing at barriers and blocked exits; the video check can only add reasons to escalate | this PR |
 | `src/rulecam/shelf/`, `rulecam shelf-scan`, `/shelf` | Supermarket shelf gaps: Muse Spark proposes empty facings with the products next to them, SAM 3.1 confirms no product package is inside each one | this PR |
 | `ui/src/app/site/`, `ui/src/lib/site.ts` | Site tools page: context with checked sources, shelf photo scan with the marked image, crowd scan | this PR |
+| `deploy/`, `scripts/deploy/`, `api/prometheus.py` | Container images for the API and GPU, one-command RunPod deploy, Prometheus `/metrics` (PLAN-9.5 WS5) | #100 |
+| Runtime cost control | Dollar budget per camera, cost per camera-hour, idle GPU stop (PLAN-9.5 WS3) | #107 |
+| `rules/operators.py` and the operator warm-up | Operator exclusion that holds for slow vehicles (live driver-only regression); operator warm-up; strip overlay text in an annotation band, never as scene text (P1-07, P4-05) | #108, #113 |
+| Golden REPLAY demo, `rulecam scorecard` | The `/demo?demo=1` REPLAY of a recorded live run, automated scorecard checks, the demo script; re-recorded after the window fix (PLAN-9.5 WS6) | #110, #111 |
+| One GPU per site | Glimmer and SAM image mode on a single 48 GB pod (PLAN-9.5 WS3/WS5) | #112 |
+| `ui/` ops screens v2 | Rule CI panel, surprise view, station display, alerts PWA, card gallery (P3-09c) | #115 |
+| `ui/src/app/advice/`, advisor recompute | Site Advisor card UI, independent Glimmer recompute, pre-registration, sealed causes (P3-10) | #116 |
+| `src/rulecam/act/drills.py` | Response drills through the real escalation chain, timed by role (P3-S2) | #117 |
+| `src/rulecam/advisor/brief.py` | 60-second morning brief voice note with owner rates (P3-S3) | #118 |
+| `src/rulecam/act/whatsapp.py` | WhatsApp reply-button escalation with webhook acknowledgements (P3-S1) | #119 |
+| `eval/runners/e3.py` (real planner) | The real `PlannerPipeline` wired into the E3 runner, outside-author validation, safe defaults, outside requests ingested (W-10) | #121, #126, #127 |
+| `ui/stitch-designs/` | Screen designs made in Google Stitch, used as the UI's visual reference | #129, #130 |
+| `planner/` scene calibration | People check and fallback for scene calibration; Glimmer on hosted APIs | #131 |
+| Windows support | File-locking fallback for chain appends and terminal-encoding handling in the scorecard | #133, #134 |
+| `src/rulecam/ask/`, `POST /ask`, `src/rulecam/prototype.py` | Ask agent: owners ask free-form questions; Muse Spark 1.3 runs a tool loop over read-only SQL on SAM 3.1 tracks, SAM 3.1 counts and Glimmer looks; track fragments joined into identities with DINOv2 (prototype mode only, never faces); prototype mode; a pool of Glimmer servers; SAM and Glimmer behind RunPod serverless load balancers | #135 |
+| `ui/src/components/signage/` | Safety Signage System across the cockpit screens | #136 |
+| `src/rulecam/act/telegram.py`, `act/webhook.py`, `evidence/incident.py`, `ui/src/app/incidents/`, `ui/src/components/PairPhoneButton.tsx` | Add-ons 5.1–5.4: Telegram alerts with inline buttons (a "False alarm" tap adds a permanent Rule CI regression), one-click incident report, signed outbound webhooks for Slack, Teams and JSON, pairing button | #137 |
+| `make ship-api`, `make ship-gpu`, `scripts/ops/warm.sh`, `/health` GPU states, `.claude/` | Add-ons 0.1–0.3 and 4.1–4.5: one-command deploys with the deployed revision in `/health`, serverless GPU warm-up and health from RunPod's REST API, track-store partition pruning, team Claude Code skills and a push guard that runs `make lint type`, AI review of every PR against AGENTS.md | #138 |
+| `src/rulecam/ask/` harness, `ui/src/app/ask/`, `rulecam eval ask` | Add-ons 2.2–2.8: no silent truncation of tool results, parallel actions per turn, SSE step stream and the Ask page timeline, hash-chained run log and benchmark, Glimmer reasoning budget, Spark Open review of each answer (skipped without a Baseten key), `watch` tool that sends Spark the recorded clip as video | #139 |
+| `perception/botsort.py`, `perception/reid_worker.py`, batched keyframes | Add-ons 2.1, 3.1, 3.2, 3.6: every SAM detection fed to the tracker, BoT-SORT with OSNet-AIN re-ID for people (prototype mode), person re-ID vectors for Ask's identities, batched SAM keyframes | #141 |
+| `ui/src/components/DashboardShell.tsx`, `ui/src/components/signage/*`, `ui/src/components/signage/AdviceSignage.tsx` | Cockpit screens connected to the live API, and the interactive Site Advisor / pre-registered switchback studio on `/advice` (pushed to `main` on Nov 3) | commits 4568649, 9b2671e |
+| `scripts/seed_live_backend.py`, `plans/plan-*.plan.yaml`, `ui/public/strips/` | **Hand-made sample data** for UI development: seeded plans, candidates and verdicts. Not a recorded run and not a measured result | commit 4568649 |
+| `src/rulecam/crowd/` (crowd-crush early warning) | Crowd-crush early warning at gates, stations and venues | **open PR #144** (not merged) |

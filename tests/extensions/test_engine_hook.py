@@ -74,7 +74,7 @@ def test_with_a_hook_the_engine_fires_and_traces() -> None:
     assert first.frame_w == 640
     assert first.lines == {"yellow": LINE}
     [pallet] = first.objects
-    assert pallet.concept == "wooden pallet"
+    assert pallet.concept == "pallet"
     assert pallet.box_xyxy_px == (180.0, 220.0, 220.0, 300.0)
     assert pallet.mask_top_y_px == 220.0
     assert pallet.mask_area_px == 40.0 * 80.0

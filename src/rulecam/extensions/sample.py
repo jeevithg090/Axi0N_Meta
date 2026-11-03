@@ -1,6 +1,7 @@
 """Build `CheckSample`s from the rules engine's per-camera `Scene` (one per timeline sample).
 
-A sample holds the objects of one concept present at one instant, the camera's polygon zones,
+A sample holds the objects of one rule concept present at one instant (named by the rule's
+concept key), the camera's polygon zones,
 the extension's reference lines and a local pixels-per-metre scale. Objects are ordered by their
 box, never by track id, and carry no track id: a check sees an instant, not a person over time
 (AGENTS.md rule 7).
@@ -49,7 +50,7 @@ def samples_from_scene(
             timestamp=utc_iso(scene.timeline.ts_at(index)),
             frame_w=width,
             frame_h=height,
-            objects=objects_at(tracks, index),
+            objects=objects_at(concept, tracks, index),
             zones=zones,
             lines=dict(lines),
             px_per_m=scale,
@@ -58,14 +59,20 @@ def samples_from_scene(
     ]
 
 
-def objects_at(tracks: tuple[SampledTrack, ...], index: int) -> tuple[CheckObject, ...]:
-    """Objects of `tracks` present at timeline sample `index`, ordered by box."""
-    found = [obj for track in tracks if (obj := object_at(track, index)) is not None]
+def objects_at(
+    concept: str, tracks: tuple[SampledTrack, ...], index: int
+) -> tuple[CheckObject, ...]:
+    """Objects of `tracks` present at timeline sample `index`, named `concept`, ordered by box."""
+    found = [obj for track in tracks if (obj := object_at(concept, track, index)) is not None]
     return tuple(sorted(found, key=lambda o: o.box_xyxy_px))
 
 
-def object_at(track: SampledTrack, index: int) -> CheckObject | None:
-    """The track's object at timeline sample `index`, or None when it is not present."""
+def object_at(concept: str, track: SampledTrack, index: int) -> CheckObject | None:
+    """The track's object at sample `index` under the rule's concept name, or None if absent.
+
+    The rule's concept key ("pallet") is used, not the track's SAM prompt ("wooden pallet"), so
+    a check written for the owner's words sees the same name at run time.
+    """
     if not track.start <= index < track.stop:
         return None
     local = index - track.start
@@ -76,7 +83,7 @@ def object_at(track: SampledTrack, index: int) -> CheckObject | None:
     point = track.point_at(local)
     score = point.confidence if point is not None else None
     return CheckObject(
-        concept=track.concept,
+        concept=concept,
         box_xyxy_px=(x1, y1, x2, y2),
         mask_top_y_px=min(y1, y2),
         mask_area_px=max(0.0, (x2 - x1) * (y2 - y1)),

@@ -1,7 +1,5 @@
 """Alert when a pallet stack reaches above the owner's yellow line on the rack."""
 
-import math
-
 LINE = "yellow"
 CONCEPT = "pallet"
 MARGIN_PX = 0
@@ -25,17 +23,13 @@ def check(sample):
     for obj in sample.get("objects", []):
         if CONCEPT not in str(obj.get("concept", "")).lower():
             continue
-        box = obj.get("box_xyxy_px")
-        top = obj.get("mask_top_y_px")
-        if not box or top is None:
-            continue
+        box = obj["box_xyxy_px"]
+        top = obj["mask_top_y_px"]
         above_px = line_y_at(line, (box[0] + box[2]) / 2) - top
         if highest is None or above_px > highest:
             highest = above_px
     if highest is None:
         return {"value": False, "measure": None, "why": "no pallet in view"}
-    if not math.isfinite(highest):
-        return {"value": False, "measure": None, "why": "bad geometry"}
     over = highest > MARGIN_PX
     word = "above" if over else "below"
     return {

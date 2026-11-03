@@ -172,8 +172,10 @@ plan = pipeline.resume("main-st", "compile")  # re-run steps 6-10 on the saved s
   `plans/<id>/steps/<NN>_<step>.json`, the plan to `plans/<id>.plan.yaml`; all writes are
   atomic. Running a step deletes its own and every later output first, so nothing stale
   survives a crash. Plan ids must be safe file names (`PipelineError` otherwise).
-- Probe asks Spark 1.3 which concepts each concern needs (`concepts_for_concerns`), then probes
-  them. Compile runs only for `observable` and `caveat` concerns; a compile-time guardrail
+- Probe asks Spark 1.3 which concepts each concern needs (`concept_needs`), and which of them a
+  person wears or holds and on which body region (`ProbeResult.worn`), then probes them. With a
+  crop segmenter (`zoom`, add-on 3.3) a worn concept the full frame misses is looked for on
+  enlarged head, hand or body crops of each person in that frame (`ProbeZoom`). Compile runs only for `observable` and `caveat` concerns; a compile-time guardrail
   decline turns the concern's verdict into `declined`.
 - Step 7 lints the draft plan (below) against the site's cameras and saves
   `LintResult{plan, findings}`; its detail counts the findings by code.
@@ -252,6 +254,11 @@ outcome = loop.run(planned, feasibility)  # rules, feasibility, acceptance, ques
   (`SurveyResult.calibrations`, lowest `err_m` per camera; never from a bare box); a needed
   place (sink, counter, door, ...) becomes a polygon zone (`ProbeResult.zones`). The owner's
   calibration and zones win.
+- MoGe-2 (add-on 3.5, `geometry`): when the GPU pod has it, the survey sends one frame per camera
+  to `/geometry` and asks SAM for the `floor` there; `calibrate_point_map` fits the floor plane
+  (reference `moge2_point_map`). It must agree with the standing people in view and competes
+  with reference objects on `err_m`; `calibrate_people` (the 1.7 m-person guess) is only the
+  fallback.
 - Reference probes: calibration must not depend on Spark's survey wording ("stacked pallet with
   bags" is not a reference). When a concern's text asks for metres or a speed (`needs_metres`),
   the probe step prompts SAM with `REFERENCE_PROMPTS` ("wooden pallet", "1 m floor square") on

@@ -13,9 +13,11 @@ from rulecam.bus import Bus
 from rulecam.clients.errors import ClientConfigError
 from rulecam.config import Settings
 from rulecam.evidence.chain import EventChain
+from rulecam.perception.crop_zoom import FallbackCrops, LocalCrops
 from rulecam.perception.keyframe_tracker import KeyframeTracker
 from rulecam.perception.keyframes import HostedKeyframes, Keyframe, SelfHostedKeyframes
 from rulecam.perception.metrics import Backend, PerceptionMetrics
+from rulecam.perception.point_map import WorkerGeometry
 from rulecam.perception.router import KeyframeFallback, LimitedSegmenter, Purpose
 from rulecam.perception.sam_runtime import HttpSamWorker, ModalWorker
 from rulecam.replay.cache import ReplayCache
@@ -29,7 +31,10 @@ from rulecam.runtime.factory import (
     Perception,
     build_perception,
     build_runtime,
+    build_tier0,
     build_tier1,
+    crop_segmenter,
+    geometry_estimator,
     glimmer_health_url,
     hosted_sam,
     self_hosted_worker,
@@ -38,6 +43,7 @@ from rulecam.runtime.loop import RuntimeLoop
 from rulecam.runtime.strips import EpisodeStrips
 from rulecam.verify.guard import GuardedVerifier
 from rulecam.verify.policy import VerificationPolicy
+from rulecam.verify.tier0 import CropZoomCheck
 from tests.fakes import EPOCH, FakeClock, make_chunk, make_track
 from tests.rules.helpers import CAL, make_rule
 from tests.verify.helpers import make_candidate
@@ -306,3 +312,54 @@ def test_image_mode_on_our_gpu_pod_falls_back_to_hosted_images_and_counts_it(
 def test_bad_keyframe_rate_overrides_fail_at_startup(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="camera_id=fps"):
         _image_runtime(tmp_path, rulecam_keyframe_fps_cameras="dock")
+
+
+# --- crop-zoom and Tier 0 (add-on 3.3) --------------------------------------------------------
+
+
+def _perception(tmp_path: Path, **extra: object) -> Perception:
+    bus, clock = Bus(), FakeClock()
+    cache = ReplayCache(tmp_path / "replay", "replay", clock=clock, bus=bus)
+    return build_perception(settings(tmp_path, **extra), cache=cache, clock=clock, bus=bus)
+
+
+def test_crop_zoom_is_the_pod_with_hosted_fallback_hosted_alone_or_off(tmp_path: Path) -> None:
+    live = {"rulecam_mode": "live"}
+    pod = _perception(tmp_path, **live, **SAM_HTTP)
+    assert isinstance(crop_segmenter(settings(tmp_path, **live), pod), FallbackCrops)
+    hosted = _perception(tmp_path, **live)
+    assert isinstance(crop_segmenter(settings(tmp_path, **live), hosted), LocalCrops)
+    off = settings(tmp_path, rulecam_mode="live", rulecam_crop_zoom=False)
+    assert crop_segmenter(off, pod) is None
+    assert crop_segmenter(settings(tmp_path, rulecam_mode="replay"), pod) is None
+
+
+def test_tier0_is_built_outside_replay_and_reaches_glimmer(tmp_path: Path) -> None:
+    live = settings(tmp_path, rulecam_mode="live")
+    perception = _perception(tmp_path, rulecam_mode="live")
+    tier0 = build_tier0(live, perception)
+    assert isinstance(tier0, CropZoomCheck)
+    assert build_tier0(settings(tmp_path, rulecam_mode="replay"), perception) is None
+    clock, bus = FakeClock(), Bus()
+    cache = ReplayCache(tmp_path / "replay", "live", clock=clock, bus=bus)
+    tier1 = build_tier1(live, cache=cache, clock=clock, bus=bus, tier0=tier0)
+    assert tier1._inner._context is tier0  # type: ignore[attr-defined]
+
+
+def test_moge_calibration_is_auto_on_the_pod_and_off_without_it_or_in_replay(
+    tmp_path: Path,
+) -> None:
+    pod = _perception(tmp_path, rulecam_mode="live", **SAM_HTTP)
+    auto = geometry_estimator(settings(tmp_path, rulecam_mode="live"), pod)
+    assert isinstance(auto, WorkerGeometry)
+    assert auto._check is True
+    forced = geometry_estimator(
+        settings(tmp_path, rulecam_mode="live", rulecam_calibration_model="moge"), pod
+    )
+    assert forced is not None
+    assert forced.available() is True  # `moge` never asks the pod's health
+    off = settings(tmp_path, rulecam_mode="live", rulecam_calibration_model="off")
+    assert geometry_estimator(off, pod) is None
+    assert geometry_estimator(settings(tmp_path, rulecam_mode="replay"), pod) is None
+    hosted = _perception(tmp_path, rulecam_mode="live")
+    assert geometry_estimator(settings(tmp_path, rulecam_mode="live"), hosted) is None

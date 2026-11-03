@@ -870,7 +870,18 @@ What runs where:
   state, memory released and guarded after every call. `SAM_IMAGE=0` turns it off (404),
   `SAM_IMAGE_THRESH` (0.5) is its confidence threshold, and image calls wait in their own queue,
   `SAM_IMAGE_MAX_WAITING` (8), for the same GPU. `/health` reports `image` (loaded, waiting,
-  calls, guard trips). The body is
+  calls, guard trips). `POST /segment_crops` (add-on 3.3, same key) takes one frame and the head
+  or hand boxes to enlarge, `{"request": {"concepts", "crops", "include_confidence"},
+  "image_b64": ...}`, and runs the same loaded detector on each crop (`crop_worker.CropEngine`,
+  no new weights) with its own threshold, `SAM_CROP_THRESH` (0.3); `/health` reports `crops`.
+  `POST /geometry` (add-on 3.5, same key) runs MoGe-2 (`geometry_worker.MogeEngine`,
+  `Ruicheng/moge-2-vitl-normal`, loaded on first use from `MOGE_MODEL`) on one frame,
+  `{"request": {"grid": 96}, "image_b64": ...}`, and answers a metric point map on a grid plus
+  the camera intrinsics; the planner turns it and SAM's floor mask into a ground calibration
+  (`RULECAM_CALIBRATION_MODEL`, `auto` by default). It is served only when the `moge` package is
+  installed (`scripts/sam_pod/install_moge.sh`, which also caches the 1.3 GB weights); `/health`
+  reports `geometry`.
+  The body is
   `{"request": <SamRequest JSON>, "video_b64": ...}` (32 MB limit, `SAM_MAX_BODY_BYTES`), the
   answer the `SamResponse` JSON. One call runs on the GPU at a time; up to `SAM_MAX_WAITING` (2)
   wait, the rest get 503 at once. The model loads once, before the port opens.

@@ -361,9 +361,9 @@ export function PlannerSignage() {
               FDA Food Code § 2-301.12 (Cleaning Procedure)
             </h3>
             <p className="lead" style={{ fontSize: "16px", marginTop: "8px" }}>
-              "Food employees shall clean their hands and exposed portions of their arms for{" "}
+              &ldquo;Food employees shall clean their hands and exposed portions of their arms for{" "}
               <span className="hi">at least 20 seconds</span> using a cleaning compound at a
-              handwashing sink before engaging in food preparation."
+              handwashing sink before engaging in food preparation.&rdquo;
             </p>
             <div className="kv" style={{ marginTop: "12px" }}>
               <span>Government Source Document</span>

@@ -10,6 +10,7 @@ import pytest
 from rulecam.contracts import Calibration
 from rulecam.contracts.core import BoxXYXY
 from rulecam.perception.calibration import (
+    ONE_DEPTH_ERR_M,
     PERSON_HEIGHT_M,
     PERSON_REFERENCE,
     calibrate_people,
@@ -66,10 +67,15 @@ def test_people_give_the_depth_too_on_a_level_camera() -> None:
     assert ground_distance_m(cal, near, far) == pytest.approx(2.0, rel=0.15)
 
 
-def test_people_at_one_depth_do_not_calibrate() -> None:
-    boxes = [person_box(x, 7.0, 20.0) for x in (-2.0, 0.0, 2.0)]
-    with pytest.raises(CalibrationError, match="one depth"):
-        calibrate_people("dock", boxes, WIDTH, HEIGHT)
+@pytest.mark.parametrize("pitch_deg", [0.0, 20.0])
+def test_people_at_one_depth_still_give_the_scale_beside_them(pitch_deg: float) -> None:
+    boxes = [person_box(x, 7.0, pitch_deg) for x in (-2.0, 0.0, 2.0)]
+
+    cal = calibrate_people("dock", boxes, WIDTH, HEIGHT)
+
+    assert cal.err_m >= ONE_DEPTH_ERR_M
+    a, b = ground_px(-1.0, 7.0, pitch_deg), ground_px(1.0, 7.0, pitch_deg)
+    assert ground_distance_m(cal, a, b) == pytest.approx(2.0, rel=0.1)
 
 
 def test_too_few_people_do_not_calibrate() -> None:

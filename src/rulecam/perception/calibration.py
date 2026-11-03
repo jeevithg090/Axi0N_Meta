@@ -78,6 +78,8 @@ MIN_PERSON_BOXES = 3
 MIN_PERSON_ROW_SPREAD = 0.08  # of the frame height between the nearest and farthest foot rows
 _PERSON_TRIM_RATIO = 0.25  # a box more than 25 % off the first fit is dropped before the refit
 _MAX_PITCH_DEG = 60.0  # a horizon fitted further above the frame than this tilt allows is noise
+_PRIOR_PITCH_DEG = 15.0  # people at one depth give no horizon: assume a typical downward tilt
+ONE_DEPTH_ERR_M = 0.5  # floor on err_m when the horizon is assumed, not fitted
 BASE_BAND_FRACTION = 0.05  # lowest share of an upright mask's height that touches the floor
 RANSAC_THRESHOLD_M = 0.10  # a click more than 10 cm off the fit is an outlier
 MIN_POINTS = 4
@@ -349,6 +351,8 @@ def calibrate_people(
     Z = f C / (y - y_h) away from the camera, with f from an assumed lens field of view. Lateral
     distances (people beside a forklift) do not depend on f; depth does, so `err_m` is wider than
     a reference object's and acceptance keeps the rule amber until the owner marks a distance.
+    People all at about one depth give no horizon: it is then assumed from a typical 15 degree
+    tilt and `err_m` is at least `ONE_DEPTH_ERR_M`.
 
     Args:
         camera_id: Camera the boxes come from.
@@ -361,26 +365,36 @@ def calibrate_people(
         A `Calibration` with method `reference_object` and reference `PERSON_REFERENCE`.
 
     Raises:
-        CalibrationError: Too few people, or all at one depth.
+        CalibrationError: Too few people of a consistent height.
     """
     boxes = np.asarray([b for b in person_boxes if b[2] > b[0] and b[3] > b[1]], dtype=np.float64)
+    if len(boxes):
+        boxes = np.unique(np.round(boxes), axis=0)  # one box seen in many frames is one sighting
     if len(boxes) < MIN_PERSON_BOXES:
         raise CalibrationError(f"need {MIN_PERSON_BOXES} standing people, got {len(boxes)}")
     feet = boxes[:, 3]
     heights = boxes[:, 3] - boxes[:, 1]
-    if float(feet.max() - feet.min()) < MIN_PERSON_ROW_SPREAD * frame_height:
-        raise CalibrationError("people are all at one depth; the horizon cannot be fitted")
-    slope, intercept = np.polyfit(feet, heights, 1)
-    keep = np.abs(heights - (slope * feet + intercept)) <= _PERSON_TRIM_RATIO * heights
-    if int(keep.sum()) >= MIN_PERSON_BOXES:
-        slope, intercept = np.polyfit(feet[keep], heights[keep], 1)
-        feet, heights = feet[keep], heights[keep]
     focal = frame_width / (2.0 * math.tan(math.radians(hfov_deg) / 2.0))
     highest = frame_height / 2.0 - focal * math.tan(math.radians(_MAX_PITCH_DEG))
+    one_depth = float(feet.max() - feet.min()) < MIN_PERSON_ROW_SPREAD * frame_height
+    if one_depth:
+        # No spread of foot rows, so no horizon to fit. The people's own scale is still right at
+        # their depth (what lateral distances beside them need); the horizon is a typical tilt.
+        keep = np.abs(heights - np.median(heights)) <= _PERSON_TRIM_RATIO * np.median(heights)
+        feet, heights = feet[keep], heights[keep]
+        horizon = frame_height / 2.0 - focal * math.tan(math.radians(_PRIOR_PITCH_DEG))
+    else:
+        slope, intercept = np.polyfit(feet, heights, 1)
+        keep = np.abs(heights - (slope * feet + intercept)) <= _PERSON_TRIM_RATIO * heights
+        if int(keep.sum()) >= MIN_PERSON_BOXES:
+            slope, intercept = np.polyfit(feet[keep], heights[keep], 1)
+            feet, heights = feet[keep], heights[keep]
+        # People at nearly one depth leave the slope ill-conditioned; their own scale is still
+        # right, so the horizon is clamped into the range a real tilt allows and C refitted.
+        horizon = -intercept / slope if slope > 0 else highest
+    if len(feet) < MIN_PERSON_BOXES:
+        raise CalibrationError("too few people of a consistent height to use as a ruler")
     lowest = float(feet.min()) - MIN_PERSON_ROW_SPREAD * frame_height
-    # People at nearly one depth leave the slope ill-conditioned; their own scale is still
-    # right, so the horizon is clamped into the range a real tilt allows and C refitted to it.
-    horizon = -intercept / slope if slope > 0 else highest
     horizon = min(max(horizon, highest), lowest)
     camera_height = float(np.median(PERSON_HEIGHT_M * (feet - horizon) / heights))
     slope, intercept = PERSON_HEIGHT_M / camera_height, -PERSON_HEIGHT_M * horizon / camera_height
@@ -395,6 +409,8 @@ def calibrate_people(
     relative = np.abs(heights - (slope * feet + intercept)) / heights
     spread = math.sqrt(float(np.mean(np.square(relative))) + 0.06**2)  # fit + people's heights
     err_m = 2.0 * spread  # 1-sigma at the 2 m distances person rules are written with
+    if one_depth:
+        err_m = max(err_m, ONE_DEPTH_ERR_M)
     _LOG.info(
         "people_calibration",
         camera_id=camera_id,

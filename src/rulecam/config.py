@@ -70,6 +70,23 @@ class Settings(BaseSettings):
     # Where confirmed false alarms become permanent Rule CI lookalike regressions (P2-09,
     # `rule_ci.hard_negatives`); default `<data dir>/rule_ci/regressions`.
     rulecam_regressions_dir: Path | None = None
+    # Prototype mode (`rulecam.prototype`): the planner declines nothing but rules that single
+    # people out by race, ethnicity, religion, nationality or sexual orientation; every compiled
+    # rule activates (failed checks are caveats); the verifier's verdict is final.
+    rulecam_prototype_mode: bool = False
+    # The site's time zone (IANA name), for owner questions like "how many customers at 1 pm".
+    rulecam_site_timezone: str = "UTC"
+    # Context for `POST /ask` (the owner's words, given to the models as they are): what the site
+    # is, and camera id -> name pairs ("phone-62=checkout lanes,phone-61=entrance queue").
+    rulecam_site_profile: str = ""
+    rulecam_camera_names: str = ""
+    # Ask's temporal memory: Glimmer captions each camera every N seconds of video; 0 = off.
+    rulecam_ask_caption_every_s: float = Field(default=0.0, ge=0.0)
+    # Ask's identity memory: join track fragments by DINOv2 appearance on the GPU pod's /embed.
+    rulecam_ask_identities: bool = True
+    # Evidence strips sent to Glimmer: frames per strip and their width in pixels.
+    rulecam_strip_frames: int = Field(default=6, ge=1, le=12)
+    rulecam_strip_max_width: int = Field(default=640, ge=320, le=1920)
 
     meta_api_key: SecretStr | None = None
     meta_api_base_url: str | None = None
@@ -79,7 +96,13 @@ class Settings(BaseSettings):
     spark_open_images_supported: bool = False
     glimmer_base_url: str = "http://127.0.0.1:8080/v1"
     glimmer_api_key: SecretStr | None = None
+    # The Glimmer URLs are RunPod serverless load balancers: their edge takes this RunPod API key
+    # as `Authorization`, and GLIMMER_API_KEY goes in `X-Rulecam-Key` (`llama_edge` checks it).
+    glimmer_edge_key: SecretStr | None = None
     glimmer_model: str = "muse-glimmer-30b"
+    # More llama-server URLs serving the same model, comma-separated: Tier 1 calls are spread
+    # over all of them, least busy first, with failover (`clients.transport.PooledTransport`).
+    glimmer_extra_base_urls: str = ""
     glimmer_quant: str = ""
     glimmer_hardware: str = ""
     # Hosted OpenAI-compatible Glimmer (e.g. Routeway) may honour JSON mode but not a strict
@@ -91,6 +114,9 @@ class Settings(BaseSettings):
     modal_token_secret: SecretStr | None = None
     sam_base_url: str | None = None  # our own GPU pod running sam_server; wins over Modal
     sam_api_key: SecretStr | None = None
+    # SAM_BASE_URL is a RunPod serverless load balancer: its edge takes this RunPod API key as
+    # `Authorization`, and SAM_API_KEY goes in `X-Rulecam-Key` to the worker.
+    sam_edge_key: SecretStr | None = None
     kasa_plug_host: str | None = None
     kasa_light_host: str | None = None
     whatsapp_token: SecretStr | None = None

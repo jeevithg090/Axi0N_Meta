@@ -57,7 +57,7 @@ def test_sam_image_pins_match_the_worker() -> None:
     assert f'"{sam_worker.TORCH_PACKAGES[0]}"' in SAM_DOCKERFILE
     assert sam_worker.TORCH_INDEX_URL in SAM_DOCKERFILE
     # sam3 imports these without declaring them; the pod venv failed without them.
-    for package in ("einops", "pycocotools", "psutil", '"numpy<2"', '"pydantic>=2.7"'):
+    for package in ("einops", "pycocotools", "psutil", "timm", '"numpy<2"', '"pydantic>=2.7"'):
         assert package in SAM_DOCKERFILE
     assert "rulecam.perception.sam_server" in SAM_DOCKERFILE
 
@@ -89,7 +89,7 @@ def test_gpu_image_has_the_sam_venv_and_the_pinned_llama_server() -> None:
     assert f"ARG SAM3_COMMIT={sam_worker.SAM3_COMMIT}" in GPU_DOCKERFILE
     assert f'"{sam_worker.TORCH_PACKAGES[0]}"' in GPU_DOCKERFILE
     assert sam_worker.TORCH_INDEX_URL in GPU_DOCKERFILE
-    for package in ("einops", "pycocotools", "psutil", '"numpy<2"', '"pydantic>=2.7"'):
+    for package in ("einops", "pycocotools", "psutil", "timm", '"numpy<2"', '"pydantic>=2.7"'):
         assert package in GPU_DOCKERFILE
     # llama-server's CUDA runtime and cuBLAS come from the torch wheels; the build checks them.
     for lib in ("libcudart.so.12", "libcublas.so.12", "libcublasLt.so.12", "libnccl.so.2"):

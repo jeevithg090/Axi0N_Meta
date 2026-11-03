@@ -155,6 +155,22 @@ def build_request(
     return body
 
 
+def _validate[T: BaseModel](schema: type[T], text: str) -> T:
+    """Validate `text` as `schema`; if prose surrounds the JSON object, validate the object.
+
+    Raises:
+        ValidationError: When neither the text nor the outermost `{...}` in it validates.
+    """
+    try:
+        return schema.model_validate_json(text)
+    except ValidationError:
+        start, end = text.find("{"), text.rfind("}")
+        whole = start == 0 and end == len(text.rstrip()) - 1
+        if start < 0 or end <= start or whole:
+            raise
+        return schema.model_validate_json(text[start : end + 1])
+
+
 def _retry_messages(
     messages: list[dict[str, object]], text: str, error: str
 ) -> list[dict[str, object]]:
@@ -331,13 +347,13 @@ class SparkClient:
         )
         text = self._call(request(messages=messages), model, camera_id)
         try:
-            return schema.model_validate_json(text)
+            return _validate(schema, text)
         except ValidationError as first:
             _log.warning("spark_validation_retry", model=model, errors=first.error_count())
             retry = _retry_messages(messages, text, str(first))
         text = self._call(request(messages=retry), model, camera_id)
         try:
-            return schema.model_validate_json(text)
+            return _validate(schema, text)
         except ValidationError as second:
             msg = f"Spark output failed validation twice against {schema.__name__}: {second}"
             raise StructuredOutputError(msg) from second

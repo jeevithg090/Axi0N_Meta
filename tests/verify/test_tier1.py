@@ -56,13 +56,13 @@ def test_verdict_from_fixture(tmp_path: Path) -> None:
     assert verdict.latency_ms > 0
 
 
-def test_strip_is_attached_and_capped_at_six(tmp_path: Path) -> None:
+def test_strip_is_attached_and_capped_at_twelve(tmp_path: Path) -> None:
     transport = QueueTransport(chat_reply(FIXTURE_ANSWER))
-    make_verifier(transport).verify(make_candidate(make_strip(tmp_path, 8)), load_rule())
+    make_verifier(transport).verify(make_candidate(make_strip(tmp_path, 14)), load_rule())
     body = transport.requests[0]["json"]
     assert isinstance(body, dict)
     user = body["messages"][1]["content"]
-    assert sum(1 for part in user if part["type"] == "image_url") == 6
+    assert sum(1 for part in user if part["type"] == "image_url") == 12
 
 
 @pytest.mark.parametrize(

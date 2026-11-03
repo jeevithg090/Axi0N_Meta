@@ -58,6 +58,7 @@ from pydantic import BaseModel, ValidationError
 
 from rulecam.act.drills import DrillRunner, drills_router
 from rulecam.advisor.api import AdviceStore, PlanFactory, advice_router
+from rulecam.api.ask import ask_router
 from rulecam.api.auth import ClientAddress, OwnerAuth
 from rulecam.api.plans import PlannerRunner, PlanRegistry, QuestionsService, plans_router
 from rulecam.api.prometheus import (
@@ -68,6 +69,15 @@ from rulecam.api.prometheus import (
     metrics_router,
 )
 from rulecam.api.ws import mirror_bus
+from rulecam.ask import (
+    AskAgent,
+    CaptionMemory,
+    FrameGrabber,
+    camera_names,
+    open_tables,
+    planner_profiles,
+)
+from rulecam.ask.identity import IdentityMemory, gpu_embedder
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
 from rulecam.clients.errors import ClientConfigError
@@ -756,6 +766,9 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     planner = build_planner(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, plans=plans, site=site
     )
+    ask_agent, ask_tickers = build_ask(
+        settings, cache=cache, clock=clock, bus=bus, perception=perception
+    )
     origins = viewer_origins(settings.public_ui_url)
     auth = OwnerAuth.from_settings(settings, clock=clock, allowed_origins=origins)
     client_address = ClientAddress(
@@ -781,7 +794,11 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         public_demo=settings.public_demo,
         auth=auth,
         health_probes=dependency_probes(settings.glimmer_base_url, settings.sam_base_url),
-        tickers=(*response.tickers, *((watch.tick,) if watch is not None else ())),
+        tickers=(
+            *response.tickers,
+            *((watch.tick,) if watch is not None else ()),
+            *ask_tickers,
+        ),
         response=response.status,
         cost=watch.report if watch is not None else None,
         routers=(
@@ -797,9 +814,89 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 hard_negatives=hard_negatives,
             ),
             owner_alerts_router(response),
+            ask_router(ask_agent, dependencies=_OWNER),
             *((webhook,) if (webhook := response.webhook_router()) is not None else ()),
         ),
     )
+
+
+def build_ask(
+    settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus, perception: Perception
+) -> tuple[AskAgent | None, tuple[Callable[[], object], ...]]:
+    """The `POST /ask` agent and its memories' tickers: Spark plans, SAM counts, Glimmer looks.
+
+    Served in prototype mode only: it reads per-track spans (dwell time per tracked person). The
+    caption memory runs when `RULECAM_ASK_CAPTION_EVERY_S` is above 0; the identity memory
+    (DINOv2 re-identification on the GPU pod) when `SAM_BASE_URL` and `SAM_API_KEY` are set.
+
+    Returns:
+        The agent and the tickers; `(None, ())` (logged) outside prototype mode or without a
+        Spark key, and `/ask` then answers 503.
+    """
+    if not settings.rulecam_prototype_mode:
+        return None, ()
+    try:
+        spark = SparkClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
+    except ClientConfigError as exc:
+        _log.warning("ask_disabled", error=str(exc))
+        return None, ()
+    glimmer = GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+    ask_dir = settings.rulecam_data_dir / "ask"
+    frames = FrameGrabber(perception.chunks, ask_dir / "frames")
+    names = camera_names(settings.rulecam_camera_names)
+    every = settings.rulecam_ask_caption_every_s
+    memory = (
+        CaptionMemory(
+            frames=frames,
+            glimmer=glimmer,
+            glimmer_model=glimmer.model,
+            path=ask_dir / "captions.jsonl",
+            every_s=every,
+            clock=clock,
+            site_profile=settings.rulecam_site_profile,
+            camera_names=names,
+        )
+        if every > 0
+        else None
+    )
+    identity = None
+    if settings.rulecam_ask_identities and settings.sam_base_url and settings.sam_api_key:
+        identity = IdentityMemory(
+            tracks_root=settings.rulecam_data_dir / "tracks",
+            frames=frames,
+            embed=gpu_embedder(
+                settings.sam_base_url,
+                settings.sam_api_key.get_secret_value(),
+                edge_key=(
+                    settings.sam_edge_key.get_secret_value() if settings.sam_edge_key else None
+                ),
+            ),
+            glimmer=glimmer,
+            glimmer_model=glimmer.model,
+            out_dir=ask_dir / "identity",
+            site_profile=settings.rulecam_site_profile,
+        )
+    agent = AskAgent(
+        spark=spark,
+        segmenter=perception.hosted,
+        glimmer=glimmer,
+        glimmer_model=glimmer.model,
+        tables=open_tables(
+            settings.rulecam_data_dir / "tracks",
+            ask_dir / "captions.jsonl",
+            identity.identities_path if identity is not None else None,
+            identity.notes_path if identity is not None else None,
+        ),
+        frames=frames,
+        clock=clock,
+        timezone=settings.rulecam_site_timezone,
+        site_profile=settings.rulecam_site_profile,
+        camera_names=names,
+        camera_profiles=planner_profiles(PLANS_DIR),
+        caption_every_s=every,
+        marks_dir=ask_dir / "marked",
+    )
+    return agent, tuple(m.tick for m in (memory, identity) if m is not None)
 
 
 def cost_watch(

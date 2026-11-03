@@ -3,7 +3,7 @@
 # pinned in src/rulecam/perception/sam_worker.py (SAM3_COMMIT; the workflow passes it as a build
 # arg and tests/deploy/test_images.py keeps the default in step), plus the deps sam3 imports but
 # does not declare (einops, pycocotools, psutil) and what rulecam's sam_server needs (pydantic,
-# opencv, numpy < 2, huggingface_hub). Built as ghcr.io/jeevithg090/rulecam-sam.
+# opencv, numpy < 2, huggingface_hub, timm for /embed). Built as ghcr.io/jeevithg090/rulecam-sam.
 #
 # The base is CUDA's minimal `base` image: the torch cu128 wheels bring their own cuBLAS, cuDNN
 # and NCCL, so the `runtime` image would only add a second copy (~3 GB). The host driver must
@@ -34,7 +34,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/sam-venv/bin/python \
         "sam3 @ git+https://github.com/facebookresearch/sam3.git@${SAM3_COMMIT}" \
         opencv-python-headless "setuptools<81" "numpy<2" "pydantic>=2.7" huggingface_hub \
-        einops pycocotools psutil
+        einops pycocotools psutil timm
 
 FROM ${CUDA_IMAGE}
 RUN apt-get update \
@@ -53,7 +53,7 @@ ENV PATH=/opt/sam-venv/bin:$PATH \
     HF_HOME=/workspace/hf-cache \
     SAM_PORT=8090
 # Fail the build, not the pod, when an import is missing (no GPU is needed to import).
-RUN python -c "import sam3.model_builder, torch, cv2, einops, pycocotools, psutil, rulecam.perception.sam_server"
+RUN python -c "import sam3.model_builder, torch, cv2, einops, pycocotools, psutil, timm, rulecam.perception.sam_server"
 EXPOSE 8090
 # The first start downloads the checkpoint and loading SAM 3.1 takes about a minute.
 HEALTHCHECK --interval=30s --timeout=6s --start-period=900s --retries=3 \

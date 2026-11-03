@@ -276,8 +276,24 @@ person or track). Families: `rulecam_runtime_lag_seconds`, `_keyframe_mode`, `_i
 `_usd_per_camera_hour{basis}`; `rulecam_cost_budget_alarm`, `_budget_usd_per_camera_hour`,
 `_usd_total`, `_usd_per_camera_hour`, `_usd_per_hour{camera}`, `_gpu_idle_stopped` (WS3);
 `rulecam_verdicts_total{tier,verdict}`;
-`rulecam_dependency_up{service="glimmer"|"sam"}` (their open `/health`, cached 10 s) and the SAM
-pod's `rulecam_sam_gpu_memory_bytes{kind}` / `rulecam_sam_memory_guard_trips_total`.
+`rulecam_dependency_up{service="glimmer"|"sam"}` and `rulecam_dependency_state{service,state}`
+(cached 10 s), serverless `rulecam_dependency_workers{service,status}` and
+`_workers_limit{service,limit}`, and the SAM pod's `rulecam_sam_gpu_memory_bytes{kind}` /
+`rulecam_sam_memory_guard_trips_total`. `GET /health` serves the same state under `gpus`.
+
+**GPU state.** A pod URL is probed on its open `/health` (`warm` when it answers, else
+`unhealthy`). A serverless URL (`https://<id>.api.runpod.ai`) is never polled: its edge answers
+401 without the RunPod key, and with it every probe would start a worker. The API reads the
+endpoint from RunPod's REST API instead (`GET /v2/serverless/{id}` and `/workers`, which wake
+nothing), with the key in `RULECAM_RUNPOD_API_KEY_FILE` when set, else `SAM_EDGE_KEY` /
+`GLIMMER_EDGE_KEY` (`runtime/serverless.py`). States: `warm` (a worker runs, billed),
+`cold-ready` (scaled to zero, the next request starts one), `starting` (RunPod is preparing a
+worker), `unhealthy` (`workers.max` is 0, or every worker is unhealthy) and `unknown` (no
+answer from the REST API, e.g. a key restricted to the endpoints only: put a read-capable key in
+`RULECAM_RUNPOD_API_KEY_FILE`). The first three are up, so a GPU scaled to zero raises no alert,
+the verifier's recovery probe passes and the UI can show "GPU waking". With both GPUs serverless
+and their state known, the cost meter charges `RULECAM_GPU_WORKER_USD_PER_HOUR` (1.34) per
+running worker instead of `RULECAM_GPU_USD_PER_HOUR`.
 
 `deploy/monitoring/` is a minimal Prometheus + Grafana (`docker compose -f
 deploy/monitoring/docker-compose.yml up -d` on your own machine, after copying
@@ -288,7 +304,7 @@ is AGPL-3.0: run it for yourself, don't host it for others. Alert rules (`alerts
 |---|---|---|
 | RulecamApiDown | `/metrics` unreachable for 1 min | page |
 | RulecamLagHigh | `rulecam_runtime_lag_seconds > 10` for 1 min | page |
-| RulecamDependencyDown | `rulecam_dependency_up == 0` for 2 min (Glimmer or SAM pod unhealthy) | page |
+| RulecamDependencyDown | `rulecam_dependency_up == 0` for 2 min (Glimmer or SAM `unhealthy` or `unknown`; scaled to zero is up) | page |
 | RulecamKeyframeMode | keyframe mode for 1 min | warning |
 | RulecamSamFallback | any self-hosted SAM outage in 10 min | warning |
 | RulecamHostedSpendHigh | hosted SAM above $1.20/h for 5 min | warning |
@@ -431,9 +447,58 @@ Open the printed URL on the phone (or scan the QR in `qr_png_base64`) before it 
   has no flag for it.
 - The SSH port changes on every restart: `runpodctl pod get <id>` shows the current one.
 
-Update the API: `git archive origin/main | ssh … 'tar -x -C /workspace/rulecam'`, then
-`uv sync --no-dev` and restart (`pkill -f "[u]vicorn rulecam.api.app"` then `./start.sh` via
-`setsid nohup`, or restart the pod).
+Update the API: `make ship-api` (below). By hand: `git archive origin/main | ssh … 'tar -x -C
+/workspace/rulecam'`, then `uv sync --no-dev` and restart (`pkill -f "[u]vicorn rulecam.api.app"`
+then `./start.sh` via `setsid nohup`, or restart the pod).
+
+### Ship the API
+
+`GET /health` reports `revision`, the git SHA the API runs (`RULECAM_REVISION`, else the
+`REVISION` file at the release root; `null` on a hand-made checkout).
+
+```bash
+export RULECAM_API_SSH_HOST=<ip> RULECAM_API_SSH_PORT=<port>   # runpodctl pod get 7nv0ifjo2tmk00
+make ship-api                 # the committed HEAD; `make ship-api REF=<sha>` for another commit
+```
+
+`scripts/deploy/ship_api.sh` uploads `git archive` into `/workspace/releases/<sha12>` (key
+`RULECAM_API_SSH_KEY`, default `~/.runpod/ssh/runpodctl-ssh-key`; SSH keep-alives and retries,
+since the pod's SSH drops now and then), then starts `scripts/deploy/ship_api_remote.sh` on the
+pod with `setsid nohup`, so a dropped session cannot stop it halfway. That script:
+
+1. The first time, moves the hand-made `/workspace/rulecam` to `/workspace/rulecam-shared` and
+   makes `/workspace/rulecam` a symlink to it (the first rollback target).
+2. Links everything untracked from `rulecam-shared` into the release: `.env`, `.sam_edge_key`,
+   `.glimmer_edge_key`, `.glimmer_api_key`, `start.sh`, `boot.sh`, and `plans/`, `evidence/`,
+   `data/`, `reports/`, which the API writes into. Keys are never copied.
+3. Builds the release's own `.venv` (`uv sync --frozen --no-dev`). Until here the live API is
+   untouched; a failure ends with status `failed`.
+4. Switches the `/workspace/rulecam` symlink, runs `/workspace/restart_api.sh` detached and polls
+   `127.0.0.1:8000/health` until it reports the new revision (`HEALTH_WAIT_S`, 300 s). Otherwise it
+   switches back, restarts again and ends with `rolled-back`.
+5. Keeps the 3 newest releases (`KEEP`) plus the live and previous ones.
+
+The result is in `/workspace/releases/ship-<sha12>.status` (`ok`, `rolled-back`, `failed`) and
+the log in `ship-<sha12>.log`; `make ship-api` prints its tail. Roll back by hand: `ln -sfn
+/workspace/releases/<old sha12> /workspace/rulecam.next && mv -Tf /workspace/rulecam.next
+/workspace/rulecam`, then `setsid nohup /workspace/restart_api.sh > /dev/null 2>&1 < /dev/null &`.
+
+### Ship the GPU code
+
+```bash
+export RUNPOD_S3_ACCESS_KEY_ID=user_... RUNPOD_S3_SECRET_ACCESS_KEY=rps_...  # RunPod S3 API key
+make ship-gpu                 # DRY_RUN=1 prints the writes
+```
+
+`scripts/deploy/ship_gpu.sh` copies `src`, `scripts/sam_pod` and `scripts/glimmer_pod`
+(`SHIP_GPU_PATHS`) of the committed HEAD onto network volume `11ymk65bni` (US-IL-1) through
+RunPod's S3-compatible API (`https://s3api-us-il-1.runpod.io`, bucket = volume ID) at
+`rulecam/<path>`, which serverless workers see as `/runpod-volume/rulecam/...`. It deletes
+files the commit no longer has and writes `rulecam/REVISION`. No staging pod is needed. It uses
+the `aws` CLI, or `uvx --from awscli aws` when that is missing. Running workers keep their
+code; the next cold start loads the new one (`scripts/ops/warm.sh off` and wait out the 300 s
+idle timeout to force it). New Python dependencies still need the staging pod (`setup.sh
+--stage`).
 
 ### Operator exclusion (forklift drivers)
 
@@ -822,7 +887,18 @@ What runs where:
   image (`FindStage.img_ids`); `/health` reports it as `image.batch`. Turn it on only after a GPU
   check that its boxes match the default and that it is faster. Image calls wait in their own queue,
   `SAM_IMAGE_MAX_WAITING` (8), for the same GPU. `/health` reports `image` (loaded, waiting,
-  calls, guard trips). The body is
+  calls, guard trips). `POST /segment_crops` (add-on 3.3, same key) takes one frame and the head
+  or hand boxes to enlarge, `{"request": {"concepts", "crops", "include_confidence"},
+  "image_b64": ...}`, and runs the same loaded detector on each crop (`crop_worker.CropEngine`,
+  no new weights) with its own threshold, `SAM_CROP_THRESH` (0.3); `/health` reports `crops`.
+  `POST /geometry` (add-on 3.5, same key) runs MoGe-2 (`geometry_worker.MogeEngine`,
+  `Ruicheng/moge-2-vitl-normal`, loaded on first use from `MOGE_MODEL`) on one frame,
+  `{"request": {"grid": 96}, "image_b64": ...}`, and answers a metric point map on a grid plus
+  the camera intrinsics; the planner turns it and SAM's floor mask into a ground calibration
+  (`RULECAM_CALIBRATION_MODEL`, `auto` by default). It is served only when the `moge` package is
+  installed (`scripts/sam_pod/install_moge.sh`, which also caches the 1.3 GB weights); `/health`
+  reports `geometry`.
+  The body is
   `{"request": <SamRequest JSON>, "video_b64": ...}` (32 MB limit, `SAM_MAX_BODY_BYTES`), the
   answer the `SamResponse` JSON. One call runs on the GPU at a time; up to `SAM_MAX_WAITING` (2)
   wait, the rest get 503 at once. The model loads once, before the port opens.
@@ -971,6 +1047,17 @@ four chunks waited 23 to 63 s, none fell back to hosted SAM, and the next chunk 
 (6 keyframes, 3 concepts). A longer idle timeout, or one warm worker (`workers.min` 1, billed
 around the clock), avoids that wait at the start of a demo.
 
+**Warm-up and keep-alive** (both endpoints, from any machine with `RUNPOD_API_KEY` set):
+`scripts/ops/warm.sh on` sets `workers.min` 1 on SAM and Glimmer and waits until both `/ping`
+answer 200; `off` sets it back to 0 (do it right after the demo: a warm worker bills $1.34/h);
+`status` prints min, max, idle timeout and workers by status. RunPod lowers `workers.max` on an
+endpoint without requests (to 2 after 3 days, to 0 after 7, until raised by hand), so
+`warm.sh keepalive` sends one authenticated `/ping` to each and prints a loud warning when
+`workers.max` is under 2 (SAM) or 3 (Glimmer). On the API pod, `scripts/ops/keepalive_loop.sh`
+runs it once a day for 16 days (key from `/workspace/rulecam/.runpod_api_key`):
+`setsid nohup bash /workspace/rulecam/scripts/ops/keepalive_loop.sh >> /workspace/keepalive.log
+2>&1 < /dev/null &`.
+
 ## Checks
 
 - `curl https://rulecam.vercel.app/rulecam-api/mode` → `{"mode":"live","badge":"LIVE"}`.
@@ -988,7 +1075,9 @@ around the clock), avoids that wait at the start of a demo.
 - Glimmer chat without the key → 401.
 - SAM `POST /segment` without the key → 401; `GET /health` → `{"status": "ok", …}`.
 - `curl https://<api-pod>-8000.proxy.runpod.net/metrics` → Prometheus text with
-  `rulecam_dependency_up{service="glimmer"} 1` (and `sam` when self-hosted).
+  `rulecam_dependency_up{service="glimmer"} 1` (and `sam` when self-hosted); serverless GPUs
+  scaled to zero show `rulecam_dependency_state{…,state="cold-ready"} 1`, and
+  `curl https://rulecam.vercel.app/rulecam-api/health` shows the same under `gpus`.
 - `scripts/deploy/runpod_status.sh` → every pod `RUNNING` and `ok`.
 - On the API pod: `uv run python -m rulecam.replay.preflight` (with the key files exported).
 

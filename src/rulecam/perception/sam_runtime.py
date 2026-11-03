@@ -49,6 +49,9 @@ RELAY_SEGMENT = "perception"
 MAX_PROMPTED_OBJECTS = 16
 HTTP_SEGMENT_PATH = "/segment"  # sam_server.SEGMENT_PATH (that module stays free of pydantic)
 HTTP_SEGMENT_IMAGE_PATH = "/segment_image"  # sam_server.SEGMENT_IMAGE_PATH
+HTTP_SEGMENT_CROPS_PATH = "/segment_crops"  # sam_server.SEGMENT_CROPS_PATH (add-on 3.3)
+HTTP_GEOMETRY_PATH = "/geometry"  # sam_server.GEOMETRY_PATH (add-on 3.5)
+HTTP_HEALTH_PATH = "/health"
 SAM_KEY_HEADER = "X-Rulecam-Key"  # sam_server.KEY_HEADER
 MAX_IMAGES_PER_CALL = 32  # keyframes of one chunk: 3 s at up to 10 fps
 MAX_IMAGE_CONCEPTS = 16
@@ -534,9 +537,55 @@ class HttpSamWorker:
         }
         return self._post(HTTP_SEGMENT_IMAGE_PATH, payload)
 
+    def segment_crops(self, image: bytes, request: dict[str, Any]) -> dict[str, Any]:
+        """Run crop-zoom SAM 3.1 on crops of one frame (`POST /segment_crops`, add-on 3.3).
+
+        Args:
+            image: The frame's JPEG bytes.
+            request: `{"concepts", "crops", "include_confidence"}` (`crop_zoom.CropsRequest`).
+
+        Returns:
+            The server's response dict (validated by `crop_zoom.WorkerCrops`).
+
+        Raises:
+            SamRuntimeUnavailableError: If the server is unreachable or answers with an error.
+            SamResponseError: If the answer is not a JSON object.
+        """
+        payload = {"request": request, "image_b64": base64.b64encode(image).decode("ascii")}
+        return self._post(HTTP_SEGMENT_CROPS_PATH, payload)
+
+    def estimate_geometry(self, image: bytes, request: dict[str, Any]) -> dict[str, Any]:
+        """MoGe-2 point map and intrinsics of one frame (`POST /geometry`, add-on 3.5).
+
+        Args:
+            image: The frame's JPEG bytes.
+            request: `{"grid": int}`.
+
+        Returns:
+            The server's response dict (validated by `point_map.parse_point_map`).
+
+        Raises:
+            SamRuntimeUnavailableError: If the server is unreachable or answers with an error.
+            SamResponseError: If the answer is not a JSON object.
+        """
+        payload = {"request": request, "image_b64": base64.b64encode(image).decode("ascii")}
+        return self._post(HTTP_GEOMETRY_PATH, payload)
+
+    def health(self) -> dict[str, Any]:
+        """The server's `/health` (wakes a serverless worker, like any call).
+
+        Raises:
+            SamRuntimeUnavailableError: If the server is unreachable or answers with an error.
+            SamResponseError: If the answer is not a JSON object.
+        """
+        return self._send({"method": "GET", "path": HTTP_HEALTH_PATH})
+
     def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._send({"method": "POST", "path": path, "json": payload})
+
+    def _send(self, request: dict[str, Any]) -> dict[str, Any]:
         try:
-            result = self._sender.send({"method": "POST", "path": path, "json": payload})
+            result = self._sender.send(request)
         except ModelClientError as exc:
             msg = f"self-hosted SAM server call failed: {exc}"
             raise SamRuntimeUnavailableError(msg) from exc

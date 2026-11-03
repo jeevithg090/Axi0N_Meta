@@ -7,7 +7,8 @@ applies; this module only draws.
 Privacy modes (MP §7.5):
 
 - **standard**: the real frame, with every face blurred (the face detector's boxes plus the head
-  region of every tracked person) and the overlays drawn on top.
+  region of every tracked person) and the overlays drawn on top; a person whose pose is known
+  also gets a thin body skeleton (`draw_pose`), never the face keypoints.
 - **anonymous**: no person pixel of the frame is kept. The background is a clean plate (the
   per-pixel median of the strip's frames over pixels no person box covered; pixels never seen
   empty are neutral grey, no generative inpainting), the non-person objects of the rule (a
@@ -308,7 +309,7 @@ def blur_faces(frame: Frame, items: Sequence[Item], faces: FaceDetector) -> Fram
 def standard_frame(raw: Frame, overlay: Overlay, faces: FaceDetector) -> Frame:
     """A standard-mode keyframe: the real frame, faces blurred, overlays drawn, band below."""
     out = blur_faces(raw, overlay.items, faces)
-    return draw_overlay(out, overlay, strict=False)
+    return draw_overlay(out, overlay, strict=False, pose=True)
 
 
 def anonymous_frame(
@@ -432,12 +433,29 @@ def _stick(box: BoxXYXY) -> Figure:
     return Figure(stick_figure(box), Anchors(head=head, torso=torso, wrists=wrists))
 
 
-def draw_overlay(frame: Frame, overlay: Overlay, *, strict: bool) -> Frame:
+def draw_pose(frame: Frame, item: Item) -> None:
+    """Draw a person's known body keypoints as a thin skeleton on the real frame, in place.
+
+    Only body joints (COCO 5-16) are drawn; a person without known keypoints is left as is.
+    """
+    bones = _joint_bones(body_joints(item.keypoints or (), KEYPOINT_MIN_SCORE))
+    colour = SUBJECT_COLOUR if item.subject else track_colour(item.colour_key or item.concept)
+    for a, b in bones:
+        cv2.line(frame, _pt(a), _pt(b), colour, 1, cv2.LINE_AA)
+
+
+def draw_overlay(frame: Frame, overlay: Overlay, *, strict: bool, pose: bool = False) -> Frame:
     """Draw the overlay: shapes on the frame, every word in the band below it.
 
     Zones, boxes and the distance ruler are drawn on `frame` in place, without any text; the
     returned frame is `frame` with the annotation band (caption and legend) appended below.
+    With `pose` (the real frame: standard and prototype strips), each person's known body
+    keypoints are drawn as a thin skeleton (`draw_pose`).
     """
+    if pose:
+        for item in overlay.items:
+            if item.person:
+                draw_pose(frame, item)
     for _, polygon in overlay.zones:
         pts = np.asarray([_pt(p) for p in polygon], dtype=np.int32)
         cv2.polylines(frame, [pts], isClosed=True, color=ZONE_COLOUR, thickness=1)

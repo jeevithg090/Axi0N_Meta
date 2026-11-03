@@ -230,7 +230,8 @@ class HttpxTransport:
 
         Args:
             base_url: API root, e.g. the value of `META_API_BASE_URL`; paths are appended to it.
-            api_key: Bearer token. Never logged.
+            api_key: Bearer token. Never logged. Empty sends no `Authorization` (the Telegram
+                Bot API carries its token in the URL path instead).
             timeout_s: Per-request timeout in seconds.
             client: Optional preconfigured client (tests pass one with `httpx.MockTransport`).
             auth_scheme: The `Authorization` scheme, e.g. `Api-Key` for Baseten.
@@ -238,7 +239,8 @@ class HttpxTransport:
                 Never logged.
         """
         self._base_url = base_url.rstrip("/")
-        self._headers = {"Authorization": f"{auth_scheme} {api_key}", **(headers or {})}
+        auth = {"Authorization": f"{auth_scheme} {api_key}"} if api_key else {}
+        self._headers = {**auth, **(headers or {})}
         self._client = client or httpx.Client(timeout=timeout_s)
 
     def __call__(self, request: Mapping[str, object]) -> Mapping[str, object]:

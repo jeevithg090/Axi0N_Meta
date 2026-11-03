@@ -6,6 +6,8 @@ rule's "two metres" is a real distance between foot points.
 Public API:
     calibrate_clicks: H from four or more clicked pixels with known ground positions.
     calibrate_reference: H from the mask of a reference object of known size lying on the floor.
+    calibrate_point_map: H from a MoGe-2 metric point map and SAM's floor mask (add-on 3.5).
+    calibrate_people: H from standing people of an assumed height (the fallback).
     px_to_m, m_to_px, ground_distance_m: apply H or its inverse.
     door_scale_ratio, door_scale_ok: a door-height sanity check on the scale of H.
     polygon_zone: a zone from polygon clicks in the UI.
@@ -31,6 +33,16 @@ four vertices. The longer pair of opposite image sides is taken as the object's 
 lay a pallet with its long side across the view (within about 45 degrees of the image
 horizontal): pointed at the camera, perspective can shorten it below the short side and the scale
 comes out about 20% off. The 1 m floor square has no such ambiguity and is the safer reference.
+
+Point-map calibration (add-on 3.5): MoGe-2 gives metric 3-D points in camera coordinates and
+the camera's intrinsics from one frame (`point_map.PointMap`). `calibrate_point_map` fits the
+floor plane to the points under SAM's floor mask (seeded RANSAC, then a least-squares refit on
+the inliers), puts an orthonormal ground frame on that plane and composes the homography
+H = (K [e1 e2 p0])^-1 from it, so no person height, field of view or tilt is assumed. `err_m`
+combines the plane fit's RMS residual with MoGe's metric-scale uncertainty
+(`MOGE_SCALE_REL_ERR` at `MOGE_ERR_DISTANCE_M`, an estimate). The planner still checks it
+against the standing people in view (`people_agree`) and falls back to `calibrate_people`
+when MoGe is not available.
 
 Door height (2.03 m) is a sanity check on scale only, never a homography source. A door stands
 upright, so its height is not on the ground plane and cannot constrain a ground homography, and
@@ -82,6 +94,13 @@ _PRIOR_PITCH_DEG = 15.0  # people at one depth give no horizon: assume a typical
 ONE_DEPTH_ERR_M = 0.5  # floor on err_m when the horizon is assumed, not fitted
 BASE_BAND_FRACTION = 0.05  # lowest share of an upright mask's height that touches the floor
 RANSAC_THRESHOLD_M = 0.10  # a click more than 10 cm off the fit is an outlier
+MOGE_REFERENCE = "moge2_point_map"
+MIN_FLOOR_POINTS = 30
+FLOOR_INLIER_M = 0.08  # a floor point more than 8 cm off the plane is an outlier
+FLOOR_RANSAC_ITERATIONS = 200
+MOGE_SCALE_REL_ERR = 0.04  # MoGe-2 metric scale, relative (estimate; refine on a measured floor)
+MOGE_ERR_DISTANCE_M = 2.0  # err_m is quoted at the 2 m distances person rules are written with
+CAMERA_HEIGHT_RANGE_M = (0.3, 30.0)
 MIN_POINTS = 4
 
 _MIN_RELATIVE_AREA = 1e-3  # triangle area / spread^2 at or below this counts as collinear
@@ -420,6 +439,113 @@ def calibrate_people(
         err_m=round(err_m, 3),
     )
     return _calibration(camera_id, homography, "reference_object", PERSON_REFERENCE, err_m)
+
+
+def fit_floor_plane(
+    points: FloatArray, *, seed: int = 0, inlier_m: float = FLOOR_INLIER_M
+) -> tuple[FloatArray, float, NDArray[np.bool_]]:
+    """Fit a plane to 3-D floor points: seeded RANSAC, then least squares on the inliers.
+
+    Args:
+        points: `(N, 3)` points in metres, camera coordinates.
+        seed: RANSAC seed (the fit is deterministic for a seed).
+        inlier_m: Largest distance from the plane of an inlier.
+
+    Returns:
+        The unit normal `n` and offset `d` of the plane `n . X + d = 0`, oriented so the camera
+        (the origin) is on its positive side (`d > 0`, the camera's height above the floor), and
+        the inlier mask.
+
+    Raises:
+        CalibrationError: Fewer than `MIN_FLOOR_POINTS` points, or no plane with enough inliers.
+    """
+    if len(points) < MIN_FLOOR_POINTS:
+        raise CalibrationError(f"need {MIN_FLOOR_POINTS} floor points, got {len(points)}")
+    rng = np.random.default_rng(seed)
+    best: NDArray[np.bool_] | None = None
+    for _ in range(FLOOR_RANSAC_ITERATIONS):
+        a, b, c = points[rng.choice(len(points), 3, replace=False)]
+        normal = np.cross(b - a, c - a)
+        length = float(np.linalg.norm(normal))
+        if length < _HORIZON_EPS:
+            continue
+        normal /= length
+        inliers = np.abs(points @ normal - float(normal @ a)) <= inlier_m
+        if best is None or int(inliers.sum()) > int(best.sum()):
+            best = inliers
+    if best is None or int(best.sum()) < MIN_FLOOR_POINTS:
+        raise CalibrationError("no floor plane fits enough of the floor points")
+    kept = points[best]
+    centre = kept.mean(axis=0)
+    normal = np.linalg.svd(kept - centre)[2][-1]
+    offset = -float(normal @ centre)
+    if offset < 0:
+        normal, offset = -normal, -offset
+    inliers = np.abs(points @ normal + offset) <= inlier_m
+    return normal, offset, inliers
+
+
+def calibrate_point_map(
+    camera_id: str,
+    points: FloatArray,
+    floor: NDArray[np.bool_],
+    intrinsics_px: FloatArray,
+    *,
+    seed: int = 0,
+) -> Calibration:
+    """Fit a ground homography from a metric point map and a floor mask on the same grid.
+
+    Args:
+        camera_id: Camera the frame comes from.
+        points: `(rows, cols, 3)` metric points in OpenCV camera coordinates (MoGe-2), NaN where
+            invalid.
+        floor: `(rows, cols)` floor mask (SAM's `floor`, sampled on the point grid).
+        intrinsics_px: 3 x 3 camera matrix in pixels of the frame the homography is for.
+        seed: RANSAC seed.
+
+    Returns:
+        A `Calibration` with method `reference_object`, reference `MOGE_REFERENCE`, and `err_m`
+        the plane fit's RMS residual combined with `MOGE_SCALE_REL_ERR` at `MOGE_ERR_DISTANCE_M`.
+
+    Raises:
+        CalibrationError: Shapes that do not match, too few floor points, no plane, or a camera
+            height outside `CAMERA_HEIGHT_RANGE_M`.
+    """
+    grid = np.asarray(points, dtype=np.float64)
+    mask = np.asarray(floor, dtype=bool)
+    if grid.ndim != 3 or grid.shape[2] != 3 or mask.shape != grid.shape[:2]:  # noqa: PLR2004
+        raise CalibrationError("point map must be (rows, cols, 3) with a (rows, cols) floor mask")
+    chosen = grid[mask & np.isfinite(grid).all(axis=-1)]
+    normal, height, inliers = fit_floor_plane(chosen, seed=seed)
+    low, high = CAMERA_HEIGHT_RANGE_M
+    if not low <= height <= high:
+        raise CalibrationError(f"camera {height:.2f} m above the fitted floor is implausible")
+    axis_x = np.array([1.0, 0.0, 0.0])
+    if abs(float(normal @ axis_x)) > 0.9:  # noqa: PLR2004 - a floor seen almost edge-on in x
+        axis_x = np.array([0.0, 0.0, 1.0])
+    e1 = axis_x - float(normal @ axis_x) * normal
+    e1 /= np.linalg.norm(e1)
+    e2 = np.cross(normal, e1)
+    foot = -height * normal  # the floor point straight below (or above) the camera
+    plane_to_image = np.asarray(intrinsics_px, dtype=np.float64) @ np.column_stack([e1, e2, foot])
+    try:
+        homography = np.linalg.inv(plane_to_image)
+    except np.linalg.LinAlgError as exc:
+        raise CalibrationError("the floor plane is seen edge-on: no ground homography") from exc
+    homography /= homography[2, 2] if abs(homography[2, 2]) > _HORIZON_EPS else 1.0
+    _require_well_conditioned(homography)
+    residual = math.sqrt(float(np.mean(np.square(chosen[inliers] @ normal + height))))
+    err_m = math.hypot(residual, MOGE_SCALE_REL_ERR * MOGE_ERR_DISTANCE_M)
+    _LOG.info(
+        "point_map_calibration",
+        camera_id=camera_id,
+        floor_points=len(chosen),
+        inliers=int(inliers.sum()),
+        camera_height_m=round(height, 2),
+        tilt_deg=round(math.degrees(math.acos(min(1.0, abs(float(normal[1]))))), 1),
+        err_m=round(err_m, 3),
+    )
+    return _calibration(camera_id, homography, "reference_object", MOGE_REFERENCE, err_m)
 
 
 def polygon_zone(zone_id: str, camera_id: str, points_px: Sequence[PointXY]) -> Zone:

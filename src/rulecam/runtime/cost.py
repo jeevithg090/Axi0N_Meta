@@ -5,10 +5,14 @@ Two things cost money while the runtime watches cameras:
 - **hosted SAM 3.1**, priced with `sam_cost` (video: $0.20 per 1,000 billed frames, at least 50
   per request; images: $2.50 per 1,000). The bill comes from `PerceptionMetrics.hosted_usage`,
   which counts only the calls hosted SAM really served (including self-hosted fallbacks);
-- **the GPU pods** (self-hosted SAM, Glimmer), billed by the hour whether busy or not:
-  `RULECAM_GPU_USD_PER_HOUR`, shared equally by the cameras that are active (a camera with a rule
-  of the active plan that delivered a chunk in the last minute). GPU time while no camera is
-  active is reported as `gpu_idle_usd`.
+- **the GPUs** (self-hosted SAM, Glimmer), shared equally by the cameras that are active (a
+  camera with a rule of the active plan that delivered a chunk in the last minute). Pods bill by
+  the hour whether busy or not: `RULECAM_GPU_USD_PER_HOUR`. RunPod serverless endpoints bill only
+  their running workers: when every GPU is serverless and its worker state is known
+  (`runtime.serverless`), the rate is the running workers times
+  `RULECAM_GPU_WORKER_USD_PER_HOUR`, so a GPU scaled to zero costs nothing; otherwise it falls
+  back to `RULECAM_GPU_USD_PER_HOUR`. GPU time while no camera is active is reported as
+  `gpu_idle_usd`.
 
 `CostMeter.tick` (once a second, from the API's ticker) samples the bill. A camera's **spend
 rate** is its hosted spend over the last `window_s` (60 s), scaled to an hour, plus its GPU
@@ -123,7 +127,8 @@ class CostReport(Frozen):
 
     Attributes:
         budget_usd_per_camera_hour: The budget (0: off).
-        gpu_usd_per_hour: The GPU pods' price in use (0: not priced).
+        gpu_usd_per_hour: The GPUs' price at the last tick: the pods' price, or what the running
+            serverless workers bill (0: not priced, or scaled to zero).
         alarm: Some camera is over budget.
         over_budget: Those cameras.
         usd: Everything spent so far (hosted, GPU shares and idle GPU time).
@@ -165,15 +170,21 @@ class CostMeter:
         settings: CostSettings,
         *,
         usage: Callable[[], Mapping[str, HostedUsage]],
+        gpu_rate: Callable[[], float | None] | None = None,
     ) -> None:
         """Create the meter.
 
         Args:
             settings: Budget and prices.
             usage: Each camera's cumulative hosted bill (`PerceptionMetrics.hosted_usage`).
+            gpu_rate: What the GPUs bill right now when that is known (running serverless
+                workers, `serverless.running_gpu_usd_per_hour`); `None` from it, or no callable,
+                charges `settings.gpu_usd_per_hour`.
         """
         self._settings = settings
         self._usage = usage
+        self._gpu_rate = gpu_rate
+        self._gpu_usd_per_hour = settings.gpu_usd_per_hour
         self._cameras: dict[str, _Camera] = {}
         self._gpu_idle_usd = 0.0
         self._last_tick: datetime | None = None
@@ -198,7 +209,9 @@ class CostMeter:
             active: Cameras with an active plan that delivered a chunk recently.
         """
         usage = self._usage()
+        live = self._gpu_rate() if self._gpu_rate is not None else None
         with self._lock:
+            self._gpu_usd_per_hour = self._settings.gpu_usd_per_hour if live is None else live
             for camera_id in set(usage) | set(active):
                 # A camera starts from nothing spent: its first bill counts in its first window.
                 self._cameras.setdefault(camera_id, _Camera(samples=deque([(now, 0.0)])))
@@ -219,10 +232,10 @@ class CostMeter:
         return dt if 0 < dt <= MAX_TICK_GAP_S else 0.0
 
     def _gpu_share(self, active: Collection[str]) -> float:
-        return self._settings.gpu_usd_per_hour / len(active) if active else 0.0
+        return self._gpu_usd_per_hour / len(active) if active else 0.0
 
     def _accrue_gpu(self, dt: float, active: Collection[str]) -> None:
-        spent = self._settings.gpu_usd_per_hour * dt / SECONDS_PER_HOUR
+        spent = self._gpu_usd_per_hour * dt / SECONDS_PER_HOUR
         if not active:
             self._gpu_idle_usd += spent
             return
@@ -261,12 +274,13 @@ class CostMeter:
                 _spend(camera_id, cam) for camera_id, cam in sorted(self._cameras.items())
             )
             idle = self._gpu_idle_usd
+            gpu_rate = self._gpu_usd_per_hour
         total = sum(c.usd for c in cameras) + idle
         hours = sum(c.camera_hours for c in cameras)
         over = tuple(c.camera_id for c in cameras if c.over_budget)
         return CostReport(
             budget_usd_per_camera_hour=self._settings.budget_usd_per_camera_hour,
-            gpu_usd_per_hour=self._settings.gpu_usd_per_hour,
+            gpu_usd_per_hour=round(gpu_rate, 6),
             alarm=bool(over),
             over_budget=over,
             usd=round(total, 6),

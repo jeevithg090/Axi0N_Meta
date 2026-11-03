@@ -11,6 +11,10 @@ DuckDB exposes two views over the files:
 - `track_points`: every row.
 - `tracks`: one row per track (`track_id, camera_id, concept`), a catalogue only.
 
+`window()` reads only the files of the asked camera's partitions whose date falls in the window,
+not the views: an append writes one small file, so the views grow by about 1,200 files per
+camera-hour, and a scan of every camera and day per chunk and candidate does not keep up.
+
 These are the only views allowed to carry `track_id` (`PERCEPTION_INTERNAL_VIEWS`). They feed the
 pure engine; any advisor-facing view must aggregate by station or zone and never expose or group by
 `track_id` (rule R13, enforced in `tests/guardrails/test_track_id_views.py`). Everything is on disk,
@@ -271,11 +275,16 @@ class ParquetTrackStore:
         end = _require_aware(t1, "t1")
         if start > end:
             return []
+        files = self._window_files(camera_id, start.date(), end.date())
+        if not files:
+            return []
         query = (
-            f"SELECT {', '.join(COLUMNS)} FROM {TRACK_POINTS_VIEW} "  # noqa: S608 - constant names
+            f"SELECT {', '.join(COLUMNS)} "  # noqa: S608 - constant names, files as a parameter
+            "FROM read_parquet($files, hive_partitioning = false) "
             "WHERE camera_id = $camera AND ts >= $t0 AND ts <= $t1"
         )
-        table = self._con.sql(query, params={"camera": camera_id, "t0": start, "t1": end})
+        params = {"files": files, "camera": camera_id, "t0": start, "t1": end}
+        table = self._con.sql(query, params=params)
         rows: list[Row] = table.to_arrow_table().to_pylist()
         return rows_to_tracks(rows)
 
@@ -306,6 +315,20 @@ class ParquetTrackStore:
     def _partitions(self) -> Iterator[Path]:
         for camera_dir in sorted(self._root.glob("camera_id=*")):
             yield from sorted(p for p in camera_dir.glob("date=*") if p.is_dir())
+
+    def _window_files(self, camera_id: str, first: date, last: date) -> list[str]:
+        """The Parquet files of `camera_id`'s partitions dated `first` to `last` (UTC dates).
+
+        A camera ID that is unsafe as a partition name was never written, so it has no files.
+        """
+        if not _CAMERA_ID.fullmatch(camera_id):
+            return []
+        files: list[str] = []
+        for partition in sorted((self._root / f"camera_id={camera_id}").glob("date=*")):
+            found = _PARTITION_DATE.fullmatch(partition.name)
+            if found and first <= date.fromisoformat(found.group(1)) <= last:
+                files.extend(f.as_posix() for f in sorted(partition.glob("*.parquet")))
+        return files
 
     def _write(self, camera_id: str, day: date, rows: list[Row]) -> None:
         directory = self._root / f"camera_id={camera_id}" / f"date={day.isoformat()}"

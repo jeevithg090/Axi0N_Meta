@@ -161,7 +161,7 @@ def load_facts(
         if name not in loaded:
             data = _load_json(repo / file)
             recorded = data.get("git_sha") if isinstance(data, Mapping) else None
-            loaded[name] = (data, str(recorded) if recorded else find_sha(repo / file))
+            loaded[name] = (data, str(recorded)[:7] if recorded else find_sha(repo / file))
         data, commit = loaded[name]
         date_path = fact.get("date") or source.get("date")
         date = str(resolve(data, str(date_path)))[:10] if date_path else ""

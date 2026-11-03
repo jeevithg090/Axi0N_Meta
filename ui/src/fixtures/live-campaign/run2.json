@@ -1,0 +1,243 @@
+{
+  "source": "reports/eval/2026-11-01-live-test-campaign.json",
+  "tests": [
+    {
+      "id": "T02",
+      "clip": "worker_passes",
+      "request": "Keep people at least 4 metres away from a moving forklift.",
+      "camera_id": "phone-50",
+      "plan_id": "plan-acde4ac835b5",
+      "plan_s": 133.6,
+      "started_at": "2026-11-01T21:04:40.313593Z",
+      "finished_at": "2026-11-01T21:08:01.481890Z",
+      "back_translation": "[en]\n- keep-people-4m-from-moving-forklift: Watches for a person and a forklift on the ground-plane@phone-50 calibration. Triggers with high severity when the forklift is moving faster than 0.2 m/s and the distance between person and forklift is less than 4.0 m. Action: notify role supervisor in en. No delay.",
+      "metrics": {
+        "chunks_processed": 10,
+        "sam_calls": 10,
+        "billed_frames": 0,
+        "segment_latency_p95_s": 2.071,
+        "lag_s": 0.002
+      },
+      "rules": [
+        {
+          "id": "keep-people-4m-from-moving-forklift",
+          "severity": "high",
+          "predicate": {
+            "op": "all",
+            "of": [
+              {
+                "op": "distance_m",
+                "a": "person",
+                "b": "forklift",
+                "lt": 4.0,
+                "gt": null
+              },
+              {
+                "op": "moving",
+                "object": "forklift",
+                "speed_mps_gt": 0.2
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "event_id": "ev-b19ac078fc685c340d8579ed",
+          "rule_id": "keep-people-4m-from-moving-forklift",
+          "ts_start": "2026-11-01T21:07:26.685202Z",
+          "ts_end": "2026-11-01T21:07:28.585202Z",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m",
+            "value": 2.900231
+          },
+          "calibration": "person_height_1.7m",
+          "cal_err": 0.2630004804851007,
+          "verdict": {
+            "verdict": "violation",
+            "score": 0.99,
+            "reason": "A person is shown within about 2.9 m of an orange forklift that is moving, so the 4 m separation requirement is not met.",
+            "latency_ms": 12891,
+            "tier": "glimmer",
+            "model_version": "muse-glimmer-30b",
+            "at": "2026-11-01T21:07:45.673767Z"
+          },
+          "decision": {
+            "alert": true,
+            "route": "auto",
+            "reason": "glimmer decided: violation (0.99)"
+          },
+          "event_to_candidate_s": 5.1,
+          "event_to_decision_s": 19.0,
+          "actions": ["dry-run: would notify supervisor"]
+        }
+      ]
+    },
+    {
+      "id": "T03",
+      "clip": "worker_passes",
+      "request": "Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento.",
+      "camera_id": "phone-51",
+      "plan_id": "plan-0912b86adaa0",
+      "plan_s": 127.5,
+      "started_at": "2026-11-01T21:09:15.167809Z",
+      "finished_at": "2026-11-01T21:12:26.351071Z",
+      "back_translation": "[en]\n- personas-4m-carretilla-movimiento: Watches for person and forklift across the whole scene with ground-plane calibration ground-plane@phone-51. Triggers with high severity when a forklift is moving faster than 0.2 m/s and is within 4.0 m of a person. Action: speak to the operator in Spanish.",
+      "metrics": {
+        "chunks_processed": 15,
+        "sam_calls": 15,
+        "billed_frames": 0,
+        "segment_latency_p95_s": 2.706,
+        "lag_s": 0.002
+      },
+      "rules": [
+        {
+          "id": "personas-4m-carretilla-movimiento",
+          "severity": "high",
+          "predicate": {
+            "op": "all",
+            "of": [
+              {
+                "op": "distance_m",
+                "a": "person",
+                "b": "forklift",
+                "lt": 4.0,
+                "gt": null
+              },
+              {
+                "op": "moving",
+                "object": "forklift",
+                "speed_mps_gt": 0.2
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "event_id": "ev-155e91b559d23fc6f0970ae2",
+          "rule_id": "personas-4m-carretilla-movimiento",
+          "ts_start": "2026-11-01T21:11:49.595041Z",
+          "ts_end": "2026-11-01T21:11:51.495041Z",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m",
+            "value": 2.900231
+          },
+          "calibration": "person_height_1.7m",
+          "cal_err": 0.2630004804851007,
+          "verdict": {
+            "verdict": "violation",
+            "score": 0.98,
+            "reason": "A person is shown within ~2.9 m of an orange forklift that is moving in the warehouse, well under the required 4 m separation.",
+            "latency_ms": 14701,
+            "tier": "glimmer",
+            "model_version": "muse-glimmer-30b",
+            "at": "2026-11-01T21:12:10.845979Z"
+          },
+          "decision": {
+            "alert": true,
+            "route": "auto",
+            "reason": "glimmer decided: violation (0.98)"
+          },
+          "event_to_candidate_s": 4.9,
+          "event_to_decision_s": 21.3,
+          "actions": ["dry-run: would play the warning (es)"]
+        }
+      ]
+    },
+    {
+      "id": "T04",
+      "clip": "driver_only_bay",
+      "request": "Keep people at least 4 metres away from a moving forklift.",
+      "camera_id": "phone-52",
+      "plan_id": "plan-9bcb4069c0ae",
+      "plan_s": 194.3,
+      "started_at": "2026-11-01T21:13:39.732585Z",
+      "finished_at": "2026-11-01T21:18:05.095180Z",
+      "back_translation": "[en]\n- keep-people-4m-from-moving-forklift: Watches for a person and a non-static forklift. Triggers when the forklift is moving faster than 0.2 m/s and the distance between person and forklift is less than 4.0 m, measured with ground-plane@phone-52 calibration. On trigger, notifies the operator immediately with severity high.",
+      "metrics": {
+        "chunks_processed": 19,
+        "sam_calls": 19,
+        "billed_frames": 0,
+        "segment_latency_p95_s": 2.706,
+        "lag_s": 0.002
+      },
+      "rules": [
+        {
+          "id": "keep-people-4m-from-moving-forklift",
+          "severity": "high",
+          "predicate": {
+            "op": "all",
+            "of": [
+              {
+                "op": "distance_m",
+                "a": "person",
+                "b": "forklift",
+                "lt": 4.0,
+                "gt": null
+              },
+              {
+                "op": "moving",
+                "object": "forklift",
+                "speed_mps_gt": 0.2
+              }
+            ]
+          }
+        }
+      ],
+      "events": [
+        {
+          "event_id": "ev-04d1e62a2753168a7affbbda",
+          "rule_id": "keep-people-4m-from-moving-forklift",
+          "ts_start": "2026-11-01T21:17:27.327454Z",
+          "ts_end": "2026-11-01T21:17:28.227454Z",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m",
+            "value": 0.013308
+          },
+          "calibration": "pallet_48x40in",
+          "cal_err": 0.057591947214171164,
+          "verdict": {
+            "verdict": "no_violation",
+            "score": 0.05,
+            "reason": "The red-boxed person is the forklift operator seated inside the cab, not a separate pedestrian near a moving forklift; the frames show the person operating the vehicle rather than a person being too close to it.",
+            "latency_ms": 17057,
+            "tier": "glimmer",
+            "model_version": "muse-glimmer-30b",
+            "at": "2026-11-01T21:17:49.674773Z"
+          },
+          "decision": {
+            "alert": false,
+            "route": "auto",
+            "reason": "glimmer decided: no_violation (0.05)"
+          },
+          "event_to_candidate_s": 4.1,
+          "event_to_decision_s": 22.4,
+          "actions": ["dry-run: would notify operator"]
+        }
+      ]
+    }
+  ],
+  "clips": {
+    "worker_passes": {
+      "folder": "pexels_32243654",
+      "description": "Forklift moving through a warehouse while a worker walks close beside it.",
+      "license": "Pexels License (https://www.pexels.com/license/)",
+      "duration_s": 12.16,
+      "source_url": "https://www.pexels.com/download/video/32243654/?w=1280"
+    },
+    "driver_only_bay": {
+      "folder": "pexels_32243653",
+      "description": "Forklift carrying a roll through an empty bay; the driver is the only person.",
+      "license": "Pexels License (https://www.pexels.com/license/)",
+      "duration_s": 10.16,
+      "source_url": "https://www.pexels.com/download/video/32243653/?w=1280"
+    }
+  }
+}

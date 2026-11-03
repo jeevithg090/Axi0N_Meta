@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { LiveAlerts } from "@/components/demo/LiveAlerts";
 import { StripFrames } from "@/components/VerifierPanel";
 import {
   GOLDEN_RUNS,
@@ -10,13 +11,7 @@ import {
   type GoldenRun,
   type GoldenVerification,
 } from "@/fixtures/golden";
-import {
-  decisionText,
-  goldenActions,
-  goldenCandidates,
-  plural,
-  VERDICT_TEXT,
-} from "@/lib/golden";
+import { decisionText, goldenActions, goldenCandidates, plural, VERDICT_TEXT } from "@/lib/golden";
 import { useDemo, useGolden } from "@/lib/stream";
 
 function Check({ ok, children }: { ok: boolean; children: ReactNode }) {
@@ -29,8 +24,8 @@ function CandidateStory({ run, v }: { run: GoldenRun; v: GoldenVerification }) {
     <div data-testid="golden-candidate">
       <p>
         <strong>{v.rule_id}</strong> fired on {run.camera_id}
-        {v.measurement ? ` at ${v.measurement.value.toFixed(2)} ${v.measurement.unit}` : ""} (severity{" "}
-        {v.severity}).
+        {v.measurement ? ` at ${v.measurement.value.toFixed(2)} ${v.measurement.unit}` : ""}{" "}
+        (severity {v.severity}).
       </p>
       {candidate && <StripFrames paths={candidate.strip_paths} />}
       <p>
@@ -59,6 +54,7 @@ function GoldenStory({ run }: { run: GoldenRun }) {
   const query = `?demo=${run.name}`;
   return (
     <div className="golden" data-testid="golden-run">
+      <LiveAlerts />
       <section aria-label="Run">
         <h2>Golden run · {run.name}</h2>
         <p>{run.description}</p>
@@ -67,27 +63,14 @@ function GoldenStory({ run }: { run: GoldenRun }) {
           and the other screens replay it with no model calls. Clip: {run.clip.description}{" "}
           {run.clip.license ? `(${run.clip.license})` : ""}
         </p>
-        {/* Video Player for Golden Run */}
-        <div style={{ margin: "16px 0", border: "2px solid var(--ink, #111)", background: "var(--cam, #0a0c0e)", overflow: "hidden" }}>
-          <div className="camhud" style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#111", color: "#ECEAE3", fontSize: "12px", fontWeight: 700 }}>
-            <span>EVALUATION CLIP · Mixkit Stock #45848 ({run.clip.description})</span>
-            <span style={{ color: "var(--machine, #3DB8FF)" }}>OPERATOR ONBOARD · 0 FALSE ALERTS</span>
-          </div>
-          <video
-            src="/videos/warehouse_forklift.mp4"
-            controls
-            autoPlay
-            loop
-            muted
-            playsInline
-            style={{ width: "100%", maxHeight: "380px", display: "block", objectFit: "contain", background: "#0a0c0e" }}
-          />
-          <div style={{ padding: "10px 14px", background: "var(--card, #1e2022)", borderTop: "1px solid rgba(255,255,255,0.1)", fontSize: "12px", color: "var(--muted, #8E8B82)" }}>
-            <strong>Offline Eval Verification:</strong> 21.76 s recording of a forklift operating in a warehouse aisle. 
-            The seated driver is recognized during warm-up; Rule CI proves boundary safety (16/16) and mutation resilience (6/6). Zero false alarms.
-          </div>
-        </div>
-
+        {run.clip.source && (
+          <p data-testid="golden-clip">
+            The clip is a stock video, not hosted here:{" "}
+            <a href={run.clip.source}>watch {run.clip.name ?? "it"} at the source</a>. On this
+            negative clip the scored replay gives{" "}
+            {plural(score.false_alerts_on_negative, "false alert")}.
+          </p>
+        )}
         <p>
           Watch it replay: <Link href={`/planner${query}`}>planner</Link> ·{" "}
           <Link href={`/plans/${plan.plan_id}${query}`}>plan and acceptance trace</Link> ·{" "}
@@ -116,7 +99,9 @@ function GoldenStory({ run }: { run: GoldenRun }) {
           </p>
         ))}
         <ul>
-          <Check ok={plan.rule_hashes_match_run}>The runtime ran exactly these rules (hashes)</Check>
+          <Check ok={plan.rule_hashes_match_run}>
+            The runtime ran exactly these rules (hashes)
+          </Check>
           {plan.rules.map((rule) => (
             <Check key={rule.id} ok={rule.canonical}>
               {rule.id} is in its canonical form
@@ -157,15 +142,15 @@ function GoldenStory({ run }: { run: GoldenRun }) {
           </Check>
         </ul>
         <p>
-          Daily root: <code>{evidence.root}</code>
+          Daily root: <code style={{ wordBreak: "break-all" }}>{evidence.root}</code>
         </p>
         <p>
           <a href={run.verify_url} data-testid="verify-link">
             Verify it in your browser
           </a>{" "}
           <span className="muted">
-            (your browser recomputes every SHA-256 of the{" "}
-            <a href={run.chain_url}>chain file</a>; nothing is trusted from a server)
+            (your browser recomputes every SHA-256 of the <a href={run.chain_url}>chain file</a>;
+            nothing is trusted from a server)
           </span>
         </p>
       </section>
@@ -188,9 +173,7 @@ export default function DemoPage() {
     return (
       <section className="golden" aria-label="Golden runs">
         <h2>Golden runs</h2>
-        <p>
-          Golden runs are recorded live runs that replay with no model calls, labelled REPLAY.
-        </p>
+        <p>Golden runs are recorded live runs that replay with no model calls, labelled REPLAY.</p>
         <ul>
           {GOLDEN_RUNS.map((run) => (
             <li key={run.name}>
@@ -199,6 +182,7 @@ export default function DemoPage() {
             </li>
           ))}
         </ul>
+        <LiveAlerts />
       </section>
     );
   }

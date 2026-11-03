@@ -630,8 +630,8 @@ def main(argv: list[str] | None = None) -> None:  # pragma: no cover - loads SAM
         argv: Command-line arguments (defaults to `sys.argv[1:]`).
     """
     from rulecam.perception.appearance_worker import DinoEmbedder  # noqa: PLC0415
-    from rulecam.perception.reid_worker import load_reid  # noqa: PLC0415
     from rulecam.perception.crop_worker import CropEngine as SamCropEngine  # noqa: PLC0415
+    from rulecam.perception.reid_worker import load_reid  # noqa: PLC0415
     from rulecam.perception.sam_worker import Sam31Engine, Sam31ImageEngine  # noqa: PLC0415
 
     parser = argparse.ArgumentParser(description="Serve self-hosted SAM 3.1 over HTTP.")

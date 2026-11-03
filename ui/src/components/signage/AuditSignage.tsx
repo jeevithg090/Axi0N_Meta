@@ -159,6 +159,8 @@ export function AuditSignage() {
   const [committedRoot, setCommittedRoot] = useState<DayRootResponse | null>(null);
   const [expandedSeq, setExpandedSeq] = useState<number | null>(null);
   const [tamperSimulated, setTamperSimulated] = useState<boolean>(false);
+  // True while the page shows the golden recording (public/golden) instead of a server chain.
+  const [usingGolden, setUsingGolden] = useState<boolean>(false);
 
   const verifyRecords = useCallback(async (rawText: string, rootInfo: DayRootResponse | null) => {
     setVerifying(true);
@@ -220,8 +222,10 @@ export function AuditSignage() {
   const loadChainSource = useCallback(
     async (source: string) => {
       setTamperSimulated(false);
+      setUsingGolden(false);
       try {
         if (source === "golden") {
+          setUsingGolden(true);
           const res = await fetch("/golden/warehouse_driver/chain.jsonl", { cache: "no-store" });
           if (res.ok) {
             const text = await res.text();
@@ -253,12 +257,14 @@ export function AuditSignage() {
         } else {
           const fallback = await fetch("/golden/warehouse_driver/chain.jsonl");
           if (fallback.ok) {
+            setUsingGolden(true);
             await verifyRecords(await fallback.text(), null);
           }
         }
       } catch {
         const fallback = await fetch("/golden/warehouse_driver/chain.jsonl");
         if (fallback.ok) {
+          setUsingGolden(true);
           await verifyRecords(await fallback.text(), null);
         }
       }
@@ -306,6 +312,7 @@ export function AuditSignage() {
     const text = await file.text();
     setSelectedSource(`file:${file.name}`);
     setTamperSimulated(false);
+    setUsingGolden(false);
     await verifyRecords(text, null);
   };
 
@@ -331,6 +338,14 @@ export function AuditSignage() {
 
   return (
     <div style={{ paddingBottom: "var(--s6)" }}>
+      {usingGolden && (
+        <section className="wrap sec">
+          <p className="sample-tag" role="note" data-testid="golden-chain-tag">
+            <b>REPLAY</b> · The server&apos;s chain could not be read, so this is the golden
+            recording (warehouse_driver, recorded 1 Nov 2026), not today&apos;s site log.
+          </p>
+        </section>
+      )}
       {/* Pagehead */}
       <section className="wrap pagehead">
         <div className="grid">

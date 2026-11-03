@@ -3,8 +3,17 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth, type AuthPhase } from "@/lib/auth";
+import { API_PROXY } from "@/lib/config";
+import { useDemoQuery, useStream } from "@/lib/stream";
 import { useTheme } from "@/lib/theme";
+import { ModeBadge } from "./ModeBadge";
 
+/**
+ * A static nav badge. Only statements that are always true belong here (e.g. "REPLAY" on the
+ * golden replay, "SAMPLE" on a screen that shows hand-written sample content); live counts come
+ * from the API in `liveBadge`, and an unknown count shows no badge rather than a made-up one.
+ */
 interface NavItem {
   href: string;
   label: string;
@@ -14,6 +23,76 @@ interface NavItem {
   icon: React.ReactNode;
 }
 
+/** What the shell knows from the API; `null` means unknown (not reachable, or not allowed). */
+interface LiveStats {
+  plansCount: number | null;
+  totalIncidents: number | null;
+  cameras: number | null;
+  samGpu: string | null;
+  glimmerGpu: string | null;
+}
+
+const UNKNOWN_STATS: LiveStats = {
+  plansCount: null,
+  totalIncidents: null,
+  cameras: null,
+  samGpu: null,
+  glimmerGpu: null,
+};
+
+/** The live count shown on a nav item, or `undefined` when there is none or it is unknown. */
+function liveBadge(href: string, stats: LiveStats): string | undefined {
+  if (href === "/plans" && stats.plansCount !== null) return String(stats.plansCount);
+  if (href === "/incidents" && stats.totalIncidents !== null) return `${stats.totalIncidents} LOGGED`;
+  if (href === "/streams" && stats.cameras !== null) return String(stats.cameras);
+  return undefined;
+}
+
+/** A GPU's state from `GET /health` → `gpus` (an object with `state`, or a bare string). */
+function gpuState(gpus: Record<string, { state?: string } | string> | undefined, name: string): string | null {
+  const entry = gpus?.[name];
+  if (typeof entry === "string") return entry;
+  return entry?.state ?? null;
+}
+
+/** Whether the viewport is phone-sized (the width at which `.shell-sidebar` becomes a drawer). */
+function isPhone(): boolean {
+  return typeof window !== "undefined" && (window.matchMedia?.(PHONE_QUERY)?.matches ?? false);
+}
+
+const PHONE_QUERY = "(max-width: 760px)";
+
+/**
+ * The header's page name: the nav label of the current page, or `null` where no breadcrumb
+ * belongs (the landing page and the golden replay, which carry their own titles).
+ */
+function pageName(pathname: string): string | null {
+  if (pathname === "/" || pathname === "/demo" || pathname.startsWith("/demo/")) return null;
+  for (const group of NAV_GROUPS) {
+    for (const item of group.items) {
+      if (pathname === item.href || pathname.startsWith(`${item.href}/`)) return item.label;
+    }
+  }
+  const first = pathname.split("/").filter(Boolean)[0];
+  return first ? first.replace(/-/g, " ") : null;
+}
+
+/** The session line in the sidebar footer, from the real auth state (no made-up user). */
+function sessionLabel(phase: AuthPhase): string {
+  switch (phase) {
+    case "owner":
+      return "Owner session";
+    case "visitor":
+      return "Visitor · read-only";
+    case "demo":
+      return "Replay · no login";
+    case "offline":
+      return "API not reachable";
+    default:
+      return "Checking…";
+  }
+}
+
 interface NavGroup {
   group: string;
   items: NavItem[];
@@ -21,14 +100,14 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    group: "LIVE OPERATIONS",
+    group: "OPERATIONS",
     items: [
       {
         href: "/monitor",
-        label: "Live Monitor",
+        label: "Monitor",
         shortCode: "MON",
-        badge: "7 ACTS",
-        badgeTone: "bad",
+        badge: "SAMPLE",
+        badgeTone: "warn",
         icon: (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <rect x="2" y="3" width="20" height="14" />
@@ -41,8 +120,6 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/streams",
         label: "Camera Fleet",
         shortCode: "CAM",
-        badge: "11/12",
-        badgeTone: "warn",
         icon: (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <path d="M23 7l-7 5 7 5V7z" />
@@ -54,8 +131,7 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/incidents",
         label: "Incidents",
         shortCode: "INC",
-        badge: "3 OPEN",
-        badgeTone: "bad",
+        badgeTone: "neutral",
         icon: (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
@@ -73,8 +149,6 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/planner",
         label: "Rule Planner",
         shortCode: "PLN",
-        badge: "AI",
-        badgeTone: "neutral",
         icon: (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <path d="M12 20h9" />
@@ -86,8 +160,7 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/plans",
         label: "Active Plans",
         shortCode: "SET",
-        badge: "4",
-        badgeTone: "ok",
+        badgeTone: "neutral",
         icon: (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
@@ -101,8 +174,6 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/ci",
         label: "Rule CI Matrix",
         shortCode: "CI",
-        badge: "22/22",
-        badgeTone: "ok",
         icon: (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <polyline points="9 11 12 14 22 4" />
@@ -114,8 +185,6 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/advice",
         label: "Site Advisor",
         shortCode: "ADV",
-        badge: "SQL",
-        badgeTone: "ok",
         icon: (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <line x1="18" y1="20" x2="18" y2="10" />
@@ -133,8 +202,6 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/audit",
         label: "Merkle Audit",
         shortCode: "SHA",
-        badge: "INTACT",
-        badgeTone: "ok",
         icon: (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -145,7 +212,7 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/demo",
         label: "Golden Replay",
         shortCode: "REP",
-        badge: "DEMO",
+        badge: "REPLAY",
         badgeTone: "warn",
         icon: (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
@@ -178,8 +245,6 @@ const NAV_GROUPS: NavGroup[] = [
         href: "/system",
         label: "System & GPUs",
         shortCode: "SYS",
-        badge: "OK",
-        badgeTone: "ok",
         icon: (
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <rect x="4" y="4" width="16" height="16" />
@@ -195,76 +260,53 @@ const NAV_GROUPS: NavGroup[] = [
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isDark, setTheme } = useTheme();
-  const [collapsed, setCollapsed] = useState<boolean>(false);
-  const [liveStats, setLiveStats] = useState<{
-    mode: string;
-    plansCount: number;
-    openIncidents: number;
-    totalIncidents: number;
-    camerasOk: number;
-    camerasTotal: number;
-    samGpu: string;
-    glimmerGpu: string;
-  }>({
-    mode: "LIVE",
-    plansCount: 3,
-    openIncidents: 2,
-    totalIncidents: 7,
-    camerasOk: 11,
-    camerasTotal: 12,
-    samGpu: "COLD-READY",
-    glimmerGpu: "COLD-READY",
-  });
+  const stream = useStream();
+  const auth = useAuth();
+  const demoQuery = useDemoQuery();
+  const [collapsedPref, setCollapsed] = useState<boolean>(false);
+  // On a phone the sidebar is a drawer over the page (CSS `.shell-sidebar`), open or closed;
+  // an open drawer always shows the full labels.
+  const [mobileOpen, setMobileOpen] = useState<boolean>(false);
+  const collapsed = collapsedPref && !mobileOpen;
+  const [liveStats, setLiveStats] = useState<LiveStats>(UNKNOWN_STATS);
 
+  // A new page closes the phone drawer.
   useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  // Live telemetry from the API through the UI's proxy. A failed or forbidden call reads as
+  // unknown (never a remembered or made-up value), and a golden replay polls nothing: what the
+  // audience sees there is the recording, labelled REPLAY by the mode badge.
+  useEffect(() => {
+    if (demoQuery) {
+      setLiveStats(UNKNOWN_STATS);
+      return undefined;
+    }
     let active = true;
-    const poll = async () => {
+    const json = async <T,>(path: string): Promise<T | null> => {
       try {
-        const [hRes, pRes, iRes, cRes] = await Promise.all([
-          fetch("/api/rulecam/health", { cache: "no-store" }),
-          fetch("/api/rulecam/plans", { cache: "no-store" }),
-          fetch("/api/rulecam/incidents", { cache: "no-store" }),
-          fetch("/api/rulecam/cameras", { cache: "no-store" }),
-        ]);
-        if (!active) return;
-        const h = hRes.ok
-          ? ((await hRes.json()) as {
-              mode?: string;
-              gpus?: Record<string, { state?: string } | string>;
-            })
-          : null;
-        const p = pRes.ok ? ((await pRes.json()) as unknown[]) : null;
-        const inc = iRes.ok ? ((await iRes.json()) as { status?: string; verdict?: string }[]) : null;
-        const cams = cRes.ok ? ((await cRes.json()) as { camera_id: string }[]) : null;
-
-        const samState =
-          typeof h?.gpus?.sam === "object" && h?.gpus?.sam !== null
-            ? h.gpus.sam.state
-            : typeof h?.gpus?.sam === "string"
-              ? h.gpus.sam
-              : undefined;
-        const glimState =
-          typeof h?.gpus?.glimmer === "object" && h?.gpus?.glimmer !== null
-            ? h.gpus.glimmer.state
-            : typeof h?.gpus?.glimmer === "string"
-              ? h.gpus.glimmer
-              : undefined;
-
-        setLiveStats((prev) => ({
-          mode: (h?.mode ?? prev.mode).toUpperCase(),
-          plansCount: p ? p.length : prev.plansCount,
-          openIncidents: inc
-            ? inc.filter((x) => x.verdict === "violation" && x.status !== "acknowledged").length
-            : prev.openIncidents,
-          totalIncidents: inc ? inc.length : prev.totalIncidents,
-          camerasOk: cams ? Math.min(11, cams.length) : prev.camerasOk,
-          camerasTotal: cams ? Math.max(12, cams.length) : prev.camerasTotal,
-          samGpu: (samState ?? prev.samGpu).toUpperCase(),
-          glimmerGpu: (glimState ?? prev.glimmerGpu).toUpperCase(),
-        }));
+        const res = await fetch(`${API_PROXY}${path}`, { cache: "no-store" });
+        return res.ok ? ((await res.json()) as T) : null;
       } catch {
-        // keep last known telemetry
+        return null;
       }
+    };
+    const poll = async () => {
+      const [h, p, inc, cams] = await Promise.all([
+        json<{ gpus?: Record<string, { state?: string } | string> }>("/health"),
+        json<unknown[]>("/plans"),
+        json<unknown[]>("/incidents"),
+        json<unknown[]>("/cameras"),
+      ]);
+      if (!active) return;
+      setLiveStats({
+        plansCount: p ? p.length : null,
+        totalIncidents: inc ? inc.length : null,
+        cameras: cams ? cams.length : null,
+        samGpu: gpuState(h?.gpus, "sam"),
+        glimmerGpu: gpuState(h?.gpus, "glimmer"),
+      });
     };
     void poll();
     const id = window.setInterval(() => void poll(), 6000);
@@ -272,7 +314,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       active = false;
       window.clearInterval(id);
     };
-  }, [pathname]);
+  }, [demoQuery]);
 
   // Keyboard shortcut: Ctrl+B toggles the sidebar
   useEffect(() => {
@@ -287,6 +329,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   const sidebarW = collapsed ? 68 : 256;
+  const crumb = pageName(pathname);
 
   const badgeStyle = (tone?: "ok" | "warn" | "bad" | "neutral"): React.CSSProperties => {
     if (tone === "bad") return { background: "#C93410", color: "#fff" };
@@ -309,6 +352,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Left Collapsible Industrial Command Sidebar */}
       <aside
         aria-label="Command Sidebar"
+        className="shell-sidebar"
+        data-mobile-open={mobileOpen ? "true" : "false"}
         style={{
           width: `${sidebarW}px`,
           minWidth: `${sidebarW}px`,
@@ -399,7 +444,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           {!collapsed && (
             <button
               type="button"
-              onClick={() => setCollapsed(true)}
+              onClick={() => (isPhone() ? setMobileOpen(false) : setCollapsed(true))}
               aria-label="Collapse sidebar"
               title="Collapse sidebar (Ctrl+B)"
               style={{
@@ -475,14 +520,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
               <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                 {grp.items.map((item) => {
-                  const active =
-                    pathname === item.href ||
-                    (item.href === "/monitor" && (pathname === "/" || pathname === "/monitor"));
+                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  const badge = liveBadge(item.href, liveStats) ?? item.badge;
                   return (
                     <Link
                       key={item.href}
-                      href={item.href}
-                      title={collapsed ? `${item.label}${item.badge ? ` (${item.badge})` : ""}` : undefined}
+                      href={`${item.href}${demoQuery}`}
+                      title={collapsed ? `${item.label}${badge ? ` (${badge})` : ""}` : undefined}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -529,7 +573,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                         )}
                       </div>
 
-                      {!collapsed && item.badge && (
+                      {!collapsed && badge && (
                         <span
                           style={{
                             ...badgeStyle(item.badgeTone),
@@ -541,11 +585,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                             flexShrink: 0,
                           }}
                         >
-                          {item.href === "/plans"
-                            ? String(liveStats.plansCount)
-                            : item.href === "/incidents"
-                              ? `${liveStats.totalIncidents} LOGGED`
-                              : item.badge}
+                          {badge}
                         </span>
                       )}
                     </Link>
@@ -577,16 +617,22 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ color: "#8E9296" }}>SAM-2 GPU</span>
-                <span style={{ color: "#00E070", fontWeight: 700 }}>{liveStats.samGpu}</span>
+                <span style={{ color: "#8E9296" }}>SAM 3.1 GPU</span>
+                <span style={{ color: "#00E070", fontWeight: 700 }}>
+                  {(liveStats.samGpu ?? "unknown").toUpperCase()}
+                </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ color: "#8E9296" }}>GLIMMER VLM</span>
-                <span style={{ color: "#3DB8FF", fontWeight: 700 }}>{liveStats.glimmerGpu}</span>
+                <span style={{ color: "#8E9296" }}>GLIMMER GPU</span>
+                <span style={{ color: "#3DB8FF", fontWeight: 700 }}>
+                  {(liveStats.glimmerGpu ?? "unknown").toUpperCase()}
+                </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#8E9296" }}>SHA-256 CHAIN</span>
-                <span style={{ color: "#F2D100", fontWeight: 700 }}>65 INTACT</span>
+                <span style={{ color: "#8E9296" }}>EVIDENCE CHAIN</span>
+                <Link href={`/audit${demoQuery}`} style={{ color: "#F2D100", fontWeight: 700 }}>
+                  VERIFY →
+                </Link>
               </div>
             </div>
           )}
@@ -646,19 +692,34 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 color: "#B9B7AE",
               }}
             >
-              <span>M. Vance · Lead Ops</span>
-              <span style={{ fontFamily: "var(--font-dm-mono, monospace)", fontSize: "10px", color: "#00E070" }}>
-                ● AUTH
-              </span>
+              <span>{sessionLabel(auth.phase)}</span>
+              {auth.phase === "owner" ? (
+                <span style={{ fontFamily: "var(--font-dm-mono, monospace)", fontSize: "10px", color: "#00E070" }}>
+                  ● AUTH
+                </span>
+              ) : auth.phase === "visitor" ? (
+                <Link href="/login" style={{ fontFamily: "var(--font-dm-mono, monospace)", fontSize: "10px" }}>
+                  LOG IN
+                </Link>
+              ) : null}
             </div>
           )}
         </div>
       </aside>
+      {mobileOpen && (
+        <button
+          type="button"
+          className="shell-backdrop"
+          aria-label="Close navigation"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
 
       {/* Main Right Viewport: Sticky Top Command Header + Scrollable Content */}
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+      <div className="shell-main-col" style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         {/* Sticky Top Command Bar */}
         <header
+          className="shell-header"
           style={{
             height: "60px",
             background: "var(--card)",
@@ -676,8 +737,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
             <button
               type="button"
-              onClick={() => setCollapsed((c) => !c)}
+              onClick={() => (isPhone() ? setMobileOpen((o) => !o) : setCollapsed((c) => !c))}
               aria-label="Toggle navigation sidebar"
+              aria-expanded={mobileOpen}
               title="Toggle Sidebar (Ctrl+B)"
               style={{
                 background: "var(--paper)",
@@ -693,47 +755,34 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 fontFamily: "var(--font-dm-mono, monospace)",
               }}
             >
-              <span>{collapsed ? "☰ EXPAND" : "« SIDEBAR"}</span>
+              <span className="only-desktop">{collapsed ? "☰ EXPAND" : "« SIDEBAR"}</span>
+              <span className="only-phone">☰ MENU</span>
             </button>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
-              <span className="dm" style={{ color: "var(--mute)", fontWeight: 600 }}>
-                OPERATIONAL COCKPIT
-              </span>
-              <span>/</span>
-              <strong style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                {pathname === "/" ? "MONITOR" : pathname.replace(/^\//, "").toUpperCase()}
-              </strong>
-            </div>
+            {crumb && (
+              <div
+                className="shell-crumb"
+                style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}
+              >
+                <span className="dm shell-crumb-root" style={{ color: "var(--mute)", fontWeight: 600 }}>
+                  OPERATIONAL COCKPIT
+                </span>
+                <span className="shell-crumb-root">/</span>
+                <strong style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>{crumb}</strong>
+              </div>
+            )}
           </div>
 
           {/* Global KPI Telemetry Strip */}
           <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-            <div className="dm" style={{ fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}>
-              <span
-                style={{
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  background: "#1E7A3A",
-                  display: "inline-block",
-                }}
-              />
-              <span>
-                MODE: <b>{liveStats.mode}</b>
-              </span>
-            </div>
+            <ModeBadge state={stream} />
 
             <div className="dm" style={{ fontSize: "12px" }}>
-              FLEET: <b>11/12 OK</b> <span style={{ color: "var(--alert)", fontWeight: 700 }}>(1 BLIND)</span>
-            </div>
-
-            <div className="dm" style={{ fontSize: "12px" }}>
-              RULE CI: <b>22/22 PASS</b>
+              CAMERAS: <b>{liveStats.cameras ?? "—"}</b>
             </div>
 
             <Link
-              href="/planner"
+              href={`/planner${demoQuery}`}
               className="btn"
               style={{ minHeight: "36px", padding: "6px 14px", fontSize: "13px" }}
             >
@@ -743,7 +792,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page Body */}
-        <main style={{ flex: 1, minWidth: 0 }}>{children}</main>
+        <main className="shell-main" style={{ flex: 1, minWidth: 0 }}>
+          {children}
+        </main>
       </div>
     </div>
   );

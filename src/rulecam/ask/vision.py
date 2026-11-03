@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import subprocess
+import tempfile
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -29,7 +30,7 @@ from rulecam.planner.steps.survey import ImageSegmenter
 
 _log = get_logger(__name__)
 
-MAX_FRAMES: Final = 6
+DEFAULT_MAX_FRAMES: Final = 6  # frames per count_objects or look call (`RULECAM_ASK_MAX_FRAMES`)
 CHUNK_SPAN_S: Final = 30.0  # how far back a chunk can start and still hold the instant
 
 Extract = Callable[[Path, Sequence[int], Path], None]
@@ -69,10 +70,15 @@ class FrameGrabber:
                 spans[camera_id] = (min(c.start_ts for c in found), last)
         return spans
 
+    @property
+    def out_dir(self) -> Path:
+        """Where decoded frames are written."""
+        return self._out_dir
+
     def frames(self, camera_id: str, instants: Sequence[datetime]) -> list[Frame]:
-        """The frames of `camera_id` at `instants` (at most `MAX_FRAMES`); missing ones skipped."""
+        """The frames of `camera_id` at `instants` (callers cap how many); missing ones skipped."""
         out: list[Frame] = []
-        for at in list(instants)[:MAX_FRAMES]:
+        for at in instants:
             chunk = self._chunk_at(camera_id, at)
             if chunk is None:
                 continue
@@ -97,8 +103,9 @@ class FrameGrabber:
         target = self._out_dir / f"{digest}.jpg"
         if target.is_file():
             return target
-        work = self._out_dir / f"{digest}.part"
-        work.mkdir(parents=True, exist_ok=True)
+        self._out_dir.mkdir(parents=True, exist_ok=True)
+        # A private work folder: the tool calls of one turn can decode the same frame at once.
+        work = Path(tempfile.mkdtemp(prefix=f"{digest}.", suffix=".part", dir=self._out_dir))
         try:
             self._extract(Path(chunk.path), [index], work)
             (work / "1.jpg").replace(target)

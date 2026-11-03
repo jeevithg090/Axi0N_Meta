@@ -76,7 +76,7 @@ rows inside the §2 targets.
 - [ ] Phone fixed 2.5 to 3 m high, 30 to 45° down, landscape; a pallet or a 1 m floor square fully
       in view and flat (calibration). Same set-up as `eval/README.md` "Recording the owner's
       clips".
-- [ ] Pair the phone (`POST /pair/token`, scan the QR) and check `/cameras` shows a fresh chunk.
+- [ ] Pair the phone (**Pair a phone** on `/planner` → Cameras, scan the QR; it calls `POST /pair/token`) and check `/cameras` shows a fresh chunk.
 - [ ] Floor tape at 1 m and 3 m from the cart's path; the cart really moves (walking pace).
 - [ ] Nobody filmed who has not agreed; no bathroom, bedroom or break room in view.
 - [ ] Owner logged in on the presenting laptop (`/login`), or the laptop is the pod's loopback.

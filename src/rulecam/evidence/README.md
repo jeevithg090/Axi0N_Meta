@@ -60,6 +60,18 @@ uv run pytest tests/evidence
     frames are never allowed in any mode.
   - `render_pdf` prints the pack through Playwright (`uv sync --extra ui` and
     `playwright install chromium`).
+- **Incident reports** (add-on 5.2, `incident.py`, `templates/incident.html.j2`). One event's
+  pack: clause and rule, the measurement, and every `candidate`, `verdict`, `action`, `ack`,
+  `label` and `dispute` record for it in chain order (each with its hash), the stills the privacy
+  mode allows (only from the runtime's `<data>/strips`, inlined), the day's chain status and the
+  verify-page QR code.
+  - Owner-only routes: `GET /incidents?day=` (a day's events, newest first; default the latest
+    day), `GET /incidents/{event_id}` (JSON), and `GET /incidents/{event_id}/report`
+    (`?format=pdf|html`). The PDF goes through `render_pdf`. When Playwright or Chromium is
+    missing, the same route returns the printable HTML (`X-Rulecam-Report-Format: html`).
+  - The UI shows them at `/incidents` and `/incidents/<event id>`, with a download button.
+  - The QR points at `<PUBLIC_UI_URL>/rulecam-api/verify/?day=…`, or at the API's own `/verify/`
+    when `PUBLIC_UI_URL` is unset.
 - **Audit:** `uv run rulecam audit <YYYY-MM-DD> <site>` verifies the chain, then runs P1-07's
   `rederive` on every candidate, giving "chain intact (N records); K/K decisions reproduced" (E9).
   The runtime loop now chains candidates as `candidate_payload(candidate, DecisionContext)` so

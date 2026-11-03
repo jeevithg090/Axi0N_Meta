@@ -1,3 +1,7 @@
+# `make setup` installs both hooks. Every hook below runs on commit; `lint-type` runs on push only,
+# so nothing reaches GitHub with ruff or mypy red (add-on 0.3; CI checks the same).
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
 repos:
   # Ruff runs from the project environment so hooks and CI use the same locked version.
   - repo: local
@@ -12,6 +16,13 @@ repos:
         entry: uv run ruff format
         language: system
         types: [python]
+      - id: lint-type
+        name: make lint type (pre-push)
+        entry: make lint type
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:

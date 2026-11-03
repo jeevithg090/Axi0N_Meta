@@ -109,6 +109,26 @@ def test_images_count_in_dollars() -> None:
     assert cost.over_budget("cam1")
 
 
+def test_known_serverless_state_charges_only_running_workers() -> None:
+    rate: list[float | None] = [0.0]
+    cost = CostMeter(
+        CostSettings(budget_usd_per_camera_hour=0.0, gpu_usd_per_hour=2.68),
+        usage=Bill(),
+        gpu_rate=lambda: rate[0],
+    )
+    cost.tick(EPOCH, {"cam1"})
+    cost.tick(EPOCH + timedelta(seconds=10), {"cam1"})  # scaled to zero: nothing billed
+    assert cost.report().usd == 0.0
+    assert cost.report().gpu_usd_per_hour == 0.0
+    rate[0] = 3.6  # workers running
+    cost.tick(EPOCH + timedelta(seconds=20), {"cam1"})
+    assert cost.report().usd == pytest.approx(0.01)  # $3.60/h for 10 s
+    assert cost.report().cameras[0].gpu_usd_per_hour == pytest.approx(3.6)
+    rate[0] = None  # state unknown: the configured price
+    cost.tick(EPOCH + timedelta(seconds=30), {"cam1"})
+    assert cost.report().gpu_usd_per_hour == pytest.approx(2.68)
+
+
 def test_gpu_share_alarms_but_never_degrades() -> None:
     """Segmenting less cannot lower the GPU pods' hourly price, so it only raises the alarm."""
     bill = Bill()

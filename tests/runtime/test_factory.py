@@ -225,6 +225,25 @@ def test_tier1_is_glimmer_behind_retry_and_a_circuit_breaker(tmp_path: Path) -> 
     assert isinstance(build_tier1(replay, cache=cache, clock=clock, bus=bus), GuardedVerifier)
 
 
+def test_tier1_recovery_probe_never_polls_a_serverless_glimmer(tmp_path: Path) -> None:
+    clock, bus = FakeClock(), Bus()
+    cache = ReplayCache(tmp_path / "replay", "live", clock=clock, bus=bus)
+    pod = settings(tmp_path, rulecam_mode="live")
+    assert build_tier1(pod, cache=cache, clock=clock, bus=bus)._probe is not None
+    serverless = settings(
+        tmp_path, rulecam_mode="live", glimmer_base_url="https://z000o8uch2wj4i.api.runpod.ai/v1"
+    )
+    assert build_tier1(serverless, cache=cache, clock=clock, bus=bus)._probe is None
+
+    def up() -> bool:
+        return True
+
+    given = build_tier1(serverless, cache=cache, clock=clock, bus=bus, probe=up)
+    assert given._probe is up
+    replay = settings(tmp_path, rulecam_mode="replay")
+    assert build_tier1(replay, cache=cache, clock=clock, bus=bus, probe=up)._probe is None
+
+
 def test_glimmer_health_url_drops_the_api_suffix() -> None:
     assert glimmer_health_url("http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/health"
     assert glimmer_health_url("https://pod-8080.proxy.runpod.net/v1/") == (

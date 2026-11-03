@@ -1,9 +1,10 @@
 """Hard-negative memory: confirmed false alarms become permanent Rule CI regressions (WS1f).
 
-Two paths confirm that an alert was false:
+Three paths confirm that an alert was false:
 
 - an **upheld dispute** (a worker disputed it and Tier 2 agreed, P2-11);
-- an **owner correction** (the owner clicked the falsely segmented object, P1-10).
+- an **owner correction** (the owner clicked the falsely segmented object, P1-10);
+- a responder's **False alarm** tap (LAN app, WhatsApp or Telegram, add-on 5.1).
 
 Each becomes one `LookalikeItem` appended with `append_regression` (P2-09) to the rule's file in
 the site's regression folder (`RULECAM_REGRESSIONS_DIR`, default `<data>/rule_ci/regressions`),
@@ -124,6 +125,30 @@ class HardNegatives:
             ),
         )
         return self._append(rule.id, item, source="correction", event_id=candidate.event_id)
+
+    def from_false_alarm(self, rule: RuleIR, event_id: str) -> Path | None:
+        """Record a responder's *False alarm* tap on an alert of `rule`.
+
+        Args:
+            rule: The alert's rule.
+            event_id: The alert's event.
+
+        Returns:
+            The regression file, or `None` when nothing was written.
+        """
+        if not rule.concepts:
+            return None
+        key = subject_concept(rule)
+        prompt = rule.concepts[key].prompt
+        item = LookalikeItem(
+            concept=key,
+            lookalike=f"false alarm {event_id}",
+            prompt=(
+                f"Add something the camera mistook for a {prompt} to this camera view, "
+                "with no real violation of the rule."
+            ),
+        )
+        return self._append(rule.id, item, source="false_alarm", event_id=event_id)
 
     def _append(
         self, rule_id: str, item: LookalikeItem, *, source: str, event_id: str

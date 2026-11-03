@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     rulecam_replay_dir: Path | None = None
     rulecam_site_config: Path | None = None  # owner's site YAML (docs/site.example.yaml)
     rulecam_runtime: bool = False  # start the runtime loop (SAM, tracker, Glimmer) with the API
+    # The git SHA served in GET /health; unset, the REVISION file `make ship-api` writes is read.
+    rulecam_revision: str | None = None
     # Runtime SAM cost control (docs/deploy.md "Runtime SAM cost"): while nothing is happening on a
     # camera, segment one chunk in N, per the strictest severity of the rules on that camera.
     rulecam_idle_stride_low: int = Field(default=3, ge=1)
@@ -31,6 +33,9 @@ class Settings(BaseSettings):
     # to one chunk in RULECAM_SAM_BUDGET_STRIDE. 12 $/h = the former 1,000 hosted frames/min.
     rulecam_budget_usd_per_camera_hour: float = Field(default=12.0, ge=0)  # 0 = no budget
     rulecam_gpu_usd_per_hour: float = Field(default=0.0, ge=0)  # GPU pods' combined $/h
+    # One running RunPod serverless worker's $/h (RTX 4090 pool); with serverless GPUs whose
+    # worker state is known, only running workers are charged (runtime.serverless).
+    rulecam_gpu_worker_usd_per_hour: float = Field(default=1.34, ge=0)
     rulecam_sam_budget_frames_per_min: int = Field(default=0, ge=0)  # optional frame cap; 0 = off
     rulecam_sam_budget_stride: int = Field(default=3, ge=1)  # over budget: one chunk in N
     # Stop the GPU pods after this many seconds with no camera on an active plan
@@ -154,6 +159,14 @@ class Settings(BaseSettings):
     # role=E.164 pairs, e.g. "aide=15551234567,charge_nurse=15557654321" (kept only in .env)
     whatsapp_recipients: SecretStr | None = None
     whatsapp_api_base: str = "https://graph.facebook.com/v21.0"
+    # Telegram alerts (add-on 5.1): the token from BotFather; links come from `/telegram/link`.
+    telegram_bot_token: SecretStr | None = None
+    telegram_bot_username: str | None = None  # without @; asked from getMe when unset
+    telegram_api_base: str = "https://api.telegram.org"
+    # Signed outbound webhooks (add-on 5.4): `preset=url` pairs (generic, slack, teams), kept only
+    # in `.env` because the URLs are secrets, and the HMAC secret that signs every request.
+    rulecam_webhooks: SecretStr | None = None
+    rulecam_webhook_secret: SecretStr | None = None
     public_tunnel_url: str | None = None
     public_ui_url: str | None = None  # public origin of the web UI (worker page QR on posters)
     # Owner login (docs/deploy.md "Owner login"): `rulecam owner set-passphrase` prints the hash.

@@ -6,7 +6,9 @@
 import type { Frame, VerifierVerdict } from "@/lib/events";
 import type { AcceptanceCheck, SitePlan } from "@/lib/plan";
 
+import driverOnly4m from "./driver_only_4m.json";
 import warehouseDriver from "./warehouse_driver.json";
+import workerPasses4m from "./worker_passes_4m.json";
 
 export interface GoldenPlannerStep {
   step: string;
@@ -91,28 +93,15 @@ export interface PendingRun {
   needs: string;
 }
 
-export const GOLDEN_RUNS: GoldenRun[] = [warehouseDriver as unknown as GoldenRun];
+// T02 and T04 of the 1 Nov campaign, recorded live on 2 Nov (scenarios/README.md, "Recording
+// T02 and T04"), after warehouseDriver so `?demo=1` keeps its default.
+export const GOLDEN_RUNS: GoldenRun[] = [
+  warehouseDriver as unknown as GoldenRun,
+  workerPasses4m as unknown as GoldenRun,
+  driverOnly4m as unknown as GoldenRun,
+];
 
-// To add T02 / T04 once recorded (scenarios/README.md, "Recording T02 and T04"):
-//   import workerPasses4m from "./worker_passes_4m.json";
-//   import driverOnly4m from "./driver_only_4m.json";
-// add them to GOLDEN_RUNS (after warehouseDriver, so `?demo=1` keeps its default) and remove
-// their PENDING_RUNS entries below.
 export const PENDING_RUNS: PendingRun[] = [
-  {
-    name: "worker_passes_4m",
-    title: "Verified alert: a worker passes a moving forklift at about 2.9 m (4 m rule)",
-    needs:
-      "Record the 1 Nov campaign's T02 (eval/clips/pexels_32243654, rule forklift_4m: Glimmer " +
-      "confirmed it at 0.99). Record run, `rulecam golden capture`, `golden record`, `golden export`.",
-  },
-  {
-    name: "driver_only_4m",
-    title: "Rejected candidate: Glimmer recognises the seated driver as the operator",
-    needs:
-      "Record the 1 Nov campaign's T04 (eval/clips/pexels_32243653, rule forklift_4m: the " +
-      "engine flags the driver, Glimmer rejects it). Same pipeline as above.",
-  },
   {
     name: "owner_fl_pos_1m",
     title: "Positive: a pedestrian passes a moving forklift at about 1 m",

@@ -1,0 +1,29 @@
+{
+ "drawn": [
+  "1/4",
+  "1/4  t-0.9s  keep-people-4m-from-moving-forklift  measured 2.34 m",
+  "10.8 m",
+  "2/4",
+  "2/4  t-0.6s  keep-people-4m-from-moving-forklift  measured 2.34 m",
+  "21.4 m",
+  "3/4",
+  "3/4  t-0.4s  keep-people-4m-from-moving-forklift  measured 2.34 m",
+  "4/4",
+  "4/4  t-0.1s  keep-people-4m-from-moving-forklift  measured 2.34 m",
+  "5.5 m",
+  "RULECAM ANNOTATION (not part of the scene)",
+  "distance 10.8 m",
+  "distance 21.4 m",
+  "distance 5.5 m",
+  "forklift",
+  "keep-people-4m-from-moving-forklift",
+  "measured 2.34 m",
+  "person",
+  "subject: person",
+  "t-0.1s",
+  "t-0.4s",
+  "t-0.6s",
+  "t-0.9s",
+  "white tick: 1 m on the ground"
+ ]
+}

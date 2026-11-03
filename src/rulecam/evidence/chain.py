@@ -310,6 +310,11 @@ class EventChain:
         self._site = site
         self._clock = clock
 
+    @property
+    def site(self) -> str:
+        """The site this chain belongs to."""
+        return self._site
+
     def path_for(self, day: date) -> Path:
         """Return the chain file of `day` (UTC)."""
         return self._root / self._site / f"{day.isoformat()}.jsonl"

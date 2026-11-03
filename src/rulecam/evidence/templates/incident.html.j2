@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Incident report · {{ report.site }} · {{ report.event_id }}</title>
+  <style>
+    body { font: 11pt/1.45 system-ui, sans-serif; color: #1b1b1f; margin: 24px; }
+    h1 { font-size: 18pt; margin: 0; }
+    h2 { font-size: 12pt; margin: 20px 0 6px; }
+    .meta { color: #5f6368; margin: 4px 0 16px; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+    dt { color: #5f6368; }
+    dd { margin: 0; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #ddd; padding: 6px 4px; text-align: left; vertical-align: top; }
+    th { font-size: 9pt; text-transform: uppercase; color: #5f6368; }
+    code { font-size: 8pt; color: #5f6368; }
+    .stills img { height: 120px; margin: 2px; border-radius: 4px; }
+    .verify { display: flex; gap: 16px; align-items: center; margin-top: 24px;
+              border-top: 2px solid #1b1b1f; padding-top: 12px; }
+    .verify img { width: 120px; height: 120px; }
+    .bad { color: #b3261e; font-weight: 700; }
+    .print-hint { color: #5f6368; }
+    @media print { .print-hint { display: none; } }
+  </style>
+</head>
+<body>
+  <p class="print-hint">Use your browser's Print (Ctrl/Cmd+P) to save this report as a PDF.</p>
+  <h1>Incident report</h1>
+  <div class="meta">{{ report.site }} · {{ report.day.isoformat() }} · privacy: {{ report.privacy_mode.value }}</div>
+  <dl>
+    <dt>Clause</dt><dd>{{ report.clauses | join(", ") }}</dd>
+    <dt>Rule</dt><dd>{{ report.rule_text or report.rule_id }}<br><small>{{ report.rule_id }}</small></dd>
+    <dt>Severity</dt><dd>{{ report.severity }}</dd>
+    <dt>Camera</dt><dd>{{ report.camera_id }}</dd>
+    <dt>When (UTC)</dt><dd>{{ report.ts_start.strftime("%Y-%m-%d %H:%M:%S") }} to {{ report.ts_end.strftime("%H:%M:%S") }}</dd>
+    {% if report.measurement %}<dt>Measured</dt><dd>{{ report.measurement }}</dd>{% endif %}
+    <dt>Event</dt><dd><code>{{ report.event_id }}</code></dd>
+  </dl>
+  <h2>What happened, in chain order</h2>
+  <table>
+    <thead><tr><th>#</th><th>Time (UTC)</th><th>Record</th><th>What</th></tr></thead>
+    <tbody>
+      {% for entry in report.timeline %}
+      <tr>
+        <td>{{ entry.seq }}</td>
+        <td>{{ entry.ts.strftime("%H:%M:%S") }}</td>
+        <td>{{ entry.kind }}<br><code>{{ entry.hash[:12] }}</code></td>
+        <td>{{ entry.summary }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <h2>Stills</h2>
+  {% if stills %}
+  <div class="stills">{% for src in stills %}<img src="{{ src }}" alt="anonymised still">{% endfor %}</div>
+  {% else %}
+  <p class="meta">No stills: none were kept, or the privacy mode does not allow them.</p>
+  {% endif %}
+  <div class="verify">
+    <img src="{{ qr }}" alt="QR code to the verify page">
+    <div>
+      {% if report.chain_ok %}
+      Evidence chain intact: {{ report.chain_records }} records that day.
+      {% else %}
+      <span class="bad">Evidence chain failed verification.</span>
+      {% endif %}
+      <br>Scan to recompute every hash yourself: <br><small>{{ report.verify_url }}</small>
+      <br><small>The hash proves the records are unchanged. It does not prove what the camera saw was real.</small>
+    </div>
+  </div>
+</body>
+</html>

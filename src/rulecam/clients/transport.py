@@ -239,7 +239,7 @@ class HttpxTransport:
                 Never logged.
         """
         self._base_url = base_url.rstrip("/")
-        auth = {"Authorization": f"{auth_scheme} {api_key}"} if api_key else {}
+auth = {"Authorization": f"{auth_scheme} {api_key}"} if api_key else {}
         self._headers = {**auth, **(headers or {})}
         self._client = client or httpx.Client(timeout=timeout_s)
 

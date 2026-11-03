@@ -44,6 +44,7 @@ from rulecam.contracts import TTS, Clock, Frozen, Notifier, StructuredLLM
 from rulecam.crowd.memory import CrowdMemory
 from rulecam.crowd.scan import CrowdReading
 from rulecam.crowd.signals import trend
+from rulecam.crowd.zones import CrowdZone
 from rulecam.errors import RulecamError
 from rulecam.evidence.chain import EventChain
 from rulecam.log import get_logger
@@ -123,6 +124,7 @@ class Watch(Frozen):
     role: str = "security"
     since: datetime
     floor: FloorPoints | None = None
+    zones: list[CrowdZone] = Field(default_factory=list, max_length=8)
 
 
 class CrowdAlert(Frozen):
@@ -263,8 +265,10 @@ class CrowdWarden:
         camera_id: str,
         instruction: str,
         languages: Sequence[str] = (),
+        *,
         role: str = "",
         floor: FloorPoints | None = None,
+        zones: Sequence[CrowdZone] = (),
     ) -> Watch:
         """Start (or replace) the operator's standing instruction for a camera.
 
@@ -278,6 +282,7 @@ class CrowdWarden:
             role=role or "security",
             since=self._clock.now(),
             floor=floor,
+            zones=list(zones),
         )
         self._start(made)
         self._save()
@@ -293,6 +298,12 @@ class CrowdWarden:
             self._watches[watch.camera_id] = watch
             self._states[watch.camera_id] = WardenState(watch=watch)
             self._assessed.pop(watch.camera_id, None)
+
+    def zones(self, camera_id: str) -> list[CrowdZone]:
+        """The areas the operator named on a camera (measured besides the whole view)."""
+        with self._lock:
+            watch = self._watches.get(camera_id)
+        return list(watch.zones) if watch is not None else []
 
     def unwatch(self, camera_id: str) -> bool:
         """Stop watching a camera; false if it was not watched."""

@@ -12,6 +12,7 @@ from rulecam.contracts import PrivacyMode
 from rulecam.crowd.memory import Calibrations, CrowdMemory
 from rulecam.crowd.scan import CrowdReading, CrowdScanner
 from rulecam.crowd.warden import CrowdWarden, FloorPoints
+from rulecam.crowd.zones import CrowdZone
 from rulecam.evidence.chain import EventChain, read_chain, verify_chain
 from rulecam.evidence.incident import build_incident, candidates
 from rulecam.perception.errors import PerceptionError
@@ -282,7 +283,10 @@ def test_marked_floor_points_calibrate_and_watches_survive_a_restart(
         ground_m=[(0, 0), (8, 0), (8, 6), (0, 6)],
     )
     chosen, _ = warden(tmp_path, crowd, grabber, FakeLLM([]), FakeLLM([]))
-    chosen.watch("gate", INSTRUCTION, ["hi"], floor=floor)
+    gate = CrowdZone(name="gate", polygon_px=[(0, 0), (100, 0), (100, 100)])
+    chosen.watch("gate", INSTRUCTION, ["hi"], floor=floor, zones=[gate])
+    assert chosen.zones("gate") == [gate]
+    assert chosen.zones("other") == []
     reading = latest(crowd)
     found = crowd.calibrations.get("gate", Frame(camera_id="gate", at=EPOCH, path=Path("x")), [])
     assert found is not None

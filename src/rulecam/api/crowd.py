@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field
 from rulecam.crowd.memory import CrowdMemory
 from rulecam.crowd.scan import CrowdReading
 from rulecam.crowd.warden import CrowdAlert, CrowdWarden, FloorPoints, Watch
+from rulecam.crowd.zones import CrowdZone
 from rulecam.perception.errors import PerceptionError
 
 HTTP_NOT_FOUND = 404
@@ -48,6 +49,11 @@ class WatchRequest(BaseModel):
         default=None,
         description="Floor points the operator marked (pixels and metres), for cameras the "
         "crowd cannot calibrate itself, such as an overhead view.",
+    )
+    zones: list[CrowdZone] = Field(
+        default_factory=list,
+        max_length=8,
+        description="Named areas to measure besides the whole view (a gate approach, a stair).",
     )
 
 
@@ -171,7 +177,12 @@ def crowd_router(
         _, chosen = ready()
         try:
             return chosen.watch(
-                body.camera_id, body.instruction, body.languages, body.role, body.floor
+                body.camera_id,
+                body.instruction,
+                body.languages,
+                role=body.role,
+                floor=body.floor,
+                zones=body.zones,
             )
         except PerceptionError as exc:
             raise HTTPException(HTTP_UNPROCESSABLE, f"floor points: {exc}") from exc

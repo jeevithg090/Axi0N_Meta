@@ -119,6 +119,7 @@ from rulecam.contracts import TTS, Calibration, Chunk, Clock, PrivacyMode, SiteP
 from rulecam.crowd.memory import Calibrations, CrowdMemory, ModelCalibration
 from rulecam.crowd.scan import CrowdScanner
 from rulecam.crowd.warden import CrowdWarden
+from rulecam.crowd.zones import CrowdZone
 from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
 from rulecam.evidence.incident import (
     IncidentReport,
@@ -1206,6 +1207,10 @@ def build_crowd(
         return {found.camera_id: found} if found is not None else {}
 
     cameras = [c.strip() for c in settings.rulecam_crowd_cameras.split(",") if c.strip()]
+
+    def named_zones(camera_id: str) -> list[CrowdZone]:
+        return warden.zones(camera_id)  # the warden is made below; called only once ticking
+
     memory = CrowdMemory(
         frames=frames,
         scanner=CrowdScanner(
@@ -1218,6 +1223,7 @@ def build_crowd(
         path=crowd_dir / "readings.jsonl",
         every_s=settings.rulecam_crowd_every_s,
         cameras=(lambda: cameras) if cameras else None,
+        zones=named_zones,
         clock=clock,
     )
     names = camera_names(settings.rulecam_camera_names)

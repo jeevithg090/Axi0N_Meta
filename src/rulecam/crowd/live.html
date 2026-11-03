@@ -167,6 +167,10 @@ function cameraCard(c) {
         <div class="kpi"><div class="v">${a && a.minutes_to_danger != null ? num(a.minutes_to_danger, 0) + "′" : "–"}</div><div class="k">to danger</div></div>
       </div>
       ${watching}
+      ${latest && latest.zones.length > 1 ? `<h3>Zones</h3><table class="small" style="width:100%;border-collapse:collapse">
+        <tr class="muted"><td>zone</td><td>people</td><td>/m²</td><td>m/s</td><td>pressure</td></tr>
+        ${latest.zones.slice(1).map((z) => `<tr><td>${esc(z.zone)}</td><td>${z.people}</td><td><b>${num(z.density_ppm2, 1)}</b></td><td>${num(z.speed_mps, 2)}</td><td>${num(z.pressure, 3)}</td></tr>`).join("")}
+      </table>` : ""}
       <h3>Why</h3><div>${esc(a ? a.why : "–")}</div>
       <h3>Forecast</h3><div>${esc(a ? a.forecast : "–")}</div>
       <h3>Staff, now</h3>${actions}

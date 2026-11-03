@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import tempfile
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 
+import duckdb
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -14,7 +15,10 @@ from rulecam.contracts import Keypoint, Provenance, Track, TrackPoint, TrackStor
 from rulecam.rules.store import (
     COLUMNS,
     PERCEPTION_INTERNAL_VIEWS,
+    TRACK_POINTS_VIEW,
     ParquetTrackStore,
+    Row,
+    rows_to_tracks,
 )
 from tests.fakes import EPOCH, InMemoryTrackStore, make_track
 
@@ -189,3 +193,68 @@ def test_window_never_returns_points_outside_the_range(tracks: list[Track], a: i
     assert all(t.points for t in got)
     expected = sorted(reference.window("cam1", t0, t1), key=lambda t: (t.points[0].ts, t.track_id))
     assert got == expected
+
+
+# --- window() reads only the asked camera's partitions in the window's dates ----------------------
+
+
+def test_window_reads_only_the_partitions_it_needs(tmp_path: Path) -> None:
+    day = timedelta(days=1)
+    with ParquetTrackStore(tmp_path) as store:
+        store.append(
+            [
+                make_track("cam1:person:0001"),
+                make_track("cam1:person:0002", start=EPOCH + 2 * day),
+                make_track("cam2:person:0003", camera_id="cam2"),
+            ]
+        )
+        # Unreadable files everywhere else: a full scan fails on them, the window must not.
+        needed = tmp_path / "camera_id=cam1" / f"date={EPOCH.date().isoformat()}"
+        others = [f for f in tmp_path.glob("*/*/*.parquet") if f.parent != needed]
+        assert len(others) == 2
+        for other in others:
+            other.write_bytes(b"not parquet")
+        with pytest.raises(duckdb.Error):
+            _scan_window(store, "cam1", EPOCH, EPOCH)
+
+        got = store.window("cam1", EPOCH - timedelta(hours=1), EPOCH + timedelta(hours=1))
+        assert [t.track_id for t in got] == ["cam1:person:0001"]
+        assert store.window("cam1", EPOCH + 5 * day, EPOCH + 6 * day) == []  # no such dates
+        assert store.window("../cam1", EPOCH, EPOCH + 3 * day) == []  # never a partition name
+
+
+def _scan_window(
+    store: ParquetTrackStore, camera_id: str, t0: datetime, t1: datetime
+) -> list[Track]:
+    """`window()` as it was: one query over the view of every file, for comparison."""
+    if t0 > t1:
+        return []
+    rows: list[Row] = (
+        store.connection.sql(
+            f"SELECT {', '.join(COLUMNS)} FROM {TRACK_POINTS_VIEW} "  # noqa: S608
+            "WHERE camera_id = $camera AND ts >= $t0 AND ts <= $t1",
+            params={"camera": camera_id, "t0": t0, "t1": t1},
+        )
+        .to_arrow_table()
+        .to_pylist()
+    )
+    return rows_to_tracks(rows)
+
+
+@settings(max_examples=40, deadline=None)
+@given(
+    tracks=stored_tracks(),
+    a=offsets_ms,
+    b=offsets_ms,
+    camera=st.sampled_from(["cam1", "cam2", "cam3"]),
+    offset_h=st.integers(min_value=-12, max_value=14),
+)
+def test_pruned_window_matches_a_full_scan(
+    tracks: list[Track], a: int, b: int, camera: str, offset_h: int
+) -> None:
+    zone = timezone(timedelta(hours=offset_h))  # window bounds in any zone; partitions are UTC
+    t0 = (EPOCH + timedelta(milliseconds=a)).astimezone(zone)
+    t1 = (EPOCH + timedelta(milliseconds=b)).astimezone(zone)
+    with tempfile.TemporaryDirectory() as root, ParquetTrackStore(Path(root)) as store:
+        store.append(tracks)
+        assert store.window(camera, t0, t1) == _scan_window(store, camera, t0, t1)

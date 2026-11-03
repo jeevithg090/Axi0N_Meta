@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { OwnerOnly } from "@/components/OwnerOnly";
+import { PairPhoneButton } from "@/components/PairPhoneButton";
 import { CameraTiles } from "@/components/plan/CameraTiles";
 import { QuestionsPanel } from "@/components/plan/QuestionsPanel";
 import { RequestComposer } from "@/components/plan/RequestComposer";
@@ -61,6 +62,7 @@ export default function PlannerPage() {
       </section>
       <section aria-label="Cameras">
         <h2>Cameras</h2>
+        {owner && !demo && <PairPhoneButton />}
         <CameraTiles cameras={cameras} inventory={plan?.inventory ?? []} />
       </section>
     </div>

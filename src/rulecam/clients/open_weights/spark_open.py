@@ -13,11 +13,9 @@ Every call asks for JSON-schema-constrained output, goes through the replay cach
 
 from __future__ import annotations
 
-import hashlib
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Literal, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -26,6 +24,7 @@ from rulecam.bus import Bus
 from rulecam.clients.errors import ModelResponseError
 from rulecam.clients.open_weights.evidence_log import EvidenceLog, InferenceLine
 from rulecam.clients.open_weights.glimmer import request_hash
+from rulecam.clients.open_weights.reasoning import ReasoningStore, reasoning_id
 from rulecam.clients.ratelimit import TokenBucket
 from rulecam.clients.relay import ModelUsed, publish_model_used
 from rulecam.clients.transport import HttpxTransport, RetryPolicy, Sender, Transport
@@ -33,6 +32,8 @@ from rulecam.config import Settings
 from rulecam.contracts import Clock
 from rulecam.log import get_logger
 from rulecam.replay.cache import ReplayCache
+
+__all__ = ["ReasoningStore", "SparkOpenClient", "SparkReply", "reasoning_id"]
 
 _log = get_logger(__name__)
 
@@ -44,7 +45,6 @@ DEFAULT_TIMEOUT_S = 90.0
 DEFAULT_MAX_TOKENS = 4096
 TEAM_RPM = 120.0
 AUTH_SCHEME = "Api-Key"
-REASONING_ID_HEX = 16
 Effort = Literal["low", "medium", "high"]
 
 
@@ -98,46 +98,6 @@ def _parse(body: object) -> tuple[str, str, str | None]:
     reasoning = message.get("reasoning_content") or ""
     response_id = body.get("id") if isinstance(body, Mapping) else None
     return content, str(reasoning), str(response_id) if response_id else None
-
-
-def reasoning_id(text: str) -> str:
-    """Return the content-addressed id of a reasoning text (`so_` + 16 hex of its SHA-256).
-
-    The same reasoning always gets the same id, so replayed runs are byte-identical (§5.4).
-    """
-    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
-    return f"so_{digest[:REASONING_ID_HEX]}"
-
-
-class ReasoningStore:
-    """Writes reasoning text to `<directory>/<id>.txt` and returns the id."""
-
-    def __init__(self, directory: Path) -> None:
-        """Create the store.
-
-        Args:
-            directory: Usually `data/reasoning`.
-        """
-        self._directory = directory
-
-    def save(self, text: str) -> str:
-        """Store `text` under its content-addressed id and return the id."""
-        reasoning_id_ = reasoning_id(text)
-        self._directory.mkdir(parents=True, exist_ok=True)
-        (self._directory / f"{reasoning_id_}.txt").write_text(text, encoding="utf-8")
-        return reasoning_id_
-
-    def load(self, reasoning_id: str) -> str:
-        """Return stored reasoning by id.
-
-        Raises:
-            ValueError: If the id is not a plain stored-reasoning id.
-            FileNotFoundError: If nothing is stored under it.
-        """
-        if not reasoning_id.startswith("so_") or not reasoning_id[3:].isalnum():
-            msg = f"invalid reasoning id {reasoning_id!r}"
-            raise ValueError(msg)
-        return (self._directory / f"{reasoning_id}.txt").read_text(encoding="utf-8")
 
 
 class SparkOpenClient:

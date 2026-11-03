@@ -34,6 +34,24 @@ class ModelResponseError(ModelClientError):
     """The model API answered successfully but the body could not be understood."""
 
 
+class ModelTruncatedError(ModelResponseError):
+    """The reply was cut at the output cap (`finish_reason: length`) even at the highest cap.
+
+    Attributes:
+        max_tokens: The cap of the last attempt.
+    """
+
+    def __init__(self, message: str, *, max_tokens: int) -> None:
+        """Create the error.
+
+        Args:
+            message: Human-readable description, with the token usage when known.
+            max_tokens: The cap of the last attempt.
+        """
+        super().__init__(message)
+        self.max_tokens = max_tokens
+
+
 class StructuredOutputError(ModelResponseError):
     """The model output could not be validated against the schema even after retry."""
 

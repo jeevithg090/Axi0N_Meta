@@ -20,7 +20,7 @@ groups:
         for: 2m
         labels: {severity: page}
         annotations:
-          summary: "{{ $labels.service }} pod fails its health check (Glimmer verdicts or self-hosted SAM are off)."
+          summary: "{{ $labels.service }} is unhealthy or its state unknown (pod health check, or RunPod serverless workers.max 0 / all unhealthy / REST API unreadable); Glimmer verdicts or self-hosted SAM are off."
       - alert: RulecamKeyframeMode
         expr: rulecam_runtime_keyframe_mode == 1
         for: 1m

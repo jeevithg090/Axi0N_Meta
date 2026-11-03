@@ -248,7 +248,12 @@ def test_cli_auto_checks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
 
 @pytest.mark.parametrize("script", sorted((REPO / "scripts" / "ops").glob("*.sh")))
 def test_ops_scripts_parse(script: Path) -> None:
-    assert subprocess.run(["bash", "-n", str(script)], check=False).returncode == 0  # noqa: S603, S607
+    res = subprocess.run(  # noqa: S603
+        ["bash", "-n", script.relative_to(REPO).as_posix()],  # noqa: S607
+        cwd=REPO,
+        check=False,
+    )
+    assert res.returncode == 0
 
 
 def test_the_committed_golden_chain_hash_is_what_the_site_must_serve() -> None:

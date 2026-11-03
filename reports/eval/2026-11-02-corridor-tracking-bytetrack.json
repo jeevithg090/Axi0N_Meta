@@ -1,0 +1,28 @@
+{
+  "camera_id": "phone-68",
+  "start": "2026-11-02T09:44:11.875000+00:00",
+  "end": "2026-11-02T09:53:25.475000+00:00",
+  "fps": 25.0,
+  "scale": [
+    0.5,
+    0.5
+  ],
+  "points": 5884,
+  "tracks": 409,
+  "identities": 0,
+  "unlinked_tracks": 0,
+  "scores": [
+    {
+      "ids": "raw",
+      "concept": "person",
+      "predicted_ids": 409,
+      "frames": 1072,
+      "gt_ids": 80,
+      "hota": 0.2226543996286034,
+      "idf1": 0.21711262590294028,
+      "mota": -0.46793409378960704,
+      "id_switches": 196,
+      "id_switches_per_min": 21.23050259965338
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+# PLACEHOLDER for CAVIAR Fight_Chase: `scripts/eval/caviar_clips.py inria --src DIR
+# --fetch` downloads its labels and video and replaces this with the labelled entry.
+name: caviar_fight_chase
+description: 'A fight and a chase. Video: https://groups.inf.ed.ac.uk/vision/DATASETS/CAVIAR/CAVIARDATA1/Fight_Chase/Fight_Chase.mpg'
+camera_id: caviar-inria-lobby
+license: 'CAVIAR project (EC IST 2001 37540), University of Edinburgh: publicly available for research;
+  cite the CAVIAR project'
+placeholder: true
+rules:
+- id: caviar_fight
+  request: Alert me if people start fighting or someone is being attacked.
+  status: unlabelled

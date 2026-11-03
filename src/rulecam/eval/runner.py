@@ -388,16 +388,20 @@ def run_eval_set(
     work_dir: Path,
     runs_dir: Path,
     include_unlabelled: bool = False,
+    rules: Sequence[str] = (),
 ) -> list[Path]:
     """Run every (clip, rule) in turn and save each record; return the record paths.
 
     Approving a plan replaces the runtime's active plan, so runs never overlap. Unlabelled rules
-    are skipped unless asked for (they only feed Glimmer decisiveness).
+    are skipped unless asked for (they only feed Glimmer decisiveness); `rules`, when given,
+    keeps only those rule ids (a golden recording plays one rule of a clip).
     """
     saved = []
     for entry, video in clips:
         for rule in entry.rules:
             if rule.status == "unlabelled" and not include_unlabelled:
+                continue
+            if rules and rule.id not in rules:
                 continue
             record = runner.run(entry, rule, video, work_dir)
             saved.append(save_run(record, runs_dir))

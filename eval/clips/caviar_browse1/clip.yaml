@@ -1,0 +1,18 @@
+# PLACEHOLDER for CAVIAR Browse1: `scripts/eval/caviar_clips.py inria --src DIR
+# --fetch` downloads its labels and video and replaces this with the labelled entry.
+name: caviar_browse1
+description: 'A person browses (no fall/fight/bag). Video: https://groups.inf.ed.ac.uk/vision/DATASETS/CAVIAR/CAVIARDATA1/Browse1/Browse1.mpg'
+camera_id: caviar-inria-lobby
+license: 'CAVIAR project (EC IST 2001 37540), University of Edinburgh: publicly available for research;
+  cite the CAVIAR project'
+placeholder: true
+rules:
+- id: caviar_fall
+  request: Tell me if anyone falls down or ends up lying on the floor.
+  status: unlabelled
+- id: caviar_fight
+  request: Alert me if people start fighting or someone is being attacked.
+  status: unlabelled
+- id: caviar_left_bag
+  request: Warn me when a bag or box is left behind with nobody looking after it.
+  status: unlabelled

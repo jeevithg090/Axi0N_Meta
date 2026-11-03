@@ -1,0 +1,12 @@
+# PLACEHOLDER for CAVIAR Rest_InChair: `scripts/eval/caviar_clips.py inria --src DIR
+# --fetch` downloads its labels and video and replaces this with the labelled entry.
+name: caviar_rest_in_chair
+description: 'A person rests in a chair (no fall). Video: https://groups.inf.ed.ac.uk/vision/DATASETS/CAVIAR/CAVIARDATA1/Rest_InChair/Rest_InChair.mpg'
+camera_id: caviar-inria-lobby
+license: 'CAVIAR project (EC IST 2001 37540), University of Edinburgh: publicly available for research;
+  cite the CAVIAR project'
+placeholder: true
+rules:
+- id: caviar_fall
+  request: Tell me if anyone falls down or ends up lying on the floor.
+  status: unlabelled

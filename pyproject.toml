@@ -125,7 +125,8 @@ disallow_untyped_defs = false
 [[tool.mypy.overrides]]
 module = [
   "cv2.*", "kasa.*", "modal.*", "transformers.*", "duckdb.*", "shapely.*",
-  "qrcode.*", "ultralytics.*", "onnxruntime.*", "playwright.*", "motmetrics.*", "boxmot.*",
+  "qrcode.*", "ultralytics.*", "onnxruntime.*", "playwright.*", "motmetrics.*",
+  "defusedxml.*", "boxmot.*",
 ]
 ignore_missing_imports = true
 

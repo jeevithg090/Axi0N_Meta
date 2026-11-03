@@ -1,0 +1,148 @@
+{
+  "generated_at": "2026-11-03T00:05:01.653976+00:00",
+  "keyframe_fps": 10.0,
+  "detector_folder": "FRCNN",
+  "note": "only keyframes are scored; published MOT17 numbers score every frame",
+  "sequences": [
+    {
+      "seq": "MOT17-02",
+      "points": 7234,
+      "ours": {
+        "concept": "person",
+        "frames": 202,
+        "gt_ids": 59,
+        "hota": 0.2416795706295394,
+        "idf1": 0.27356030693585637,
+        "id_switches": 247,
+        "mota": -0.18338988528033617,
+        "minutes": 0.33666666666666667
+      },
+      "trackeval": {
+        "hota": 0.25246824565322723,
+        "idf1": 0.2916666666666667,
+        "mota": -0.05218936823396348,
+        "id_switches": 248
+      }
+    },
+    {
+      "seq": "MOT17-04",
+      "points": 20000,
+      "ours": {
+        "concept": "person",
+        "frames": 352,
+        "gt_ids": 83,
+        "hota": 0.4380988799374197,
+        "idf1": 0.48621959384066055,
+        "id_switches": 179,
+        "mota": 0.12462140333165073,
+        "minutes": 0.5866666666666667
+      },
+      "trackeval": {
+        "hota": 0.45006083739059544,
+        "idf1": 0.49865765999826794,
+        "mota": 0.18898283695103482,
+        "id_switches": 188
+      }
+    },
+    {
+      "seq": "MOT17-05",
+      "points": 6225,
+      "ours": {
+        "concept": "person",
+        "frames": 600,
+        "gt_ids": 133,
+        "hota": 0.33136123131249345,
+        "idf1": 0.3941239699032605,
+        "id_switches": 182,
+        "mota": -0.14193156509414862,
+        "minutes": 1.0
+      },
+      "trackeval": {
+        "hota": 0.3330568196127959,
+        "idf1": 0.39586144849302746,
+        "mota": -0.13221299858270905,
+        "id_switches": 187
+      }
+    },
+    {
+      "seq": "MOT17-09",
+      "points": 2810,
+      "ours": {
+        "concept": "person",
+        "frames": 177,
+        "gt_ids": 26,
+        "hota": 0.29361172661873597,
+        "idf1": 0.3438795548767183,
+        "id_switches": 83,
+        "mota": -0.20812182741116758,
+        "minutes": 0.295
+      },
+      "trackeval": {
+        "hota": 0.3218491127377695,
+        "idf1": 0.38533007334963326,
+        "mota": 0.06598984771573604,
+        "id_switches": 88
+      }
+    },
+    {
+      "seq": "MOT17-10",
+      "points": 5779,
+      "ours": {
+        "concept": "person",
+        "frames": 220,
+        "gt_ids": 57,
+        "hota": 0.21376476385546472,
+        "idf1": 0.22741278202961931,
+        "id_switches": 279,
+        "mota": -0.5072396076599719,
+        "minutes": 0.36666666666666664
+      },
+      "trackeval": {
+        "hota": 0.21846080621701178,
+        "idf1": 0.23288508557457213,
+        "mota": -0.4535263895375993,
+        "id_switches": 290
+      }
+    },
+    {
+      "seq": "MOT17-11",
+      "points": 5665,
+      "ours": {
+        "concept": "person",
+        "frames": 302,
+        "gt_ids": 73,
+        "hota": 0.3216386111105776,
+        "idf1": 0.3526608419380461,
+        "id_switches": 56,
+        "mota": -0.5702033036848793,
+        "minutes": 0.5033333333333333
+      },
+      "trackeval": {
+        "hota": 0.32466836769266544,
+        "idf1": 0.3569541748018835,
+        "mota": -0.5371664548919949,
+        "id_switches": 56
+      }
+    },
+    {
+      "seq": "MOT17-13",
+      "points": 4006,
+      "ours": {
+        "concept": "person",
+        "frames": 302,
+        "gt_ids": 110,
+        "hota": 0.20259799320348673,
+        "idf1": 0.22258138997921958,
+        "id_switches": 141,
+        "mota": -0.3399914089347078,
+        "minutes": 0.5026666666666667
+      },
+      "trackeval": {
+        "hota": 0.20314727183238163,
+        "idf1": 0.22335495829471733,
+        "mota": -0.33655498281786944,
+        "id_switches": 145
+      }
+    }
+  ]
+}

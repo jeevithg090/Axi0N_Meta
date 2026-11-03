@@ -195,6 +195,15 @@ def test_run_eval_set_skips_unlabelled_rules(tmp_path: Path) -> None:
         include_unlabelled=True,
     )
     assert len(both) == 2
+    one = run_eval_set(
+        runner(api, sim),
+        [(CLIP, tmp_path / "clip.mp4")],
+        work_dir=tmp_path,
+        runs_dir=tmp_path / "one",
+        include_unlabelled=True,
+        rules=[CLIP.rules[1].id],
+    )
+    assert [p.name for p in one] == [f"yard__{CLIP.rules[1].id}.run.json"]
 
 
 def test_relevant_records_keeps_this_camera_since_the_start() -> None:

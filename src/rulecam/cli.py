@@ -707,15 +707,15 @@ def eval_track(
 README_INTRO = (
     "Measured on the deployed stack and on public hand-labelled footage. Each row is read from "
     "the result file it cites by `uv run rulecam eval results`, with its run, date and the "
-    "commit that recorded it; a test fails if a number here is not in that file. Rule accuracy "
-    "on labelled clips, the verifier against human labels, tracking scores and serverless "
-    "latency are not measured yet: see [`eval/RESULTS.md`](eval/RESULTS.md) and "
-    "[`eval/README.md`](eval/README.md)."
+    "commit that recorded it; a test fails if a number here is not in that file. Weak results "
+    "are shown as measured. The verifier is not yet scored against human labels (the blind "
+    "labelling kit is in `eval/README.md`); more in [`eval/RESULTS.md`](eval/RESULTS.md)."
 )
 RESULTS_INTRO = (
     "Every number below is read from the result file its row cites (`uv run rulecam eval "
     "results`, facts in `eval/results.yaml`), with the run, the date and the commit that "
-    "recorded the file. The formal evaluations further down have not been run yet."
+    "recorded the file. Weak results are shown as measured. The formal evaluations further "
+    "down, on consented recordings, have not been run yet."
 )
 
 

@@ -14,6 +14,46 @@ sources:
     file: reports/eval/2026-10-31.json
     run: first recorded run (warehouse driver only)
     date: generated_at
+  tracking_before:
+    file: reports/eval/2026-11-02-corridor-tracking-before.json
+    run: CAVIAR corridor tracks, morning backfill (ByteTrack)
+    date: start
+  trackeval:
+    file: reports/eval/2026-11-02-trackeval-crosscheck.json
+    run: CAVIAR TwoEnterShop1cor, our scorer vs TrackEval
+    date: "window[0]"
+  replay:
+    file: reports/eval/2026-11-02-verifier-replay-summary.json
+    run: Glimmer replay of the 1 Nov campaign strips
+    date: generated_at
+  tracking_bytetrack:
+    file: reports/eval/2026-11-02-corridor-tracking-bytetrack.json
+    run: CAVIAR corridor tracks, re-tracked with ByteTrack at the 0.1 floor (add-on 2.1)
+    date: start
+  inria_events:
+    file: reports/eval/2026-11-02-caviar-inria-events.json
+    run: CAVIAR lobby clips (384x288, overhead), live rule runs
+    date: generated_at
+  corridor_events:
+    file: reports/eval/2026-11-02-caviar-corridor-events.json
+    run: CAVIAR corridor clips, live rule runs
+    date: generated_at
+  load:
+    file: reports/eval/2026-11-02-serverless-load.json
+    run: Serverless load test (SAM chunk + Glimmer strip per check)
+    date: generated_at
+  ask:
+    file: reports/eval/ask/2026-11-02T230520Z-corridor.json
+    run: Ask benchmark, CAVIAR corridor, 10 questions x 3 runs (`rulecam eval ask`)
+    date: generated_at
+  mot17:
+    file: reports/eval/2026-11-02-mot17.json
+    run: MOT17 training set, 7 sequences, SAM 3.1 keyframes at 10 per second + ByteTrack (0.1 floor)
+    date: generated_at
+  sweep:
+    file: reports/eval/2026-11-02-glimmer-budget-sweep.json
+    run: Glimmer reasoning-budget sweep
+    date: generated_at
 
 facts:
   - source: campaign
@@ -84,3 +124,91 @@ facts:
     label: Glimmer decisive before the strip renderer existed
     path: ["runs[0].decisive", "runs[0].candidates"]
     format: "{} of {} candidates"
+  - source: tracking_before
+    label: "Person tracking, HOTA / IDF1 vs CAVIAR labels: ByteTrack, SAM detections at 0.5 and up"
+    path: ["scores[ids=raw].hota", "scores[ids=raw].idf1"]
+    format: "{:.3f} / {:.3f}"
+  - source: tracking_before
+    label: ID switches per minute, same run
+    path: "scores[ids=raw].id_switches_per_min"
+    format: "{:.1f}"
+  - source: tracking_bytetrack
+    label: "Person tracking, HOTA / IDF1, same footage: ByteTrack with SAM detections down to 0.1"
+    path: ["scores[ids=raw].hota", "scores[ids=raw].idf1"]
+    format: "{:.3f} / {:.3f}"
+  - source: tracking_bytetrack
+    label: ID switches per minute, same run
+    path: "scores[ids=raw].id_switches_per_min"
+    format: "{:.1f}"
+  - source: trackeval
+    label: Our HOTA vs TrackEval's on the same segment (scorer cross-check)
+    path: [ours.hota, trackeval.hota]
+    format: "{:.4f} vs {:.4f}"
+  - source: replay
+    label: Same strips replayed (8 raw frames at 960 px), verdicts matching the 1 Nov ones
+    path: [agreement.raw8_960_vs_original, items]
+    format: "{} of {}"
+  - source: replay
+    label: Decisive verdicts that flip with 6 face-blurred frames at 640 px instead
+    path: [decisive_flips_raw8_vs_blur6, items]
+    format: "{} of {}"
+  - source: replay
+    label: Glimmer median per strip, 8 raw at 960 px vs 6 blurred at 640 px
+    path: [latency_ms_median.raw8_960, latency_ms_median.blur6_640]
+    format: "{} ms vs {} ms"
+  - source: sweep
+    label: Verdicts unchanged with a reasoning budget of 0 tokens (llama.cpp ignores the budget; reasoning stays short)
+    path: ["summaries[budget=0].agree_recorded", "summaries[budget=0].compared_recorded"]
+    format: "{} of {}"
+  - source: inria_events
+    label: "Fights, \"Alert me if people start fighting\": found, missed, false alerts"
+    path: ["rules[rule=caviar_fight].tp", "rules[rule=caviar_fight].fn", "rules[rule=caviar_fight].fp"]
+    format: "{} found, {} missed, {} false alerts"
+  - source: inria_events
+    label: Fight candidates on Fight_Chase, every one rejected by Glimmer as no visible fight
+    path: ["runs[clip=caviar_fight_chase].candidates", "runs[clip=caviar_fight_chase].alerts"]
+    format: "{} candidates, {} alerts"
+  - source: inria_events
+    label: "Falls, \"Tell me if anyone falls down\": found, missed, false alerts"
+    path: ["rules[rule=caviar_fall].tp", "rules[rule=caviar_fall].fn", "rules[rule=caviar_fall].fp"]
+    format: "{} found, {} missed, {} false alerts"
+  - source: inria_events
+    label: "Left bags and boxes: found, missed, false alerts"
+    path: ["rules[rule=caviar_left_bag].tp", "rules[rule=caviar_left_bag].fn", "rules[rule=caviar_left_bag].fp"]
+    format: "{} found, {} missed, {} false alerts"
+  - source: corridor_events
+    label: "Shop entries, \"Let me know each time someone walks into one of the shops\": found, missed, false alerts"
+    path: ["rules[rule=caviar_shop_enter].tp", "rules[rule=caviar_shop_enter].fn", "rules[rule=caviar_shop_enter].fp"]
+    format: "{} found, {} missed, {} false alerts"
+  - source: load
+    label: One alert check on warm GPUs (SAM 3.1 on a 3 s chunk, then Glimmer on its strip), total
+    path: "scenarios[1].stages[stage=total].p50_s"
+    format: "{:.1f} s"
+  - source: load
+    label: 20 alert checks at once on warm GPUs, total p50 / p95
+    path: ["scenarios[5].stages[stage=total].p50_s", "scenarios[5].stages[stage=total].p95_s"]
+    format: "{:.1f} s / {:.1f} s"
+  - source: load
+    label: GPU cost per alert check, 20 at once (RunPod serverless, billed worker time)
+    path: "scenarios[5].usd_per_alert"
+    format: "${:.4f}"
+  - source: load
+    label: "Checks answered within 300 s after SAM scaled to zero (1 and 5 at once; Glimmer stayed warm)"
+    path: ["scenarios[0].ok", "scenarios[0].jobs", "scenarios[2].ok", "scenarios[2].jobs"]
+    format: "{} of {}, {} of {}"
+  - source: ask
+    label: Ask's graded numbers within tolerance of the hand labels
+    path: [numbers_passed, numbers_graded]
+    format: "{} of {}"
+  - source: ask
+    label: Ask's median answer time
+    path: median_seconds
+    format: "{:.1f} s"
+  - source: ask
+    label: "\"How many went into a shop?\" (truth: 24), the three runs' answers"
+    path: ["questions[id=C02].values.people who went into a shop[0]", "questions[id=C02].values.people who went into a shop[1]", "questions[id=C02].values.people who went into a shop[2]"]
+    format: "{:.0f}, {:.0f}, {:.0f}"
+  - source: mot17
+    label: "MOT17 HOTA by TrackEval, lowest (MOT17-13) and highest (MOT17-04) sequence; keyframes only, so not directly comparable with published trackers"
+    path: ["sequences[seq=MOT17-13].trackeval.hota", "sequences[seq=MOT17-04].trackeval.hota"]
+    format: "{:.3f} to {:.3f}"

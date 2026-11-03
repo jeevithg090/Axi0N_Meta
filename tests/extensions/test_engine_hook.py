@@ -20,7 +20,7 @@ from rulecam.rules.extension import (
 )
 from rulecam.rules.scene import Scene
 from tests.fakes import make_track
-from tests.rules.helpers import CAL, at, make_rule
+from tests.rules.helpers import CAL, SINK_ZONE, at, make_rule
 
 REF = "ext:pallet_above_line@0123456789ab"
 LINE = ((0.0, 300.0), (640.0, 300.0))
@@ -104,3 +104,29 @@ def test_backtest_needs_the_object_itself() -> None:
 def test_scale_needs_a_calibration_and_a_point() -> None:
     assert px_per_m(None, (1.0, 1.0)) is None
     assert px_per_m(CAL, None) is None
+
+
+def test_samples_carry_zones_and_scale_without_lines() -> None:
+    hook_scene: list[Scene] = []
+
+    class Grab:
+        def evaluate(self, node: StateCheck, scene: Scene) -> ExtensionValues | None:
+            hook_scene.append(scene)
+            return None
+
+    evaluate(
+        _rule(),
+        [_pallet()],
+        calibration=CAL,
+        zones={"sink_zone": SINK_ZONE},
+        t0=at(0),
+        t1=at(1),
+        extensions=Grab(),
+    )
+    [scene] = hook_scene
+    [first, *_] = samples_from_scene(scene, "pallet", {})
+    assert first.zones == {"sink_zone": ((0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0))}
+    assert first.px_per_m == 100.0  # measured at the first foot point
+    assert first.lines == {}
+    assert first.frame_w is None
+    assert samples_from_scene(scene, "forklift", {})[0].objects == ()

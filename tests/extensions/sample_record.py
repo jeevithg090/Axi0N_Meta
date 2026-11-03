@@ -18,7 +18,9 @@ from rulecam.replay.cache import ReplayCache
 from tests.fakes import FakeClock
 from tests.fakes.extensions import FakeMuseCode, FakeSparkOpen
 
-UI_FIXTURE = Path(__file__).resolve().parents[2] / "ui" / "src" / "fixtures" / "extension-sample.json"
+UI_FIXTURE = (
+    Path(__file__).resolve().parents[2] / "ui" / "src" / "fixtures" / "extension-sample.json"
+)
 REQUEST = ExtensionRequest(
     request="Alert if a pallet is stacked above the yellow line on the rack",
     concept="pallet",

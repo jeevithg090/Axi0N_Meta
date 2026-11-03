@@ -3,7 +3,6 @@ import { Barlow, Barlow_Condensed, DM_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { Topbar } from "@/components/Topbar";
-import { DashboardKpiBar } from "@/components/DashboardKpiBar";
 import { ThemeProvider } from "@/lib/theme";
 import { AuthProvider } from "@/lib/auth";
 import { StreamProvider } from "@/lib/stream";
@@ -55,7 +54,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <AuthProvider>
               <div className="root">
                 <Topbar />
-                <DashboardKpiBar />
                 <main>{children}</main>
               </div>
             </AuthProvider>

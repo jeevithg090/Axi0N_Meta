@@ -1033,6 +1033,112 @@ def advisor_seal_status(
         typer.echo(dumps_status(seal_status(records, seal_id)))
 
 
+chain_app = typer.Typer(help="Chain Mode: one rule pack, many stores (rulecam.chain).")
+app.add_typer(chain_app, name="chain")
+
+
+@chain_app.command("prove")
+def chain_prove(
+    pack: Annotated[Path, typer.Argument(help="A rule pack YAML")],
+) -> None:
+    """Lint a rule pack and run Rule CI at every knob value stores may pick."""
+    from rulecam.chain import load_pack, prove_pack, render_proof  # noqa: PLC0415
+
+    proof = prove_pack(load_pack(pack))
+    typer.echo(render_proof(proof), nl=False)
+    if not proof.releasable:
+        raise typer.Exit(code=1)
+
+
+@chain_app.command("fit")
+def chain_fit(
+    pack: Annotated[Path, typer.Argument(help="A rule pack YAML")],
+    stores: Annotated[Path, typer.Argument(help="A directory of store setup YAML files")],
+    *,
+    out: Annotated[Path | None, typer.Option(help="Write every store's fit as JSON")] = None,
+) -> None:
+    """Fit a pack to every store: bind slots, apply knobs, lint and run Rule CI per store."""
+    from pydantic import TypeAdapter  # noqa: PLC0415
+
+    from rulecam.chain import StoreFit, fit_chain, load_pack, load_stores, render_fits  # noqa: PLC0415
+
+    fits = fit_chain(load_pack(pack), load_stores(stores))
+    typer.echo(render_fits(fits), nl=False)
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(TypeAdapter(tuple[StoreFit, ...]).dump_json(fits, indent=2))
+        typer.echo(f"wrote {out}")
+
+
+@chain_app.command("demo")
+def chain_demo(
+    directory: Annotated[Path, typer.Argument(help="e.g. chains/kitchen-basics")],
+    *,
+    out: Annotated[Path | None, typer.Option(help="Write the full report as JSON")] = None,
+) -> None:
+    """Prove, fit and score a chain from pack.yaml, stores/ and simulation.yaml (SIMULATED)."""
+    from rulecam.chain import (  # noqa: PLC0415
+        build_report,
+        load_pack,
+        load_simulation,
+        load_stores,
+        render_report,
+    )
+
+    pack = load_pack(directory / "pack.yaml")
+    sim_path = directory / "simulation.yaml"
+    report = build_report(
+        pack,
+        load_stores(directory / "stores"),
+        simulation=load_simulation(sim_path) if sim_path.is_file() else None,
+    )
+    typer.echo(render_report(report, title=pack.title), nl=False)
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+        typer.echo(f"wrote {out}")
+
+
+@chain_app.command("rollup")
+def chain_rollup(
+    day: Annotated[str, typer.Argument(help="UTC day, YYYY-MM-DD")],
+    roots: Annotated[list[Path], typer.Argument(help="Each store's evidence/roots/<day>.txt")],
+    *,
+    proofs: Annotated[Path | None, typer.Option(help="Write one inclusion proof per store")] = None,
+) -> None:
+    """Roll every store's daily evidence root up into one HQ root, with per-store proofs."""
+    from rulecam.chain import chain_root, inclusion_proof, load_roots  # noqa: PLC0415
+
+    chain = chain_root(date.fromisoformat(day), load_roots(roots))
+    typer.echo(f"{chain.day.isoformat()} HQ root {chain.root} over {len(chain.stores)} stores")
+    for store in chain.stores:
+        typer.echo(f"  {store.store_id} {store.root} {store.n_records}")
+    if proofs is not None:
+        proofs.mkdir(parents=True, exist_ok=True)
+        for store in chain.stores:
+            path = proofs / f"{chain.day.isoformat()}-{store.store_id}.proof.json"
+            path.write_text(
+                inclusion_proof(chain, store.store_id).model_dump_json(indent=2), encoding="utf-8"
+            )
+        typer.echo(f"wrote {len(chain.stores)} proofs to {proofs}")
+
+
+@chain_app.command("verify-proof")
+def chain_verify_proof(
+    proof: Annotated[Path, typer.Argument(help="A store's .proof.json from `chain rollup`")],
+) -> None:
+    """Check that a store's evidence root is inside the HQ root it names."""
+    from rulecam.chain import InclusionProof, verify_inclusion  # noqa: PLC0415
+
+    checked = InclusionProof.model_validate_json(proof.read_text(encoding="utf-8"))
+    if not verify_inclusion(checked):
+        typer.echo(f"FAIL: {checked.store.store_id} is not in HQ root {checked.root}")
+        raise typer.Exit(code=1)
+    typer.echo(
+        f"OK: {checked.store.store_id} root {checked.store.root} is in HQ root {checked.root}"
+    )
+
+
 @app.command()
 def context(
     vertical: Annotated[str, typer.Argument(help="festival, supermarket or general")],

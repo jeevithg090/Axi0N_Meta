@@ -1,0 +1,18 @@
+# SIMULATED store behaviour for the Chain Mode demo (`rulecam chain demo chains/kitchen-basics`).
+# This is not real store data: every number it produces is labelled SIMULATED, and no business
+# figure is ever drawn from it. Real stores report rule outcomes and camera coverage instead.
+seed: 14
+start: 2026-11-02T08:00:00Z
+hours: 12
+per_hour: 6
+default_compliance: 0.9
+stores:
+  store-01:
+    compliance: {handwash-before-line: 0.95}
+  store-07:
+    # Harbour Rd's line misses the hand wash far more often than the rest of the chain.
+    compliance: {handwash-before-line: 0.6}
+  store-14:
+    # Station Sq's kitchen camera was knocked at 11:00 and pointed at the wall until 14:36.
+    blind:
+      kitchen-cam: [{from_h: 3, hours: 3.6, reason: moved}]

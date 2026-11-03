@@ -28,6 +28,7 @@ dependencies = [
   "prometheus-client>=0.21",
   "trackers==2.6.1",  # Apache-2.0: ByteTrack between SAM keyframes (P1-03)
   "supervision==0.30.0",  # MIT: the detections type `trackers` takes
+  "z3-solver>=4.15,<5",  # MIT: proves properties of model-written checks (extensions/smt)
 ]
 
 [project.optional-dependencies]
@@ -126,7 +127,7 @@ disallow_untyped_defs = false
 module = [
   "cv2.*", "kasa.*", "modal.*", "transformers.*", "duckdb.*", "shapely.*",
   "qrcode.*", "ultralytics.*", "onnxruntime.*", "playwright.*", "motmetrics.*",
-  "defusedxml.*", "boxmot.*",
+  "defusedxml.*", "boxmot.*", "z3.*",
 ]
 ignore_missing_imports = true
 

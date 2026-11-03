@@ -1,0 +1,105 @@
+"""Data only: test cases for check.py (Rulecam parses this with ast.literal_eval)."""
+
+CASES = [
+    {
+        "name": "top-10-px-above",
+        "sample": {
+            "timestamp": "2026-11-03T12:00:00Z",
+            "frame_w": 640,
+            "frame_h": 480,
+            "objects": [
+                {
+                    "concept": "pallet",
+                    "box_xyxy_px": [200, 190, 320, 420],
+                    "mask_top_y_px": 190,
+                    "mask_area_px": 27600,
+                    "ground_xy_m": None,
+                    "score": 0.9,
+                }
+            ],
+            "zones": {},
+            "lines": {"yellow": [[0, 200], [640, 200]]},
+            "px_per_m": None,
+        },
+        "expect": True,
+    },
+    {
+        "name": "top-10-px-below",
+        "sample": {
+            "timestamp": "2026-11-03T12:00:00Z",
+            "frame_w": 640,
+            "frame_h": 480,
+            "objects": [
+                {
+                    "concept": "pallet",
+                    "box_xyxy_px": [200, 210, 320, 420],
+                    "mask_top_y_px": 210,
+                    "mask_area_px": 25200,
+                    "ground_xy_m": None,
+                    "score": 0.9,
+                }
+            ],
+            "zones": {},
+            "lines": {"yellow": [[0, 200], [640, 200]]},
+            "px_per_m": None,
+        },
+        "expect": False,
+    },
+    {
+        "name": "no-pallets",
+        "sample": {
+            "timestamp": "2026-11-03T12:00:00Z",
+            "frame_w": 640,
+            "frame_h": 480,
+            "objects": [],
+            "zones": {},
+            "lines": {"yellow": [[0, 200], [640, 200]]},
+            "px_per_m": None,
+        },
+        "expect": False,
+    },
+    {
+        "name": "no-line-drawn",
+        "sample": {
+            "timestamp": "2026-11-03T12:00:00Z",
+            "frame_w": 640,
+            "frame_h": 480,
+            "objects": [
+                {
+                    "concept": "pallet",
+                    "box_xyxy_px": [200, 100, 320, 420],
+                    "mask_top_y_px": 100,
+                    "mask_area_px": 38400,
+                    "ground_xy_m": None,
+                    "score": 0.9,
+                }
+            ],
+            "zones": {},
+            "lines": {},
+            "px_per_m": None,
+        },
+        "expect": False,
+    },
+    {
+        "name": "sloped-line-above",
+        "sample": {
+            "timestamp": "2026-11-03T12:00:00Z",
+            "frame_w": 640,
+            "frame_h": 480,
+            "objects": [
+                {
+                    "concept": "pallet",
+                    "box_xyxy_px": [300, 230, 340, 420],
+                    "mask_top_y_px": 230,
+                    "mask_area_px": 7600,
+                    "ground_xy_m": None,
+                    "score": 0.8,
+                }
+            ],
+            "zones": {},
+            "lines": {"yellow": [[0, 200], [640, 280]]},
+            "px_per_m": None,
+        },
+        "expect": True,
+    },
+]

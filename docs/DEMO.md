@@ -31,11 +31,11 @@ deployed system did:
 Say it the way it happened: "the driver is the forklift's operator, so nothing fired". The REPLAY
 has no strip or Glimmer verdict to show; use the live demo for a verified alert.
 
-Two more golden runs are ready to record (add-on 1.2): `worker_passes_4m` (the campaign's T02:
-a verified alert, Glimmer 0.99) and `driver_only_4m` (T04: Glimmer rejects the seated driver).
-Their scenario files are in `scenarios/pending/`, the demo page already shows their slots, and
-`scenarios/README.md` ("Recording T02 and T04") has the commands. Once recorded, CI gates their
-score (`make golden-gate`): T02 must keep its verified alert, T04 must stay alert-free.
+Two more golden runs were recorded live on 2 Nov (add-on 1.2): `worker_passes_4m` (the
+campaign's T02: Glimmer confirms the violation, a verified alert) and `driver_only_4m` (T04:
+Glimmer rejects the seated driver). Open them with `?demo=worker_passes_4m` and
+`?demo=driver_only_4m`. CI gates their score (`make golden-gate`): T02 must keep its verified
+alert, T04 must stay alert-free.
 
 ## Live demo script (3 minutes)
 

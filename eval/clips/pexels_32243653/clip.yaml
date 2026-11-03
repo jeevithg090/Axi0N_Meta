@@ -13,6 +13,6 @@ rules:
   - id: forklift_2m
     request: Keep people at least 2 metres away from a moving forklift.
     status: unlabelled
-  - id: forklift_4m  # golden run T04 (scenarios/pending/driver_only_4m.yaml)
+  - id: forklift_4m  # golden run T04 (scenarios/driver_only_4m.yaml)
     request: Keep people at least 4 metres away from a moving forklift.
     status: unlabelled

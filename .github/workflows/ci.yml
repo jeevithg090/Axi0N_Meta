@@ -67,7 +67,8 @@ jobs:
       - run: uv run pytest tests/guardrails
 
   ml-cpu:
-    # Torch-based tests (world model, pose, voice out); skipped when none of those packages exist.
+    # Torch-based tests (world model, pose, voice out, BoxMOT's BoT-SORT with supplied re-ID
+    # vectors: no weights); skipped when none of those packages exist.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,11 +77,11 @@ jobs:
           python-version: "3.12"
           enable-cache: true
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
-      - run: uv sync --group dev --extra ml
+      - run: uv sync --group dev --extra ml --extra reid
       - run: |
           dirs=""
-          for d in tests/worldmodel tests/pose tests/voice_out; do
-            if [ -d "$d" ]; then dirs="$dirs $d"; fi
+          for d in tests/worldmodel tests/pose tests/voice_out tests/perception/test_botsort.py; do
+            if [ -e "$d" ]; then dirs="$dirs $d"; fi
           done
           if [ -n "$dirs" ]; then uv run pytest $dirs; else echo "no ML test packages yet"; fi
 

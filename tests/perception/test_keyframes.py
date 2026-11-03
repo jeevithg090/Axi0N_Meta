@@ -278,6 +278,8 @@ def test_self_hosted_keyframes_make_one_call_for_every_concept() -> None:
         "height": 720,
         "include_confidence": True,
         "masks": False,
+        "min_confidence": 0.5,
+        "embed_concepts": [],
     }
     assert [(d.frame_idx, d.ts) for d in batch.detections["forklift"]] == [
         (f.frame_idx, f.ts) for f in frames
@@ -287,6 +289,40 @@ def test_self_hosted_keyframes_make_one_call_for_every_concept() -> None:
     assert bus.topics() == [Topic.RELAY_MODEL_USED]
     total = metrics.report().total
     assert (total.sam_calls_self_hosted, total.gpu_seconds) == (1, 0.2)
+
+
+def test_self_hosted_keyframes_ask_for_the_trackers_low_confidence_floor() -> None:
+    chunk = make_chunk()
+    worker = FakeImageWorker()
+    SelfHostedKeyframes(worker, min_confidence=0.1).segment_keyframes(
+        chunk, frames_of(chunk), ("person",)
+    )
+    assert worker.calls[0][1]["min_confidence"] == 0.1
+
+
+def test_self_hosted_keyframes_ask_for_person_vectors_and_keep_them() -> None:
+    chunk = make_chunk()
+    frames = frames_of(chunk)
+    vector = [0.6, 0.8]
+    reply = FakeImageWorker().segment_images([f.jpeg for f in frames], {"concepts": ["person"]})
+    for obj in reply["objects"]:
+        obj["embedding"] = vector if obj["image_idx"] == 1 else None
+    worker = FakeImageWorker(reply)
+    batch = SelfHostedKeyframes(worker, embed=lambda c: c == "person").segment_keyframes(
+        chunk, frames, ("person", "forklift")
+    )
+    assert worker.calls[0][1]["embed_concepts"] == ["person"]
+    assert batch.embeddings == {"person": {(frames[1].frame_idx, 0): (0.6, 0.8)}}
+    plain = FakeImageWorker()
+    assert SelfHostedKeyframes(plain).segment_keyframes(chunk, frames, ("person",)).embeddings == {}
+    assert plain.calls[0][1]["embed_concepts"] == []
+
+
+def test_image_requests_embed_only_concepts_they_ask_for() -> None:
+    with pytest.raises(ValueError, match="embed"):
+        SamImageRequest(
+            concepts=("person",), n_images=1, width=10, height=10, embed_concepts=("cart",)
+        )
 
 
 def test_self_hosted_keyframes_split_long_batches() -> None:

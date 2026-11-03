@@ -18,6 +18,7 @@ from rulecam.api.app import (
     AppServices,
     _cameras,
     _log_task_end,
+    code_revision,
     create_app,
     find_plan,
     openapi_json,
@@ -25,6 +26,7 @@ from rulecam.api.app import (
     viewer_origins,
 )
 from rulecam.api.plans import PlanRegistry
+from rulecam.api.prometheus import HealthProbe
 from rulecam.api.ws import frame
 from rulecam.bus import Bus, Message, Topic
 from rulecam.capture.pair_phone import PairedCamera
@@ -72,6 +74,8 @@ def test_health_and_mode(services: AppServices) -> None:
             "site": "site",
             "mode": "replay",
             "runtime": False,
+            "revision": None,
+            "gpus": {},
         }
         assert client.get("/mode").json() == {"mode": "replay", "badge": "REPLAY"}
         assert client.put("/mode", json={"mode": "live"}).json() == {
@@ -80,6 +84,39 @@ def test_health_and_mode(services: AppServices) -> None:
         }
         assert services.cache.mode == "live"
         assert client.put("/mode", json={"mode": "bogus"}).status_code == 422
+
+
+def test_health_reports_the_shipped_revision(services: AppServices, tmp_path: Path) -> None:
+    shipped = tmp_path / "REVISION"
+    assert code_revision(None, shipped) is None  # a dev checkout: nothing shipped
+    shipped.write_text("")
+    assert code_revision(None, shipped) is None
+    shipped.write_text("0123abcd4567\n")
+    assert code_revision(None, shipped) == "0123abcd4567"
+    assert code_revision(" fromenv ", shipped) == "fromenv"  # RULECAM_REVISION wins
+    services.revision = code_revision(None, shipped)
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        assert client.get("/health").json()["revision"] == "0123abcd4567"
+
+
+def test_health_serves_each_gpu_state(services: AppServices) -> None:
+    services.health_probes = (
+        HealthProbe("glimmer", "g", fetch=lambda _: None),
+        HealthProbe("sam", "s", fetch=lambda _: {"status": "ok"}),
+    )
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        gpus = client.get("/health").json()["gpus"]
+    assert gpus["glimmer"]["state"] == "unhealthy"
+    assert gpus["glimmer"]["up"] is False
+    assert gpus["sam"] == {
+        "state": "warm",
+        "up": True,
+        "serverless": False,
+        "workers_min": None,
+        "workers_max": None,
+        "workers": None,
+        "error": None,
+    }
 
 
 def test_evidence_routes(services: AppServices) -> None:
@@ -529,3 +566,71 @@ def test_public_demo_setting_reaches_the_app(tmp_path: Path) -> None:
         Settings(_env_file=None, rulecam_data_dir=tmp_path, public_demo=True), "s"
     )
     assert (off.public_demo, on.public_demo) == (False, True)
+
+
+def test_pollers_run_back_to_back_and_survive_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    from rulecam.api import app as app_module  # noqa: PLC0415
+
+    monkeypatch.setattr(app_module, "TICK_S", 0.0)
+    calls: list[str] = []
+
+    def flaky() -> None:
+        calls.append("poll")
+        if len(calls) == 1:
+            raise RuntimeError("poll failed")
+
+    async def run() -> None:
+        task = asyncio.create_task(app_module._poll_forever(flaky))
+        while len(calls) < 3:
+            await asyncio.sleep(0.01)
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    asyncio.run(asyncio.wait_for(run(), timeout=5))
+    assert len(calls) >= 3
+
+
+def test_lifespan_starts_pollers(services: AppServices) -> None:
+    polled = threading.Event()
+
+    def poller() -> None:
+        polled.set()
+        polled.wait(0.01)
+
+    services.pollers = (poller,)
+    with owner(create_app(services)):
+        assert polled.wait(timeout=5)
+
+
+def test_telegram_is_wired_when_a_bot_token_is_set(tmp_path: Path) -> None:
+    settings = Settings(
+        _env_file=None,
+        rulecam_data_dir=tmp_path,
+        telegram_bot_token="123:abc",  # noqa: S106 - test fixture
+        telegram_bot_username="site_bot",
+    )
+    services = services_from_settings(settings, "s")
+    assert len(services.pollers) == 1  # the long-polling bot (not started in this test)
+    assert services.response is not None
+    assert services.response.telegram is True
+    app = create_app(services)
+    paths = json.loads(openapi_json(app))["paths"]
+    assert {"/telegram/link", "/telegram/links"} <= set(paths)
+    with TestClient(app, **TUNNEL) as remote:  # type: ignore[arg-type]
+        assert remote.get("/telegram/link", params={"role": "aide"}).status_code == 403
+    assert services_from_settings(Settings(_env_file=None, rulecam_data_dir=tmp_path)).pollers == ()
+
+
+def test_webhooks_are_wired_when_configured(tmp_path: Path) -> None:
+    settings = Settings(
+        _env_file=None,
+        rulecam_data_dir=tmp_path,
+        rulecam_webhooks="slack=https://hooks.slack.com/services/x,teams=https://flow.example/t",
+        public_ui_url="https://ui.example",
+    )
+    services = services_from_settings(settings, "s")
+    assert len(services.pollers) == 1  # the webhook queue
+    assert services.response is not None
+    assert services.response.webhooks == ("slack", "teams")
+    assert "hooks.slack.com" not in services.response.model_dump_json()  # URLs are secrets

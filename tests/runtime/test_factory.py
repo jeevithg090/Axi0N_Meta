@@ -13,15 +13,18 @@ from rulecam.bus import Bus
 from rulecam.clients.errors import ClientConfigError
 from rulecam.config import Settings
 from rulecam.evidence.chain import EventChain
+from rulecam.perception.crop_zoom import FallbackCrops, LocalCrops
 from rulecam.perception.keyframe_tracker import KeyframeTracker
 from rulecam.perception.keyframes import HostedKeyframes, Keyframe, SelfHostedKeyframes
 from rulecam.perception.metrics import Backend, PerceptionMetrics
+from rulecam.perception.point_map import WorkerGeometry
 from rulecam.perception.router import KeyframeFallback, LimitedSegmenter, Purpose
 from rulecam.perception.sam_runtime import HttpSamWorker, ModalWorker
 from rulecam.replay.cache import ReplayCache
 from rulecam.replay.errors import ReplayMiss
 from rulecam.rules.backtest import DecisionContext, candidate_payload, read_candidate_payload
 from rulecam.rules.store import ParquetTrackStore
+from rulecam.runtime import factory
 from rulecam.runtime.factory import (
     ChainEventSource,
     ChunkIndex,
@@ -29,15 +32,20 @@ from rulecam.runtime.factory import (
     Perception,
     build_perception,
     build_runtime,
+    build_tier0,
     build_tier1,
+    crop_segmenter,
+    geometry_estimator,
     glimmer_health_url,
     hosted_sam,
+    person_tracker,
     self_hosted_worker,
 )
 from rulecam.runtime.loop import RuntimeLoop
 from rulecam.runtime.strips import EpisodeStrips
 from rulecam.verify.guard import GuardedVerifier
 from rulecam.verify.policy import VerificationPolicy
+from rulecam.verify.tier0 import CropZoomCheck
 from tests.fakes import EPOCH, FakeClock, make_chunk, make_track
 from tests.rules.helpers import CAL, make_rule
 from tests.verify.helpers import make_candidate
@@ -225,6 +233,25 @@ def test_tier1_is_glimmer_behind_retry_and_a_circuit_breaker(tmp_path: Path) -> 
     assert isinstance(build_tier1(replay, cache=cache, clock=clock, bus=bus), GuardedVerifier)
 
 
+def test_tier1_recovery_probe_never_polls_a_serverless_glimmer(tmp_path: Path) -> None:
+    clock, bus = FakeClock(), Bus()
+    cache = ReplayCache(tmp_path / "replay", "live", clock=clock, bus=bus)
+    pod = settings(tmp_path, rulecam_mode="live")
+    assert build_tier1(pod, cache=cache, clock=clock, bus=bus)._probe is not None
+    serverless = settings(
+        tmp_path, rulecam_mode="live", glimmer_base_url="https://z000o8uch2wj4i.api.runpod.ai/v1"
+    )
+    assert build_tier1(serverless, cache=cache, clock=clock, bus=bus)._probe is None
+
+    def up() -> bool:
+        return True
+
+    given = build_tier1(serverless, cache=cache, clock=clock, bus=bus, probe=up)
+    assert given._probe is up
+    replay = settings(tmp_path, rulecam_mode="replay")
+    assert build_tier1(replay, cache=cache, clock=clock, bus=bus, probe=up)._probe is None
+
+
 def test_glimmer_health_url_drops_the_api_suffix() -> None:
     assert glimmer_health_url("http://127.0.0.1:8080/v1") == "http://127.0.0.1:8080/health"
     assert glimmer_health_url("https://pod-8080.proxy.runpod.net/v1/") == (
@@ -284,6 +311,80 @@ def test_image_mode_on_our_gpu_pod_falls_back_to_hosted_images_and_counts_it(
     assert tracker.estimate(make_chunk(), 1) == 75  # hosted prices while degraded
 
 
+def test_person_botsort_runs_only_in_prototype_mode_with_boxmot(tmp_path: Path) -> None:
+    proto = settings(tmp_path, rulecam_prototype_mode=True)
+    assert Settings(_env_file=None).rulecam_person_tracker == "botsort"
+    assert person_tracker(settings(tmp_path), available=True) is None  # never outside prototype
+    assert person_tracker(proto, available=False) is None  # no `reid` extra: ByteTrack
+    off = settings(tmp_path, rulecam_prototype_mode=True, rulecam_person_tracker="bytetrack")
+    assert person_tracker(off, available=True) is None
+    assert callable(person_tracker(proto, available=True))
+
+
+def test_image_mode_asks_for_low_confidence_and_person_vectors_only_with_botsort(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(factory, "boxmot_available", lambda: True)
+    _, loop = _image_runtime(tmp_path, rulecam_prototype_mode=True, **SAM_HTTP)
+    primary = loop._tracker._keyframes._primary  # type: ignore[attr-defined]
+    assert primary._min_confidence == 0.1
+    assert primary._embed("person")
+    assert not primary._embed("forklift")
+    _, plain = _image_runtime(tmp_path / "plain", **SAM_HTTP)
+    assert plain._tracker._keyframes._primary._embed is None  # type: ignore[attr-defined]
+
+
 def test_bad_keyframe_rate_overrides_fail_at_startup(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="camera_id=fps"):
         _image_runtime(tmp_path, rulecam_keyframe_fps_cameras="dock")
+
+
+# --- crop-zoom and Tier 0 (add-on 3.3) --------------------------------------------------------
+
+
+def _perception(tmp_path: Path, **extra: object) -> Perception:
+    bus, clock = Bus(), FakeClock()
+    cache = ReplayCache(tmp_path / "replay", "replay", clock=clock, bus=bus)
+    return build_perception(settings(tmp_path, **extra), cache=cache, clock=clock, bus=bus)
+
+
+def test_crop_zoom_is_the_pod_with_hosted_fallback_hosted_alone_or_off(tmp_path: Path) -> None:
+    live = {"rulecam_mode": "live"}
+    pod = _perception(tmp_path, **live, **SAM_HTTP)
+    assert isinstance(crop_segmenter(settings(tmp_path, **live), pod), FallbackCrops)
+    hosted = _perception(tmp_path, **live)
+    assert isinstance(crop_segmenter(settings(tmp_path, **live), hosted), LocalCrops)
+    off = settings(tmp_path, rulecam_mode="live", rulecam_crop_zoom=False)
+    assert crop_segmenter(off, pod) is None
+    assert crop_segmenter(settings(tmp_path, rulecam_mode="replay"), pod) is None
+
+
+def test_tier0_is_built_outside_replay_and_reaches_glimmer(tmp_path: Path) -> None:
+    live = settings(tmp_path, rulecam_mode="live")
+    perception = _perception(tmp_path, rulecam_mode="live")
+    tier0 = build_tier0(live, perception)
+    assert isinstance(tier0, CropZoomCheck)
+    assert build_tier0(settings(tmp_path, rulecam_mode="replay"), perception) is None
+    clock, bus = FakeClock(), Bus()
+    cache = ReplayCache(tmp_path / "replay", "live", clock=clock, bus=bus)
+    tier1 = build_tier1(live, cache=cache, clock=clock, bus=bus, tier0=tier0)
+    assert tier1._inner._context is tier0  # type: ignore[attr-defined]
+
+
+def test_moge_calibration_is_auto_on_the_pod_and_off_without_it_or_in_replay(
+    tmp_path: Path,
+) -> None:
+    pod = _perception(tmp_path, rulecam_mode="live", **SAM_HTTP)
+    auto = geometry_estimator(settings(tmp_path, rulecam_mode="live"), pod)
+    assert isinstance(auto, WorkerGeometry)
+    assert auto._check is True
+    forced = geometry_estimator(
+        settings(tmp_path, rulecam_mode="live", rulecam_calibration_model="moge"), pod
+    )
+    assert forced is not None
+    assert forced.available() is True  # `moge` never asks the pod's health
+    off = settings(tmp_path, rulecam_mode="live", rulecam_calibration_model="off")
+    assert geometry_estimator(off, pod) is None
+    assert geometry_estimator(settings(tmp_path, rulecam_mode="replay"), pod) is None
+    hosted = _perception(tmp_path, rulecam_mode="live")
+    assert geometry_estimator(settings(tmp_path, rulecam_mode="live"), hosted) is None

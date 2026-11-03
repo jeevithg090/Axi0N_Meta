@@ -48,6 +48,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         "sam3 @ git+https://github.com/facebookresearch/sam3.git@${SAM3_COMMIT}" \
         opencv-python-headless "setuptools<81" "numpy<2" "pydantic>=2.7" huggingface_hub \
         einops pycocotools psutil timm
+# Person re-ID (OSNet-AIN, add-ons 3.1/3.2): BoxMOT without its numpy >= 2 pin, plus the
+# dependencies its ReID path imports (sam_worker.BOXMOT_PACKAGE / REID_DEPENDENCIES).
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/sam-venv/bin/python --no-deps "boxmot==26.0.0" \
+    && uv pip install --python /opt/sam-venv/bin/python "numpy<2" "rich>=15" platformdirs \
+        "filterpy<2" "lapcpp<2" "gdown<6" "scikit-learn<2" "pandas<3"
 
 FROM ${CUDA_IMAGE}
 RUN apt-get update \
@@ -86,7 +92,7 @@ RUN set -eu; \
     if [ -n "$missing" ]; then echo "llama-server: unresolved libraries:" >&2; \
         echo "$missing" >&2; exit 1; fi
 # Fail the build, not the pod, when an import is missing (no GPU is needed to import).
-RUN python -c "import sam3.model_builder, torch, cv2, einops, pycocotools, psutil, timm, rulecam.perception.sam_server" \
+RUN python -c "import sam3.model_builder, torch, cv2, einops, pycocotools, psutil, timm, boxmot.reid.factory, rulecam.perception.sam_server" \
     && python /opt/rulecam/deploy/gpu_supervisor.py --plan
 EXPOSE 8080 8090
 # The first start downloads Glimmer (about 18 GB) and the SAM checkpoint (about 3.5 GB).

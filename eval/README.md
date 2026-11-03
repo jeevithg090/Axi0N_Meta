@@ -51,6 +51,22 @@ samples. Each run is saved as `reports/eval/runs/<timestamp>/<clip>__<rule>.run.
 `eval score` re-scores those files offline, which is the CI replay path (the recorded chain holds
 every model reply). Copy a run folder into `eval/baseline/` to keep it.
 
+### Ask benchmark (`rulecam eval ask`, add-on 2.6)
+
+```bash
+uv run rulecam eval ask eval/ask/corridor.yaml --runs 3            # on the API pod (loopback)
+RULECAM_OWNER_PASSPHRASE=... uv run rulecam eval ask eval/ask/corridor.yaml \
+  --api https://rulecam.vercel.app/rulecam-api --origin https://rulecam.vercel.app
+```
+
+Asks each question of the set `--runs` times through `POST /ask/stream`, naming the numbers it
+wants; the agent returns them in the answer's `numbers` field, so nothing is parsed from prose.
+Writes `reports/eval/ask/<timestamp>-<set>.json` and `.md`: pass rate per question, each run's
+values (stability), median seconds and each answer's run-log receipt. Every answer the API gives
+is also appended to the hash-chained run log `<data>/ask/runs.jsonl` (prompt SHA-256, git SHA,
+models, step timings and results); `rulecam.ask.runlog.verify_run_log` checks the chain.
+`--question C07` (repeatable) runs only some questions.
+
 ### The 31 Oct baseline (`baseline/2026-10-31-live/`)
 
 The first recorded run, taken from the live deployment's evidence chain before this harness

@@ -26,11 +26,19 @@ The public verify page gets `GET /evidence/{day}/hashes` (record hashes only) an
 `GET /evidence/{day}/root` (the current and the committed Merkle root), so anyone can check that
 the day's log still reproduces the root committed to git without seeing a single record.
 
+Incident reports (add-on 5.2, owner-only): `GET /incidents?day=` lists a day's events,
+`GET /incidents/{event_id}` returns one event's report (clause, rule, measurement, every chained
+verdict, action, ack and label, the chain status), and `GET /incidents/{event_id}/report`
+downloads it as a PDF (`evidence.incident`), or as printable HTML when Chromium is not installed.
+
 Response (WS1b): `services_from_settings` builds the policy, firewall and actions once
 (`runtime.response`), mounts the alerts PWA routes (`/alerts`, `/ack`, `/interlock/{device}/resume`,
 owner-only), ticks the escalation timers once a second, and serves how the response side is
 configured (Tier 2, firewall, dry run, interlock) in `GET /runtime/metrics` under `response`.
-Upheld disputes and owner corrections become permanent Rule CI regressions (WS1f).
+Upheld disputes, owner corrections and responders' *False alarm* taps become permanent Rule CI
+regressions (WS1f). With `TELEGRAM_BOT_TOKEN`, a poller long-polls the Telegram bot for taps and
+the owner mints role links at `GET /telegram/link?role=…` (add-on 5.1). With `RULECAM_WEBHOOKS`,
+another poller sends the signed outbound webhooks (add-on 5.4).
 
 Cost (WS3): with the runtime on, a `CostWatch` ticks once a second: the per-camera dollar budget
 (alarm and degrade, `runtime.cost`), the cost per camera-hour, and the optional idle GPU stop
@@ -49,13 +57,26 @@ from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket, params, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    WebSocket,
+    params,
+    status,
+)
+from fastapi import Path as PathParam
 from fastapi.responses import PlainTextResponse
+from fastapi.responses import Response as HttpResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
+from rulecam.act.api import FalseAlarmSink
 from rulecam.act.drills import DrillRunner, drills_router
 from rulecam.advisor.api import AdviceStore, PlanFactory, advice_router
 from rulecam.api.ask import ask_router
@@ -67,10 +88,12 @@ from rulecam.api.prometheus import (
     VerdictCounter,
     dependency_probes,
     metrics_router,
+    serverless_gpu_rate,
 )
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
     AskAgent,
+    AskLimits,
     CaptionMemory,
     FrameGrabber,
     camera_names,
@@ -78,6 +101,9 @@ from rulecam.ask import (
     planner_profiles,
 )
 from rulecam.ask.identity import IdentityMemory, gpu_embedder
+from rulecam.ask.review import SparkOpenReviewer
+from rulecam.ask.runlog import AskRunLog, git_sha
+from rulecam.ask.watch import ClipJoiner
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
 from rulecam.clients.errors import ClientConfigError
@@ -86,9 +112,20 @@ from rulecam.clients.open_weights.glimmer import GlimmerClient
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
 from rulecam.config import Settings, get_settings
-from rulecam.contracts import Calibration, Chunk, Clock, SitePlan
+from rulecam.contracts import Calibration, Chunk, Clock, PrivacyMode, SitePlan
 from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
+from rulecam.evidence.incident import (
+    IncidentReport,
+    IncidentSummary,
+    PdfPrinter,
+    build_incident,
+    candidates,
+    find_incident,
+    render_incident_html,
+    report_document,
+)
 from rulecam.evidence.merkle import chain_root, read_day_roots
+from rulecam.evidence.packs import Thumbnail, render_pdf
 from rulecam.log import get_logger
 from rulecam.perception.correction import CorrectionService
 from rulecam.perception.correction_api import correction_router
@@ -111,11 +148,15 @@ from rulecam.runtime.factory import (
     Perception,
     build_perception,
     build_runtime,
+    build_tier0,
     build_tier1,
+    crop_segmenter,
+    geometry_estimator,
 )
 from rulecam.runtime.idle_stop import IdleGpuStop
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
 from rulecam.runtime.response import Response, ResponseStatus, build_response
+from rulecam.runtime.serverless import GpuHealth, RunPodServerless
 from rulecam.verify.tier2 import SparkOpenVerifier
 from rulecam.worker import DisputeService, worker_router
 from rulecam.worker.disputes import DisputeReviewer
@@ -142,6 +183,8 @@ class AppServices:
         verify_dir: Directory served at `/verify` (the packaged browser verify page in
             production, P3-07b); `None` skips it.
         tickers: Called once a second off the event loop (e.g. `EscalationManager.tick`).
+        pollers: Blocking calls run back to back, each in its own worker thread until shutdown
+            (e.g. `TelegramBot.poll`, which long-polls); each must wait on its own between calls.
         uploads_dir: Where planner uploads are stored (`POST /plans/uploads`).
         planner: The Site Planner runner (P2-06); `POST /plans/requests` needs it.
         activator: Activates approved plans in the runtime; approval answers 503 without one.
@@ -151,13 +194,19 @@ class AppServices:
         auth: Owner login (`rulecam.api.auth`); `None` means loopback only, with login off.
         questions: The planner's questions and re-runs (`PlannerService`).
         verdicts: Verdict counts for `GET /metrics`, fed from `verdict.new`.
-        health_probes: Dependencies (Glimmer, the SAM pod) whose health `GET /metrics` shows.
+        health_probes: Dependencies (Glimmer, SAM) whose state `GET /metrics` and `GET /health`
+            show.
         response: How the policy, firewall and actions are configured (`/runtime/metrics`).
         cost: The dollar budget's report (`/runtime/metrics` → `cost`, `/metrics`).
         advice: Checked Site Advisor cards served at `/advice` (P3-10).
         plan_factory: P4's measurement-plan builder; `POST /advice/{id}/accept` needs it.
         public_demo: Demo sites only: non-owners may watch `/ws` (from a viewer origin) and read
             plans. Off by default; a real site keeps those reads owner-only.
+        stills_root: Where the runtime writes evidence strips; incident reports inline stills
+            from under it only.
+        verify_base: The verify page's public URL in incident reports' QR codes (e.g.
+            `<PUBLIC_UI_URL>/rulecam-api/verify/`); default the API's own `/verify/`.
+        pdf_printer: Prints a report to PDF (`evidence.packs.render_pdf`).
     """
 
     bus: Bus
@@ -174,6 +223,7 @@ class AppServices:
     plans: PlanRegistry = field(default_factory=PlanRegistry)
     verify_dir: Path | None = None
     tickers: Sequence[Callable[[], object]] = field(default_factory=tuple)
+    pollers: Sequence[Callable[[], object]] = field(default_factory=tuple)
     uploads_dir: Path | None = None
     planner: PlannerRunner | None = None
     activator: PlanActivator | None = None
@@ -187,6 +237,10 @@ class AppServices:
     advice: AdviceStore = field(default_factory=AdviceStore)
     plan_factory: PlanFactory | None = None
     public_demo: bool = False
+    revision: str | None = None
+    stills_root: Path | None = None
+    verify_base: str | None = None
+    pdf_printer: PdfPrinter = render_pdf
 
 
 class RuntimeReport(LoopMetrics):
@@ -210,7 +264,38 @@ async def _tick_forever(tickers: Sequence[Callable[[], object]]) -> None:
         await asyncio.sleep(TICK_S)
 
 
+async def _poll_forever(poller: Callable[[], object]) -> None:
+    """Call a blocking poller back to back in a worker thread until cancelled."""
+    while True:
+        try:
+            await asyncio.to_thread(poller)
+        except Exception:  # a failing poll must not end the loop
+            _log.exception("poller_failed", poller=getattr(poller, "__qualname__", repr(poller)))
+            await asyncio.sleep(TICK_S)
+
+
 VERIFY_PAGE_DIR = Path(__file__).resolve().parent.parent / "evidence" / "verify_page"
+# Written next to `src/` by `make ship-api` (scripts/deploy/ship_api.sh): the git SHA deployed.
+REVISION_FILE = Path(__file__).resolve().parents[3] / "REVISION"
+
+
+def code_revision(configured: str | None, revision_file: Path = REVISION_FILE) -> str | None:
+    """The git revision this API runs: `RULECAM_REVISION`, else the shipped `REVISION` file.
+
+    Args:
+        configured: `RULECAM_REVISION` (e.g. baked into an image).
+        revision_file: The file `make ship-api` writes at the release root.
+
+    Returns:
+        The revision, or `None` when neither says (a dev checkout).
+    """
+    if configured:
+        return configured.strip()
+    try:
+        lines = revision_file.read_text(encoding="utf-8").split()
+    except OSError:
+        return None
+    return lines[0] if lines else None
 
 
 class DayRoot(BaseModel):
@@ -249,12 +334,19 @@ class CameraInfo(BaseModel):
 
 
 class Health(BaseModel):
-    """Body of `GET /health`."""
+    """Body of `GET /health`.
+
+    `gpus` is each GPU dependency's state (`runtime.serverless`): a serverless GPU scaled to
+    zero is `cold-ready` (up; the UI says "GPU waking" while a request starts it), not down.
+    `revision` is the git SHA deployed (`code_revision`), which `make ship-api` waits for.
+    """
 
     ok: bool
     site: str
     mode: Mode
     runtime: bool
+    revision: str | None = None
+    gpus: dict[str, GpuHealth] = {}
 
 
 def _chain_file(services: AppServices, day: date) -> Path:
@@ -282,6 +374,8 @@ def _core_router(services: AppServices, auth: OwnerAuth) -> APIRouter:
             site=services.site,
             mode=services.cache.mode,
             runtime=services.runtime is not None,
+            revision=services.revision,
+            gpus={probe.service: probe.health() for probe in services.health_probes},
         )
 
     @router.get("/mode")
@@ -388,6 +482,68 @@ def _evidence_router(services: AppServices) -> APIRouter:
     return router
 
 
+EventIdPath = Annotated[str, PathParam(pattern=r"^[A-Za-z0-9_.:-]{1,128}$")]
+
+
+def _incident(
+    services: AppServices, event_id: str, request: Request
+) -> tuple[IncidentReport, tuple[Thumbnail, ...]]:
+    found = find_incident(services.chain_root / services.site, event_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail="no incident with this event id")
+    day, records = found
+    plan = services.runtime.plan if services.runtime is not None else None
+    base = services.verify_base or f"{request.base_url}verify/"
+    return build_incident(
+        records,
+        event_id,
+        site=services.site,
+        day=day,
+        privacy_mode=plan.privacy_mode if plan is not None else PrivacyMode.STRICT,
+        verify_url=f"{base}?day={day.isoformat()}",
+        chain=verify_chain(services.chain_root / services.site / f"{day.isoformat()}.jsonl"),
+        stills_root=services.stills_root,
+    )
+
+
+def _incidents_router(services: AppServices) -> APIRouter:
+    router = APIRouter(prefix="/incidents", tags=["incidents"], dependencies=_OWNER)
+
+    @router.get("")
+    def incidents(day: date | None = None) -> list[IncidentSummary]:
+        days = _chain_days(services.chain_root / services.site)
+        chosen = day or (days[-1] if days else None)
+        if chosen is None or chosen not in days:
+            return []
+        return candidates(read_chain(_chain_file(services, chosen)))
+
+    @router.get("/{event_id}")
+    def incident(event_id: EventIdPath, request: Request) -> IncidentReport:
+        return _incident(services, event_id, request)[0]
+
+    @router.get("/{event_id}/report", response_class=HttpResponse)
+    def report(
+        event_id: EventIdPath, request: Request, format: Literal["pdf", "html"] = "pdf"
+    ) -> HttpResponse:
+        html = render_incident_html(*_incident(services, event_id, request))
+        if format == "pdf":
+            body, media_type = report_document(html, services.pdf_printer)
+        else:
+            body, media_type = html.encode("utf-8"), "text/html"
+        extension = "pdf" if media_type == "application/pdf" else "html"
+        return HttpResponse(
+            body,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="incident-{event_id}.{extension}"',
+                "Cache-Control": "no-store",
+                "X-Rulecam-Report-Format": extension,
+            },
+        )
+
+    return router
+
+
 def _runtime_router(services: AppServices) -> APIRouter:
     router = APIRouter(prefix="/runtime", tags=["runtime"])
 
@@ -425,6 +581,7 @@ def _routers(services: AppServices, auth: OwnerAuth) -> list[APIRouter]:
         _core_router(services, auth),
         metrics_router(_metrics_sources(services)),
         _evidence_router(services),
+        _incidents_router(services),
         _runtime_router(services),
         plans_router(
             services.plans,
@@ -468,6 +625,7 @@ def _lifespan(
             tasks.append(asyncio.create_task(services.runtime.run()))
         if services.tickers:
             tasks.append(asyncio.create_task(_tick_forever(services.tickers)))
+        tasks.extend(asyncio.create_task(_poll_forever(p)) for p in services.pollers)
         for task in tasks:
             task.add_done_callback(_log_task_end)
         try:
@@ -594,6 +752,8 @@ def build_planner(
         store=PlanStore(PLANS_DIR),
         audit=audit_hook(SparkOpenVerifier(spark_open), glimmer, glimmer_model=glimmer.model),
         prove=prove_plan_hook(bus, calibrations=run_calibrations(PlanStore(PLANS_DIR))),
+        zoom=crop_segmenter(settings, perception),
+        geometry=geometry_estimator(settings, perception),
     )
     frames = ChunkFrames(
         perception.chunks,
@@ -711,16 +871,34 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     chain_root = settings.rulecam_data_dir / "evidence" / "chain"
     chain = EventChain(chain_root, site, clock=clock)
     perception = build_perception(settings, cache=cache, clock=clock, bus=bus)
+    probes = dependency_probes(
+        settings.glimmer_base_url,
+        settings.sam_base_url,
+        glimmer_runpod=RunPodServerless.for_service(settings, settings.glimmer_edge_key).fetch,
+        sam_runpod=RunPodServerless.for_service(settings, settings.sam_edge_key).fetch,
+    )
+    glimmer = next((probe.up for probe in probes if probe.service == "glimmer"), None)
     response = build_response(
         settings,
-        tier1=build_tier1(settings, cache=cache, clock=clock, bus=bus),
+        tier1=build_tier1(
+            settings,
+            cache=cache,
+            clock=clock,
+            bus=bus,
+            tier0=build_tier0(settings, perception),
+            probe=glimmer,
+        ),
         segmenter=perception.hosted,
         cache=cache,
         clock=clock,
         bus=bus,
         chain=chain,
     )
-    meter = CostMeter(CostSettings.from_settings(settings), usage=perception.metrics.hosted_usage)
+    meter = CostMeter(
+        CostSettings.from_settings(settings),
+        usage=perception.metrics.hosted_usage,
+        gpu_rate=serverless_gpu_rate(probes, settings.rulecam_gpu_worker_usd_per_hour),
+    )
     runtime = (
         build_runtime(
             settings,
@@ -741,6 +919,8 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     def concepts() -> list[str]:
         plan = runtime.plan if runtime is not None else None
         return plan_concepts(plan) if plan is not None else []
+
+    false_alarm = false_alarm_regressions(lambda: runtime.plan if runtime else None, hard_negatives)
 
     pair = PairPhone(
         bus=bus, clock=clock, segmenter=perception.hosted, settings=settings, concepts=concepts
@@ -792,13 +972,21 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         activator=activator,
         viewer_origins=origins,
         public_demo=settings.public_demo,
+        revision=code_revision(settings.rulecam_revision),
+        stills_root=settings.rulecam_data_dir / "strips",
+        verify_base=(
+            f"{settings.public_ui_url.rstrip('/')}/rulecam-api/verify/"
+            if settings.public_ui_url
+            else None
+        ),
         auth=auth,
-        health_probes=dependency_probes(settings.glimmer_base_url, settings.sam_base_url),
+        health_probes=probes,
         tickers=(
             *response.tickers,
             *((watch.tick,) if watch is not None else ()),
             *ask_tickers,
         ),
+        pollers=response.pollers(false_alarm),
         response=response.status,
         cost=watch.report if watch is not None else None,
         routers=(
@@ -813,9 +1001,10 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 reviewer=response.policy,
                 hard_negatives=hard_negatives,
             ),
-            owner_alerts_router(response),
+            owner_alerts_router(response, on_false_alarm=false_alarm),
             ask_router(ask_agent, dependencies=_OWNER),
-            *((webhook,) if (webhook := response.webhook_router()) is not None else ()),
+            *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
+            *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
         ),
     )
 
@@ -827,7 +1016,11 @@ def build_ask(
 
     Served in prototype mode only: it reads per-track spans (dwell time per tracked person). The
     caption memory runs when `RULECAM_ASK_CAPTION_EVERY_S` is above 0; the identity memory
-    (DINOv2 re-identification on the GPU pod) when `SAM_BASE_URL` and `SAM_API_KEY` are set.
+    (re-identification on the GPU pod: OSNet-AIN for people, DINOv2 for objects) when
+    `SAM_BASE_URL` and `SAM_API_KEY` are set. Every answer is appended to the hash-chained run log
+    `<data>/ask/runs.jsonl`. With `RULECAM_ASK_REVIEW` and a Baseten key, Muse Spark Open (the
+    Tier 2 client) reviews each draft answer and can send it back once. Its `watch` tool joins
+    recorded chunks into one clip for Spark (`muse-spark-1.2`) to watch as video.
 
     Returns:
         The agent and the tickers; `(None, ())` (logged) outside prototype mode or without a
@@ -861,20 +1054,27 @@ def build_ask(
     )
     identity = None
     if settings.rulecam_ask_identities and settings.sam_base_url and settings.sam_api_key:
+        base_url, key = settings.sam_base_url, settings.sam_api_key.get_secret_value()
+        edge = settings.sam_edge_key.get_secret_value() if settings.sam_edge_key else None
         identity = IdentityMemory(
             tracks_root=settings.rulecam_data_dir / "tracks",
             frames=frames,
-            embed=gpu_embedder(
-                settings.sam_base_url,
-                settings.sam_api_key.get_secret_value(),
-                edge_key=(
-                    settings.sam_edge_key.get_secret_value() if settings.sam_edge_key else None
-                ),
+            embed=gpu_embedder(base_url, key, edge_key=edge),
+            embed_person=(
+                gpu_embedder(base_url, key, edge_key=edge, model="person")
+                if settings.rulecam_ask_person_reid
+                else None
             ),
             glimmer=glimmer,
             glimmer_model=glimmer.model,
             out_dir=ask_dir / "identity",
             site_profile=settings.rulecam_site_profile,
+        )
+    reviewer = None
+    if settings.rulecam_ask_review and settings.baseten_api_key is not None:
+        reviewer = SparkOpenReviewer(
+            SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus),
+            max_result_chars=settings.rulecam_ask_max_result_chars,
         )
     agent = AskAgent(
         spark=spark,
@@ -886,6 +1086,7 @@ def build_ask(
             ask_dir / "captions.jsonl",
             identity.identities_path if identity is not None else None,
             identity.notes_path if identity is not None else None,
+            max_rows=settings.rulecam_ask_max_rows,
         ),
         frames=frames,
         clock=clock,
@@ -895,6 +1096,24 @@ def build_ask(
         camera_profiles=planner_profiles(PLANS_DIR),
         caption_every_s=every,
         marks_dir=ask_dir / "marked",
+        limits=AskLimits(
+            max_rows=settings.rulecam_ask_max_rows,
+            max_result_chars=settings.rulecam_ask_max_result_chars,
+            max_frames=settings.rulecam_ask_max_frames,
+            max_actions=settings.rulecam_ask_max_actions,
+        ),
+        runs=AskRunLog(
+            ask_dir / "runs.jsonl",
+            clock=clock,
+            git_sha=git_sha(settings.rulecam_git_sha),
+            max_result_chars=settings.rulecam_ask_max_result_chars,
+        ),
+        reviewer=reviewer,
+        clips=ClipJoiner(
+            perception.chunks, ask_dir / "clips", max_seconds=settings.rulecam_ask_max_watch_s
+        ),
+        files=spark,
+        watch_model=settings.rulecam_ask_watch_model,
     )
     return agent, tuple(m.tick for m in (memory, identity) if m is not None)
 
@@ -920,13 +1139,40 @@ def cost_watch(
     )
 
 
-def owner_alerts_router(response: Response) -> APIRouter:
+def false_alarm_regressions(
+    plan: Callable[[], ActivePlan | None], hard_negatives: HardNegatives
+) -> FalseAlarmSink:
+    """A *False alarm* sink that records the tap as a permanent Rule CI regression (WS1f).
+
+    Args:
+        plan: The plan being enforced (its rules give the alert's concepts).
+        hard_negatives: The regression recorder.
+
+    Returns:
+        The sink; an alert whose rule is not in the current plan is logged and skipped.
+    """
+
+    def record(event_id: str, rule_id: str | None) -> None:
+        active = plan()
+        rules = active.rules if active is not None else ()
+        rule = next((r for r in rules if r.id == rule_id), None)
+        if rule is None:
+            _log.info("false_alarm_rule_unknown", event_id=event_id, rule_id=rule_id)
+            return
+        hard_negatives.from_false_alarm(rule, event_id)
+
+    return record
+
+
+def owner_alerts_router(
+    response: Response, *, on_false_alarm: FalseAlarmSink | None = None
+) -> APIRouter:
     """The alerts PWA routes (`/alerts`, `/ack`, interlock resume, `/drills`), owner-only.
 
     They show alert titles and clips and can restore power, so they need the owner (loopback or
     an owner session), like every other route that reads traces or changes state.
     """
-    router = response.router(dependencies=_OWNER)
+    router = response.router(dependencies=_OWNER, on_false_alarm=on_false_alarm)
     runner = DrillRunner(response.escalation, response.chain, SystemClock())
     router.include_router(drills_router(runner), dependencies=_OWNER)
     return router

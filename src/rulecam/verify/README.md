@@ -52,6 +52,19 @@ answer = glimmer.structured(model=glimmer.model, messages=msgs, schema=MySchema)
 uv run pytest tests/verify tests/clients/open_weights
 ```
 
+## Tier 0: crop-zoom findings for Glimmer (add-on 3.3)
+
+`verify.tier0.CropZoomCheck` runs before Glimmer for a rule with a `without` predicate (hair net,
+gloves, hat). It decodes 3 keyframes of the episode at full camera resolution
+(`runtime.strips.EpisodeFrames`), cuts out the subject's head, hands or body (the predicate's
+region; wrists from pose when known) and asks SAM 3.1 for each item on the enlarged crops
+(`perception.crop_zoom`, the GPU pod's `/segment_crops` with hosted SAM as the fallback). The
+counts (crops checked, crops with a hit, keyframes, best confidence) become a few lines in
+Glimmer's prompt, `GlimmerVerifier(context=...)`, labelled as a detector's hints to weigh, not a
+verdict. Rules without `without` add nothing; any failure adds nothing (logged `tier0_failed`).
+`RULECAM_CROP_ZOOM` (on by default) turns it on; it is never built in replay mode, because its
+lines would change Glimmer's prompts and so the replay cache's keys.
+
 ## Tier 2: Muse Spark Open on Baseten (P3-04)
 
 ```python

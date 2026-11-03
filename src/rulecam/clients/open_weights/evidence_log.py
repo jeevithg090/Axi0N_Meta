@@ -28,6 +28,10 @@ class InferenceLine(Frozen):
         request_hash: SHA-256 of the request body.
         ok: Whether a reply was received.
         request_id: Provider request ID, when the provider returns one (Baseten).
+        finish_reason: Why generation stopped (`stop`, or `length` when cut at `max_tokens`).
+        usage: Token counts and server timings the reply reported (`prompt_tokens`,
+            `completion_tokens`, `reasoning_tokens`, `predicted_ms`, ...).
+        reasoning_ref: Id of the stored reasoning (`data/reasoning/<id>.txt`), when there was some.
     """
 
     ts: datetime
@@ -38,6 +42,9 @@ class InferenceLine(Frozen):
     request_hash: str
     ok: bool
     request_id: str | None = None
+    finish_reason: str | None = None
+    usage: dict[str, float] = Field(default_factory=dict)
+    reasoning_ref: str | None = None
 
 
 class EvidenceLog:

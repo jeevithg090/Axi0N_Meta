@@ -1,6 +1,6 @@
 # Rulecam developer commands (task book §3.3). `make check` must pass before every push.
 .PHONY: setup fmt lint type test check ui-check api ui openapi preflight golden live-test \
-	eval-replay golden-verify golden-gate verify-page-sync eval-caviar
+	eval-replay golden-verify golden-gate verify-page-sync eval-caviar ship-api ship-gpu
 
 UI_EXISTS := $(wildcard ui/package.json)
 
@@ -80,3 +80,12 @@ verify-page-sync:
 eval-caviar:
 	uv run rulecam eval run $(foreach c,$(notdir $(wildcard eval/clips/caviar_*)),--clip $(c)) \
 		--track-store $(or $(TRACK_STORE),data/tracks) $(EVAL_ARGS)
+
+# Add-on 4.1 deploys (docs/deploy.md "Ship the API" / "Ship the GPU code"). ship-api needs
+# RULECAM_API_SSH_HOST and RULECAM_API_SSH_PORT; ship-gpu needs a RunPod S3 API key in
+# RUNPOD_S3_ACCESS_KEY_ID / RUNPOD_S3_SECRET_ACCESS_KEY. Both ship the committed HEAD (or REF).
+ship-api:
+	scripts/deploy/ship_api.sh $(or $(REF),HEAD)
+
+ship-gpu:
+	scripts/deploy/ship_gpu.sh $(or $(REF),HEAD)

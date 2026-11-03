@@ -91,6 +91,56 @@ and notifications through `WhatsAppNotifier`:
   - Numbers that aren't a configured role are ignored.
 - Phone numbers are never logged or chained: only roles are.
 
+## Telegram alerts (add-on 5.1)
+
+WhatsApp only reaches phones that messaged first and are on the test-recipient list. Telegram
+reaches anyone who opens a link. Set `TELEGRAM_BOT_TOKEN` (BotFather → `/newbot`) and, optionally,
+`TELEGRAM_BOT_USERNAME`; `build_response` then wraps the outbound notifier in `TelegramNotifier`.
+
+- **Linking a phone, without its number.** The owner opens `GET /telegram/link?role=aide`
+  (owner-only). It returns `https://t.me/<bot>?start=<role-token>` and a QR code. The token is the
+  role plus 16 hex characters of an HMAC keyed from the bot token, so nobody else can mint one.
+  When the person taps *Start*, the bot stores `chat id → role` in
+  `<data>/telegram/links.json`. It stores no phone number or name, and logs and the chain carry
+  only the role. `/stop` unlinks the chat. `GET /telegram/links` counts chats per role.
+  To revoke every link, revoke the token in BotFather.
+- **Sending.** The LAN app (and WhatsApp, when configured) gets the alert first. Then every chat
+  linked to the role gets the face-blurred evidence still as a photo (uploaded once, then reused
+  by `file_id`), with *On my way* / *False alarm* / *Escalate* inline buttons. Without a still,
+  it gets text only. A Telegram failure is logged and never loses the alert.
+- **Taps.** The API long-polls `getUpdates` (`TelegramBot.poll`, an `AppServices.pollers` entry),
+  so there is no public webhook. Do not also set a webhook on the bot: Telegram refuses
+  `getUpdates` while one exists. A tap runs the same `handle_button` as the LAN app, as the role
+  the chat is linked to. Chats that are not linked are refused.
+- **False alarm → Rule CI.** On every channel (LAN app, WhatsApp, Telegram), *False alarm* chains
+  the rule-health `label` and also appends a permanent lookalike regression for the alert's rule
+  (`HardNegatives.from_false_alarm`, `<data>/rule_ci/regressions/<rule>.jsonl`). The wording is
+  fixed; nothing the responder typed is used.
+
+## Signed outbound webhooks (add-on 5.4)
+
+Set `RULECAM_WEBHOOKS` to `preset=url` pairs and `RULECAM_WEBHOOK_SECRET` to a long random
+string. Keep both in `.env` only, because the URLs are secrets. `build_response` then wraps the
+outbound notifier in `WebhookNotifier`, and the API runs `WebhookDispatcher.poll` as a poller.
+
+| Preset | Receiver | Body |
+|---|---|---|
+| `generic` | n8n, Zapier, Home Assistant, your code | `{type: "rulecam.alert", id, site, event_id, rule_id, role, title, body, ts, link}` |
+| `slack` | Slack incoming webhook | `text` plus Block Kit header, section and context |
+| `teams` | Teams Workflows, "When a Teams webhook request is received" | an Adaptive Card 1.4 message |
+
+- **Headers:** `Idempotency-Key` (the event hash, the SHA-256 of the canonical generic payload,
+  the same on every retry), `X-Rulecam-Event: alert`, `X-Rulecam-Timestamp`, and
+  `X-Rulecam-Signature: v1=<hex HMAC-SHA256(secret, "<timestamp>.<raw body>")>`.
+  Receivers check them with `act.webhook.verify_signature` (constant time, 5-minute tolerance).
+  A `generic` target without a secret is refused at start-up.
+- **Retries:** 408, 429, 5xx and network errors back off 2 s, 4 s, 8 s, … (up to 5 min), for at
+  most 6 attempts, re-signed each time. Other statuses are final. The queue holds 500
+  deliveries, and the oldest is dropped when it is full.
+- **What leaves the site:** title, body, role, rule and event ids, and (with `PUBLIC_UI_URL`) a
+  link to the owner-only incident report. Clips, stills and file paths never leave. Logs carry
+  the preset and the key, never the URL.
+
 ## Response drills (P3-S2)
 
 `POST /drills {roles, after_s, scenario}` (owner-only, under the alerts router) starts a **labelled

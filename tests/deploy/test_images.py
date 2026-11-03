@@ -7,6 +7,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 from rulecam.perception import sam_worker
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -60,6 +62,22 @@ def test_sam_image_pins_match_the_worker() -> None:
     for package in ("einops", "pycocotools", "psutil", "timm", '"numpy<2"', '"pydantic>=2.7"'):
         assert package in SAM_DOCKERFILE
     assert "rulecam.perception.sam_server" in SAM_DOCKERFILE
+
+
+@pytest.mark.parametrize("dockerfile", [SAM_DOCKERFILE, GPU_DOCKERFILE])
+def test_gpu_images_install_the_pinned_reid_stack(dockerfile: str) -> None:
+    assert f'--no-deps "{sam_worker.BOXMOT_PACKAGE}"' in dockerfile
+    for requirement in sam_worker.REID_DEPENDENCIES.split():
+        assert requirement in dockerfile
+    assert "boxmot.reid.factory" in dockerfile
+
+
+def test_entrypoint_and_setup_fetch_the_pinned_reid_weights() -> None:
+    entrypoint = (ROOT / "deploy" / "sam-entrypoint.sh").read_text(encoding="utf-8")
+    setup = (ROOT / "scripts" / "sam_pod" / "setup.sh").read_text(encoding="utf-8")
+    assert f'REID_WEIGHTS_URL="{sam_worker.REID_WEIGHTS_URL}"' in entrypoint
+    for name in ("BOXMOT_PACKAGE", "REID_DEPENDENCIES", "REID_WEIGHTS_URL"):
+        assert f"pinned {name}" in setup
 
 
 def test_workflow_builds_both_images_and_reads_the_pinned_commit() -> None:

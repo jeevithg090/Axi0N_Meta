@@ -27,9 +27,10 @@ export default function SurprisePage() {
           {message}
         </p>
       )}
-      {state.surprises.length === 0 && (
-        <p className="muted">Nothing unusual. The world model is calibrated on normal activity.</p>
-      )}
+      <p className="muted" data-testid="surprise-status">
+        Planned: Surprise Lens needs the V-JEPA 2 world model, which is not running yet.
+        {demo ? " The surprises below come from the recorded demo." : " Nothing is scored here."}
+      </p>
       {state.surprises.map((event) => (
         <SurpriseView
           key={event.event_id}

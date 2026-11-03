@@ -21,6 +21,11 @@
   with the `LanNotifier` (alerts on `/ws` and `GET /alerts`), the `EscalationManager` (the API
   ticks it once a second) and, when `KASA_PLUG_HOST` is set, the Kasa interlock, connected at
   start-up so the first cut is one round trip. `KASA_LIGHT_HOST` adds the strobe light.
+- **Telegram** (add-on 5.1). With `TELEGRAM_BOT_TOKEN`, every notification also goes to the
+  Telegram chats linked to its role (`act.telegram`), and the API long-polls the bot for taps.
+- **Webhooks** (add-on 5.4). With `RULECAM_WEBHOOKS`, every notification is also queued as a
+  signed JSON delivery per target (`act.webhook`: generic, Slack, Teams Workflows), sent with
+  retries by an API poller.
 - **Dry run.** `RULECAM_ACTIONS_DRY_RUN` (default **on**, until the owner turns it off) records
   every action as `dry-run: would …` in the chain and runs none of them.
 """
@@ -35,8 +40,25 @@ from typing import Literal, Protocol
 from fastapi import APIRouter, params
 
 from rulecam.act import ActionExecutor, EscalationManager, Interlock, LanNotifier, alerts_router
+from rulecam.act.api import FalseAlarmSink
 from rulecam.act.devices import Connectable, KasaPlug, Light, StrobeLight
 from rulecam.act.errors import DeviceError
+from rulecam.act.telegram import (
+    POLL_TIMEOUT_S,
+    SEND_TIMEOUT_S,
+    BotApi,
+    ChatLinks,
+    TelegramBot,
+    TelegramNotifier,
+    link_key,
+    telegram_router,
+)
+from rulecam.act.webhook import (
+    HttpxPoster,
+    WebhookDispatcher,
+    WebhookNotifier,
+    parse_targets,
+)
 from rulecam.act.whatsapp import (
     GRAPH_TIMEOUT_S,
     WhatsAppNotifier,
@@ -96,6 +118,8 @@ class ResponseStatus(Frozen):
         interlock_unreachable: Plugs that did not connect at start-up (retried on first use).
         light: Whether a strobe light is configured.
         notifier: Where notifications go.
+        telegram: Whether Telegram alerts are on (add-on 5.1).
+        webhooks: The presets of the configured outbound webhooks (add-on 5.4), never URLs.
     """
 
     tier2: Literal["configured", "absent"]
@@ -107,6 +131,8 @@ class ResponseStatus(Frozen):
     interlock_unreachable: tuple[str, ...] = ()
     light: bool = False
     notifier: Literal["lan"] = "lan"
+    telegram: bool = False
+    webhooks: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -124,6 +150,10 @@ class Response:
         chain: The evidence chain (false-alarm labels from the alert buttons).
         whatsapp: WhatsApp escalation (P3-S1), when configured; it wraps `notifier`.
         whatsapp_secrets: (app secret, verify token) for its webhook, when both are set.
+        telegram: Telegram alerts (add-on 5.1), when configured; it wraps the outbound notifier.
+        telegram_key: The HMAC key of its role links.
+        telegram_poll: The Bot API on a transport long enough for long polling.
+        webhooks: The outbound webhook queue (add-on 5.4), when configured.
     """
 
     tier1: Verifier
@@ -136,6 +166,20 @@ class Response:
     chain: EventChain
     whatsapp: WhatsAppNotifier | None = None
     whatsapp_secrets: tuple[str, str] | None = None
+    telegram: TelegramNotifier | None = None
+    telegram_key: bytes = b""
+    telegram_poll: BotApi | None = None
+    webhooks: WebhookDispatcher | None = None
+
+    def pollers(
+        self, on_false_alarm: FalseAlarmSink | None = None
+    ) -> tuple[Callable[[], object], ...]:
+        """Blocking loops the API runs in their own threads: the Telegram bot, the webhooks."""
+        bot = self.telegram_bot(on_false_alarm)
+        return (
+            *((bot.poll,) if bot is not None else ()),
+            *((self.webhooks.poll,) if self.webhooks is not None else ()),
+        )
 
     @property
     def tickers(self) -> tuple[Callable[[], object], ...]:
@@ -144,7 +188,7 @@ class Response:
             return (self.escalation.tick, self.tier1.tick)
         return (self.escalation.tick,)
 
-    def webhook_router(self) -> APIRouter | None:
+    def webhook_router(self, on_false_alarm: FalseAlarmSink | None = None) -> APIRouter | None:
         """The WhatsApp webhook, outside owner auth (Meta calls it; it checks signatures)."""
         if self.whatsapp is None or self.whatsapp_secrets is None:
             return None
@@ -156,13 +200,35 @@ class Response:
             chain=self.chain,
             app_secret=app_secret,
             verify_token=verify_token,
+            on_false_alarm=on_false_alarm,
         )
+
+    def telegram_bot(self, on_false_alarm: FalseAlarmSink | None = None) -> TelegramBot | None:
+        """The Telegram long-polling bot (taps, `/start`, `/stop`), when Telegram is on."""
+        if self.telegram is None or self.telegram_poll is None:
+            return None
+        return TelegramBot(
+            api=self.telegram_poll,
+            links=self.telegram.links,
+            key=self.telegram_key,
+            lan=self.notifier,
+            escalation=self.escalation,
+            chain=self.chain,
+            on_false_alarm=on_false_alarm,
+        )
+
+    def telegram_links_router(self, dependencies: Sequence[params.Depends]) -> APIRouter | None:
+        """`GET /telegram/link?role=…` and `/telegram/links` (owner-only), when Telegram is on."""
+        if self.telegram is None:
+            return None
+        return telegram_router(self.telegram, self.telegram_key, dependencies=dependencies)
 
     def router(
         self,
         roles: Collection[str] | None = None,
         *,
         dependencies: Sequence[params.Depends],
+        on_false_alarm: FalseAlarmSink | None = None,
     ) -> APIRouter:
         """`/alerts`, `/ack` and `/interlock/{device}/resume` (P3-06), behind `dependencies`."""
         return alerts_router(
@@ -172,6 +238,7 @@ class Response:
             interlock=self.interlock,
             roles=roles,
             dependencies=dependencies,
+            on_false_alarm=on_false_alarm,
         )
 
 
@@ -299,7 +366,17 @@ def build_response(
     )
     notifier = LanNotifier(bus=bus, clock=clock)
     whatsapp = build_whatsapp(settings, lan=notifier, clock=clock)
-    outbound: Notifier = whatsapp or notifier
+    telegram = build_telegram(settings, inner=whatsapp or notifier)
+    webhooks = build_webhooks(settings, clock=clock)
+    outbound: Notifier = telegram or whatsapp or notifier
+    if webhooks is not None:
+        outbound = WebhookNotifier(
+            inner=outbound,
+            dispatcher=webhooks,
+            clock=clock,
+            site=chain.site,
+            link_base=settings.public_ui_url,
+        )
     escalation = EscalationManager(notifier=outbound, clock=clock, chain=chain, bus=bus)
     interlock = None
     if settings.kasa_plug_host:
@@ -327,6 +404,8 @@ def build_response(
         interlock_devices=interlock.devices if interlock is not None else (),
         interlock_unreachable=unreachable,
         light=light is not None,
+        telegram=telegram is not None,
+        webhooks=webhooks.presets if webhooks is not None else (),
     )
     _log_status(status)
     return Response(
@@ -340,6 +419,59 @@ def build_response(
         chain=chain,
         whatsapp=whatsapp,
         whatsapp_secrets=_whatsapp_secrets(settings) if whatsapp is not None else None,
+        telegram=telegram,
+        telegram_key=_telegram_key(settings),
+        telegram_poll=_telegram_api(settings, timeout_s=POLL_TIMEOUT_S + SEND_TIMEOUT_S),
+        webhooks=webhooks,
+    )
+
+
+def build_webhooks(settings: Settings, *, clock: Clock) -> WebhookDispatcher | None:
+    """The signed outbound webhook queue when `RULECAM_WEBHOOKS` is set (add-on 5.4).
+
+    Raises:
+        WebhookError: For a malformed target list, or a generic target without a secret.
+    """
+    if settings.rulecam_webhooks is None:
+        return None
+    targets = parse_targets(settings.rulecam_webhooks.get_secret_value())
+    if not targets:
+        return None
+    secret = settings.rulecam_webhook_secret
+    return WebhookDispatcher(
+        targets,
+        post=HttpxPoster(),
+        clock=clock,
+        secret=secret.get_secret_value() if secret is not None else None,
+    )
+
+
+def _telegram_api(settings: Settings, *, timeout_s: float) -> BotApi | None:
+    if settings.telegram_bot_token is None:
+        return None
+    token = settings.telegram_bot_token.get_secret_value()
+    base = f"{settings.telegram_api_base.rstrip('/')}/bot{token}"
+    return BotApi(HttpxTransport(base, "", timeout_s=timeout_s))
+
+
+def _telegram_key(settings: Settings) -> bytes:
+    token = settings.telegram_bot_token
+    return link_key(token.get_secret_value()) if token is not None else b""
+
+
+def build_telegram(settings: Settings, *, inner: Notifier) -> TelegramNotifier | None:
+    """Telegram alerts when `TELEGRAM_BOT_TOKEN` is set (add-on 5.1), wrapping `inner`.
+
+    Chat links are kept in `<data>/telegram/links.json` (chat id → role, no phone numbers).
+    """
+    api = _telegram_api(settings, timeout_s=SEND_TIMEOUT_S)
+    if api is None:
+        return None
+    return TelegramNotifier(
+        inner=inner,
+        api=api,
+        links=ChatLinks(settings.rulecam_data_dir / "telegram" / "links.json"),
+        bot_username=settings.telegram_bot_username,
     )
 
 

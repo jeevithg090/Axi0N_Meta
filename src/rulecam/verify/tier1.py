@@ -10,6 +10,10 @@ own captions and labels are drawn in an annotation band below each frame; the pr
 band is ours and not scene text, and any copy of a string we drew is removed from `scene_text`
 before the firewall sees it (`verify.annotations`), so our labels never read as a tamper attempt.
 
+A `context` provider can add lines to the prompt before the question: the runtime passes Tier 0
+(`verify.tier0.CropZoomCheck`, add-on 3.3), whose crop-zoom findings on the rule's PPE regions
+reach Glimmer as hints to weigh. A provider that fails adds nothing.
+
 Any failure (a malformed reply twice, a server error, an unreadable strip) gives `unsure` with
 score 0.5, never a crash and never a silent pass. The runtime instead builds it with
 `raise_errors=True` and wraps it in `verify.guard.GuardedVerifier`, which retries, trips a circuit
@@ -21,7 +25,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Literal, Protocol, TypeVar
 
@@ -36,6 +40,9 @@ from rulecam.verify.annotations import read_annotations, strip_annotations
 _log = get_logger(__name__)
 
 M = TypeVar("M", bound=BaseModel)
+
+ContextProvider = Callable[[CandidateEvent, RuleIR], Sequence[str]]
+"""Extra prompt lines for one candidate (Tier 0's findings); `()` when there are none."""
 
 MAX_STRIP_FRAMES = 12
 UNSURE_SCORE = 0.5
@@ -106,12 +113,13 @@ def rule_text(rule: RuleIR) -> str:
     return rule.source.text or f"Rule {rule.id}"
 
 
-def build_prompt(candidate: CandidateEvent, rule: RuleIR) -> str:
+def build_prompt(candidate: CandidateEvent, rule: RuleIR, context: Sequence[str] = ()) -> str:
     """Build the question text for one candidate.
 
     Args:
         candidate: The candidate event from the rule engine.
         rule: The rule it came from.
+        context: Extra lines placed before the question (Tier 0's findings).
 
     Returns:
         The prompt text (the frames are attached separately).
@@ -127,6 +135,7 @@ def build_prompt(candidate: CandidateEvent, rule: RuleIR) -> str:
             f"Frames: {min(len(candidate.strip_paths), MAX_STRIP_FRAMES)} frames from camera "
             f"{candidate.camera_id}, {candidate.ts_start.isoformat()} to "
             f"{candidate.ts_end.isoformat()}.",
+            *context,
             "Question: does this clip show the rule being violated?",
             DATA_NOT_INSTRUCTIONS,
         ]
@@ -146,6 +155,24 @@ def scene_text_of(candidate: CandidateEvent, scene_text: str) -> str:
     return cleaned
 
 
+def tier1_messages(
+    candidate: CandidateEvent,
+    rule: RuleIR,
+    extra: Sequence[str] = (),
+) -> list[dict[str, object]]:
+    """The chat messages Tier 1 sends about a candidate: instructions, question and its strip.
+
+    Raises:
+        OSError: If a strip frame cannot be read.
+        ValueError: For a strip frame of an unsupported type.
+    """
+    frames = [Path(p) for p in candidate.strip_paths[:MAX_STRIP_FRAMES]]
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        user_message(build_prompt(candidate, rule, extra), frames),
+    ]
+
+
 class GlimmerVerifier:
     """`Verifier` implementation backed by Glimmer."""
 
@@ -155,6 +182,7 @@ class GlimmerVerifier:
         *,
         monotonic: Callable[[], float] = time.perf_counter,
         raise_errors: bool = False,
+        context: ContextProvider | None = None,
     ) -> None:
         """Create the verifier.
 
@@ -163,10 +191,12 @@ class GlimmerVerifier:
             monotonic: Timer for latency (injected in tests).
             raise_errors: Re-raise client errors instead of answering `unsure`, so a
                 `GuardedVerifier` can retry and count them (the runtime's Tier 1).
+            context: Adds lines to each prompt (Tier 0, `verify.tier0.CropZoomCheck`).
         """
         self._client = client
         self._monotonic = monotonic
         self._raise = raise_errors
+        self._context = context
 
     @property
     def model_version(self) -> str:
@@ -211,18 +241,24 @@ class GlimmerVerifier:
         )
 
     def _ask(self, candidate: CandidateEvent, rule: RuleIR) -> Tier1Answer:
-        frames = [Path(p) for p in candidate.strip_paths[:MAX_STRIP_FRAMES]]
-        messages: list[dict[str, object]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            user_message(build_prompt(candidate, rule), frames),
-        ]
         return self._client.structured(
             model=self._client.model,
-            messages=messages,
+            messages=tier1_messages(candidate, rule, self._extra(candidate, rule)),
             schema=Tier1Answer,
             reasoning_effort="low",
             camera_id=candidate.camera_id,
         )
+
+    def _extra(self, candidate: CandidateEvent, rule: RuleIR) -> Sequence[str]:
+        if self._context is None:
+            return ()
+        try:
+            return tuple(self._context(candidate, rule))
+        except Exception as exc:  # context is optional: Glimmer is asked without it
+            _log.warning(
+                "tier1_context_failed", event_id=candidate.event_id, error=type(exc).__name__
+            )
+            return ()
 
     def _verdict(
         self,

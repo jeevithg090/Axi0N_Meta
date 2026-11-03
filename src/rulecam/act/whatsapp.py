@@ -35,7 +35,7 @@ from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import PlainTextResponse
 
-from rulecam.act.api import RespondRequest, handle_button
+from rulecam.act.api import FalseAlarmSink, RespondRequest, handle_button
 from rulecam.act.escalation import EscalationManager
 from rulecam.act.notify import LanNotifier, alert_event
 from rulecam.clients.errors import ModelClientError
@@ -298,10 +298,12 @@ def whatsapp_router(
     chain: EventChain,
     app_secret: str,
     verify_token: str,
+    on_false_alarm: FalseAlarmSink | None = None,
 ) -> APIRouter:
     """The Cloud API webhook (`/whatsapp/webhook`), reachable through the public tunnel.
 
     It is deliberately not owner-only: Meta calls it. Every POST must carry a valid signature.
+    *False alarm* taps also reach `on_false_alarm` (Rule CI regressions).
     """
     router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -322,7 +324,14 @@ def whatsapp_router(
             if role is None or not notifier.accept(message):
                 continue
             notifier.opened(role)
-            handled += _handle_tap(message, role, lan=lan, escalation=escalation, chain=chain)
+            handled += _handle_tap(
+                message,
+                role,
+                lan=lan,
+                escalation=escalation,
+                chain=chain,
+                on_false_alarm=on_false_alarm,
+            )
         return handled
 
     @router.post("/webhook")
@@ -351,6 +360,7 @@ def _handle_tap(
     lan: LanNotifier,
     escalation: EscalationManager,
     chain: EventChain,
+    on_false_alarm: FalseAlarmSink | None = None,
 ) -> int:
     interactive = message.get("interactive")
     reply = interactive.get("button_reply") if isinstance(interactive, dict) else None
@@ -367,6 +377,7 @@ def _handle_tap(
         escalation=escalation,
         chain=chain,
         rule_id=alert.rule_id if alert else None,
+        on_false_alarm=on_false_alarm,
     )
     _log.info("whatsapp_tap", role=role, event_id=event_id, button=button)
     return 1

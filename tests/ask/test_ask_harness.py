@@ -23,7 +23,7 @@ from rulecam.ask import (
 )
 from rulecam.ask.vision import Frame, marked
 from rulecam.rules.store import ParquetTrackStore
-from tests.ask.test_ask import Chunks, Sam, person
+from tests.ask.test_ask import Chunks, Sam, person, turn
 from tests.fakes import EPOCH, FakeClock, FakeLLM
 
 
@@ -83,14 +83,16 @@ def test_owner_context_reaches_spark_and_look_returns_marks(root: Path, tmp_path
     at = (EPOCH + timedelta(seconds=6)).isoformat()
     spark = FakeLLM(
         [
-            {
-                "thought": "see",
-                "action": "look",
-                "camera_id": "checkout",
-                "times": [at],
-                "question": "Who is queueing?",
-            },
-            {"thought": "done", "action": "answer", "answer": "Two."},
+            turn(
+                {
+                    "thought": "see",
+                    "action": "look",
+                    "camera_id": "checkout",
+                    "times": [at],
+                    "question": "Who is queueing?",
+                }
+            ),
+            turn({"thought": "done", "action": "answer", "answer": "Two."}),
         ]
     )
     glimmer = FakeLLM([{"answer": "1 and 2 queue", "count": 2, "confidence": 0.9}])

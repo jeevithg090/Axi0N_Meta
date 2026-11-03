@@ -50,6 +50,56 @@ class RunPodError(RulecamError):
     """A RunPod REST call failed (the message never contains the key)."""
 
 
+def runpod_client(
+    key: str,
+    *,
+    base_url: str = API_BASE,
+    timeout_s: float = TIMEOUT_S,
+    transport: httpx.BaseTransport | None = None,
+) -> httpx.Client:
+    """An httpx client for the RunPod REST API: Bearer key and a non-Python User-Agent.
+
+    Args:
+        key: The RunPod API key (sent only to `base_url`).
+        base_url: The REST API.
+        timeout_s: Per-request timeout.
+        transport: httpx transport (a `MockTransport` in tests).
+
+    Returns:
+        The client; close it after use.
+    """
+    return httpx.Client(
+        base_url=base_url.rstrip("/"),
+        headers={
+            "Authorization": f"Bearer {key}",
+            "User-Agent": USER_AGENT,
+            "Accept": "application/json",
+        },
+        timeout=timeout_s,
+        transport=transport,
+    )
+
+
+def runpod_call(
+    client: httpx.Client, method: str, path: str, body: Mapping[str, Any] | None = None
+) -> Any:
+    """Send one REST call and return its JSON (`None` for an empty body).
+
+    Raises:
+        RunPodError: No answer or an HTTP error; the message names the method, the path without
+            its query and the status, never the key.
+    """
+    try:
+        response = client.request(method, path, json=body)
+    except httpx.HTTPError as exc:
+        msg = f"{method} {path.split('?', maxsplit=1)[0]}: {type(exc).__name__}"
+        raise RunPodError(msg) from None
+    if response.status_code >= 400:  # noqa: PLR2004 - HTTP error range
+        msg = f"{method} {path.split('?', maxsplit=1)[0]}: HTTP {response.status_code}"
+        raise RunPodError(msg)
+    return response.json() if response.content else None
+
+
 class PodStopper(Protocol):
     """Stops pods by name or id and returns the ids it stopped."""
 
@@ -90,37 +140,15 @@ class RunPodPods:
             raise RunPodError(msg)
         return key
 
-    def _call(
-        self, client: httpx.Client, method: str, path: str, body: Mapping[str, Any] | None = None
-    ) -> Any:
-        try:
-            response = client.request(method, path, json=body)
-        except httpx.HTTPError as exc:
-            msg = f"{method} {path.split('?', maxsplit=1)[0]}: {type(exc).__name__}"
-            raise RunPodError(msg) from None
-        if response.status_code >= 400:  # noqa: PLR2004 - HTTP error range
-            msg = f"{method} {path.split('?', maxsplit=1)[0]}: HTTP {response.status_code}"
-            raise RunPodError(msg)
-        return response.json() if response.content else None
-
     def _client(self) -> httpx.Client:
-        return httpx.Client(
-            base_url=self._base_url,
-            headers={
-                "Authorization": f"Bearer {self._key()}",
-                "User-Agent": USER_AGENT,
-                "Accept": "application/json",
-            },
-            timeout=TIMEOUT_S,
-            transport=self._transport,
-        )
+        return runpod_client(self._key(), base_url=self._base_url, transport=self._transport)
 
     def _pods(self, client: httpx.Client) -> list[dict[str, Any]]:
         pods: list[dict[str, Any]] = []
         cursor = ""
         while True:
             query = f"?limit={PAGE_LIMIT}" + (f"&cursor={cursor}" if cursor else "")
-            page = self._call(client, "GET", "/v2/pods" + query) or {}
+            page = runpod_call(client, "GET", "/v2/pods" + query) or {}
             pods.extend(page.get("pods") or [])
             pagination = page.get("pagination") or {}
             cursor = str(pagination.get("nextCursor") or "")
@@ -144,7 +172,7 @@ class RunPodPods:
                 if (p.get("name") in wanted or p.get("id") in wanted) and p.get("status") in LIVE
             ]
             for pod_id in targets:
-                self._call(client, "POST", f"/v2/pods/{pod_id}/action", {"action": "stop"})
+                runpod_call(client, "POST", f"/v2/pods/{pod_id}/action", {"action": "stop"})
         return targets
 
 

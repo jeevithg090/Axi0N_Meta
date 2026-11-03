@@ -761,6 +761,67 @@ def eval_verifier_score(
         out.write_text(report.to_json(), encoding="utf-8")
 
 
+@eval_app.command("ask")
+def eval_ask(
+    questions: Annotated[Path, typer.Argument(help="Question set YAML (eval/ask/*.yaml)")],
+    *,
+    api: Annotated[
+        str, typer.Option(help="API base URL, or the UI's proxy (https://<ui>/rulecam-api)")
+    ] = "http://localhost:8000",
+    runs: Annotated[int, typer.Option(min=1, help="Times each question is asked")] = 3,
+    question: Annotated[list[str] | None, typer.Option(help="Only these question ids")] = None,
+    origin: Annotated[
+        str | None,
+        typer.Option(
+            help="Origin for a logged-in session (default: PUBLIC_UI_URL, else the API's)"
+        ),
+    ] = None,
+    out: Annotated[Path, typer.Option(help="Reports folder")] = EVAL_REPORTS / "ask",
+) -> None:
+    """Ask a question set of a running API N times and score the numbers against the truth.
+
+    On the API's own machine no login is needed; elsewhere set RULECAM_OWNER_PASSPHRASE and the
+    command logs in as the owner.
+    """
+    from datetime import UTC, datetime  # noqa: PLC0415
+
+    from rulecam.eval.ask import (  # noqa: PLC0415
+        HttpAskApi,
+        load_question_set,
+        render_markdown,
+        run_benchmark,
+        save_benchmark,
+    )
+    from rulecam.eval.errors import EvalError  # noqa: PLC0415
+
+    settings = get_settings()
+    passphrase = settings.rulecam_owner_passphrase
+    try:
+        loaded = load_question_set(questions)
+        client = HttpAskApi(
+            api,
+            passphrase=passphrase.get_secret_value() if passphrase else None,
+            origin=origin or settings.public_ui_url,
+        )
+        try:
+            benchmark = run_benchmark(
+                client,
+                loaded,
+                runs=runs,
+                api_url=api,
+                generated_at=datetime.now(UTC),
+                only=question or (),
+            )
+        finally:
+            client.close()
+    except EvalError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=USAGE_ERROR) from exc
+    json_path, md_path = save_benchmark(benchmark, out)
+    typer.echo(render_markdown(benchmark))
+    typer.echo(f"wrote {json_path} and {md_path}")
+
+
 AUTO_CHECKS = "auto"
 DEFAULT_UI = "https://rulecam.vercel.app"
 

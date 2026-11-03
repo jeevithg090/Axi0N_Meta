@@ -29,7 +29,7 @@ import math
 import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Protocol
 
@@ -43,6 +43,7 @@ from rulecam.log import get_logger
 from rulecam.perception.errors import PerceptionError
 from rulecam.perception.metrics import Backend, PerceptionMetrics
 from rulecam.perception.sam_runtime import (
+    DEFAULT_MIN_CONFIDENCE,
     MAX_IMAGES_PER_CALL,
     MODEL_NAME,
     RELAY_SEGMENT,
@@ -60,6 +61,12 @@ DEFAULT_KEYFRAME_FPS = 2.0
 JPEG_QUALITY = 90
 JPEG = "image/jpeg"
 DEFAULT_HOSTED_CONCURRENCY = 8
+
+Embedding = tuple[float, ...]
+"""A unit person re-ID vector (OSNet-AIN) from `/segment_image`."""
+
+Embeddings = Mapping[tuple[int, int], Embedding]
+"""One concept's re-ID vectors, by the detection's `(frame_idx, object_id)`."""
 
 StageSink = Callable[[str, str, str, float], None]
 """`(stage, camera_id, chunk_id, seconds)`, e.g. `runtime.timings.StageTimings.record`."""
@@ -204,12 +211,14 @@ class KeyframeBatch:
         requests: SAM requests made (hosted: one per keyframe and concept; self-hosted: per call).
         billed_images: Images hosted SAM billed for them (0 when self-hosted served the batch).
         backend: Which deployment served it.
+        embeddings: Concept -> re-ID vectors of its detections (people, self-hosted only).
     """
 
     detections: Mapping[str, tuple[Detection, ...]]
     requests: int
     billed_images: int
     backend: Backend
+    embeddings: Mapping[str, Embeddings] = field(default_factory=dict)
 
 
 class KeyframeSegmenter(Protocol):
@@ -346,6 +355,8 @@ class SelfHostedKeyframes:
         metrics: PerceptionMetrics | None = None,
         timings: StageSink | None = None,
         masks: bool = False,
+        min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+        embed: Callable[[str], bool] | None = None,
         timer: Callable[[], float] = time.perf_counter,
     ) -> None:
         """Wrap the server's worker.
@@ -356,13 +367,18 @@ class SelfHostedKeyframes:
             metrics: Receives one `record_image_call` per call, with its GPU-seconds.
             timings: Receives `sam_request` per call.
             masks: Ask for masks too (the runtime's foot point needs boxes only).
+            min_confidence: The lowest detection score to return (the runtime tracker asks for
+                its low-confidence floor; see `keyframe_tracker.LOW_CONFIDENCE`).
+            embed: Which concepts get person re-ID vectors (BoT-SORT's people); `None`: none.
             timer: Monotonic seconds, for latency.
         """
+        self._embed = embed
         self._worker = worker
         self._bus = bus
         self._metrics = metrics
         self._timings = timings
         self._masks = masks
+        self._min_confidence = min_confidence
         self._timer = timer
 
     @property
@@ -380,10 +396,11 @@ class SelfHostedKeyframes:
             ValueError: For an empty or duplicated concept (before any call).
         """
         found: dict[str, list[Detection]] = {concept: [] for concept in concepts}
+        vectors: dict[str, dict[tuple[int, int], Embedding]] = {}
         calls = 0
         for start in range(0, len(frames), MAX_IMAGES_PER_CALL):
             batch = list(frames[start : start + MAX_IMAGES_PER_CALL])
-            for concept, detections in self._call(chunk, batch, concepts).items():
+            for concept, detections in self._call(chunk, batch, concepts, vectors).items():
                 found[concept].extend(detections)
             calls += 1
         return KeyframeBatch(
@@ -391,17 +408,25 @@ class SelfHostedKeyframes:
             requests=calls,
             billed_images=0,
             backend=Backend.SELF_HOSTED,
+            embeddings=vectors,
         )
 
     def _call(
-        self, chunk: Chunk, frames: list[Keyframe], concepts: Sequence[str]
+        self,
+        chunk: Chunk,
+        frames: list[Keyframe],
+        concepts: Sequence[str],
+        vectors: dict[str, dict[tuple[int, int], Embedding]],
     ) -> dict[str, list[Detection]]:
+        embed = self._embed
         request = SamImageRequest(
             concepts=tuple(concepts),
             n_images=len(frames),
             width=chunk.width,
             height=chunk.height,
             masks=self._masks,
+            min_confidence=self._min_confidence,
+            embed_concepts=tuple(c for c in concepts if embed is not None and embed(c)),
         )
         started = self._timer()
         raw = self._worker.segment_images([f.jpeg for f in frames], request.model_dump(mode="json"))
@@ -411,6 +436,9 @@ class SelfHostedKeyframes:
         found: dict[str, list[Detection]] = {}
         for obj in response.objects:
             frame = frames[obj.image_idx]
+            if obj.embedding:
+                key = (frame.frame_idx, obj.object_id)
+                vectors.setdefault(obj.concept, {})[key] = obj.embedding
             found.setdefault(obj.concept, []).append(
                 Detection(
                     camera_id=chunk.camera_id,

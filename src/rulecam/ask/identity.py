@@ -7,20 +7,26 @@ people). Dwell time and unique visitors need those fragments joined. Following D
 re-ID vector per tracklet, then merging), in a background job:
 
 1. each finished track whose video is still on disk gets an appearance vector: up to
-   `CROPS_PER_TRACK` crops of its box, spread over its span, embedded by DINOv2 on the GPU pod
-   (`/embed`) and averaged;
+   `CROPS_PER_TRACK` crops of its box, spread over its span, embedded on the GPU pod (`/embed`)
+   and averaged. People get OSNet-AIN person re-ID vectors (`"model": "person"`, trained to
+   tell people apart, add-on 3.2); objects keep DINOv2, which is not. A pod without the re-ID
+   model makes people fall back to DINOv2 for the rest of the process (logged);
 2. per camera and concept, tracks are linked in time order into identities: a track joins the
    most similar identity it never overlaps in time, if the similarity clears the threshold;
 3. the threshold comes from the data, not from a constant. Two tracks seen at the same time are
    two different objects (the "different" pairs); a track that starts within `SAME_GAP_S` of
    another's end, less than `SAME_REACH` of a box width from where it ended, is almost surely
    the same object lost for a moment (the "same" pairs). The threshold is where the two
-   similarity distributions cross (equal error rate), floored at `MIN_THRESHOLD`; with too few
-   "same" pairs it is the `IMPOSTOR_QUANTILE` quantile of the "different" ones;
+   similarity distributions cross (equal error rate), floored at the model's minimum; with too
+   few "same" pairs it is the `IMPOSTOR_QUANTILE` quantile of the "different" ones, and with too
+   few "different" pairs the model's fallback. The bounds are per model (`Calibration`): OSNet
+   puts different people far lower than DINOv2 does, so its floor and fallback are lower;
 4. for people, Muse Glimmer writes a short note per identity from two of its crops (customer or
    staff, what they wear and carry), after FootfallCam-style behaviour labelling.
 
 Results go to JSON-lines files the question snapshot loads (`track_identity`, `identity_notes`).
+Re-identifying people this way runs only in prototype mode: `api.app.build_ask` builds this
+memory only there.
 `tick` never blocks; one run at a time works in its own thread.
 """
 
@@ -61,6 +67,11 @@ MIN_SAME_PAIRS: Final = 10
 SAME_GAP_S: Final = 1.0
 SAME_REACH: Final = 0.5
 FALLBACK_THRESHOLD: Final = 0.8  # too few co-present pairs to learn from
+# OSNet-AIN (MSMT17) cosine similarities: different people mostly sit well under 0.5 and the same
+# person over 0.6 (DINOv2 puts both higher), so its bounds are lower. The learned threshold
+# still decides; these only bound it. Check them on a labelled run (add-on 1.5).
+PERSON_MIN_THRESHOLD: Final = 0.45
+PERSON_FALLBACK_THRESHOLD: Final = 0.65
 NOTES_PER_RUN: Final = 6
 PAD: Final = 0.08
 EMBED_BATCH: Final = 48
@@ -68,6 +79,25 @@ MIN_CROP_PX: Final = 8
 
 Embed = Callable[[list[bytes]], list[list[float]]]
 Vector = NDArray[np.float32]
+
+
+@dataclass(frozen=True)
+class Calibration:
+    """One embedding model's bounds on the learned threshold.
+
+    Attributes:
+        model: The `/embed` model (`appearance` is DINOv2, `person` OSNet-AIN).
+        min_threshold: The threshold never goes below it.
+        fallback_threshold: The threshold when too few co-present pairs exist to learn from.
+    """
+
+    model: str
+    min_threshold: float
+    fallback_threshold: float
+
+
+APPEARANCE: Final = Calibration("appearance", MIN_THRESHOLD, FALLBACK_THRESHOLD)
+PERSON: Final = Calibration("person", PERSON_MIN_THRESHOLD, PERSON_FALLBACK_THRESHOLD)
 
 
 class IdentityNote(Frozen):
@@ -118,35 +148,40 @@ def _same_pairs(known: Sequence[_Track]) -> list[tuple[_Track, _Track]]:
     return pairs
 
 
-def calibrate(same: Sequence[float], different: Sequence[float]) -> float:
+def calibrate(
+    same: Sequence[float], different: Sequence[float], bounds: Calibration = APPEARANCE
+) -> float:
     """The similarity where the "same" and "different" error rates cross (pure).
 
     Args:
         same: Similarities of pairs that are almost surely one object.
         different: Similarities of pairs that are surely two objects.
+        bounds: The embedding model's floor and fallback.
 
     Returns:
-        The threshold, at least `MIN_THRESHOLD`; `FALLBACK_THRESHOLD` without data.
+        The threshold, at least `bounds.min_threshold`; `bounds.fallback_threshold` without data.
     """
+    floor = bounds.min_threshold
     if len(different) < MIN_IMPOSTOR_PAIRS:
-        return FALLBACK_THRESHOLD
+        return bounds.fallback_threshold
     if len(same) < MIN_SAME_PAIRS:
-        return max(MIN_THRESHOLD, float(np.quantile(different, IMPOSTOR_QUANTILE)))
+        return max(floor, float(np.quantile(different, IMPOSTOR_QUANTILE)))
     same_a, diff_a = np.asarray(same), np.asarray(different)
     candidates = np.unique(np.concatenate([same_a, diff_a]))
     false_accept = np.array([(diff_a >= t).mean() for t in candidates])
     false_reject = np.array([(same_a < t).mean() for t in candidates])
-    return max(MIN_THRESHOLD, float(candidates[np.argmin(np.abs(false_accept - false_reject))]))
+    return max(floor, float(candidates[np.argmin(np.abs(false_accept - false_reject))]))
 
 
 def link(
-    tracks: Sequence[_Track], vectors: dict[str, Vector]
+    tracks: Sequence[_Track], vectors: dict[str, Vector], bounds: Calibration = APPEARANCE
 ) -> tuple[dict[str, tuple[str, float]], float]:
     """Join one camera's and concept's tracks into identities (pure).
 
     Args:
         tracks: The tracks, any order.
         vectors: Track id -> unit appearance vector (tracks without one are left out).
+        bounds: The vectors' model, which bounds the learned threshold.
 
     Returns:
         Track id -> (identity id, similarity it joined with; 1.0 for an identity's first track),
@@ -160,7 +195,7 @@ def link(
         if b.first <= a.last
     ]
     same = [float(vectors[a.track_id] @ vectors[b.track_id]) for a, b in _same_pairs(known)]
-    threshold = calibrate(same, different)
+    threshold = calibrate(same, different, bounds)
     identities: list[_Identity] = []
     out: dict[str, tuple[str, float]] = {}
     for track in known:
@@ -220,6 +255,7 @@ class IdentityMemory:
         tracks_root: Path,
         frames: FrameGrabber,
         embed: Embed,
+        embed_person: Embed | None = None,
         glimmer: StructuredLLM | None,
         glimmer_model: str,
         out_dir: Path,
@@ -232,6 +268,8 @@ class IdentityMemory:
             tracks_root: The track store's directory.
             frames: Decodes recorded frames.
             embed: Encoded crops -> unit vectors (DINOv2 on the GPU pod).
+            embed_person: Person crops -> person re-ID vectors (OSNet-AIN on the GPU pod);
+                `None` embeds people with `embed` too.
             glimmer: Writes identity notes; `None` skips them.
             glimmer_model: Glimmer's model name.
             out_dir: Where `track_identity.jsonl`, `identity_notes.jsonl` and the vectors live.
@@ -241,11 +279,12 @@ class IdentityMemory:
         self._root = tracks_root
         self._frames = frames
         self._embed = embed
+        self._embed_person = embed_person
         self._glimmer = glimmer
         self._model = glimmer_model
         self._dir = out_dir
         self._profile = site_profile
-        self._vectors: dict[str, Vector] = {}
+        self._vectors: dict[str, dict[str, Vector]] = {APPEARANCE.model: {}, PERSON.model: {}}
         self._noted: set[str] = set()
         self._uncroppable: set[str] = set()
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ask-identity")
@@ -287,7 +326,8 @@ class IdentityMemory:
             fresh = [
                 t
                 for t in tracks
-                if t.track_id not in self._vectors and t.track_id not in self._uncroppable
+                if t.track_id not in self._vectors[self._bounds(t.concept).model]
+                and t.track_id not in self._uncroppable
             ]
             self._embed_tracks(tables, fresh)
             rows = self._relink(tracks)
@@ -332,7 +372,25 @@ class IdentityMemory:
             )
         return list(tracks.values())
 
+    def _bounds(self, concept: str) -> Calibration:
+        """The model a concept's tracks are embedded with: OSNet for people when available."""
+        return PERSON if self._embed_person is not None and is_person_like(concept) else APPEARANCE
+
     def _embed_tracks(self, tables: TrackTables, tracks: Sequence[_Track]) -> None:
+        people = [t for t in tracks if self._bounds(t.concept) is PERSON]
+        objects = [t for t in tracks if self._bounds(t.concept) is APPEARANCE]
+        if people and self._embed_person is not None:
+            try:
+                self._embed_with(tables, people, self._embed_person, PERSON)
+            except OSError as exc:  # e.g. a pod without the re-ID model answers 404
+                _log.warning("ask_person_reid_unavailable", error=str(exc)[:200])
+                self._embed_person = None
+                objects = [*objects, *people]
+        self._embed_with(tables, objects, self._embed, APPEARANCE)
+
+    def _embed_with(
+        self, tables: TrackTables, tracks: Sequence[_Track], embed: Embed, bounds: Calibration
+    ) -> None:
         crops: list[tuple[str, bytes]] = []
         for track in tracks:
             for at, box in tables.track_samples(track.track_id, CROPS_PER_TRACK):
@@ -343,24 +401,26 @@ class IdentityMemory:
         by_track: dict[str, list[Vector]] = {}
         for start in range(0, len(crops), EMBED_BATCH):
             batch = crops[start : start + EMBED_BATCH]
-            for (track_id, _), vector in zip(
-                batch, self._embed([c for _, c in batch]), strict=True
-            ):
+            for (track_id, _), vector in zip(batch, embed([c for _, c in batch]), strict=True):
                 if vector:
                     by_track.setdefault(track_id, []).append(np.asarray(vector, dtype=np.float32))
         self._uncroppable.update(t.track_id for t in tracks if t.track_id not in by_track)
         with self._lock:
+            known = self._vectors[bounds.model]
             for track_id, vectors in by_track.items():
                 mean = np.mean(vectors, axis=0)
-                self._vectors[track_id] = np.asarray(
-                    mean / (np.linalg.norm(mean) or 1.0), np.float32
-                )
-            keys = list(self._vectors)
+                known[track_id] = np.asarray(mean / (np.linalg.norm(mean) or 1.0), np.float32)
+            keys = list(known)
             np.savez(
-                self._dir / "vectors.npz",
+                self._vectors_path(bounds),
                 ids=np.asarray(keys),
-                vectors=np.stack([self._vectors[k] for k in keys]) if keys else np.zeros((0, 1)),
+                vectors=np.stack([known[k] for k in keys]) if keys else np.zeros((0, 1)),
             )
+
+    def _vectors_path(self, bounds: Calibration) -> Path:
+        """`vectors.npz` (DINOv2, as before) or `vectors-person.npz` (OSNet-AIN)."""
+        suffix = "" if bounds is APPEARANCE else f"-{bounds.model}"
+        return self._dir / f"vectors{suffix}.npz"
 
     def _relink(self, tracks: Sequence[_Track]) -> list[dict[str, object]]:
         groups: dict[tuple[str, str], list[_Track]] = {}
@@ -368,7 +428,8 @@ class IdentityMemory:
             groups.setdefault((track.camera_id, track.concept), []).append(track)
         rows: list[dict[str, object]] = []
         for (camera_id, concept), members in sorted(groups.items()):
-            linked, threshold = link(members, self._vectors)
+            bounds = self._bounds(concept)
+            linked, threshold = link(members, self._vectors[bounds.model], bounds)
             rows.extend(
                 {
                     "track_id": track_id,
@@ -435,23 +496,29 @@ class IdentityMemory:
             return None
 
     def _load(self) -> None:
-        stored = self._dir / "vectors.npz"
-        if stored.is_file():
-            with np.load(stored) as data:
-                ids, vectors = data["ids"].tolist(), data["vectors"]
-                self._vectors = {str(k): vectors[i] for i, k in enumerate(ids)}
+        for bounds in (APPEARANCE, PERSON):
+            stored = self._vectors_path(bounds)
+            if stored.is_file():
+                with np.load(stored) as data:
+                    ids, vectors = data["ids"].tolist(), data["vectors"]
+                    self._vectors[bounds.model] = {str(k): vectors[i] for i, k in enumerate(ids)}
         if self.notes_path.is_file():
             for line in self.notes_path.read_text("utf-8").splitlines():
                 self._noted.add(json.loads(line)["identity_id"])
 
 
 def gpu_embedder(
-    base_url: str, api_key: str, timeout_s: float = 60.0, edge_key: str | None = None
+    base_url: str,
+    api_key: str,
+    timeout_s: float = 60.0,
+    edge_key: str | None = None,
+    model: str = APPEARANCE.model,
 ) -> Embed:
-    """`Embed` over the GPU pod's `/embed` (the SAM server's DINOv2).
+    """`Embed` over the GPU pod's `/embed` (the SAM server's DINOv2, or OSNet-AIN for people).
 
     With `edge_key` (`SAM_EDGE_KEY`, a RunPod serverless load balancer), that key is the bearer
-    and the server's key travels in `X-Rulecam-Key`, as in `sam_runtime.sam_transport`.
+    and the server's key travels in `X-Rulecam-Key`, as in `sam_runtime.sam_transport`. `model`
+    is `appearance` (DINOv2) or `person` (OSNet-AIN person re-ID).
     """
     import base64  # noqa: PLC0415
 
@@ -467,7 +534,10 @@ def gpu_embedder(
             reply = client.post(
                 f"{base_url.rstrip('/')}/embed",
                 headers=headers,
-                json={"images_b64": [base64.b64encode(c).decode("ascii") for c in crops]},
+                json={
+                    "images_b64": [base64.b64encode(c).decode("ascii") for c in crops],
+                    "model": model,
+                },
             )
             reply.raise_for_status()
         except httpx.HTTPError as exc:

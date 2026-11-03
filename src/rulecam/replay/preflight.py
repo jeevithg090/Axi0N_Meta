@@ -30,7 +30,7 @@ from rulecam.voice_out.wav import encode_wav
 
 MIN_FREE_BYTES = 10 * 1024**3
 CHUNK_FRESH_S = 30.0
-HTTP_TIMEOUT_S = 20.0
+HTTP_TIMEOUT_S = 180.0
 HTTP_UNAUTHORIZED = 401
 HTTP_FORBIDDEN = 403
 HTTP_SERVER_ERROR_MIN = 500
@@ -313,7 +313,11 @@ def exit_code(results: Sequence[CheckResult]) -> int:
 def main() -> int:
     """Run preflight against the real environment and print the table."""
     results = run_preflight(PreflightDeps(settings=get_settings()))
-    sys.stdout.write(render_table(results) + "\n")
+    rendered = render_table(results) + "\n"
+    try:
+        sys.stdout.write(rendered)
+    except UnicodeEncodeError:
+        sys.stdout.buffer.write(rendered.encode("utf-8", errors="replace"))
     return exit_code(results)
 
 

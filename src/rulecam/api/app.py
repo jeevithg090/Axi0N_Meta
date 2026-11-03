@@ -26,11 +26,19 @@ The public verify page gets `GET /evidence/{day}/hashes` (record hashes only) an
 `GET /evidence/{day}/root` (the current and the committed Merkle root), so anyone can check that
 the day's log still reproduces the root committed to git without seeing a single record.
 
+Incident reports (add-on 5.2, owner-only): `GET /incidents?day=` lists a day's events,
+`GET /incidents/{event_id}` returns one event's report (clause, rule, measurement, every chained
+verdict, action, ack and label, the chain status), and `GET /incidents/{event_id}/report`
+downloads it as a PDF (`evidence.incident`), or as printable HTML when Chromium is not installed.
+
 Response (WS1b): `services_from_settings` builds the policy, firewall and actions once
 (`runtime.response`), mounts the alerts PWA routes (`/alerts`, `/ack`, `/interlock/{device}/resume`,
 owner-only), ticks the escalation timers once a second, and serves how the response side is
 configured (Tier 2, firewall, dry run, interlock) in `GET /runtime/metrics` under `response`.
-Upheld disputes and owner corrections become permanent Rule CI regressions (WS1f).
+Upheld disputes, owner corrections and responders' *False alarm* taps become permanent Rule CI
+regressions (WS1f). With `TELEGRAM_BOT_TOKEN`, a poller long-polls the Telegram bot for taps and
+the owner mints role links at `GET /telegram/link?role=…` (add-on 5.1). With `RULECAM_WEBHOOKS`,
+another poller sends the signed outbound webhooks (add-on 5.4).
 
 Cost (WS3): with the runtime on, a `CostWatch` ticks once a second: the per-camera dollar budget
 (alarm and degrade, `runtime.cost`), the cost per camera-hour, and the optional idle GPU stop
@@ -49,13 +57,26 @@ from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, WebSocket, params, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    WebSocket,
+    params,
+    status,
+)
+from fastapi import Path as PathParam
 from fastapi.responses import PlainTextResponse
+from fastapi.responses import Response as HttpResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
+from rulecam.act.api import FalseAlarmSink
 from rulecam.act.drills import DrillRunner, drills_router
 from rulecam.advisor.api import AdviceStore, PlanFactory, advice_router
 from rulecam.api.ask import ask_router
@@ -87,9 +108,20 @@ from rulecam.clients.open_weights.glimmer import GlimmerClient
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
 from rulecam.config import Settings, get_settings
-from rulecam.contracts import Calibration, Chunk, Clock, SitePlan
+from rulecam.contracts import Calibration, Chunk, Clock, PrivacyMode, SitePlan
 from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
+from rulecam.evidence.incident import (
+    IncidentReport,
+    IncidentSummary,
+    PdfPrinter,
+    build_incident,
+    candidates,
+    find_incident,
+    render_incident_html,
+    report_document,
+)
 from rulecam.evidence.merkle import chain_root, read_day_roots
+from rulecam.evidence.packs import Thumbnail, render_pdf
 from rulecam.log import get_logger
 from rulecam.perception.correction import CorrectionService
 from rulecam.perception.correction_api import correction_router
@@ -144,6 +176,8 @@ class AppServices:
         verify_dir: Directory served at `/verify` (the packaged browser verify page in
             production, P3-07b); `None` skips it.
         tickers: Called once a second off the event loop (e.g. `EscalationManager.tick`).
+        pollers: Blocking calls run back to back, each in its own worker thread until shutdown
+            (e.g. `TelegramBot.poll`, which long-polls); each must wait on its own between calls.
         uploads_dir: Where planner uploads are stored (`POST /plans/uploads`).
         planner: The Site Planner runner (P2-06); `POST /plans/requests` needs it.
         activator: Activates approved plans in the runtime; approval answers 503 without one.
@@ -161,6 +195,11 @@ class AppServices:
         plan_factory: P4's measurement-plan builder; `POST /advice/{id}/accept` needs it.
         public_demo: Demo sites only: non-owners may watch `/ws` (from a viewer origin) and read
             plans. Off by default; a real site keeps those reads owner-only.
+        stills_root: Where the runtime writes evidence strips; incident reports inline stills
+            from under it only.
+        verify_base: The verify page's public URL in incident reports' QR codes (e.g.
+            `<PUBLIC_UI_URL>/rulecam-api/verify/`); default the API's own `/verify/`.
+        pdf_printer: Prints a report to PDF (`evidence.packs.render_pdf`).
     """
 
     bus: Bus
@@ -177,6 +216,7 @@ class AppServices:
     plans: PlanRegistry = field(default_factory=PlanRegistry)
     verify_dir: Path | None = None
     tickers: Sequence[Callable[[], object]] = field(default_factory=tuple)
+    pollers: Sequence[Callable[[], object]] = field(default_factory=tuple)
     uploads_dir: Path | None = None
     planner: PlannerRunner | None = None
     activator: PlanActivator | None = None
@@ -191,6 +231,9 @@ class AppServices:
     plan_factory: PlanFactory | None = None
     public_demo: bool = False
     revision: str | None = None
+    stills_root: Path | None = None
+    verify_base: str | None = None
+    pdf_printer: PdfPrinter = render_pdf
 
 
 class RuntimeReport(LoopMetrics):
@@ -212,6 +255,16 @@ async def _tick_forever(tickers: Sequence[Callable[[], object]]) -> None:
             except Exception:  # one failing ticker must not stop the escalation timers
                 _log.exception("ticker_failed", ticker=getattr(tick, "__qualname__", repr(tick)))
         await asyncio.sleep(TICK_S)
+
+
+async def _poll_forever(poller: Callable[[], object]) -> None:
+    """Call a blocking poller back to back in a worker thread until cancelled."""
+    while True:
+        try:
+            await asyncio.to_thread(poller)
+        except Exception:  # a failing poll must not end the loop
+            _log.exception("poller_failed", poller=getattr(poller, "__qualname__", repr(poller)))
+            await asyncio.sleep(TICK_S)
 
 
 VERIFY_PAGE_DIR = Path(__file__).resolve().parent.parent / "evidence" / "verify_page"
@@ -422,6 +475,68 @@ def _evidence_router(services: AppServices) -> APIRouter:
     return router
 
 
+EventIdPath = Annotated[str, PathParam(pattern=r"^[A-Za-z0-9_.:-]{1,128}$")]
+
+
+def _incident(
+    services: AppServices, event_id: str, request: Request
+) -> tuple[IncidentReport, tuple[Thumbnail, ...]]:
+    found = find_incident(services.chain_root / services.site, event_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail="no incident with this event id")
+    day, records = found
+    plan = services.runtime.plan if services.runtime is not None else None
+    base = services.verify_base or f"{request.base_url}verify/"
+    return build_incident(
+        records,
+        event_id,
+        site=services.site,
+        day=day,
+        privacy_mode=plan.privacy_mode if plan is not None else PrivacyMode.STRICT,
+        verify_url=f"{base}?day={day.isoformat()}",
+        chain=verify_chain(services.chain_root / services.site / f"{day.isoformat()}.jsonl"),
+        stills_root=services.stills_root,
+    )
+
+
+def _incidents_router(services: AppServices) -> APIRouter:
+    router = APIRouter(prefix="/incidents", tags=["incidents"], dependencies=_OWNER)
+
+    @router.get("")
+    def incidents(day: date | None = None) -> list[IncidentSummary]:
+        days = _chain_days(services.chain_root / services.site)
+        chosen = day or (days[-1] if days else None)
+        if chosen is None or chosen not in days:
+            return []
+        return candidates(read_chain(_chain_file(services, chosen)))
+
+    @router.get("/{event_id}")
+    def incident(event_id: EventIdPath, request: Request) -> IncidentReport:
+        return _incident(services, event_id, request)[0]
+
+    @router.get("/{event_id}/report", response_class=HttpResponse)
+    def report(
+        event_id: EventIdPath, request: Request, format: Literal["pdf", "html"] = "pdf"
+    ) -> HttpResponse:
+        html = render_incident_html(*_incident(services, event_id, request))
+        if format == "pdf":
+            body, media_type = report_document(html, services.pdf_printer)
+        else:
+            body, media_type = html.encode("utf-8"), "text/html"
+        extension = "pdf" if media_type == "application/pdf" else "html"
+        return HttpResponse(
+            body,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="incident-{event_id}.{extension}"',
+                "Cache-Control": "no-store",
+                "X-Rulecam-Report-Format": extension,
+            },
+        )
+
+    return router
+
+
 def _runtime_router(services: AppServices) -> APIRouter:
     router = APIRouter(prefix="/runtime", tags=["runtime"])
 
@@ -459,6 +574,7 @@ def _routers(services: AppServices, auth: OwnerAuth) -> list[APIRouter]:
         _core_router(services, auth),
         metrics_router(_metrics_sources(services)),
         _evidence_router(services),
+        _incidents_router(services),
         _runtime_router(services),
         plans_router(
             services.plans,
@@ -502,6 +618,7 @@ def _lifespan(
             tasks.append(asyncio.create_task(services.runtime.run()))
         if services.tickers:
             tasks.append(asyncio.create_task(_tick_forever(services.tickers)))
+        tasks.extend(asyncio.create_task(_poll_forever(p)) for p in services.pollers)
         for task in tasks:
             task.add_done_callback(_log_task_end)
         try:
@@ -787,6 +904,8 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         plan = runtime.plan if runtime is not None else None
         return plan_concepts(plan) if plan is not None else []
 
+    false_alarm = false_alarm_regressions(lambda: runtime.plan if runtime else None, hard_negatives)
+
     pair = PairPhone(
         bus=bus, clock=clock, segmenter=perception.hosted, settings=settings, concepts=concepts
     )
@@ -838,6 +957,12 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         viewer_origins=origins,
         public_demo=settings.public_demo,
         revision=code_revision(settings.rulecam_revision),
+        stills_root=settings.rulecam_data_dir / "strips",
+        verify_base=(
+            f"{settings.public_ui_url.rstrip('/')}/rulecam-api/verify/"
+            if settings.public_ui_url
+            else None
+        ),
         auth=auth,
         health_probes=probes,
         tickers=(
@@ -845,6 +970,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             *((watch.tick,) if watch is not None else ()),
             *ask_tickers,
         ),
+        pollers=response.pollers(false_alarm),
         response=response.status,
         cost=watch.report if watch is not None else None,
         routers=(
@@ -859,9 +985,10 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 reviewer=response.policy,
                 hard_negatives=hard_negatives,
             ),
-            owner_alerts_router(response),
+            owner_alerts_router(response, on_false_alarm=false_alarm),
             ask_router(ask_agent, dependencies=_OWNER),
-            *((webhook,) if (webhook := response.webhook_router()) is not None else ()),
+            *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
+            *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
         ),
     )
 
@@ -966,13 +1093,40 @@ def cost_watch(
     )
 
 
-def owner_alerts_router(response: Response) -> APIRouter:
+def false_alarm_regressions(
+    plan: Callable[[], ActivePlan | None], hard_negatives: HardNegatives
+) -> FalseAlarmSink:
+    """A *False alarm* sink that records the tap as a permanent Rule CI regression (WS1f).
+
+    Args:
+        plan: The plan being enforced (its rules give the alert's concepts).
+        hard_negatives: The regression recorder.
+
+    Returns:
+        The sink; an alert whose rule is not in the current plan is logged and skipped.
+    """
+
+    def record(event_id: str, rule_id: str | None) -> None:
+        active = plan()
+        rules = active.rules if active is not None else ()
+        rule = next((r for r in rules if r.id == rule_id), None)
+        if rule is None:
+            _log.info("false_alarm_rule_unknown", event_id=event_id, rule_id=rule_id)
+            return
+        hard_negatives.from_false_alarm(rule, event_id)
+
+    return record
+
+
+def owner_alerts_router(
+    response: Response, *, on_false_alarm: FalseAlarmSink | None = None
+) -> APIRouter:
     """The alerts PWA routes (`/alerts`, `/ack`, interlock resume, `/drills`), owner-only.
 
     They show alert titles and clips and can restore power, so they need the owner (loopback or
     an owner session), like every other route that reads traces or changes state.
     """
-    router = response.router(dependencies=_OWNER)
+    router = response.router(dependencies=_OWNER, on_false_alarm=on_false_alarm)
     runner = DrillRunner(response.escalation, response.chain, SystemClock())
     router.include_router(drills_router(runner), dependencies=_OWNER)
     return router

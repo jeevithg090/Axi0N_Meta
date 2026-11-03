@@ -1,11 +1,11 @@
-"""Seed the live Rulecam backend with real video streams, chunks, SitePlans, and SHA-256 EventChains."""
+"""Seed the live Rulecam backend with video streams, chunks, SitePlans and SHA-256 EventChains."""
 
 from __future__ import annotations
 
 import hashlib
 import json
 import shutil
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import cv2
@@ -68,13 +68,38 @@ CAMERA_SPECS = [
     ("CAM-03", "East Visitor & PPE Corridor", "warehouse_group_23237.mp4", "cam03_ppe.mp4"),
     ("CAM-04", "Staging Bay C4 · Forklift Cab", "forklift_driver_45848.mp4", "cam04_forklift.mp4"),
     ("CAM-05", "Commercial Kitchen · Prep Line A", "kitchen_prep_15875.mp4", "cam05_kitchen.mp4"),
-    ("CAM-06", "West Assembly & Blueprint Zone", "warehouse_incident_23238.mp4", "cam06_altercation.mp4"),
+    (
+        "CAM-06",
+        "West Assembly & Blueprint Zone",
+        "warehouse_incident_23238.mp4",
+        "cam06_altercation.mp4",
+    ),
     ("CAM-08", "South Freight Gate · Truck Bay", "freight_truck_23011.mp4", "cam08_packaging.mp4"),
-    ("CAM-09", "Yard Heavy Equipment · Boom Zone", "excavator_swing_49192.mp4", "cam09_excavator.mp4"),
-    ("CAM-10", "High-Bay Pallet Racking · Aisle 4", "warehouse_pallets_45847.mp4", "cam10_pallets.mp4"),
-    ("CAM-11", "Receiving Bay D1 · Forklift Lane", "forklift_drive_24127.mp4", "cam11_receiving.mp4"),
+    (
+        "CAM-09",
+        "Yard Heavy Equipment · Boom Zone",
+        "excavator_swing_49192.mp4",
+        "cam09_excavator.mp4",
+    ),
+    (
+        "CAM-10",
+        "High-Bay Pallet Racking · Aisle 4",
+        "warehouse_pallets_45847.mp4",
+        "cam10_pallets.mp4",
+    ),
+    (
+        "CAM-11",
+        "Receiving Bay D1 · Forklift Lane",
+        "forklift_drive_24127.mp4",
+        "cam11_receiving.mp4",
+    ),
     ("CAM-12", "North Mezzanine Patrol Walkway", "worker_aisle_23124.mp4", "cam12_corridor.mp4"),
-    ("phone-27", "Paired Phone #27 · Warehouse Floor", "forklift_driver_45848.mp4", "cam04_forklift.mp4"),
+    (
+        "phone-27",
+        "Paired Phone #27 · Warehouse Floor",
+        "forklift_driver_45848.mp4",
+        "cam04_forklift.mp4",
+    ),
 ]
 
 
@@ -156,7 +181,9 @@ def seed_chunks(cam_paths: dict[str, Path], now: datetime) -> None:
     index_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _rule_checks(rule_id: str, concern_text: str, standard_detail: str = "OSHA 1910.178(n)(1) matched") -> list[AcceptanceCheck]:
+def _rule_checks(
+    rule_id: str, concern_text: str, standard_detail: str = "OSHA 1910.178(n)(1) matched"
+) -> list[AcceptanceCheck]:
     return [
         AcceptanceCheck(
             check="concern_covered",
@@ -221,14 +248,29 @@ def build_plans() -> list[SitePlan]:
     PLANS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Plan 1: Golden scenario warehouse_driver plan (plan-4f9ee0094e29)
-    golden_raw = json.loads((ROOT / "scenarios" / "warehouse_driver" / "plan.json").read_text("utf-8"))
+    golden_raw = json.loads(
+        (ROOT / "scenarios" / "warehouse_driver" / "plan.json").read_text("utf-8")
+    )
     golden_raw.setdefault("site_name", "demo")
     golden_raw.setdefault("version", 1)
     plan_v1 = SitePlan.model_validate(golden_raw)
 
     # Plan 3: Full 12-camera Master Production Plan (plan-c914e72a03f5, v3)
     plan_id_v3 = "plan-c914e72a03f5"
-    all_cams = ["CAM-01", "CAM-02", "CAM-03", "CAM-04", "CAM-05", "CAM-06", "CAM-08", "CAM-09", "CAM-10", "CAM-11", "CAM-12", "phone-27"]
+    all_cams = [
+        "CAM-01",
+        "CAM-02",
+        "CAM-03",
+        "CAM-04",
+        "CAM-05",
+        "CAM-06",
+        "CAM-08",
+        "CAM-09",
+        "CAM-10",
+        "CAM-11",
+        "CAM-12",
+        "phone-27",
+    ]
 
     # Create zones across cameras so `/worker/{plan_id}/{camera}` serves every active camera
     forklift_zones = {
@@ -301,7 +343,9 @@ def build_plans() -> list[SitePlan]:
         version=2,
         source=RuleSource(
             kind="text",
-            text="Every person entering the East Visitor & PPE Corridor must wear a safety hardhat.",
+            text=(
+                "Every person entering the East Visitor & PPE Corridor must wear a safety hardhat."
+            ),
             lang="en",
             plan_id=plan_id_v3,
             standard=("OSHA-1910.135(a)(1)",),
@@ -320,9 +364,7 @@ def build_plans() -> list[SitePlan]:
             ),
         ),
         severity=Severity.MEDIUM,
-        actions=(
-            ActionSpec(kind="notify", role="supervisor", lang="en", after_s=2.0),
-        ),
+        actions=(ActionSpec(kind="notify", role="supervisor", lang="en", after_s=2.0),),
         verify=VerifySpec(tier1="glimmer", tier2="spark-open-on-disagree", min_confidence=0.75),
         accept=("visitor or worker in corridor without safety helmet for >2s",),
         backtestable="yes",
@@ -333,7 +375,10 @@ def build_plans() -> list[SitePlan]:
         version=2,
         source=RuleSource(
             kind="text",
-            text="Maintain a 3.5 metre exclusion zone around moving excavators and backing freight trucks.",
+            text=(
+                "Maintain a 3.5 metre exclusion zone around moving excavators and backing "
+                "freight trucks."
+            ),
             lang="en",
             plan_id=plan_id_v3,
             standard=("OSHA-1926.1424(a)(2)",),
@@ -366,7 +411,10 @@ def build_plans() -> list[SitePlan]:
         version=1,
         source=RuleSource(
             kind="text",
-            text="Ensure commercial kitchen prep line staff wear chef head coverings and maintain clear prep stations.",
+            text=(
+                "Ensure commercial kitchen prep line staff wear chef head coverings and maintain "
+                "clear prep stations."
+            ),
             lang="en",
             plan_id=plan_id_v3,
             standard=("FDA-FoodCode-2-402.11",),
@@ -385,32 +433,58 @@ def build_plans() -> list[SitePlan]:
             ),
         ),
         severity=Severity.LOW,
-        actions=(
-            ActionSpec(kind="notify", role="kitchen_lead", lang="en", after_s=5.0),
-        ),
+        actions=(ActionSpec(kind="notify", role="kitchen_lead", lang="en", after_s=5.0),),
         verify=VerifySpec(tier1="glimmer", tier2="none", min_confidence=0.7),
         accept=("kitchen staff on prep line without hairnet or chef hat",),
         backtestable="yes",
     )
 
     checks_v3 = (
-        _rule_checks(rule_forklift.id, rule_forklift.source.text, "OSHA 1910.178(n)(1) & HSE L117 §72 verified")
+        _rule_checks(
+            rule_forklift.id,
+            rule_forklift.source.text,
+            "OSHA 1910.178(n)(1) & HSE L117 §72 verified",
+        )
         + _rule_checks(rule_ppe.id, rule_ppe.source.text, "OSHA 1910.135(a)(1) verified")
         + _rule_checks(rule_yard.id, rule_yard.source.text, "OSHA 1926.1424(a)(2) verified")
-        + _rule_checks(rule_kitchen.id, rule_kitchen.source.text, "FDA Food Code §2-402.11 verified")
+        + _rule_checks(
+            rule_kitchen.id, rule_kitchen.source.text, "FDA Food Code §2-402.11 verified"
+        )
     )
 
     back_translation_v3 = (
         "[en]\n"
-        f"- {rule_forklift.id}: Monitors forklifts and pedestrians across loading docks and aisles (CAM-01, CAM-02, CAM-04, CAM-10, CAM-11, phone-27). Triggers with HIGH severity when a person is within 2.0 m of a forklift moving faster than 0.2 m/s (seated operators inside the cab are automatically excluded). Action: play audible warning and notify safety_officer immediately.\n"
-        f"- {rule_ppe.id}: Monitors the East Visitor & PPE Corridor (CAM-03, CAM-06, CAM-12). Triggers with MEDIUM severity when a person is inside the corridor without a safety helmet for over 2.0 s. Action: notify supervisor.\n"
-        f"- {rule_yard.id}: Monitors the South Freight Gate and Yard Heavy Equipment Bay (CAM-08, CAM-09). Triggers with HIGH severity when a person is within 3.5 m of a moving excavator boom or backing truck (>0.15 m/s). Action: trip zone interlock and notify safety_officer.\n"
-        f"- {rule_kitchen.id}: Monitors Commercial Kitchen Prep Line A (CAM-05). Triggers with LOW severity when staff work at the prep line without a chef hat or hairnet for over 5.0 s. Action: notify kitchen_lead.\n"
+        f"- {rule_forklift.id}: Monitors forklifts and pedestrians across loading docks and "
+        "aisles (CAM-01, CAM-02, CAM-04, CAM-10, CAM-11, phone-27). Triggers with HIGH severity "
+        "when a person is within 2.0 m of a forklift moving faster than 0.2 m/s (seated "
+        "operators inside the cab are automatically excluded). Action: play audible warning and "
+        "notify safety_officer immediately.\n"
+        f"- {rule_ppe.id}: Monitors the East Visitor & PPE Corridor (CAM-03, CAM-06, CAM-12). "
+        "Triggers with MEDIUM severity when a person is inside the corridor without a safety "
+        "helmet for over 2.0 s. Action: notify supervisor.\n"
+        f"- {rule_yard.id}: Monitors the South Freight Gate and Yard Heavy Equipment Bay (CAM-08, "
+        "CAM-09). Triggers with HIGH severity when a person is within 3.5 m of a moving "
+        "excavator boom or backing truck (>0.15 m/s). Action: trip zone interlock and notify "
+        "safety_officer.\n"
+        f"- {rule_kitchen.id}: Monitors Commercial Kitchen Prep Line A (CAM-05). Triggers with "
+        "LOW severity when staff work at the prep line without a chef hat or hairnet for over "
+        "5.0 s. Action: notify kitchen_lead.\n"
         "[es]\n"
-        f"- {rule_forklift.id}: Monitorea montacargas y peatones en muelles y pasillos (CAM-01, CAM-02, CAM-04, CAM-10, CAM-11, phone-27). Se activa con severidad ALTA cuando una persona está a menos de 2.0 m de un montacargas en movimiento (>0.2 m/s; el operador sentado queda excluido). Acción: alerta de voz inmediata y notificación al oficial de seguridad.\n"
-        f"- {rule_ppe.id}: Monitorea el Corredor Este de Visitantes y EPP (CAM-03, CAM-06, CAM-12). Se activa con severidad MEDIA cuando una persona entra sin casco de seguridad por más de 2.0 s. Acción: notificar al supervisor.\n"
-        f"- {rule_yard.id}: Monitorea la Puerta Sur de Carga y Bahía de Maquinaria Pesada (CAM-08, CAM-09). Se activa con severidad ALTA cuando un peatón está a menos de 3.5 m de una excavadora o camión en movimiento. Acción: activar bloqueo de seguridad y notificar al oficial.\n"
-        f"- {rule_kitchen.id}: Monitorea la Línea de Preparación de Cocina Comercial A (CAM-05). Se activa con severidad BAJA cuando el personal trabaja sin gorro o malla para el cabello por más de 5.0 s."
+        f"- {rule_forklift.id}: Monitorea montacargas y peatones en muelles y pasillos (CAM-01, "
+        "CAM-02, CAM-04, CAM-10, CAM-11, phone-27). Se activa con severidad ALTA cuando una "
+        "persona está a menos de 2.0 m de un montacargas en movimiento (>0.2 m/s; el operador "
+        "sentado queda excluido). Acción: alerta de voz inmediata y notificación al oficial de "
+        "seguridad.\n"
+        f"- {rule_ppe.id}: Monitorea el Corredor Este de Visitantes y EPP (CAM-03, CAM-06, "
+        "CAM-12). Se activa con severidad MEDIA cuando una persona entra sin casco de seguridad "
+        "por más de 2.0 s. Acción: notificar al supervisor.\n"
+        f"- {rule_yard.id}: Monitorea la Puerta Sur de Carga y Bahía de Maquinaria Pesada "
+        "(CAM-08, CAM-09). Se activa con severidad ALTA cuando un peatón está a menos de 3.5 m "
+        "de una excavadora o camión en movimiento. Acción: activar bloqueo de seguridad y "
+        "notificar al oficial.\n"
+        f"- {rule_kitchen.id}: Monitorea la Línea de Preparación de Cocina Comercial A (CAM-05). "
+        "Se activa con severidad BAJA cuando el personal trabaja sin gorro o malla para el "
+        "cabello por más de 5.0 s."
     )
 
     plan_v3 = SitePlan(
@@ -421,7 +495,13 @@ def build_plans() -> list[SitePlan]:
         privacy_mode=PrivacyMode.STANDARD,
         retention_days=30,
         languages=("en", "es"),
-        standards=("OSHA-1910.178(n)(1)", "HSE-L117-§72", "OSHA-1910.135(a)(1)", "OSHA-1926.1424(a)(2)", "FDA-FoodCode-2-402.11"),
+        standards=(
+            "OSHA-1910.178(n)(1)",
+            "HSE-L117-§72",
+            "OSHA-1910.135(a)(1)",
+            "OSHA-1926.1424(a)(2)",
+            "FDA-FoodCode-2-402.11",
+        ),
         roles={
             "safety_officer": "telegram:@safety_ops",
             "supervisor": "telegram:@floor_sup",
@@ -440,42 +520,125 @@ def build_plans() -> list[SitePlan]:
             InventoryItem(camera_id="CAM-02", concept="forklift", count=1, mean_confidence=0.938),
             InventoryItem(camera_id="CAM-02", concept="person", count=2, mean_confidence=0.954),
             InventoryItem(camera_id="CAM-03", concept="person", count=4, mean_confidence=0.968),
-            InventoryItem(camera_id="CAM-03", concept="safety helmet", count=1, mean_confidence=0.912),
-            InventoryItem(camera_id="CAM-04", concept="forklift operator", count=1, mean_confidence=0.960),
-            InventoryItem(camera_id="CAM-04", concept="wooden pallet", count=3, mean_confidence=0.884),
-            InventoryItem(camera_id="CAM-05", concept="chef or kitchen worker", count=4, mean_confidence=0.951),
-            InventoryItem(camera_id="CAM-08", concept="freight truck", count=1, mean_confidence=0.947),
+            InventoryItem(
+                camera_id="CAM-03", concept="safety helmet", count=1, mean_confidence=0.912
+            ),
+            InventoryItem(
+                camera_id="CAM-04", concept="forklift operator", count=1, mean_confidence=0.960
+            ),
+            InventoryItem(
+                camera_id="CAM-04", concept="wooden pallet", count=3, mean_confidence=0.884
+            ),
+            InventoryItem(
+                camera_id="CAM-05", concept="chef or kitchen worker", count=4, mean_confidence=0.951
+            ),
+            InventoryItem(
+                camera_id="CAM-08", concept="freight truck", count=1, mean_confidence=0.947
+            ),
             InventoryItem(camera_id="CAM-09", concept="excavator", count=1, mean_confidence=0.964),
         ),
         feasibility=(
             FeasibilityVerdict(
                 concern=rule_forklift.source.text,
                 verdict="observable",
-                says="Forklifts, pedestrians, and 48x40in reference pallets are clearly visible across CAM-01, CAM-02, CAM-04, CAM-10, CAM-11, and phone-27 with lower-bound detection >= 0.89.",
+                says=(
+                    "Forklifts, pedestrians, and 48x40in reference pallets are clearly visible "
+                    "across CAM-01, CAM-02, CAM-04, CAM-10, CAM-11, and phone-27 with "
+                    "lower-bound detection >= 0.89."
+                ),
                 evidence=(
-                    Probe(camera_id="CAM-01", concept="forklift", n_frames=24, detect_rate=1.0, detect_lb=0.892, median_px_height=340.0),
-                    Probe(camera_id="CAM-02", concept="forklift", n_frames=24, detect_rate=1.0, detect_lb=0.910, median_px_height=380.0),
-                    Probe(camera_id="CAM-02", concept="person", n_frames=24, detect_rate=1.0, detect_lb=0.924, median_px_height=310.0),
-                    Probe(camera_id="CAM-04", concept="forklift", n_frames=24, detect_rate=1.0, detect_lb=0.862, median_px_height=719.0),
-                    Probe(camera_id="phone-27", concept="forklift", n_frames=24, detect_rate=1.0, detect_lb=0.862, median_px_height=719.0),
+                    Probe(
+                        camera_id="CAM-01",
+                        concept="forklift",
+                        n_frames=24,
+                        detect_rate=1.0,
+                        detect_lb=0.892,
+                        median_px_height=340.0,
+                    ),
+                    Probe(
+                        camera_id="CAM-02",
+                        concept="forklift",
+                        n_frames=24,
+                        detect_rate=1.0,
+                        detect_lb=0.910,
+                        median_px_height=380.0,
+                    ),
+                    Probe(
+                        camera_id="CAM-02",
+                        concept="person",
+                        n_frames=24,
+                        detect_rate=1.0,
+                        detect_lb=0.924,
+                        median_px_height=310.0,
+                    ),
+                    Probe(
+                        camera_id="CAM-04",
+                        concept="forklift",
+                        n_frames=24,
+                        detect_rate=1.0,
+                        detect_lb=0.862,
+                        median_px_height=719.0,
+                    ),
+                    Probe(
+                        camera_id="phone-27",
+                        concept="forklift",
+                        n_frames=24,
+                        detect_rate=1.0,
+                        detect_lb=0.862,
+                        median_px_height=719.0,
+                    ),
                 ),
             ),
             FeasibilityVerdict(
                 concern=rule_ppe.source.text,
                 verdict="observable",
-                says="SAM 3.1 + Tier-0 head crop-zoom detects safety helmets on CAM-03, CAM-06, and CAM-12 at 0.91 lower bound.",
+                says=(
+                    "SAM 3.1 + Tier-0 head crop-zoom detects safety helmets on CAM-03, CAM-06, "
+                    "and CAM-12 at 0.91 lower bound."
+                ),
                 evidence=(
-                    Probe(camera_id="CAM-03", concept="person", n_frames=24, detect_rate=1.0, detect_lb=0.941, median_px_height=420.0),
-                    Probe(camera_id="CAM-03", concept="safety helmet", n_frames=24, detect_rate=0.958, detect_lb=0.895, median_px_height=68.0),
+                    Probe(
+                        camera_id="CAM-03",
+                        concept="person",
+                        n_frames=24,
+                        detect_rate=1.0,
+                        detect_lb=0.941,
+                        median_px_height=420.0,
+                    ),
+                    Probe(
+                        camera_id="CAM-03",
+                        concept="safety helmet",
+                        n_frames=24,
+                        detect_rate=0.958,
+                        detect_lb=0.895,
+                        median_px_height=68.0,
+                    ),
                 ),
             ),
             FeasibilityVerdict(
                 concern=rule_yard.source.text,
                 verdict="observable",
-                says="Excavator boom and freight truck ground homography calibrated on CAM-08 and CAM-09 within 0.088 m.",
+                says=(
+                    "Excavator boom and freight truck ground homography calibrated on CAM-08 and "
+                    "CAM-09 within 0.088 m."
+                ),
                 evidence=(
-                    Probe(camera_id="CAM-08", concept="excavator", n_frames=24, detect_rate=1.0, detect_lb=0.915, median_px_height=460.0),
-                    Probe(camera_id="CAM-09", concept="excavator", n_frames=24, detect_rate=1.0, detect_lb=0.932, median_px_height=510.0),
+                    Probe(
+                        camera_id="CAM-08",
+                        concept="excavator",
+                        n_frames=24,
+                        detect_rate=1.0,
+                        detect_lb=0.915,
+                        median_px_height=460.0,
+                    ),
+                    Probe(
+                        camera_id="CAM-09",
+                        concept="excavator",
+                        n_frames=24,
+                        detect_rate=1.0,
+                        detect_lb=0.932,
+                        median_px_height=510.0,
+                    ),
                 ),
             ),
             FeasibilityVerdict(
@@ -483,16 +646,36 @@ def build_plans() -> list[SitePlan]:
                 verdict="observable",
                 says="Prep Line A counter and staff head coverings clearly observable on CAM-05.",
                 evidence=(
-                    Probe(camera_id="CAM-05", concept="person", n_frames=24, detect_rate=1.0, detect_lb=0.948, median_px_height=390.0),
-                    Probe(camera_id="CAM-05", concept="head_covering", n_frames=24, detect_rate=0.958, detect_lb=0.884, median_px_height=64.0),
+                    Probe(
+                        camera_id="CAM-05",
+                        concept="person",
+                        n_frames=24,
+                        detect_rate=1.0,
+                        detect_lb=0.948,
+                        median_px_height=390.0,
+                    ),
+                    Probe(
+                        camera_id="CAM-05",
+                        concept="head_covering",
+                        n_frames=24,
+                        detect_rate=0.958,
+                        detect_lb=0.884,
+                        median_px_height=64.0,
+                    ),
                 ),
             ),
             FeasibilityVerdict(
                 concern="Monitor North Stairwell Blind Spot (CAM-07) for slip hazards.",
                 verdict="not_observable",
                 reason="CAM-07 optical feed is occluded / offline (0/24 probe frames).",
-                alternative="Mount a paired mobile camera (Pair-a-Phone) at Stairwell B landing or re-angle CAM-06.",
-                says="I cannot verify slip hazards on CAM-07 because the camera feed is currently blind; I refuse to activate an unobservable rule.",
+                alternative=(
+                    "Mount a paired mobile camera (Pair-a-Phone) at Stairwell B landing or "
+                    "re-angle CAM-06."
+                ),
+                says=(
+                    "I cannot verify slip hazards on CAM-07 because the camera feed is currently "
+                    "blind; I refuse to activate an unobservable rule."
+                ),
                 evidence=(),
             ),
         ),
@@ -501,7 +684,11 @@ def build_plans() -> list[SitePlan]:
         audit=(
             AuditFinding(
                 by="spark-open",
-                text="Audited 4 rules against OSHA 1910.178, 1910.135, 1926.1424, and FDA Food Code. Operator exclusion warm-up guard (1.5s) verified active on forklift proximity rule; zero biometric or productivity tracking predicates present.",
+                text=(
+                    "Audited 4 rules against OSHA 1910.178, 1910.135, 1926.1424, and FDA Food "
+                    "Code. Operator exclusion warm-up guard (1.5s) verified active on forklift "
+                    "proximity rule; zero biometric or productivity tracking predicates present."
+                ),
                 reasoning_ref="spark-open-audit-c914e72a03f5",
             ),
         ),
@@ -558,7 +745,9 @@ def build_plans() -> list[SitePlan]:
     return [plan_v1, plan_v2, plan_v3]
 
 
-def seed_chains_and_activation(plans: list[SitePlan], now: datetime) -> None:
+def seed_chains_and_activation(  # noqa: C901, PLR0915 - one linear seeding sequence
+    plans: list[SitePlan], now: datetime
+) -> None:
     """Seed both 2026-11-01 (golden chain) and today's live chain with verified SHA-256 records."""
     chain_dir = DATA_DIR / "evidence" / "chain"
     demo_dir = chain_dir / "demo"
@@ -595,7 +784,8 @@ def seed_chains_and_activation(plans: list[SitePlan], now: datetime) -> None:
     class _DummyRuntime:
         def __init__(self) -> None:
             self.plan = None
-        def set_plan(self, active) -> None:
+
+        def set_plan(self, active: object) -> None:
             self.plan = active
 
     dummy_rt = _DummyRuntime()
@@ -633,10 +823,16 @@ def seed_chains_and_activation(plans: list[SitePlan], now: datetime) -> None:
             "subject": "CAM-02:person:84a1c02b",
             "verdict": "violation",
             "score": 0.96,
-            "reason": "A pedestrian in a yellow safety vest walks directly into Aisle B2 intersection 1.18 m ahead of a laterally crossing counterbalance forklift moving at 1.84 m/s. Clear 2.0 m separation breach confirmed.",
+            "reason": (
+                "A pedestrian in a yellow safety vest walks directly into Aisle B2 intersection "
+                "1.18 m ahead of a laterally crossing counterbalance forklift moving at 1.84 "
+                "m/s. Clear 2.0 m separation breach confirmed."
+            ),
             "action_kind": "speak",
             "action_role": "operator",
-            "action_detail": "played audible proximity horn + notified safety_officer (1.18 m < 2.00 m)",
+            "action_detail": (
+                "played audible proximity horn + notified safety_officer (1.18 m < 2.00 m)"
+            ),
             "ack_role": "safety_officer",
             "dispute": None,
         },
@@ -650,12 +846,20 @@ def seed_chains_and_activation(plans: list[SitePlan], now: datetime) -> None:
             "subject": "CAM-04:person:fe37c5cd",
             "verdict": "no_violation",
             "score": 0.04,
-            "reason": "The person at 0.08 m is seated inside the forklift cab operating the steering wheel and mast controls. Operator exclusion guard + Glimmer VLM confirm no pedestrian bystander is near the moving forklift.",
+            "reason": (
+                "The person at 0.08 m is seated inside the forklift cab operating the steering "
+                "wheel and mast controls. Operator exclusion guard + Glimmer VLM confirm no "
+                "pedestrian bystander is near the moving forklift."
+            ),
             "action_kind": "notify",
             "action_role": "safety_officer",
             "action_detail": "suppressed by Glimmer Tier-1 verifier (seated operator inside cab)",
             "ack_role": None,
-            "dispute": ("rule_was_followed", "Seated operator inside forklift cab, not a pedestrian.", "upheld"),
+            "dispute": (
+                "rule_was_followed",
+                "Seated operator inside forklift cab, not a pedestrian.",
+                "upheld",
+            ),
         },
         {
             "event_id": "ev-3d82f109c4b681e29043b7a2",
@@ -667,10 +871,16 @@ def seed_chains_and_activation(plans: list[SitePlan], now: datetime) -> None:
             "subject": "CAM-03:person:3c90e11a",
             "verdict": "violation",
             "score": 0.94,
-            "reason": "Tier-0 SAM head crop-zoom and Glimmer confirm 1 guide wearing a red safety helmet accompanied by 3 visitors in business attire walking through the East Corridor without hardhats for 6.4 seconds.",
+            "reason": (
+                "Tier-0 SAM head crop-zoom and Glimmer confirm 1 guide wearing a red safety "
+                "helmet accompanied by 3 visitors in business attire walking through the East "
+                "Corridor without hardhats for 6.4 seconds."
+            ),
             "action_kind": "notify",
             "action_role": "supervisor",
-            "action_detail": "notified floor supervisor: 3 unhelmeted visitors in East Corridor (CAM-03)",
+            "action_detail": (
+                "notified floor supervisor: 3 unhelmeted visitors in East Corridor (CAM-03)"
+            ),
             "ack_role": "supervisor",
             "dispute": None,
         },
@@ -684,7 +894,11 @@ def seed_chains_and_activation(plans: list[SitePlan], now: datetime) -> None:
             "subject": "CAM-09:person:71b4d90e",
             "verdict": "violation",
             "score": 0.95,
-            "reason": "Ground worker enters within 2.14 m of the rotating hydraulic excavator boom and dump truck loading zone during active slewing (>0.15 m/s), violating the 3.50 m exclusion radius.",
+            "reason": (
+                "Ground worker enters within 2.14 m of the rotating hydraulic excavator boom and "
+                "dump truck loading zone during active slewing (>0.15 m/s), violating the 3.50 m "
+                "exclusion radius."
+            ),
             "action_kind": "interlock",
             "action_role": "site_lead",
             "action_detail": "tripped Yard Bay 9 swing beacon interlock + notified safety_officer",
@@ -701,7 +915,10 @@ def seed_chains_and_activation(plans: list[SitePlan], now: datetime) -> None:
             "subject": "CAM-08:person:55d2a18f",
             "verdict": "violation",
             "score": 0.92,
-            "reason": "Pedestrian walks across the South Freight Gate loading apron 1.62 m behind a backing heavy freight truck moving at 1.12 m/s.",
+            "reason": (
+                "Pedestrian walks across the South Freight Gate loading apron 1.62 m behind a "
+                "backing heavy freight truck moving at 1.12 m/s."
+            ),
             "action_kind": "notify",
             "action_role": "safety_officer",
             "action_detail": "notified safety_officer + dock audio warning on CAM-08",
@@ -718,7 +935,10 @@ def seed_chains_and_activation(plans: list[SitePlan], now: datetime) -> None:
             "subject": "CAM-06:person:90e3b71c",
             "verdict": "violation",
             "score": 0.91,
-            "reason": "Two workers in West Assembly Zone (CAM-06) engage in rapid physical contact / shove while reviewing floor blueprints; supervisor alerted immediately.",
+            "reason": (
+                "Two workers in West Assembly Zone (CAM-06) engage in rapid physical contact / "
+                "shove while reviewing floor blueprints; supervisor alerted immediately."
+            ),
             "action_kind": "notify",
             "action_role": "supervisor",
             "action_detail": "escalated high-priority floor alert to supervisor on CAM-06",
@@ -735,12 +955,20 @@ def seed_chains_and_activation(plans: list[SitePlan], now: datetime) -> None:
             "subject": "CAM-05:person:22c8f401",
             "verdict": "no_violation",
             "score": 0.11,
-            "reason": "All 4 chefs on Prep Line A are wearing compliant white chef hats / head coverings while plating; initial shadow occlusion on station 3 resolved by Tier-0 crop-zoom.",
+            "reason": (
+                "All 4 chefs on Prep Line A are wearing compliant white chef hats / head "
+                "coverings while plating; initial shadow occlusion on station 3 resolved by "
+                "Tier-0 crop-zoom."
+            ),
             "action_kind": "notify",
             "action_role": "kitchen_lead",
             "action_detail": "cleared by Tier-1 Glimmer verifier (all head coverings present)",
             "ack_role": None,
-            "dispute": ("glare_or_shadow", "Overhead hood shadow briefly occluded white chef cap.", "upheld"),
+            "dispute": (
+                "glare_or_shadow",
+                "Overhead hood shadow briefly occluded white chef cap.",
+                "upheld",
+            ),
         },
     ]
 
@@ -804,7 +1032,10 @@ def seed_chains_and_activation(plans: list[SitePlan], now: datetime) -> None:
             model_version="muse-glimmer-30b",
             latency_ms=412,
             tamper=False,
-            scene_text=f"1/3 t+0.0s {rule.id} measured {spec['value']:.2f} {spec['unit']}\nsubject: {spec['subject']}",
+            scene_text=(
+                f"1/3 t+0.0s {rule.id} measured {spec['value']:.2f} {spec['unit']}\nsubject: "
+                f"{spec['subject']}"
+            ),
         )
         v_payload = verdict_obj.model_dump(mode="json")
         v_payload["event_id"] = ev_id
@@ -853,27 +1084,33 @@ def seed_chains_and_activation(plans: list[SitePlan], now: datetime) -> None:
     # Verify today's chain and commit its Merkle root
     report = verify_chain(today_path)
     if not report.ok:
-        raise RuntimeError(f"Chain verification failed at seq {report.first_bad_seq}: {report.reason}")
+        raise RuntimeError(
+            f"Chain verification failed at seq {report.first_bad_seq}: {report.reason}"
+        )
     root_hex, n_rec = chain_root(today_path)
     (ROOTS_DIR / f"{today.isoformat()}.txt").write_text(
         f"demo {root_hex} {n_rec}\n", encoding="utf-8"
     )
-    print(f"Seeded {n_rec} cryptographically verified records into {today_path} (root={root_hex[:16]}...)")
+    print(
+        f"Seeded {n_rec} cryptographically verified records into {today_path} "
+        f"(root={root_hex[:16]}...)"
+    )
 
 
 def main() -> None:
+    """Seed videos, chunks, plans and chains, then post the plans to a running API if any."""
     now = datetime.now(UTC)
     cam_paths = prepare_videos_and_strips()
     seed_chunks(cam_paths, now)
     plans = build_plans()
     seed_chains_and_activation(plans, now)
     try:
-        import httpx
+        import httpx  # noqa: PLC0415 - only needed when an API is running
 
         for p in plans:
             httpx.post("http://localhost:8000/plans", json=p.model_dump(mode="json"), timeout=3.0)
         httpx.post(f"http://localhost:8000/plans/{plans[-1].plan_id}/approve", timeout=3.0)
-    except Exception:
+    except Exception:  # noqa: S110 - no API running is fine: the seeded files are the output
         pass
     print("Successfully seeded live backend data, plans, chunks, strips, and chains.")
 

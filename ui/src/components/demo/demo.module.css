@@ -1,0 +1,195 @@
+/* Judge path: the landing page (/) and the recorded live-run section on /demo.
+   Uses the signage tokens from globals.css; mobile first (375 px), no horizontal scroll. */
+
+.page {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--s4) var(--s2) var(--s5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  overflow-wrap: anywhere;
+}
+
+.kicker {
+  font:
+    500 12px/1.4 var(--font-dm-mono, monospace),
+    monospace;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.title {
+  font:
+    800 40px/1.05 var(--font-barlow-condensed, "Barlow Condensed"),
+    sans-serif;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.pitch {
+  font-size: 20px;
+  line-height: 1.4;
+  margin: 0;
+  max-width: 46ch;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.buttons a {
+  text-decoration: none;
+  flex: 1 1 240px;
+}
+
+.note {
+  font-size: 14px;
+  color: var(--ink-2);
+  margin: 0;
+}
+
+.h2 {
+  font:
+    700 26px/1.1 var(--font-barlow-condensed, "Barlow Condensed"),
+    sans-serif;
+  text-transform: uppercase;
+  margin: 0 0 var(--s2);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s2);
+}
+
+.card {
+  background: var(--card);
+  color: #141414;
+  border: 2px solid var(--ink);
+  padding: var(--s2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-width: 0;
+}
+
+.card p {
+  margin: 0;
+}
+
+.step {
+  font:
+    700 22px/1.1 var(--font-barlow-condensed, "Barlow Condensed"),
+    sans-serif;
+  text-transform: uppercase;
+}
+
+.big {
+  font:
+    700 40px/1 var(--font-barlow-condensed, "Barlow Condensed"),
+    sans-serif;
+}
+
+.src {
+  font:
+    500 12px/1.4 var(--font-dm-mono, monospace),
+    monospace;
+  color: #4a4a46;
+}
+
+.src a {
+  color: inherit;
+}
+
+.models {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.models th,
+.models td {
+  text-align: left;
+  vertical-align: top;
+  padding: 10px 12px 10px 0;
+  border-bottom: 1px solid var(--ink);
+  font-size: 15px;
+}
+
+.models th {
+  border-bottom-width: 2px;
+}
+
+.status {
+  font:
+    500 12px/1.4 var(--font-dm-mono, monospace),
+    monospace;
+}
+
+/* Recorded live run section on /demo */
+.live {
+  border: 2px solid var(--ink);
+  padding: var(--s2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: var(--s2) 0 var(--s4);
+}
+
+.recorded {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 2px 8px;
+  background: #f2d100;
+  color: #141414;
+  border: 2px solid #141414;
+  font:
+    500 12px/1.4 var(--font-dm-mono, monospace),
+    monospace;
+}
+
+.alertCard {
+  border-top: 8px solid var(--alert);
+}
+
+.rejectCard {
+  border-top: 8px solid var(--machine);
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  padding: 6px 0;
+  border-bottom: 1px solid #b9b7ae;
+  font-size: 15px;
+}
+
+.kv > span:first-child {
+  font:
+    500 12px/1.4 var(--font-dm-mono, monospace),
+    monospace;
+  color: #4a4a46;
+  text-transform: uppercase;
+}
+
+.quote {
+  font-style: italic;
+}
+
+@media (min-width: 700px) {
+  .page {
+    padding: var(--s5) var(--s4) var(--s6);
+  }
+  .title {
+    font-size: 64px;
+  }
+  .pitch {
+    font-size: 24px;
+  }
+}

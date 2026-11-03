@@ -1,0 +1,310 @@
+{
+  "acceptance": {
+    "checks": [
+      {
+        "check": "concern_covered",
+        "detail": "rule 'keep-people-4m-from-moving-forklift'",
+        "item": "Keep people at least 4 metres away from a moving forklift.",
+        "passed": true
+      },
+      {
+        "check": "zone_in_view",
+        "detail": "the rule uses no zones",
+        "item": "keep-people-4m-from-moving-forklift",
+        "passed": true
+      },
+      {
+        "check": "detect_lb>=0.8",
+        "detail": "concept 'forklift' detect_lb=0.74 < 0.8 on 'phone-97'",
+        "item": "keep-people-4m-from-moving-forklift",
+        "passed": false
+      },
+      {
+        "check": "calibration_err<=tol",
+        "detail": "camera 'phone-97' calibration error 0.50 m > 0.10 m",
+        "item": "keep-people-4m-from-moving-forklift",
+        "passed": false
+      },
+      {
+        "check": "privacy_consistent",
+        "detail": "consistent with standard mode",
+        "item": "keep-people-4m-from-moving-forklift",
+        "passed": true
+      },
+      {
+        "check": "citation_text_match",
+        "detail": "the rule cites no standard",
+        "item": "keep-people-4m-from-moving-forklift",
+        "passed": true
+      },
+      {
+        "check": "no_private_spaces",
+        "detail": "no private-space zones",
+        "item": "keep-people-4m-from-moving-forklift",
+        "passed": true
+      },
+      {
+        "check": "ci_green",
+        "detail": "boundary 16/16, mutations 6/6",
+        "item": "keep-people-4m-from-moving-forklift",
+        "passed": true
+      },
+      {
+        "check": "nonvacuous",
+        "detail": "fires on its positive boundary trace and not on its negative one",
+        "item": "keep-people-4m-from-moving-forklift",
+        "passed": true
+      }
+    ],
+    "rounds": 0
+  },
+  "audit": [
+    {
+      "by": "spark-open",
+      "reasoning_ref": null,
+      "text": "audit_skipped: not audited, Spark Open failed (ModelHTTPError)"
+    }
+  ],
+  "back_translation": "[en]\n- keep-people-4m-from-moving-forklift: Watches for a person and a forklift on ground-plane@phone-97. Triggers with high severity when the forklift is moving faster than 0.2 m/s and the distance between person and forklift is less than 4.0 m. Action: notify supervisor in English. No delay.",
+  "cost_usd_per_cam_hour": null,
+  "feasibility": [
+    {
+      "alternative": "Keep phone-97 as is, no adjustment needed for the forklift.",
+      "concern": "Keep people at least 4 metres away from a moving forklift.",
+      "evidence": [
+        {
+          "camera_id": "phone-97",
+          "concept": "person",
+          "detect_lb": 0.862,
+          "detect_rate": 1.0,
+          "median_px_height": 146.0,
+          "n_frames": 24
+        },
+        {
+          "camera_id": "phone-97",
+          "concept": "forklift",
+          "detect_lb": 0.7415,
+          "detect_rate": 0.9167,
+          "median_px_height": 554.0,
+          "n_frames": 24
+        },
+        {
+          "camera_id": "phone-97",
+          "concept": "forklift tire",
+          "detect_lb": 0.862,
+          "detect_rate": 1.0,
+          "median_px_height": 85.0,
+          "n_frames": 24
+        },
+        {
+          "camera_id": "phone-97",
+          "concept": "concrete floor",
+          "detect_lb": 0.862,
+          "detect_rate": 1.0,
+          "median_px_height": 283.0,
+          "n_frames": 24
+        }
+      ],
+      "reason": null,
+      "says": "I can check this, with a caveat: concept 'forklift' detect_lb=0.74 < 0.8 on 'phone-97'; camera 'phone-97' calibration error 0.50 m > 0.10 m.",
+      "verdict": "caveat"
+    }
+  ],
+  "inventory": [
+    {
+      "camera_id": "phone-97",
+      "concept": "person",
+      "count": 2,
+      "mean_confidence": 0.9297
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "forklift",
+      "count": 1,
+      "mean_confidence": 0.7501
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "red hard hat",
+      "count": 1,
+      "mean_confidence": 0.8781
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "large cable reel",
+      "count": 7,
+      "mean_confidence": 0.6203
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "plastic-wrapped roll",
+      "count": 19,
+      "mean_confidence": 0.6872
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "concrete floor",
+      "count": 1,
+      "mean_confidence": 0.9712
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "warehouse ceiling beam",
+      "count": 6,
+      "mean_confidence": 0.8095
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "hanging ceiling light",
+      "count": 10,
+      "mean_confidence": 0.7631
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "stacked cardboard box",
+      "count": 5,
+      "mean_confidence": 0.55
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "wooden pallet",
+      "count": 3,
+      "mean_confidence": 0.6288
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "blue door",
+      "count": 1,
+      "mean_confidence": 0.8727
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "white corrugated wall",
+      "count": 1,
+      "mean_confidence": 0.901
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "warehouse window",
+      "count": 8,
+      "mean_confidence": 0.7917
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "pink shirt",
+      "count": 1,
+      "mean_confidence": 0.9209
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "blue jeans",
+      "count": 2,
+      "mean_confidence": 0.9098
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "white t-shirt",
+      "count": 1,
+      "mean_confidence": 0.9092
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "forklift tire",
+      "count": 4,
+      "mean_confidence": 0.8704
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "metal storage rack",
+      "count": 3,
+      "mean_confidence": 0.6671
+    },
+    {
+      "camera_id": "phone-97",
+      "concept": "warehouse wall",
+      "count": 7,
+      "mean_confidence": 0.6893
+    }
+  ],
+  "languages": [
+    "en"
+  ],
+  "plan_id": "plan-10517db0b9f6",
+  "privacy_mode": "standard",
+  "protected_two_key": [],
+  "request": [
+    {
+      "extracted": [],
+      "file": null,
+      "kind": "text",
+      "lang": "en",
+      "text": "Keep people at least 4 metres away from a moving forklift."
+    }
+  ],
+  "retention_days": 30,
+  "roles": {},
+  "rules": [
+    {
+      "accept": [],
+      "actions": [
+        {
+          "after_s": null,
+          "kind": "notify",
+          "lang": "en",
+          "role": "supervisor"
+        }
+      ],
+      "backtestable": "yes",
+      "calibration": "ground-plane@phone-97",
+      "concepts": {
+        "forklift": {
+          "prompt": "forklift",
+          "static": false
+        },
+        "person": {
+          "prompt": "person",
+          "static": false
+        }
+      },
+      "id": "keep-people-4m-from-moving-forklift",
+      "predicate": {
+        "of": [
+          {
+            "a": "person",
+            "b": "forklift",
+            "gt": null,
+            "lt": 4.0,
+            "op": "distance_m"
+          },
+          {
+            "object": "forklift",
+            "op": "moving",
+            "speed_mps_gt": 0.2
+          }
+        ],
+        "op": "all"
+      },
+      "schedule": null,
+      "severity": "high",
+      "source": {
+        "kind": "text",
+        "lang": "en",
+        "plan_id": "plan-10517db0b9f6",
+        "standard": [],
+        "text": "Keep people at least 4 metres away from a moving forklift."
+      },
+      "verify": {
+        "calibrated_alpha": null,
+        "min_confidence": 0.7,
+        "tier1": "glimmer",
+        "tier2": "spark-open-on-disagree"
+      },
+      "version": 1,
+      "zones": {}
+    }
+  ],
+  "setting_inferred": "general",
+  "site_name": "demo",
+  "standards": [],
+  "version": 1
+}

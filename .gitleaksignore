@@ -1,3 +1,8 @@
 # Gitleaks false positives (fingerprints: file:rule:line). A replay-cache entry's "key" is the
 # SHA-256 of the model request (rulecam.replay.cache.cache_key), not a credential.
 scenarios/warehouse_driver/replay/glimmer/1f337e58e6f4347add6024cb20fa3a1db3b6a65cc21b7a876020d2eab065bd11.json:generic-api-key:2
+scenarios/worker_passes_4m/replay/glimmer/a7a91b316b2df6df1eba474d3b531a61dfeaceb2a3aceb271a7673fe2643c93e.json:generic-api-key:2
+scenarios/worker_passes_4m/replay/glimmer/b827b20ef25266e9be4ed6e89264a63f3e019a57e27e4b73a18c2f36db5e42fc.json:generic-api-key:2
+scenarios/driver_only_4m/replay/glimmer/2579d97ae0d7301fdbc7e55c791571ba00b195d4db4a3b25e736e7ce3fba42dc.json:generic-api-key:2
+scenarios/driver_only_4m/replay/glimmer/b9afca099f9174121f7867f5572f3df98e470339cbfd17464c5bde898ef15fba.json:generic-api-key:2
+scenarios/driver_only_4m/replay/glimmer/d64a0bdb0437b80ba6667b7ffddddce80d016dad9ee7f591ce4bfce6bf606d9e.json:generic-api-key:2

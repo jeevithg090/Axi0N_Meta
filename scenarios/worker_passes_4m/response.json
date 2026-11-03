@@ -1,0 +1,13 @@
+{
+  "actions_dry_run": true,
+  "firewall": "degraded",
+  "firewall_reason": "Prompt Guard 2 did not load (OSError)",
+  "interlock_devices": [],
+  "interlock_unreachable": [],
+  "light": false,
+  "notifier": "lan",
+  "telegram": false,
+  "tier2": "absent",
+  "tier2_absent": "Tier 1 decides alone: a confirmed violation alerts, a confident rejection is suppressed, anything unsure goes to the human queue; disputes stay pending for a person",
+  "webhooks": []
+}

@@ -1,0 +1,1179 @@
+{
+  "clip": "pexels_32243654",
+  "rule": "forklift_4m",
+  "camera_id": "phone-97",
+  "plan_id": "plan-10517db0b9f6",
+  "plan_version_hash": "ee24c58808bc3826b83f2aa3a8a361049986fe80beac44fde2b19b869e2ea9f1",
+  "activated": [
+    "keep-people-4m-from-moving-forklift"
+  ],
+  "rule_hashes": [
+    "526a6d091f2023963d071fc80bbc680b6180d54e881284dd179e55ed7de1aebf"
+  ],
+  "refused": null,
+  "error": null,
+  "speed": 1.0,
+  "started_at": "2026-11-02T23:38:03.064296Z",
+  "finished_at": "2026-11-02T23:44:26.345458Z",
+  "chunk_width": 1280,
+  "chunk_height": 720,
+  "chunks": [
+    {
+      "index": 0,
+      "chunk_id": "phone-97_000111",
+      "clip_start_s": 0.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-11-02T23:43:37.729124Z"
+    },
+    {
+      "index": 1,
+      "chunk_id": "phone-97_000112",
+      "clip_start_s": 3.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-11-02T23:43:41.297698Z"
+    },
+    {
+      "index": 2,
+      "chunk_id": "phone-97_000113",
+      "clip_start_s": 6.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-11-02T23:43:44.669053Z"
+    },
+    {
+      "index": 3,
+      "chunk_id": "phone-97_000114",
+      "clip_start_s": 9.0,
+      "duration_s": 3.0,
+      "cam_start": "2026-11-02T23:43:47.669053Z"
+    },
+    {
+      "index": 4,
+      "chunk_id": "phone-97_000115",
+      "clip_start_s": 12.0,
+      "duration_s": 0.3,
+      "cam_start": "2026-11-02T23:43:53.979104Z"
+    }
+  ],
+  "chain": [
+    {
+      "hash": "a87eda41112e3c46748bfbf46b9053dd62755fc2668451e9f3957b1c4723d76b",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-97",
+          "event_id": "ev-41e7fc0f19271cf9a782a31c",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m",
+            "value": 3.094922
+          },
+          "plan_version_hash": "ee24c58808bc3826b83f2aa3a8a361049986fe80beac44fde2b19b869e2ea9f1",
+          "predicate_trace": {
+            "all": true,
+            "all.0.distance_m": true,
+            "all.0.distance_m.closest_in_s": 0,
+            "all.0.distance_m.closest_m": 3.094922,
+            "all.0.distance_m.separation_m": 3.094922,
+            "all.0.distance_m.ttc_s": "none",
+            "all.0.distance_m.value": 3.094922,
+            "all.1.moving": true,
+            "all.1.moving.value": 0.251696,
+            "all.value": 3.094922,
+            "episode_s": 1.5,
+            "subject": "phone-97:person:4c22c1b8"
+          },
+          "rule_id": "keep-people-4m-from-moving-forklift",
+          "rule_ir_hash": "526a6d091f2023963d071fc80bbc680b6180d54e881284dd179e55ed7de1aebf",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "6cf55415a7fc30d6516021d55c745327d90e3215b8647c6a8e57b05c1967c3a4",
+          "ts_end": "2026-11-02T23:43:39.727319Z",
+          "ts_start": "2026-11-02T23:43:38.327319Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-97",
+            "err_m": 0.5,
+            "homography": [
+              [
+                3.5571746053529543,
+                0,
+                -2276.591747425891
+              ],
+              [
+                0,
+                0,
+                3573.533230919125
+              ],
+              [
+                0,
+                1,
+                -90.81857103397613
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "person_height_1.7m"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "operator_exclusion": true,
+          "operator_warmup_s": 1.5,
+          "plan_version_hash": "ee24c58808bc3826b83f2aa3a8a361049986fe80beac44fde2b19b869e2ea9f1",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-97",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-4m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 4,
+                  "op": "distance_m"
+                },
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.2
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-10517db0b9f6",
+              "standard": [],
+              "text": "Keep people at least 4 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-11-02T23:43:10.727319Z",
+          "t1": "2026-11-02T23:43:40.727319Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "361c4c93ed769b50b6d296e3df4ccd55d8881de621e1142b182a47ac72a96475",
+      "seq": 128,
+      "site": "demo",
+      "ts": "2026-11-02T23:43:42.714395Z"
+    },
+    {
+      "hash": "a8c5715b6739e3315f5c185c195aa3726f0ad97a0f02fb62c4a352aef1d711c6",
+      "kind": "action",
+      "payload": {
+        "approved_by_role": null,
+        "detail": "dry-run: would notify supervisor",
+        "event_id": "ev-41e7fc0f19271cf9a782a31c",
+        "gate": "auto",
+        "kind": "notify",
+        "ok": true,
+        "role": "supervisor",
+        "ts": "2026-11-02T23:43:47.034453Z"
+      },
+      "prev_hash": "a87eda41112e3c46748bfbf46b9053dd62755fc2668451e9f3957b1c4723d76b",
+      "seq": 129,
+      "site": "demo",
+      "ts": "2026-11-02T23:43:47.034506Z"
+    },
+    {
+      "hash": "149acfde51133deaffd86149cbdaad802de618b1ce3f48a094f44fa67be5bb67",
+      "kind": "candidate",
+      "payload": {
+        "candidate": {
+          "camera_id": "phone-97",
+          "event_id": "ev-49940b44a5ce03bffe26313f",
+          "measurement": {
+            "hi": null,
+            "lo": null,
+            "unit": "m",
+            "value": 3.991023
+          },
+          "plan_version_hash": "ee24c58808bc3826b83f2aa3a8a361049986fe80beac44fde2b19b869e2ea9f1",
+          "predicate_trace": {
+            "all": true,
+            "all.0.distance_m": true,
+            "all.0.distance_m.closest_in_s": 1,
+            "all.0.distance_m.closest_m": 3.814843,
+            "all.0.distance_m.separation_m": 3.991023,
+            "all.0.distance_m.ttc_s": "none",
+            "all.0.distance_m.value": 3.991023,
+            "all.1.moving": true,
+            "all.1.moving.value": 0.328294,
+            "all.value": 3.991023,
+            "episode_s": 1.9,
+            "subject": "phone-97:person:dc3eaa8b"
+          },
+          "rule_id": "keep-people-4m-from-moving-forklift",
+          "rule_ir_hash": "526a6d091f2023963d071fc80bbc680b6180d54e881284dd179e55ed7de1aebf",
+          "severity": "high",
+          "strip_paths": [],
+          "track_window_hash": "42db919366a225d0d67f202e19024a2e47f7a6b8c700b093d3afb06c070b0c26",
+          "ts_end": "2026-11-02T23:43:47.167176Z",
+          "ts_start": "2026-11-02T23:43:45.367176Z"
+        },
+        "context": {
+          "calibration": {
+            "camera_id": "phone-97",
+            "err_m": 0.5,
+            "homography": [
+              [
+                3.5571746053529543,
+                0,
+                -2276.591747425891
+              ],
+              [
+                0,
+                0,
+                3573.533230919125
+              ],
+              [
+                0,
+                1,
+                -90.81857103397613
+              ]
+            ],
+            "method": "reference_object",
+            "reference": "person_height_1.7m"
+          },
+          "cooldown_s": 0,
+          "episode_gap_s": 2,
+          "hz": 10,
+          "operator_exclusion": true,
+          "operator_warmup_s": 1.5,
+          "plan_version_hash": "ee24c58808bc3826b83f2aa3a8a361049986fe80beac44fde2b19b869e2ea9f1",
+          "rule": {
+            "accept": [],
+            "actions": [
+              {
+                "after_s": null,
+                "kind": "notify",
+                "lang": "en",
+                "role": "supervisor"
+              }
+            ],
+            "backtestable": "yes",
+            "calibration": "ground-plane@phone-97",
+            "concepts": {
+              "forklift": {
+                "prompt": "forklift",
+                "static": false
+              },
+              "person": {
+                "prompt": "person",
+                "static": false
+              }
+            },
+            "id": "keep-people-4m-from-moving-forklift",
+            "predicate": {
+              "of": [
+                {
+                  "a": "person",
+                  "b": "forklift",
+                  "gt": null,
+                  "lt": 4,
+                  "op": "distance_m"
+                },
+                {
+                  "object": "forklift",
+                  "op": "moving",
+                  "speed_mps_gt": 0.2
+                }
+              ],
+              "op": "all"
+            },
+            "schedule": null,
+            "severity": "high",
+            "source": {
+              "kind": "text",
+              "lang": "en",
+              "plan_id": "plan-10517db0b9f6",
+              "standard": [],
+              "text": "Keep people at least 4 metres away from a moving forklift."
+            },
+            "verify": {
+              "calibrated_alpha": null,
+              "min_confidence": 0.7,
+              "tier1": "glimmer",
+              "tier2": "spark-open-on-disagree"
+            },
+            "version": 1,
+            "zones": {}
+          },
+          "t0": "2026-11-02T23:43:17.667176Z",
+          "t1": "2026-11-02T23:43:47.667176Z",
+          "zones": {}
+        }
+      },
+      "prev_hash": "a8c5715b6739e3315f5c185c195aa3726f0ad97a0f02fb62c4a352aef1d711c6",
+      "seq": 130,
+      "site": "demo",
+      "ts": "2026-11-02T23:43:49.442014Z"
+    },
+    {
+      "hash": "82c28f0711cb8c674a4ec3eb91511da5d3b3484f1619de2ad2ccad244a181c41",
+      "kind": "action",
+      "payload": {
+        "approved_by_role": null,
+        "detail": "dry-run: would notify supervisor",
+        "event_id": "ev-49940b44a5ce03bffe26313f",
+        "gate": "auto",
+        "kind": "notify",
+        "ok": true,
+        "role": "supervisor",
+        "ts": "2026-11-02T23:43:54.275355Z"
+      },
+      "prev_hash": "149acfde51133deaffd86149cbdaad802de618b1ce3f48a094f44fa67be5bb67",
+      "seq": 131,
+      "site": "demo",
+      "ts": "2026-11-02T23:43:54.275426Z"
+    },
+    {
+      "hash": "c126824db0ebf1f47e55ced4120d370486d724c22020dcf3f4cf15fcf7937c57",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-41e7fc0f19271cf9a782a31c",
+        "latency_ms": 14691,
+        "model_version": "muse-glimmer-30b",
+        "reason": "A pedestrian is within about 3.1 m of an orange forklift that is moving, so the 4 m separation requirement is not met.",
+        "reasoning": null,
+        "scene_text": "",
+        "score": 0.99,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "violation"
+      },
+      "prev_hash": "82c28f0711cb8c674a4ec3eb91511da5d3b3484f1619de2ad2ccad244a181c41",
+      "seq": 132,
+      "site": "demo",
+      "ts": "2026-11-02T23:44:02.107787Z"
+    },
+    {
+      "hash": "43eacdfe5130331b5db954e4143b54dc0d600d65d3f4b8bc362c0ff0ab069800",
+      "kind": "verdict",
+      "payload": {
+        "decision": {
+          "act_first": true,
+          "alert": true,
+          "reason": "glimmer decided: violation (0.99)",
+          "route": "auto"
+        },
+        "event_id": "ev-41e7fc0f19271cf9a782a31c"
+      },
+      "prev_hash": "c126824db0ebf1f47e55ced4120d370486d724c22020dcf3f4cf15fcf7937c57",
+      "seq": 133,
+      "site": "demo",
+      "ts": "2026-11-02T23:44:02.166690Z"
+    },
+    {
+      "hash": "c4696546958e1756d9141bfa42d44ebae416f34b23eb79a1c5981398a0b072dc",
+      "kind": "verdict",
+      "payload": {
+        "event_id": "ev-49940b44a5ce03bffe26313f",
+        "latency_ms": 15342,
+        "model_version": "muse-glimmer-30b",
+        "reason": "A person is shown within ~4 m of an orange HELI forklift that is moving toward the camera in a warehouse, with the measured separation ~3.99 m, below the 4 m minimum.",
+        "reasoning": null,
+        "scene_text": "HELI",
+        "score": 0.99,
+        "tamper": false,
+        "tier": "glimmer",
+        "verdict": "violation"
+      },
+      "prev_hash": "43eacdfe5130331b5db954e4143b54dc0d600d65d3f4b8bc362c0ff0ab069800",
+      "seq": 134,
+      "site": "demo",
+      "ts": "2026-11-02T23:44:10.585826Z"
+    },
+    {
+      "hash": "829154a7d31d51dedebd596e09deaf900c88150ead776f4bbbe255355301eb01",
+      "kind": "verdict",
+      "payload": {
+        "decision": {
+          "act_first": true,
+          "alert": true,
+          "reason": "glimmer decided: violation (0.99)",
+          "route": "auto"
+        },
+        "event_id": "ev-49940b44a5ce03bffe26313f"
+      },
+      "prev_hash": "c4696546958e1756d9141bfa42d44ebae416f34b23eb79a1c5981398a0b072dc",
+      "seq": 135,
+      "site": "demo",
+      "ts": "2026-11-02T23:44:10.641793Z"
+    }
+  ],
+  "bus": [
+    {
+      "at": "2026-11-02T23:39:38.737151Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "understand",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-02T23:39:38.741364Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "understand",
+        "status": "done",
+        "detail": "1 concerns"
+      }
+    },
+    {
+      "at": "2026-11-02T23:39:38.741999Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "survey",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-02T23:40:54.224730Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "survey",
+        "status": "done",
+        "detail": "19 things seen; phone-97 calibrated from person_height_1.7m (0.50 m)"
+      }
+    },
+    {
+      "at": "2026-11-02T23:40:54.225814Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "probe",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-02T23:42:51.391131Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "probe",
+        "status": "done",
+        "detail": "4 probes"
+      }
+    },
+    {
+      "at": "2026-11-02T23:42:51.392178Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "gauge",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-02T23:42:57.947019Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "gauge",
+        "status": "done",
+        "detail": "1 caveat"
+      }
+    },
+    {
+      "at": "2026-11-02T23:42:57.952972Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "ask",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:06.609449Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "ask",
+        "status": "done",
+        "detail": "3 questions"
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:06.615349Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "compile",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:20.643308Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "compile",
+        "status": "done",
+        "detail": "1 rules"
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:20.643594Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "lint",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:20.651019Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "lint",
+        "status": "done",
+        "detail": "no lint errors"
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:20.651232Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "accept",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:20.658595Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "accept",
+        "status": "done",
+        "detail": "5/7 checks passed after 0 repair round(s), 1 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:20.659437Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "audit",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:25.660422Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "audit",
+        "status": "done",
+        "detail": "audit_skipped: not audited, Spark Open failed (ModelHTTPError); back-translated (en)"
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:25.660637Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "prove",
+        "status": "running",
+        "detail": ""
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:25.762391Z",
+      "topic": "planner.step",
+      "payload": {
+        "plan_id": "plan-10517db0b9f6",
+        "step": "prove",
+        "status": "done",
+        "detail": "Rule CI green for 1/1 rules"
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:42.814186Z",
+      "topic": "candidate.new",
+      "payload": {
+        "event_id": "ev-41e7fc0f19271cf9a782a31c",
+        "rule_id": "keep-people-4m-from-moving-forklift",
+        "camera_id": "phone-97",
+        "ts_start": "2026-11-02T23:43:38.327319Z",
+        "ts_end": "2026-11-02T23:43:39.727319Z",
+        "severity": "high",
+        "measurement": {
+          "value": 3.094922,
+          "lo": null,
+          "hi": null,
+          "unit": "m"
+        },
+        "predicate_trace": {
+          "subject": "phone-97:person:4c22c1b8",
+          "episode_s": 1.5,
+          "all": true,
+          "all.value": 3.094922,
+          "all.0.distance_m": true,
+          "all.0.distance_m.value": 3.094922,
+          "all.1.moving": true,
+          "all.1.moving.value": 0.251696,
+          "all.0.distance_m.separation_m": 3.094922,
+          "all.0.distance_m.closest_m": 3.094922,
+          "all.0.distance_m.closest_in_s": 0.0,
+          "all.0.distance_m.ttc_s": "none"
+        },
+        "strip_paths": [],
+        "track_window_hash": "6cf55415a7fc30d6516021d55c745327d90e3215b8647c6a8e57b05c1967c3a4",
+        "plan_version_hash": "ee24c58808bc3826b83f2aa3a8a361049986fe80beac44fde2b19b869e2ea9f1",
+        "rule_ir_hash": "526a6d091f2023963d071fc80bbc680b6180d54e881284dd179e55ed7de1aebf"
+      }
+    },
+    {
+      "at": "2026-11-02T23:43:49.517142Z",
+      "topic": "candidate.new",
+      "payload": {
+        "event_id": "ev-49940b44a5ce03bffe26313f",
+        "rule_id": "keep-people-4m-from-moving-forklift",
+        "camera_id": "phone-97",
+        "ts_start": "2026-11-02T23:43:45.367176Z",
+        "ts_end": "2026-11-02T23:43:47.167176Z",
+        "severity": "high",
+        "measurement": {
+          "value": 3.991023,
+          "lo": null,
+          "hi": null,
+          "unit": "m"
+        },
+        "predicate_trace": {
+          "subject": "phone-97:person:dc3eaa8b",
+          "episode_s": 1.9,
+          "all": true,
+          "all.value": 3.991023,
+          "all.0.distance_m": true,
+          "all.0.distance_m.value": 3.991023,
+          "all.1.moving": true,
+          "all.1.moving.value": 0.328294,
+          "all.0.distance_m.separation_m": 3.991023,
+          "all.0.distance_m.closest_m": 3.814843,
+          "all.0.distance_m.closest_in_s": 1.0,
+          "all.0.distance_m.ttc_s": "none"
+        },
+        "strip_paths": [],
+        "track_window_hash": "42db919366a225d0d67f202e19024a2e47f7a6b8c700b093d3afb06c070b0c26",
+        "plan_version_hash": "ee24c58808bc3826b83f2aa3a8a361049986fe80beac44fde2b19b869e2ea9f1",
+        "rule_ir_hash": "526a6d091f2023963d071fc80bbc680b6180d54e881284dd179e55ed7de1aebf"
+      }
+    },
+    {
+      "at": "2026-11-02T23:44:02.166615Z",
+      "topic": "verdict.new",
+      "payload": {
+        "event_id": "ev-41e7fc0f19271cf9a782a31c",
+        "verdict": {
+          "tier": "glimmer",
+          "verdict": "violation",
+          "score": 0.99,
+          "reason": "A pedestrian is within about 3.1 m of an orange forklift that is moving, so the 4 m separation requirement is not met.",
+          "reasoning": null,
+          "scene_text": "",
+          "tamper": false,
+          "latency_ms": 14691,
+          "model_version": "muse-glimmer-30b"
+        }
+      }
+    },
+    {
+      "at": "2026-11-02T23:44:10.641657Z",
+      "topic": "verdict.new",
+      "payload": {
+        "event_id": "ev-49940b44a5ce03bffe26313f",
+        "verdict": {
+          "tier": "glimmer",
+          "verdict": "violation",
+          "score": 0.99,
+          "reason": "A person is shown within ~4 m of an orange HELI forklift that is moving toward the camera in a warehouse, with the measured separation ~3.99 m, below the 4 m minimum.",
+          "reasoning": null,
+          "scene_text": "HELI",
+          "tamper": false,
+          "latency_ms": 15342,
+          "model_version": "muse-glimmer-30b"
+        }
+      }
+    }
+  ],
+  "metrics": [
+    {
+      "at": "2026-11-02T23:43:37.587047Z",
+      "lag_s": 0.0,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 0,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 0,
+      "segment_latency_p95_s": 0.0
+    },
+    {
+      "at": "2026-11-02T23:43:40.732243Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 0,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 0,
+      "segment_latency_p95_s": 0.0
+    },
+    {
+      "at": "2026-11-02T23:43:44.317566Z",
+      "lag_s": 0.016,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 1,
+      "in_flight": 1,
+      "verify_pending": 0,
+      "chunks_processed": 1,
+      "segment_latency_p95_s": 1.799
+    },
+    {
+      "at": "2026-11-02T23:43:47.672037Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 2,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 2,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:43:49.990491Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 3,
+      "in_flight": 1,
+      "verify_pending": 1,
+      "chunks_processed": 3,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:43:54.283110Z",
+      "lag_s": -0.677,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 3,
+      "in_flight": 2,
+      "verify_pending": 1,
+      "chunks_processed": 3,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:43:54.290977Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 3,
+      "in_flight": 2,
+      "verify_pending": 1,
+      "chunks_processed": 3,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:43:55.293026Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 4,
+      "in_flight": 1,
+      "verify_pending": 2,
+      "chunks_processed": 4,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:43:56.294815Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 2,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:43:57.296340Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 2,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:43:58.298275Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 2,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:43:59.299413Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 2,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:00.300521Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 2,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:01.301995Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 2,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:02.306061Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:03.307989Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:04.309621Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:05.311032Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:06.312445Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:07.313944Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:08.315457Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:09.316552Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:10.318497Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 1,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:11.320344Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:12.322115Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:13.324449Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:14.326584Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:15.328518Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:16.330349Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:17.332269Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:18.333587Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:19.335068Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:20.336492Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:21.338136Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:22.339243Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:23.340707Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:24.342001Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:25.343304Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    },
+    {
+      "at": "2026-11-02T23:44:26.345225Z",
+      "lag_s": 0.004,
+      "keyframe_mode": false,
+      "billed_frames": 0,
+      "sam_calls": 5,
+      "in_flight": 0,
+      "verify_pending": 0,
+      "chunks_processed": 5,
+      "segment_latency_p95_s": 1.947
+    }
+  ],
+  "predicted": []
+}

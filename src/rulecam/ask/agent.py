@@ -10,6 +10,9 @@ many as it decides (up to `max_actions`), which run at the same time in a thread
 - `look`: Muse Glimmer answers a question about the recorded frames at chosen instants;
 - `watch`: Muse Spark watches the recorded clip of a chosen window as video (`ask.watch`), with
   Glimmer on evenly spaced stills as the fallback when the video call fails;
+- `crowd_scan`: the crowd at chosen instants (`crowd.memory`): SAM 3.1 on enlarged tiles,
+  people per square metre per zone and grid cell, motion from optical flow, crowd pressure, and a
+  density heatmap (only when crowd watch is on);
 - `answer`: the final answer (on its own).
 
 The results go back to Spark in the order of its actions, as the next message. Spark decides
@@ -47,11 +50,11 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final, Protocol
 
 import yaml
 
-from rulecam.ask.data import DEFAULT_MAX_ROWS, QueryResult, SqlError, TrackTables
+from rulecam.ask.data import DEFAULT_MAX_ROWS, CrowdFiles, QueryResult, SqlError, TrackTables
 from rulecam.ask.results import DEFAULT_MAX_RESULT_CHARS, fit_results
 from rulecam.ask.review import REVIEW_PROMPT, AnswerReviewer, AnswerVerdict, sent_back
 from rulecam.ask.runlog import AskRunLog
@@ -81,9 +84,13 @@ from rulecam.ask.watch import (
     watch,
 )
 from rulecam.contracts import Clock, StructuredLLM
+from rulecam.crowd.zones import CrowdZone
 from rulecam.errors import RulecamError
 from rulecam.log import get_logger
 from rulecam.planner.steps.survey import ImageSegmenter
+
+if TYPE_CHECKING:
+    from rulecam.crowd.scan import CrowdReading
 
 _log = get_logger(__name__)
 
@@ -99,6 +106,27 @@ _FRAME_NAME: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}\.jpg$")
 
 Emit = Callable[[AskEvent], None]
 """Receives each `AskEvent` as it happens (called from worker threads too)."""
+
+
+class CrowdMeasure(Protocol):
+    """Measures the crowd at a recorded instant (`crowd.memory.CrowdMemory`)."""
+
+    @property
+    def heatmaps(self) -> Path:
+        """Where the readings' heatmaps are written."""
+        ...
+
+    def measure(
+        self,
+        camera_id: str,
+        at: datetime,
+        zones: Sequence[CrowdZone] = (),
+        *,
+        concept: str | None = None,
+        grid: int | None = None,
+    ) -> CrowdReading:
+        """One reading of the camera at `at` (not stored)."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -177,6 +205,16 @@ person identity (customer or staff, clothing, what they carry).
 - captions(camera_id, t0, t1, caption, people, events): the temporal memory. What Muse Glimmer \
 saw on each camera every {caption_s}; search them with ILIKE and read them for "what happened" \
 and summary questions.
+- crowd_readings(camera_id, ts, zone, people, area_m2, density_ppm2, moving, speed_mps, \
+speed_sd_mps, velocity_var, coherence, counterflow_share, pressure, peak_density_ppm2, peak_row, \
+peak_col, calibration, calibration_err_m, concept, heatmap): the crowd memory, one row per zone \
+('view' is the whole view) every few seconds: people per square metre of ground, mean speed in \
+m/s, coherence (1 = everyone walks one way), counterflow share, crowd pressure (density x \
+velocity variance, 1/s^2), and the densest grid cell (row, col from the top left). Empty when \
+crowd watch is off. crowd_assessments(camera_id, ts, level, zones, why, forecast, \
+minutes_to_danger, alert, staff_actions, announce, check) are the crowd warden's judgements and \
+crowd_alerts(alert_id, camera_id, ts, level, sent, held_reason, check, assessment, audio) the \
+warnings it sent or held (held: Muse Glimmer did not see it in the frames).
 
 Tools:
 1. sql: one or more DuckDB SELECT/WITH statements over those tables, separated by ';' (each \
@@ -192,7 +230,12 @@ join what Glimmer says to the tables.
 clip of up to {max_watch_s} s) and answers your question, with the moments it relies on as UTC \
 instants. Stills miss what only shows as movement: someone entering or leaving a shop, people \
 walking together, a queue forming; watch sees it.
-5. answer: the final reply in the owner's language, with the numbers, the time range they cover \
+5. crowd_scan: measure the crowd of camera_id at up to {max_frames} instants (times): SAM 3.1 \
+counts `concept` (default person; "head" can work better in a packed crowd) on grid x grid \
+enlarged tiles (default 2), and returns per zone people, area, density per square metre, speed, \
+coherence, counterflow and pressure, plus the grid cells and the densest one. Give `zones` as \
+named image polygons [[x, y], ...] in pixels to measure areas such as a gate or a stairway.
+6. answer: the final reply in the owner's language, with the numbers, the time range they cover \
 and one short sentence on how you got them and how sure you are. Also list the numbers the \
 reply gives in `numbers`, in the order the question asks for them.
 
@@ -242,6 +285,7 @@ class AskAgent:
         clips: ClipJoiner | None = None,
         files: FileAttacher | None = None,
         watch_model: str = WATCH_MODEL,
+        crowd: CrowdMeasure | None = None,
     ) -> None:
         """Create the agent.
 
@@ -267,6 +311,7 @@ class AskAgent:
             clips: Joins recorded chunks into one clip for `watch` (`None`: watch unavailable).
             files: Uploads a clip for Spark (`SparkClient.attach`; `None`: watch unavailable).
             watch_model: The Spark model that takes video.
+            crowd: Measures the crowd at an instant (`None`: crowd_scan unavailable).
         """
         self._spark = spark
         self._segmenter = segmenter
@@ -288,6 +333,7 @@ class AskAgent:
         self._clips = clips
         self._files = files
         self._watch_model = watch_model
+        self._crowd = crowd
         self._conversations: OrderedDict[str, list[AskAnswer]] = OrderedDict()
         self._lock = threading.Lock()
 
@@ -397,7 +443,8 @@ class AskAgent:
         """A frame a step showed a model, by its file name; `None` for anything else."""
         if not _FRAME_NAME.match(name):
             return None
-        for folder in (self._frames.out_dir, self._marks_dir):
+        heatmaps = self._crowd.heatmaps if self._crowd is not None else None
+        for folder in (self._frames.out_dir, self._marks_dir, heatmaps):
             path = folder / name if folder is not None else None
             if path is not None and path.is_file():
                 return path
@@ -577,8 +624,9 @@ class AskAgent:
         try:
             if action.action == "sql":
                 return _Outcome(_sql_result(tables.run_sql(action.sql or "")))
-            if action.action == "watch":
-                return self._watch(action)
+            if action.action in ("watch", "crowd_scan"):
+                run = self._watch if action.action == "watch" else self._crowd_scan
+                return run(action)
             asked = _instants(action.times)
             used = asked[: self._limits.max_frames]
             frames = self._frames.frames(action.camera_id or "", used)
@@ -602,6 +650,32 @@ class AskAgent:
         except (SqlError, ValueError, RulecamError, OSError) as exc:
             _log.info("ask_step_failed", action=action.action, error=str(exc))
             return _Outcome({"error": str(exc)})
+
+    def _crowd_scan(self, action: AskAction) -> _Outcome:
+        """The crowd at each asked instant, with its heatmap as the step's frame."""
+        if self._crowd is None:
+            return _Outcome({"error": "crowd_scan is off here (RULECAM_CROWD_EVERY_S is 0)"})
+        asked = _instants(action.times)
+        used = asked[: self._limits.max_frames]
+        readings, notes, heatmaps = [], [], []
+        for at in used:
+            try:
+                reading = self._crowd.measure(
+                    action.camera_id or "",
+                    at,
+                    action.zones,
+                    concept=action.concept,
+                    grid=action.grid,
+                )
+            except (ValueError, OSError, RulecamError) as exc:
+                notes.append(f"{at.isoformat()}: {exc}")
+                continue
+            readings.append(reading.model_dump(mode="json", exclude={"frame"}))
+            if reading.heatmap:
+                heatmaps.append(self._crowd.heatmaps / reading.heatmap)
+        if len(asked) > len(used):
+            notes.append(f"used the first {len(used)} of {len(asked)} instants")
+        return _Outcome({"readings": readings, **_notes(notes)}, SAM_MODEL, tuple(heatmaps))
 
     def _watch(self, action: AskAction) -> _Outcome:
         """Spark watches the window's clip; Glimmer looks at stills of it if that fails.
@@ -744,10 +818,11 @@ def open_tables(
     identities: Path | None = None,
     notes: Path | None = None,
     *,
+    crowd: CrowdFiles | None = None,
     max_rows: int = DEFAULT_MAX_ROWS,
 ) -> Callable[[], TrackTables]:
     """A factory of fresh snapshots of the track store at `root` and the memories' files."""
-    return lambda: TrackTables(root, captions, identities, notes, max_rows=max_rows)
+    return lambda: TrackTables(root, captions, identities, notes, crowd=crowd, max_rows=max_rows)
 
 
 def camera_names(text: str) -> dict[str, str]:

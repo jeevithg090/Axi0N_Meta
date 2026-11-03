@@ -7,8 +7,9 @@ from typing import Literal
 from pydantic import Field
 
 from rulecam.contracts import Frozen
+from rulecam.crowd.zones import CrowdZone
 
-Action = Literal["sql", "count_objects", "look", "watch", "answer"]
+Action = Literal["sql", "count_objects", "look", "watch", "crowd_scan", "answer"]
 
 
 class AskAction(Frozen):
@@ -20,13 +21,17 @@ class AskAction(Frozen):
         default=None,
         description="For sql: one or more SELECT/WITH statements separated by ';'.",
     )
-    concept: str | None = Field(default=None, description="For count_objects: a noun phrase.")
-    camera_id: str | None = Field(default=None, description="For count_objects, look and watch.")
+    concept: str | None = Field(
+        default=None, description="For count_objects and crowd_scan: a noun phrase."
+    )
+    camera_id: str | None = Field(
+        default=None, description="For count_objects, look, watch and crowd_scan."
+    )
     times: list[str] = Field(
         default_factory=list,
         description=(
-            "ISO-8601 UTC instants. For count_objects and look: the instants to see; for watch: "
-            "[start, end] of the window to watch."
+            "ISO-8601 UTC instants. For count_objects, look and crowd_scan: the instants to see; "
+            "for watch: [start, end] of the window to watch."
         ),
     )
     question: str | None = Field(
@@ -34,6 +39,16 @@ class AskAction(Frozen):
     )
     marks: bool = Field(
         default=True, description="For look: draw the tracked objects as numbered boxes."
+    )
+    zones: list[CrowdZone] = Field(
+        default_factory=list,
+        description="For crowd_scan: named image polygons to measure besides the whole view.",
+    )
+    grid: int | None = Field(
+        default=None,
+        ge=1,
+        le=4,
+        description="For crowd_scan: tiles per side SAM counts on (more for smaller people).",
     )
     answer: str | None = Field(default=None, description="For answer: the reply to the owner.")
     numbers: list[float | None] = Field(

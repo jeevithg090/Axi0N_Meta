@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crowd Early Warning</title>
+<style>
+:root {
+  --bg: #0b0f14; --panel: #121821; --line: #1f2a37; --text: #e6edf3; --muted: #8b98a8;
+  --normal: #2ea043; --watch: #d29922; --warning: #f0883e; --critical: #f85149; --accent: #58a6ff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
+header .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+main { padding: 16px 20px; display: grid; gap: 16px; max-width: 1500px; margin: 0 auto; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.camera { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 980px) { .camera { grid-template-columns: 1fr; } }
+.view img { width: 100%; border-radius: 8px; display: block; background: #000; min-height: 200px; }
+.view .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+.level { border-radius: 10px; padding: 14px 16px; color: #0b0f14; }
+.level .name { font-size: 30px; font-weight: 800; letter-spacing: 1px; }
+.level .sub { font-weight: 600; }
+.lv-normal { background: var(--normal); } .lv-watch { background: var(--watch); }
+.lv-warning { background: var(--warning); } .lv-critical { background: var(--critical); animation: pulse 1s infinite alternate; }
+.lv-none { background: #30363d; color: var(--text); }
+@keyframes pulse { from { filter: brightness(1); } to { filter: brightness(1.25); } }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.kpi { background: #0f141b; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.kpi .v { font-size: 22px; font-weight: 700; } .kpi .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+h3 { margin: 12px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+ul { margin: 0; padding-left: 18px; }
+.ann { display: flex; gap: 8px; align-items: baseline; margin: 4px 0; }
+.ann .lang { font-weight: 700; color: var(--accent); min-width: 28px; }
+.charts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+@media (max-width: 980px) { .charts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.chart { background: #0f141b; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.chart .t { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; display: flex; justify-content: space-between; }
+.chart svg { width: 100%; height: 90px; display: block; }
+.alerts .a { border-top: 1px solid var(--line); padding: 10px 0; display: grid; grid-template-columns: 120px 1fr; gap: 10px; }
+.alerts .a:first-of-type { border-top: 0; }
+.tag { display: inline-block; border-radius: 6px; padding: 1px 8px; font-weight: 700; font-size: 12px; color: #0b0f14; }
+.muted { color: var(--muted); } .small { font-size: 12px; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 980px) { .row { grid-template-columns: 1fr; } }
+input, textarea, select, button { font: inherit; color: var(--text); background: #0f141b; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+textarea { width: 100%; min-height: 70px; resize: vertical; }
+button { background: var(--accent); color: #0b0f14; font-weight: 700; border: 0; cursor: pointer; }
+button.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+form { display: grid; gap: 8px; }
+.answer { white-space: pre-wrap; margin-top: 10px; }
+a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Rulecam · Crowd early warning</h1>
+  <div class="chips">
+    <span class="chip">SAM 3.1 · counting on tiles</span>
+    <span class="chip">Muse Spark · assessment</span>
+    <span class="chip">Muse Glimmer · frame check</span>
+    <span class="chip">MMS-TTS · announcements</span>
+    <span class="chip" id="clock">–</span>
+    <button class="ghost" id="sound">Turn sound on</button>
+  </div>
+</header>
+<main>
+  <div id="cameras"></div>
+  <div class="row">
+    <section class="panel">
+      <h3>Tell the warden what to watch for (any language)</h3>
+      <form id="watch">
+        <select id="cam"></select>
+        <textarea id="instruction" placeholder="Warn me before the gate queue gets dangerous. Tell people in Hindi and English to use the east gate."></textarea>
+        <input id="langs" placeholder="Announcement languages, e.g. hi, en">
+        <button type="submit">Start watching</button>
+        <div id="watchmsg" class="muted small"></div>
+      </form>
+    </section>
+    <section class="panel">
+      <h3>Ask about the crowd</h3>
+      <form id="ask">
+        <textarea id="question" placeholder="Which part of the gate is filling fastest, and how long until it is unsafe?"></textarea>
+        <button type="submit">Ask</button>
+      </form>
+      <div id="answer" class="answer"></div>
+    </section>
+  </div>
+  <section class="panel alerts">
+    <h3>Alerts (each checked by Muse Glimmer before it goes out)</h3>
+    <div id="alerts" class="muted">No alerts yet.</div>
+  </section>
+</main>
+<script>
+"use strict";
+const LEVEL = { normal: "var(--normal)", watch: "var(--watch)", warning: "var(--warning)", critical: "var(--critical)" };
+let soundOn = false;
+const played = new Set();
+let firstLoad = true;
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const num = (v, d = 1) => (v === null || v === undefined || Number.isNaN(v) ? "–" : Number(v).toFixed(d));
+const hhmmss = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour12: false }) : "–");
+
+function chart(title, values, unit, refs = []) {
+  const pts = values.map((v, i) => [i, v]).filter(([, v]) => v !== null && v !== undefined);
+  const last = pts.length ? pts[pts.length - 1][1] : null;
+  const w = 300, h = 90, pad = 4;
+  if (pts.length < 2) {
+    return `<div class="chart"><div class="t"><span>${esc(title)}</span><span>${num(last, 2)} ${esc(unit)}</span></div><svg viewBox="0 0 ${w} ${h}"></svg></div>`;
+  }
+  const max = Math.max(...pts.map(([, v]) => v), ...refs.map((r) => r.v * 1.05), 1e-6);
+  const n = values.length - 1 || 1;
+  const x = (i) => pad + (i / n) * (w - 2 * pad);
+  const y = (v) => h - pad - (v / max) * (h - 2 * pad);
+  const path = pts.map(([i, v], k) => `${k ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area = `${path} L${x(pts[pts.length - 1][0]).toFixed(1)},${h - pad} L${x(pts[0][0]).toFixed(1)},${h - pad} Z`;
+  const lines = refs.map((r) => `<line x1="${pad}" x2="${w - pad}" y1="${y(r.v)}" y2="${y(r.v)}" stroke="${r.c}" stroke-dasharray="4 4" stroke-width="1"/><text x="${w - pad}" y="${y(r.v) - 3}" fill="${r.c}" font-size="10" text-anchor="end">${esc(r.label)}</text>`).join("");
+  return `<div class="chart"><div class="t"><span>${esc(title)}</span><span>${num(last, 2)} ${esc(unit)}</span></div>
+    <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${lines}
+    <path d="${area}" fill="rgba(88,166,255,.15)"/><path d="${path}" fill="none" stroke="#58a6ff" stroke-width="2"/></svg></div>`;
+}
+
+function cameraCard(c) {
+  const a = c.assessment;
+  const level = a ? a.level : null;
+  const latest = c.latest;
+  const view = latest ? latest.zones[0] : null;
+  const s = c.series || {};
+  const cal = latest ? `${latest.calibration}${latest.calibration_err_m != null ? " ±" + num(latest.calibration_err_m, 2) + " m" : ""}` : "–";
+  const img = latest && latest.heatmap ? `files/${encodeURIComponent(latest.heatmap)}` : "";
+  const ann = a && a.announce && a.announce.length
+    ? a.announce.map((x) => `<div class="ann"><span class="lang">${esc(x.lang)}</span><span>${esc(x.text)}</span></div>`).join("")
+    : '<span class="muted">None</span>';
+  const actions = a && a.staff_actions && a.staff_actions.length
+    ? `<ul>${a.staff_actions.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : '<span class="muted">None</span>';
+  const watching = c.watched
+    ? `<div class="small muted">Watching since ${hhmmss(c.watched.since)}: “${esc(c.watched.instruction)}”</div>`
+    : '<div class="small muted">Not watched yet: give the warden an instruction below.</div>';
+  return `<section class="panel"><div class="camera">
+    <div class="view">
+      <h3>${esc(c.name)} <span class="muted">(${esc(c.camera_id)})</span></h3>
+      ${img ? `<img src="${img}" alt="Density heatmap of ${esc(c.name)}">` : '<div class="muted">Waiting for the first reading…</div>'}
+      <div class="meta"><span>Reading ${hhmmss(latest && latest.at)}</span><span>Counted “${esc(latest ? latest.concept : "–")}” on ${latest ? latest.grid * latest.grid : "–"} tiles</span>
+      <span>Calibration: ${esc(cal)}</span><span>Scan ${num(latest && latest.seconds, 1)} s</span></div>
+      <div class="charts">
+        ${chart("People in view", s.people || [], "")}
+        ${chart("Densest cell", s.peak || [], "/m²", [{ v: 4, c: "#d29922", label: "4/m²" }, { v: 6, c: "#f85149", label: "6/m²" }])}
+        ${chart("Mean speed", s.speed || [], "m/s")}
+        ${chart("Crowd pressure", s.pressure || [], "1/s²", [{ v: 0.02, c: "#f85149", label: "0.02" }])}
+      </div>
+    </div>
+    <div>
+      <div class="level lv-${level || "none"}">
+        <div class="name">${esc((level || "waiting").toUpperCase())}</div>
+        <div class="sub">${a && a.zones && a.zones.length ? "Where: " + esc(a.zones.join(", ")) : "&nbsp;"}</div>
+      </div>
+      <div class="kpis">
+        <div class="kpi"><div class="v">${view ? view.people : "–"}</div><div class="k">people</div></div>
+        <div class="kpi"><div class="v">${num(latest && latest.peak_density_ppm2, 1)}</div><div class="k">densest /m²</div></div>
+        <div class="kpi"><div class="v">${num(view && view.speed_mps, 2)}</div><div class="k">speed m/s</div></div>
+        <div class="kpi"><div class="v">${a && a.minutes_to_danger != null ? num(a.minutes_to_danger, 0) + "′" : "–"}</div><div class="k">to danger</div></div>
+      </div>
+      ${watching}
+      <h3>Why</h3><div>${esc(a ? a.why : "–")}</div>
+      <h3>Forecast</h3><div>${esc(a ? a.forecast : "–")}</div>
+      <h3>Staff, now</h3>${actions}
+      <h3>Public address</h3>${ann}
+      <div class="small muted" style="margin-top:8px">Assessed ${hhmmss(c.assessed_at)}${c.assess_seconds != null ? ` in ${num(c.assess_seconds, 1)} s` : ""}</div>
+    </div>
+  </div></section>`;
+}
+
+function alertRow(a) {
+  const colour = LEVEL[a.level] || "#30363d";
+  const check = a.check
+    ? `<div class="small"><b>Glimmer ${a.check.agrees ? "confirmed" : "did not confirm"}</b> (${num(a.check.confidence, 2)}): ${esc(a.check.seen)}</div>` : "";
+  const audio = (a.audio || []).map((x) => x.audio
+    ? `<div class="ann"><span class="lang">${esc(x.lang)}</span><audio controls preload="none" src="files/${encodeURIComponent(x.audio)}"></audio><span class="small">${esc(x.text)}</span></div>`
+    : `<div class="ann"><span class="lang">${esc(x.lang)}</span><span class="small">${esc(x.text)}</span></div>`).join("");
+  const proof = a.sent
+    ? `<div class="small muted">Evidence chain ${esc((a.chain_hash || "").slice(0, 16))}… · <a href="../incidents/${encodeURIComponent(a.alert_id)}/report" target="_blank">incident report</a></div>`
+    : `<div class="small muted">Held: ${esc(a.held_reason || "")}</div>`;
+  return `<div class="a"><div><span class="tag" style="background:${colour}">${esc(a.level.toUpperCase())}</span><div class="small muted">${hhmmss(a.at)}</div><div class="small">${a.sent ? "sent" : "held"}</div></div>
+    <div><div>${esc(a.assessment.why)}</div><div class="small muted">${esc(a.assessment.forecast)}</div>${check}${audio}${proof}</div></div>`;
+}
+
+function playNew(alerts) {
+  for (const a of alerts.slice().reverse()) {
+    if (!a.sent) continue;
+    for (const x of a.audio || []) {
+      if (!x.audio || played.has(x.audio)) continue;
+      played.add(x.audio);
+      if (soundOn && !firstLoad) queueAudio(`files/${encodeURIComponent(x.audio)}`);
+    }
+  }
+}
+
+const queue = [];
+let playing = false;
+function queueAudio(src) { queue.push(src); if (!playing) next(); }
+function next() {
+  const src = queue.shift();
+  if (!src) { playing = false; return; }
+  playing = true;
+  const audio = new Audio(src);
+  audio.onended = next; audio.onerror = next;
+  audio.play().catch(next);
+}
+
+async function refresh() {
+  document.getElementById("clock").textContent = new Date().toLocaleTimeString([], { hour12: false });
+  try {
+    const r = await fetch("status", { cache: "no-store" });
+    if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+    const data = await r.json();
+    document.getElementById("cameras").innerHTML = data.cameras.length
+      ? data.cameras.map(cameraCard).join("") : '<section class="panel muted">No camera readings yet.</section>';
+    document.getElementById("alerts").innerHTML = data.alerts.length ? data.alerts.map(alertRow).join("") : "No alerts yet.";
+    const select = document.getElementById("cam");
+    const chosen = select.value;
+    select.innerHTML = data.cameras.map((c) => `<option value="${esc(c.camera_id)}">${esc(c.name)} (${esc(c.camera_id)})</option>`).join("");
+    if (chosen) select.value = chosen;
+    playNew(data.alerts);
+    firstLoad = false;
+  } catch (e) {
+    document.getElementById("cameras").innerHTML = `<section class="panel muted">Status unavailable: ${esc(e.message)}</section>`;
+  }
+}
+
+document.getElementById("sound").addEventListener("click", (e) => {
+  soundOn = !soundOn;
+  e.target.textContent = soundOn ? "Sound on" : "Turn sound on";
+});
+
+document.getElementById("watch").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = {
+    camera_id: document.getElementById("cam").value,
+    instruction: document.getElementById("instruction").value.trim(),
+    languages: document.getElementById("langs").value.split(/[,\s]+/).filter(Boolean),
+  };
+  const msg = document.getElementById("watchmsg");
+  msg.textContent = "Starting…";
+  const r = await fetch("watch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  msg.textContent = r.ok ? "Watching. The first assessment arrives within seconds." : `Failed: ${await r.text()}`;
+  refresh();
+});
+
+let conversation = null;
+document.getElementById("ask").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const out = document.getElementById("answer");
+  const question = document.getElementById("question").value.trim();
+  if (!question) return;
+  out.textContent = "Working it out with Spark, SAM 3.1 and Glimmer…";
+  const started = performance.now();
+  const r = await fetch("../ask", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(conversation ? { question, conversation_id: conversation } : { question }) });
+  if (!r.ok) { out.textContent = `Failed: ${await r.text()}`; return; }
+  const a = await r.json();
+  conversation = a.conversation_id;
+  const tools = a.steps.filter((s) => s.action.action !== "answer").map((s) => s.action.action);
+  out.innerHTML = `${esc(a.answer)}<div class="small muted" style="margin-top:6px">${tools.length} tool steps (${esc([...new Set(tools)].join(", "))}) · ${num((performance.now() - started) / 1000, 0)} s</div>`;
+});
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

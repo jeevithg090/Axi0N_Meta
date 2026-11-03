@@ -12,6 +12,9 @@ are `TIMESTAMP` in UTC, without a zone):
   `camera_id, t0, t1, caption, people, events`;
 - `track_identity`, `identity_spans`, `identity_notes`: track fragments joined into identities
   by appearance (`ask.identity`), each identity's span, and Glimmer's note on each person.
+- `crowd_readings`, `crowd_assessments`, `crowd_alerts`: crowd density, motion and pressure
+  per zone every few seconds (`crowd.memory`), the warden's assessments and its alerts
+  (`crowd.warden`); empty when crowd watch is off.
 
 After the snapshot the connection loses file access (`enable_external_access = false`, locked),
 so a query can read these tables and nothing else. Only `SELECT` or `WITH` statements run
@@ -37,6 +40,31 @@ _COLUMNS: Final = (
     "track_id, camera_id, concept, CAST(ts AS TIMESTAMP) AS ts, frame_idx, x1, y1, x2, y2, "
     "foot_px_x, foot_px_y, foot_m_x, foot_m_y, conf"
 )
+
+
+_CROWD_READINGS: Final = (
+    "camera_id VARCHAR, ts TIMESTAMP, zone VARCHAR, people BIGINT, area_m2 DOUBLE, "
+    "density_ppm2 DOUBLE, moving BIGINT, speed_mps DOUBLE, speed_sd_mps DOUBLE, "
+    "velocity_var DOUBLE, coherence DOUBLE, counterflow_share DOUBLE, pressure DOUBLE, "
+    "peak_density_ppm2 DOUBLE, peak_row BIGINT, peak_col BIGINT, calibration VARCHAR, "
+    "calibration_err_m DOUBLE, concept VARCHAR, heatmap VARCHAR"
+)
+_CROWD_ASSESSMENTS: Final = (
+    "camera_id VARCHAR, ts TIMESTAMP, level VARCHAR, zones VARCHAR[], why VARCHAR, "
+    "forecast VARCHAR, minutes_to_danger DOUBLE, alert BOOLEAN, staff_actions VARCHAR[]"
+)
+_CROWD_ALERTS: Final = (
+    "alert_id VARCHAR, camera_id VARCHAR, ts TIMESTAMP, level VARCHAR, sent BOOLEAN, "
+    "held_reason VARCHAR"
+)
+
+
+class CrowdFiles(Frozen):
+    """The crowd memory's and warden's JSON-lines files (each optional)."""
+
+    readings: Path | None = None
+    assessments: Path | None = None
+    alerts: Path | None = None
 
 
 class SqlError(ValueError):
@@ -105,6 +133,7 @@ class TrackTables:
         identities: Path | None = None,
         notes: Path | None = None,
         *,
+        crowd: CrowdFiles | None = None,
         max_rows: int = DEFAULT_MAX_ROWS,
     ) -> None:
         """Snapshot the track store and the memories, then lock file access.
@@ -114,6 +143,7 @@ class TrackTables:
             captions: The caption memory's JSON-lines file, if any.
             identities: The identity memory's track -> identity file, if any.
             notes: The identity notes file, if any.
+            crowd: The crowd memory's and warden's files, if crowd watch is on.
             max_rows: Rows a query returns at most; the rest is counted and reported.
         """
         self._max_rows = max_rows
@@ -162,6 +192,7 @@ class TrackTables:
             notes,
             "identity_id VARCHAR, role VARCHAR, description VARCHAR, carrying VARCHAR",
         )
+        self._crowd_tables(crowd or CrowdFiles())
         # Relinking can retire an identity id; its note then describes no current identity.
         self._con.execute(
             "DELETE FROM identity_notes WHERE identity_id NOT IN "
@@ -178,12 +209,26 @@ class TrackTables:
         self._con.execute("SET enable_external_access = false")
         self._con.execute("SET lock_configuration = true")
 
-    def _json_table(self, name: str, path: Path | None, columns: str) -> None:
+    def _crowd_tables(self, files: CrowdFiles) -> None:
+        """`crowd_readings`, `crowd_assessments` and `crowd_alerts`, timestamps in UTC."""
+        self._json_table("crowd_readings", files.readings, _CROWD_READINGS, timestamps=("ts",))
+        self._json_table(
+            "crowd_assessments", files.assessments, _CROWD_ASSESSMENTS, timestamps=("ts",)
+        )
+        self._json_table("crowd_alerts", files.alerts, _CROWD_ALERTS, timestamps=("ts",))
+
+    def _json_table(
+        self, name: str, path: Path | None, columns: str, *, timestamps: Sequence[str] = ()
+    ) -> None:
         """Load a JSON-lines file as table `name`, or create it empty with `columns`."""
         if path is not None and path.is_file() and path.stat().st_size:
             source = path.as_posix().replace("'", "''")
+            cast = ", ".join(
+                f"CAST(CAST({c} AS TIMESTAMPTZ) AS TIMESTAMP) AS {c}" for c in timestamps
+            )
+            star = f"* REPLACE ({cast})" if cast else "*"
             self._con.execute(
-                f"CREATE TABLE {name} AS SELECT * FROM "  # noqa: S608 - constant name and path
+                f"CREATE TABLE {name} AS SELECT {star} FROM "  # noqa: S608 - constant name and path
                 f"read_json_auto('{source}', format = 'newline_delimited')"
             )
         else:

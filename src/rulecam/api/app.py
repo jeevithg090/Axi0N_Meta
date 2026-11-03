@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import importlib.util
 import json
 from collections.abc import AsyncIterator, Callable, Sequence
 from dataclasses import dataclass, field
@@ -81,6 +82,7 @@ from rulecam.act.drills import DrillRunner, drills_router
 from rulecam.advisor.api import AdviceStore, PlanFactory, advice_router
 from rulecam.api.ask import ask_router
 from rulecam.api.auth import ClientAddress, OwnerAuth
+from rulecam.api.crowd import crowd_router
 from rulecam.api.plans import PlannerRunner, PlanRegistry, QuestionsService, plans_router
 from rulecam.api.prometheus import (
     HealthProbe,
@@ -100,6 +102,7 @@ from rulecam.ask import (
     open_tables,
     planner_profiles,
 )
+from rulecam.ask.data import CrowdFiles
 from rulecam.ask.identity import IdentityMemory, gpu_embedder
 from rulecam.ask.review import SparkOpenReviewer
 from rulecam.ask.runlog import AskRunLog, git_sha
@@ -112,7 +115,10 @@ from rulecam.clients.open_weights.glimmer import GlimmerClient
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
 from rulecam.config import Settings, get_settings
-from rulecam.contracts import Calibration, Chunk, Clock, PrivacyMode, SitePlan
+from rulecam.contracts import TTS, Calibration, Chunk, Clock, PrivacyMode, SitePlan
+from rulecam.crowd.memory import Calibrations, CrowdMemory, ModelCalibration
+from rulecam.crowd.scan import CrowdScanner
+from rulecam.crowd.warden import CrowdWarden
 from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
 from rulecam.evidence.incident import (
     IncidentReport,
@@ -132,6 +138,7 @@ from rulecam.perception.correction_api import correction_router
 from rulecam.perception.metrics import PerceptionMetrics, PerceptionMetricsReport
 from rulecam.perception.router import Purpose
 from rulecam.planner.errors import PipelineError
+from rulecam.planner.geometry import model_calibration
 from rulecam.planner.pipeline import PlannerPipeline, PlanStore
 from rulecam.planner.runner import ChunkFrames, PlannerService
 from rulecam.planner.site_config import SiteConfigError, load_site_config
@@ -158,6 +165,7 @@ from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_conc
 from rulecam.runtime.response import Response, ResponseStatus, build_response
 from rulecam.runtime.serverless import GpuHealth, RunPodServerless
 from rulecam.verify.tier2 import SparkOpenVerifier
+from rulecam.voice_out.tts import MmsTts
 from rulecam.worker import DisputeService, worker_router
 from rulecam.worker.disputes import DisputeReviewer
 
@@ -946,8 +954,17 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     planner = build_planner(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, plans=plans, site=site
     )
+    crowd, warden, crowd_tickers = build_crowd(
+        settings,
+        cache=cache,
+        clock=clock,
+        bus=bus,
+        perception=perception,
+        response=response,
+        runtime=runtime,
+    )
     ask_agent, ask_tickers = build_ask(
-        settings, cache=cache, clock=clock, bus=bus, perception=perception
+        settings, cache=cache, clock=clock, bus=bus, perception=perception, crowd=(crowd, warden)
     )
     origins = viewer_origins(settings.public_ui_url)
     auth = OwnerAuth.from_settings(settings, clock=clock, allowed_origins=origins)
@@ -985,6 +1002,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             *response.tickers,
             *((watch.tick,) if watch is not None else ()),
             *ask_tickers,
+            *crowd_tickers,
         ),
         pollers=response.pollers(false_alarm),
         response=response.status,
@@ -1003,6 +1021,12 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             ),
             owner_alerts_router(response, on_false_alarm=false_alarm),
             ask_router(ask_agent, dependencies=_OWNER),
+            crowd_router(
+                crowd,
+                warden,
+                camera_names=camera_names(settings.rulecam_camera_names),
+                dependencies=_OWNER,
+            ),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
         ),
@@ -1010,7 +1034,13 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
 
 
 def build_ask(
-    settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus, perception: Perception
+    settings: Settings,
+    *,
+    cache: ReplayCache,
+    clock: Clock,
+    bus: Bus,
+    perception: Perception,
+    crowd: tuple[CrowdMemory | None, CrowdWarden | None] = (None, None),
 ) -> tuple[AskAgent | None, tuple[Callable[[], object], ...]]:
     """The `POST /ask` agent and its memories' tickers: Spark plans, SAM counts, Glimmer looks.
 
@@ -1018,7 +1048,8 @@ def build_ask(
     caption memory runs when `RULECAM_ASK_CAPTION_EVERY_S` is above 0; the identity memory
     (re-identification on the GPU pod: OSNet-AIN for people, DINOv2 for objects) when
     `SAM_BASE_URL` and `SAM_API_KEY` are set. Every answer is appended to the hash-chained run log
-    `<data>/ask/runs.jsonl`. With `RULECAM_ASK_REVIEW` and a Baseten key, Muse Spark Open (the
+    `<data>/ask/runs.jsonl`. With crowd watch on (`crowd`), the crowd tables and `crowd_scan` are
+    Spark's too. With `RULECAM_ASK_REVIEW` and a Baseten key, Muse Spark Open (the
     Tier 2 client) reviews each draft answer and can send it back once. Its `watch` tool joins
     recorded chunks into one clip for Spark (`muse-spark-1.2`) to watch as video.
 
@@ -1086,6 +1117,7 @@ def build_ask(
             ask_dir / "captions.jsonl",
             identity.identities_path if identity is not None else None,
             identity.notes_path if identity is not None else None,
+            crowd=crowd_files(*crowd),
             max_rows=settings.rulecam_ask_max_rows,
         ),
         frames=frames,
@@ -1114,8 +1146,108 @@ def build_ask(
         ),
         files=spark,
         watch_model=settings.rulecam_ask_watch_model,
+        crowd=crowd[0],
     )
     return agent, tuple(m.tick for m in (memory, identity) if m is not None)
+
+
+def crowd_files(memory: CrowdMemory | None, warden: CrowdWarden | None) -> CrowdFiles | None:
+    """The crowd files Ask loads as tables, when crowd watch is on."""
+    if memory is None or warden is None:
+        return None
+    return CrowdFiles(
+        readings=memory.path, assessments=warden.assessments_path, alerts=warden.alerts_path
+    )
+
+
+def build_crowd(
+    settings: Settings,
+    *,
+    cache: ReplayCache,
+    clock: Clock,
+    bus: Bus,
+    perception: Perception,
+    response: Response,
+    runtime: RuntimeLoop | None,
+) -> tuple[CrowdMemory | None, CrowdWarden | None, tuple[Callable[[], object], ...]]:
+    """Crowd early warning: readings every few seconds and the warden that judges them.
+
+    SAM 3.1 (Meta hosted) counts on tiles; the ground calibration is the active plan's, else
+    MoGe-2's on the GPU pod, else the crowd's own people. The warden uses Muse Spark to assess,
+    Muse Glimmer to check frames, the site's notifier, the evidence chain and MMS-TTS (when the
+    `ml` extra is installed). Prototype mode only, and only with `RULECAM_CROWD_EVERY_S` > 0.
+
+    Returns:
+        The memory, the warden and their tickers; `(None, None, ())` when off (logged when Spark
+        has no key), and `/crowd/*` then answers 503.
+    """
+    if not settings.rulecam_prototype_mode or settings.rulecam_crowd_every_s <= 0:
+        return None, None, ()
+    try:
+        spark = SparkClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
+    except ClientConfigError as exc:
+        _log.warning("crowd_disabled", error=str(exc))
+        return None, None, ()
+    glimmer = GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
+    crowd_dir = settings.rulecam_data_dir / "crowd"
+    frames = FrameGrabber(perception.chunks, crowd_dir / "frames")
+    geometry = geometry_estimator(settings, perception)
+    model: ModelCalibration | None = None
+    if geometry is not None:
+
+        def model(camera_id: str, frame: Path) -> Calibration | None:
+            return model_calibration(
+                camera_id, frame, geometry=geometry, segmenter=perception.hosted
+            )
+
+    def planned() -> dict[str, Calibration]:
+        plan = runtime.plan if runtime is not None else None
+        found = plan.calibration if plan is not None else None
+        return {found.camera_id: found} if found is not None else {}
+
+    cameras = [c.strip() for c in settings.rulecam_crowd_cameras.split(",") if c.strip()]
+    memory = CrowdMemory(
+        frames=frames,
+        scanner=CrowdScanner(
+            segmenter=perception.hosted,
+            out_dir=settings.rulecam_data_dir / "strips" / "crowd",
+            concept=settings.rulecam_crowd_concept,
+            grid=settings.rulecam_crowd_grid,
+        ),
+        calibrations=Calibrations(plan=planned, model=model, clock=clock.now),
+        path=crowd_dir / "readings.jsonl",
+        every_s=settings.rulecam_crowd_every_s,
+        cameras=(lambda: cameras) if cameras else None,
+    )
+    names = camera_names(settings.rulecam_camera_names)
+    warden = CrowdWarden(
+        memory=memory,
+        frames=frames,
+        spark=spark,
+        glimmer=glimmer,
+        glimmer_model=glimmer.model,
+        chain=response.chain,
+        notifier=response.telegram or response.whatsapp or response.notifier,
+        tts=crowd_tts(bus),
+        clock=clock,
+        out_dir=crowd_dir,
+        every_s=settings.rulecam_crowd_assess_every_s,
+        site_profile=settings.rulecam_site_profile,
+        camera_names=names,
+    )
+    languages = [x for x in settings.rulecam_crowd_languages.split(",") if x.strip()]
+    if settings.rulecam_crowd_instruction:
+        for camera_id in cameras:
+            warden.watch(camera_id, settings.rulecam_crowd_instruction, languages)
+    return memory, warden, (memory.tick, warden.tick)
+
+
+def crowd_tts(bus: Bus) -> TTS | None:
+    """Meta MMS-TTS for the warden's announcements, when `transformers` is installed."""
+    if importlib.util.find_spec("transformers") is None:
+        _log.info("crowd_tts_off", reason="the ml extra (transformers) is not installed")
+        return None
+    return MmsTts(bus)
 
 
 def cost_watch(

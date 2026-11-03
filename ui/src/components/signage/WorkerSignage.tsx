@@ -23,7 +23,8 @@ const STATIONS = [
 ];
 
 export function WorkerSignage() {
-  const [planId, setPlanId] = useState<string>("plan-c914e72a03f5");
+  // Empty until `GET /plans` names the approved plan: never a built-in plan id.
+  const [planId, setPlanId] = useState<string>("");
   const [cameraId, setCameraId] = useState<string>("CAM-04");
   const [lang, setLang] = useState<"en" | "es">("en");
   const [page, setPage] = useState<WorkerPage | null>(null);
@@ -70,6 +71,7 @@ export function WorkerSignage() {
   }, []);
 
   useEffect(() => {
+    if (!planId) return;
     void loadWorkerPage(planId, cameraId, lang);
   }, [planId, cameraId, lang, loadWorkerPage]);
 

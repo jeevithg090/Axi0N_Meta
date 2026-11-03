@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { API_PROXY } from "../../lib/config";
 import { withCsrf } from "../../lib/api";
+import { SampleDataTag } from "../SampleDataTag";
 
 interface IncidentSummary {
   event_id: string;
@@ -367,7 +368,8 @@ export function IncidentsSignage() {
                   </div>
                 </div>
 
-                {/* Live Incident Video + 3 Extracted Keyframes */}
+                {/* Built-in sample clip and stills for the camera (not this incident's evidence) */}
+                <SampleDataTag what="The clip and stills below are built-in sample footage for this camera id, not this incident's evidence strip; the report's records, verdicts and hashes come from the server." />
                 <div
                   style={{
                     display: "grid",
@@ -404,7 +406,7 @@ export function IncidentsSignage() {
                         justifyContent: "space-between",
                       }}
                     >
-                      <span>LIVE EPISODE CLIP · {report.camera_id}</span>
+                      <span>SAMPLE CLIP · {report.camera_id}</span>
                       <span>
                         {report.ts_start.slice(11, 19)} → {report.ts_end.slice(11, 19)} UTC
                       </span>
@@ -425,9 +427,10 @@ export function IncidentsSignage() {
                           padding: "4px 8px",
                         }}
                       >
+                        {/* eslint-disable-next-line @next/next/no-img-element -- a static sample still */}
                         <img
                           src={`/strips/${camId}_strip_${idx}.jpg`}
-                          alt={`Evidence keyframe ${idx + 1}`}
+                          alt={`Sample still ${idx + 1} for ${camId}`}
                           style={{
                             width: "96px",
                             height: "58px",
@@ -438,10 +441,10 @@ export function IncidentsSignage() {
                         />
                         <div style={{ minWidth: 0 }}>
                           <div className="dm" style={{ fontSize: "11px", color: "#F2D100" }}>
-                            KEYFRAME #{idx + 1} · T+{idx * 1.1}s
+                            SAMPLE STILL #{idx + 1}
                           </div>
                           <div className="dm" style={{ fontSize: "11px", color: "#B9C0C3" }}>
-                            SAM 3.1 Track + Homography Footpoint
+                            Built-in, not this incident&apos;s evidence
                           </div>
                         </div>
                       </div>

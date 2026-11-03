@@ -3,6 +3,8 @@
 import React, { useRef, useState } from "react";
 import Link from "next/link";
 
+import { SampleDataTag } from "../SampleDataTag";
+
 interface ActSpec {
   id: number;
   startS: number;
@@ -232,11 +234,10 @@ export function MonitorSignage() {
   const wc = isBreach ? "var(--alert, #C93410)" : "var(--machine, #0B62A8)";
   const py = 262 - (dist / 4.0) * 180;
 
-  const ttc = dist <= 2.0 ? `${((dist - 0.5) / 2.4).toFixed(2)} s` : "Clear";
   const ilText = viewMode === "video" ? currentAct.plcState : dist <= 2.0 ? "TRIPPED · 8 ms" : "Arm / Live";
   const ilCol = isBreach ? "var(--alert)" : "var(--machine)";
 
-  // Deterministic pseudo-hash for current video frame
+  // Illustrative pseudo-hash for the scripted walkthrough (not a hash of a real frame or record).
   const frameNum = Math.floor(videoTime * 25);
   const frameHex = (
     ((frameNum * 2654435761) >>> 0).toString(16).padStart(8, "0") +
@@ -245,6 +246,7 @@ export function MonitorSignage() {
 
   return (
     <div style={{ padding: "var(--s3) var(--gut) var(--s6)" }}>
+      <SampleDataTag what="This monitor is a scripted walkthrough: its acts, Glimmer scores, distances, interlock timings and frame hashes are written into the page." />
       {/* Dashboard Cockpit Control Strip */}
       <div
         style={{
@@ -372,7 +374,7 @@ export function MonitorSignage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(7, minmax(120px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
           gap: "6px",
           marginBottom: "var(--s3)",
           background: "var(--card)",

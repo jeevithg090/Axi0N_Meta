@@ -1,0 +1,33 @@
+services:
+  rulecam-api:
+    build:
+      context: .
+      dockerfile: deploy/api.Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      RULECAM_RUNTIME: "true"
+      RULECAM_PORT: "8000"
+    volumes:
+      - ./data:/workspace/rulecam/data
+      - ./plans:/workspace/rulecam/plans
+      - ./evidence:/workspace/rulecam/evidence
+    restart: unless-stopped
+
+  rulecam-ui:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm ci && npm run build && npm run start"
+    ports:
+      - "3000:3000"
+    environment:
+      RULECAM_API_URL: "http://rulecam-api:8000"
+      NODE_ENV: "production"
+    volumes:
+      - ./ui:/app
+    depends_on:
+      - rulecam-api
+    restart: unless-stopped

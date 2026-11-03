@@ -46,3 +46,6 @@ deploy/monitoring/targets/rulecam.json
 # agent worktrees are not.
 .claude/settings.local.json
 .claude/worktrees/
+
+# Large generated MP4 streams (populated by scripts/seed_live_backend.py)
+ui/public/videos/*.mp4

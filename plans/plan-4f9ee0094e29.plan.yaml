@@ -1,0 +1,182 @@
+acceptance:
+  checks:
+  - check: concern_covered
+    detail: rule 'keep-people-2m-from-moving-forklift'
+    item: Keep people at least 2 metres away from a moving forklift.
+    passed: true
+  - check: zone_in_view
+    detail: the rule uses no zones
+    item: keep-people-2m-from-moving-forklift
+    passed: true
+  - check: detect_lb>=0.8
+    detail: lowest detect_lb 0.86 (forklift)
+    item: keep-people-2m-from-moving-forklift
+    passed: true
+  - check: calibration_err<=tol
+    detail: calibrated within 0.10 m
+    item: keep-people-2m-from-moving-forklift
+    passed: true
+  - check: privacy_consistent
+    detail: consistent with standard mode
+    item: keep-people-2m-from-moving-forklift
+    passed: true
+  - check: citation_text_match
+    detail: the rule cites no standard
+    item: keep-people-2m-from-moving-forklift
+    passed: true
+  - check: no_private_spaces
+    detail: no private-space zones
+    item: keep-people-2m-from-moving-forklift
+    passed: true
+  - check: ci_green
+    detail: boundary 16/16, mutations 6/6
+    item: keep-people-2m-from-moving-forklift
+    passed: true
+  - check: nonvacuous
+    detail: fires on its positive boundary trace and not on its negative one
+    item: keep-people-2m-from-moving-forklift
+    passed: true
+  rounds: 0
+audit:
+- by: spark-open
+  reasoning_ref: null
+  text: 'audit_skipped: not audited, Spark Open failed (ModelTransportError)'
+back_translation: '[en]
+
+  - keep-people-2m-from-moving-forklift: Monitors forklifts and people on the ground-plane@phone-27
+  calibration. Triggers with high severity when a person is within 2.0 m of a forklift
+  that is moving faster than 0.2 m/s. Action: notify safety_officer in English immediately
+  after 0.0 s.'
+cost_usd_per_cam_hour: null
+feasibility:
+- alternative: null
+  concern: Keep people at least 2 metres away from a moving forklift.
+  evidence:
+  - camera_id: phone-27
+    concept: forklift
+    detect_lb: 0.862
+    detect_rate: 1.0
+    median_px_height: 719.0
+    n_frames: 24
+  - camera_id: phone-27
+    concept: person
+    detect_lb: 0.862
+    detect_rate: 1.0
+    median_px_height: 719.0
+    n_frames: 24
+  - camera_id: phone-27
+    concept: concrete warehouse floor
+    detect_lb: 0.862
+    detect_rate: 1.0
+    median_px_height: 719.0
+    n_frames: 24
+  reason: null
+  says: I can see the forklift, person, concrete warehouse floor on phone-27, so I
+    can check Keep people at least 2 metres away from a moving forklift..
+  verdict: observable
+inventory:
+- camera_id: phone-27
+  concept: forklift operator
+  count: 1
+  mean_confidence: 0.9595
+- camera_id: phone-27
+  concept: blue work uniform
+  count: 1
+  mean_confidence: 0.9478
+- camera_id: phone-27
+  concept: forklift
+  count: 1
+  mean_confidence: 0.8407
+- camera_id: phone-27
+  concept: steering wheel
+  count: 1
+  mean_confidence: 0.9443
+- camera_id: phone-27
+  concept: forklift operator seat
+  count: 1
+  mean_confidence: 0.7584
+- camera_id: phone-27
+  concept: clipboard with paper
+  count: 1
+  mean_confidence: 0.691
+- camera_id: phone-27
+  concept: concrete warehouse floor
+  count: 1
+  mean_confidence: 0.9488
+- camera_id: phone-27
+  concept: wooden pallet
+  count: 3
+  mean_confidence: 0.8325
+- camera_id: phone-27
+  concept: large white bulk bag
+  count: 2
+  mean_confidence: 0.8438
+- camera_id: phone-27
+  concept: forklift mast
+  count: 1
+  mean_confidence: 0.5916
+- camera_id: phone-27
+  concept: metal stand base
+  count: 2
+  mean_confidence: 0.7673
+languages:
+- en
+plan_id: plan-4f9ee0094e29
+privacy_mode: standard
+protected_two_key: []
+request:
+- extracted: []
+  file: null
+  kind: text
+  lang: en
+  text: Keep people at least 2 metres away from a moving forklift.
+retention_days: 30
+roles: {}
+rules:
+- accept:
+  - person within 2 m of a moving forklift
+  actions:
+  - after_s: 0.0
+    kind: notify
+    lang: en
+    role: safety_officer
+  backtestable: 'yes'
+  calibration: ground-plane@phone-27
+  concepts:
+    forklift:
+      prompt: forklift
+      static: false
+    person:
+      prompt: person
+      static: false
+  id: keep-people-2m-from-moving-forklift
+  predicate:
+    of:
+    - a: person
+      b: forklift
+      gt: null
+      lt: 2.0
+      op: distance_m
+    - object: forklift
+      op: moving
+      speed_mps_gt: 0.2
+    op: all
+  schedule: null
+  severity: high
+  source:
+    kind: text
+    lang: en
+    plan_id: plan-4f9ee0094e29
+    standard: []
+    text: Keep people at least 2 metres away from a moving forklift.
+  verify:
+    calibrated_alpha: null
+    min_confidence: 0.7
+    tier1: glimmer
+    tier2: spark-open-on-disagree
+  version: 1
+  zones: {}
+setting_inferred: general
+site_name: demo
+standards: []
+version: 1

@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Condensed, DM_Mono } from "next/font/google";
 import type { ReactNode } from "react";
 
-import { Topbar } from "@/components/Topbar";
+import { DashboardShell } from "@/components/DashboardShell";
 import { ThemeProvider } from "@/lib/theme";
 import { AuthProvider } from "@/lib/auth";
 import { StreamProvider } from "@/lib/stream";
@@ -31,7 +31,7 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Rulecam · Operational Dashboard",
+  title: "Rulecam · Operational Safety Command Dashboard",
   description: "Safety operations command dashboard. Plain words in, formal proofs out.",
 };
 
@@ -52,10 +52,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <ThemeProvider>
           <StreamProvider>
             <AuthProvider>
-              <div className="root">
-                <Topbar />
-                <main>{children}</main>
-              </div>
+              <DashboardShell>{children}</DashboardShell>
             </AuthProvider>
           </StreamProvider>
         </ThemeProvider>

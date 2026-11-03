@@ -1,215 +1,484 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { api, errorText } from "../../lib/api";
+import { API_PROXY } from "../../lib/config";
+import {
+  DISPUTE_REASONS,
+  STRINGS,
+  type DisputeReason,
+  type DisputeResult,
+  type WorkerPage,
+} from "../../lib/worker";
+
+const STATIONS = [
+  { cameraId: "CAM-02", label: "CAM-02 · Main Aisle B2 Intersection" },
+  { cameraId: "CAM-04", label: "CAM-04 · Staging Bay C4 (Forklift Cab)" },
+  { cameraId: "CAM-03", label: "CAM-03 · East Visitor & PPE Corridor" },
+  { cameraId: "CAM-05", label: "CAM-05 · Commercial Kitchen Prep Line A" },
+  { cameraId: "CAM-06", label: "CAM-06 · West Assembly Zone" },
+  { cameraId: "CAM-08", label: "CAM-08 · South Freight Gate" },
+  { cameraId: "CAM-09", label: "CAM-09 · Yard Heavy Equipment Bay" },
+  { cameraId: "CAM-01", label: "CAM-01 · North Loading Dock" },
+];
 
 export function WorkerSignage() {
+  const [planId, setPlanId] = useState<string>("plan-c914e72a03f5");
+  const [cameraId, setCameraId] = useState<string>("CAM-04");
   const [lang, setLang] = useState<"en" | "es">("en");
-  const [filed, setFiled] = useState<boolean>(false);
-  const [recording, setRecording] = useState<boolean>(false);
+  const [page, setPage] = useState<WorkerPage | null>(null);
+  const [selectedCode, setSelectedCode] = useState<string>("");
+  const [reasonChoice, setReasonChoice] = useState<DisputeReason>("rule_was_followed");
+  const [reasonText, setReasonText] = useState<string>("");
+  const [submitting, setSubmitting] = useState<boolean>(false);
+  const [lastResult, setLastResult] = useState<DisputeResult | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const loadWorkerPage = useCallback(
+    async (targetPlan: string, targetCam: string, targetLang: "en" | "es") => {
+      setErrorMsg(null);
+      try {
+        const data = await api.workerPage(targetPlan, targetCam, targetLang);
+        setPage(data);
+        const firstEv = data.events[0];
+        if (firstEv) {
+          setSelectedCode(firstEv.code);
+        } else {
+          setSelectedCode("");
+        }
+      } catch (err) {
+        setErrorMsg(errorText(err, "Could not load worker station card"));
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    // Check URL query parameter ?camera= if navigated from /streams
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const qCam = params.get("camera");
+      if (qCam) setCameraId(qCam);
+    }
+    api
+      .plans()
+      .then((list) => {
+        const approved = list.find((p) => p.approved) ?? list[0];
+        if (approved) setPlanId(approved.plan_id);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    void loadWorkerPage(planId, cameraId, lang);
+  }, [planId, cameraId, lang, loadWorkerPage]);
+
+  const handleSubmitDispute = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCode) return;
+    setSubmitting(true);
+    setErrorMsg(null);
+    setLastResult(null);
+    try {
+      const result = await api.dispute({
+        event_code: selectedCode,
+        reason_choice: reasonChoice,
+        reason_text: reasonText.trim(),
+      });
+      setLastResult(result);
+      setReasonText("");
+      await loadWorkerPage(planId, cameraId, lang);
+    } catch (err) {
+      setErrorMsg(errorText(err, "Failed to submit anonymous worker dispute"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const isEn = lang === "en";
 
   return (
-    <div style={{ display: "flex", justifyContent: "center", padding: "var(--s4) var(--s2) var(--s6)" }}>
-      {/* 390px Mobile Viewport Container */}
+    <div style={{ padding: "var(--s4) var(--gut) var(--s6)" }}>
+      {/* Top Station Selector Bar */}
       <div
-        className="root"
         style={{
-          width: "100%",
-          maxWidth: "410px",
-          border: "4px solid var(--ink)",
-          boxShadow: "0 12px 32px rgba(0,0,0,0.15)",
-          paddingBottom: "var(--s4)",
+          maxWidth: "880px",
+          margin: "0 auto var(--s4)",
+          padding: "14px 18px",
+          background: "var(--paper-2)",
+          border: "2px solid var(--ink)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px",
         }}
       >
-        {/* Top Header / Language */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "10px 16px 0",
-            borderBottom: "1px solid var(--ink)",
-          }}
-        >
-          <span className="dm small" style={{ fontSize: "13px" }}>
-            Station 4 · Anon. #882
-          </span>
-          <div>
-            <button
-              type="button"
-              className="tab"
-              aria-pressed={isEn}
-              onClick={() => setLang("en")}
+        <div>
+          <div className="mono" style={{ fontSize: "11px" }}>
+            PUBLIC WORKER TRANSPARENCY &amp; DISPUTE PORTAL · GET /worker/{planId}/{cameraId}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "6px", flexWrap: "wrap" }}>
+            <label htmlFor="station-select" className="small" style={{ fontWeight: 700 }}>
+              {isEn ? "Select Camera Station:" : "Seleccionar Estación:"}
+            </label>
+            <select
+              id="station-select"
+              value={cameraId}
+              onChange={(e) => {
+                setCameraId(e.target.value);
+                setLastResult(null);
+              }}
+              style={{
+                padding: "6px 10px",
+                border: "1.5px solid var(--ink)",
+                background: "var(--paper)",
+                fontFamily: "var(--font-dm-mono, monospace)",
+                fontSize: "13px",
+                fontWeight: 700,
+              }}
             >
-              EN
-            </button>
-            <button
-              type="button"
-              className="tab"
-              aria-pressed={!isEn}
-              onClick={() => setLang("es")}
-            >
-              ES
-            </button>
+              {STATIONS.map((s) => (
+                <option key={s.cameraId} value={s.cameraId}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Headline */}
-        <div style={{ padding: "18px 20px 24px" }}>
-          <h1 className="h1" style={{ fontSize: "52px" }}>
-            {isEn ? "Washed for 14.2 s. Rule requires 20." : "Lavó 14.2 s. La norma pide 20."}
-          </h1>
-          <p className="lead" style={{ marginTop: "12px", fontSize: "17px" }}>
-            {isEn
-              ? "The prep slicer stayed locked for 5.8 seconds until hygiene criteria were met."
-              : "La rebanadora permaneció bloqueada durante 5.8 segundos hasta cumplir la higiene."}
-          </p>
-        </div>
-
-        {/* Physical Paper Receipt */}
-        <div
-          style={{
-            margin: "0 14px",
-            background: "var(--card, #FBFAF6)",
-            color: "#141414",
-            border: "2px solid var(--ink)",
-            padding: "24px 20px 8px",
-            position: "relative",
-          }}
-        >
-          <div className="tape" style={{ margin: "-24px -20px 18px", height: "12px" }} />
-
-          <div className="dm" style={{ fontSize: "13px", letterSpacing: ".02em", textAlign: "center" }}>
-            {isEn ? "RECEIPT · HANDWASHING SINK A" : "RECIBO · FREGADERO DE MANOS A"}
-          </div>
-          <div className="dm" style={{ fontSize: "12px", textAlign: "center", color: "#4A4A46", marginTop: "2px" }}>
-            06:42 · episode CK-012 · SHA256 9a2f…881c
-          </div>
-
-          <div style={{ borderTop: "2px dashed #141414", margin: "16px 0 10px" }} />
-
-          <div className="li">
-            <span>{isEn ? "Time measured at sink" : "Tiempo en fregadero"}</span>
-            <i />
-            <b>14.2 s</b>
-          </div>
-          <div className="li">
-            <span>{isEn ? "Required by FDA code" : "Requerido por norma"}</span>
-            <i />
-            <b>20.0 s</b>
-          </div>
-          <div className="li" style={{ fontSize: "18px", paddingTop: "8px" }}>
-            <span style={{ fontWeight: 600 }}>{isEn ? "Deficit" : "Déficit"}</span>
-            <i />
-            <b style={{ color: "var(--alert, #C93410)" }}>5.8 s</b>
-          </div>
-
-          {/* Graphical Duration Meter */}
-          <svg
-            viewBox="0 0 346 30"
-            style={{ display: "block", width: "100%", margin: "10px 0 4px" }}
-            role="img"
-            aria-label="14.2 of 20 seconds meter"
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          <button
+            type="button"
+            className="tab"
+            aria-pressed={isEn}
+            onClick={() => setLang("en")}
           >
-            <rect y="8" width="346" height="14" fill="#DCD8CC" />
-            <rect y="8" width="246" height="14" fill="#141414" />
-            <rect x="246" y="8" width="100" height="14" fill="#F2D100" />
-          </svg>
+            English (EN)
+          </button>
+          <button
+            type="button"
+            className="tab"
+            aria-pressed={!isEn}
+            onClick={() => setLang("es")}
+          >
+            Español (ES)
+          </button>
+          <a
+            href={`${API_PROXY}/worker/${encodeURIComponent(planId)}/${encodeURIComponent(cameraId)}/poster?lang=${lang}`}
+            target="_blank"
+            rel="noreferrer"
+            className="btn ghost"
+            style={{ padding: "6px 12px", fontSize: "12px" }}
+          >
+            🖨 {isEn ? "Printable QR Poster" : "Póster QR Imprimible"}
+          </a>
+        </div>
+      </div>
 
-          <div className="li">
-            <span>{isEn ? "Slicer interlock trigger" : "Bloqueo cortadora"}</span>
-            <i />
-            <b>{isEn ? "Power cut (8 ms)" : "Corte (8 ms)"}</b>
+      {/* Main 2-Column Mobile Receipt + Live Dispute Form */}
+      <div
+        style={{
+          maxWidth: "880px",
+          margin: "0 auto",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+          gap: "var(--s4)",
+          alignItems: "start",
+        }}
+      >
+        {/* Left: Physical Paper Receipt Card */}
+        <div
+          className="root"
+          style={{
+            width: "100%",
+            border: "4px solid var(--ink)",
+            boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
+            background: "var(--paper)",
+            paddingBottom: "var(--s3)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "10px 16px",
+              borderBottom: "2px solid var(--ink)",
+              background: "var(--ink)",
+              color: "var(--paper)",
+            }}
+          >
+            <span className="dm" style={{ fontSize: "13px", fontWeight: 700 }}>
+              {cameraId} · {page?.site_name?.toUpperCase() ?? "DEMO"}
+            </span>
+            <span className="dm" style={{ fontSize: "12px", color: "#F2D100" }}>
+              {isEn ? "ZERO IDENTITY LOGGED" : "CERO IDENTIDAD REGISTRADA"}
+            </span>
           </div>
 
-          <div style={{ borderTop: "2px dashed #141414", margin: "14px 0 10px" }} />
+          <div style={{ padding: "18px 20px 12px" }}>
+            <h1 className="h2" style={{ fontSize: "34px", lineHeight: 1.05 }}>
+              {isEn
+                ? `What ${cameraId} checks — in plain language.`
+                : `Lo que revisa ${cameraId} — en lenguaje claro.`}
+            </h1>
+            {page?.rules.map((r) => {
+              const cnt = page.counts[r.rule_id];
+              return (
+                <div
+                  key={r.rule_id}
+                  style={{
+                    marginTop: "14px",
+                    padding: "12px",
+                    background: "var(--card, #FBFAF6)",
+                    border: "2px solid var(--ink)",
+                  }}
+                >
+                  <div className="dm" style={{ fontSize: "12px", fontWeight: 700 }}>
+                    {r.rule_id}
+                  </div>
+                  <p style={{ margin: "6px 0 10px", fontSize: "15px", lineHeight: 1.4 }}>
+                    {r.plain_language ?? r.rule_id}
+                  </p>
+                  {cnt && (
+                    <div
+                      className="dm"
+                      style={{
+                        display: "flex",
+                        gap: "12px",
+                        fontSize: "12px",
+                        borderTop: "1px dashed var(--ink)",
+                        paddingTop: "8px",
+                      }}
+                    >
+                      <span>
+                        {isEn ? "Alerts:" : "Alertas:"} <b>{cnt.alerts}</b>
+                      </span>
+                      <span>
+                        {isEn ? "Disputes:" : "Disputas:"} <b>{cnt.disputes}</b>
+                      </span>
+                      <span style={{ color: "var(--ok)" }}>
+                        {isEn ? "Upheld:" : "Aceptadas:"} <b>{cnt.upheld}</b>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
-          <div className="dm" style={{ fontSize: "13px", color: "#4A4A46", marginBottom: "6px" }}>
-            {isEn ? "Privacy guarantees for this event:" : "Garantías de privacidad del evento:"}
+          {/* Privacy Never-List Receipt */}
+          <div
+            style={{
+              margin: "8px 16px 0",
+              background: "var(--card, #FBFAF6)",
+              color: "#141414",
+              border: "2px solid var(--ink)",
+              padding: "18px 18px 12px",
+              position: "relative",
+            }}
+          >
+            <div className="tape" style={{ margin: "-18px -18px 14px", height: "10px" }} />
+            <div className="dm" style={{ fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
+              {isEn
+                ? `PRIVACY COVENANT · RETENTION ${page?.retention_days ?? 30} DAYS:`
+                : `PACTO DE PRIVACIDAD · RETENCIÓN ${page?.retention_days ?? 30} DÍAS:`}
+            </div>
+            {(page?.never_list ?? ["faces", "names", "speed_scores", "emotion", "break_rooms"]).map(
+              (item) => (
+                <div key={item} className="no" style={{ fontSize: "13px", padding: "3px 0" }}>
+                  <span style={{ fontWeight: 700, color: "var(--alert)" }}>×</span>
+                  <span>
+                    {STRINGS[lang].neverItems[item] ?? item}
+                  </span>
+                </div>
+              ),
+            )}
           </div>
-          <div className="no">
-            <span style={{ fontWeight: 700 }}>×</span>
-            <span>{isEn ? "No facial geometry stored" : "Sin geometría facial almacenada"}</span>
-          </div>
-          <div className="no">
-            <span style={{ fontWeight: 700 }}>×</span>
-            <span>{isEn ? "No raw voice retained" : "Sin grabaciones de voz retenidas"}</span>
-          </div>
-          <div className="no">
-            <span style={{ fontWeight: 700 }}>×</span>
-            <span>{isEn ? "No payroll or identity cross-reference" : "Sin enlace con nómina o identidad"}</span>
-          </div>
-          <div className="no">
-            <span style={{ fontWeight: 700 }}>○</span>
-            <span>{isEn ? "Cryptographic receipt stored locally" : "Recibo criptográfico guardado local"}</span>
-          </div>
+        </div>
 
-          {/* Red Rubber Dispute Stamp */}
-          {filed && (
+        {/* Right: Anonymous Event Codes & Live Dispute Filing */}
+        <div
+          style={{
+            border: "3px solid var(--ink)",
+            background: "var(--card, #FBFAF6)",
+            padding: "22px",
+          }}
+        >
+          <div className="dm" style={{ fontSize: "12px", fontWeight: 700, color: "var(--ink-2)" }}>
+            {isEn
+              ? "ANONYMOUS 15-MINUTE BUCKET RECEIPTS"
+              : "RECIBOS ANÓNIMOS EN INTERVALOS DE 15 MINUTOS"}
+          </div>
+          <h2 className="h2" style={{ fontSize: "30px", marginTop: "4px", marginBottom: "12px" }}>
+            {isEn ? "Challenge an Alert (Zero Login)" : "Impugnar una Alerta (Sin Inicio de Sesión)"}
+          </h2>
+
+          {errorMsg && (
             <div
               style={{
-                margin: "18px 0 6px",
+                padding: "10px 12px",
+                background: "var(--alert)",
+                color: "#fff",
+                marginBottom: "12px",
+                fontWeight: 600,
+                fontSize: "14px",
+              }}
+            >
+              {errorMsg}
+            </div>
+          )}
+
+          {lastResult && (
+            <div
+              style={{
+                margin: "0 0 16px",
                 border: "3px solid #C93410",
                 color: "#C93410",
-                padding: "10px 12px",
-                transform: "rotate(-3deg)",
+                padding: "12px",
+                background: "#fff",
                 textAlign: "center",
               }}
             >
               <div
                 className="cd"
-                style={{ fontWeight: 800, fontSize: "28px", lineHeight: 1, textTransform: "uppercase" }}
+                style={{ fontWeight: 800, fontSize: "24px", lineHeight: 1, textTransform: "uppercase" }}
               >
-                {isEn ? "DISPUTED · PENDING REVIEW" : "DISPUTADO · EN REVISIÓN"}
+                {isEn
+                  ? `DISPUTE #${lastResult.code} · ${lastResult.outcome.toUpperCase()}`
+                  : `DISPUTA #${lastResult.code} · ${lastResult.outcome.toUpperCase()}`}
               </div>
-              <div className="dm" style={{ fontSize: "12px", marginTop: "4px" }}>
-                {isEn ? "Receipt entered into Rule CI regression ledger" : "Ingresado al registro de regresión"}
+              <div className="dm" style={{ fontSize: "12px", marginTop: "6px", color: "#141414" }}>
+                {isEn
+                  ? `Chained to SHA-256 ledger · Rule ${lastResult.rule_id} now has ${lastResult.counts.disputes} dispute(s)`
+                  : `Anclado a la cadena SHA-256 · Regla ${lastResult.rule_id} tiene ${lastResult.counts.disputes} disputa(s)`}
               </div>
             </div>
           )}
 
-          {/* Serrated Bottom Edge */}
-          <svg
-            viewBox="0 0 346 14"
-            preserveAspectRatio="none"
-            style={{
-              display: "block",
-              width: "calc(100% + 40px)",
-              maxWidth: "none",
-              margin: "18px -20px -2px",
-              height: "14px",
-            }}
-            aria-hidden="true"
-          >
-            <path
-              d="M0 0H346V14L335 4 324 14 313 4 302 14 291 4 280 14 269 4 258 14 247 4 236 14 225 4 214 14 203 4 192 14 181 4 170 14 159 4 148 14 137 4 126 14 115 4 104 14 93 4 82 14 71 4 60 14 49 4 38 14 27 4 16 14 5 4 0 14Z"
-              fill="var(--paper)"
-            />
-          </svg>
-        </div>
+          {page && page.events.length > 0 ? (
+            <form onSubmit={(e) => void handleSubmitDispute(e)}>
+              <div style={{ marginBottom: "14px" }}>
+                <label className="small" style={{ fontWeight: 700, display: "block", marginBottom: "6px" }}>
+                  {isEn ? "1. Select 8-Digit Anonymous Event Code:" : "1. Código Anónimo del Evento:"}
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {page.events.map((ev) => (
+                    <label
+                      key={ev.code}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        padding: "10px 12px",
+                        border:
+                          selectedCode === ev.code
+                            ? "2px solid var(--ink)"
+                            : "1px solid rgba(20,20,20,0.3)",
+                        background: selectedCode === ev.code ? "var(--yellow)" : "var(--paper)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <span className="dm" style={{ fontWeight: 700 }}>
+                        <input
+                          type="radio"
+                          name="event_code"
+                          value={ev.code}
+                          checked={selectedCode === ev.code}
+                          onChange={() => setSelectedCode(ev.code)}
+                          style={{ marginRight: "8px" }}
+                        />
+                        CODE #{ev.code} · {ev.bucket_start.slice(11, 16)} UTC
+                      </span>
+                      <span className={`state ${ev.dispute === "upheld" ? "ok" : ""}`}>
+                        {ev.dispute ? ev.dispute.toUpperCase() : "OPEN"}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
-        {/* Worker Actions */}
-        <div style={{ padding: "20px 16px 0", display: "flex", flexDirection: "column", gap: "12px" }}>
-          <button
-            type="button"
-            className={`btn block ${filed ? "o" : "alert"}`}
-            onClick={() => setFiled(!filed)}
-          >
-            {filed ? "✓ Dispute Filed" : isEn ? "File a dispute on this event" : "Presentar una disputa"}
-          </button>
+              <div style={{ marginBottom: "14px" }}>
+                <label className="small" style={{ fontWeight: 700, display: "block", marginBottom: "6px" }}>
+                  {isEn ? "2. Why was this alert inaccurate?" : "2. ¿Por qué fue inexacta esta alerta?"}
+                </label>
+                <select
+                  value={reasonChoice}
+                  onChange={(e) => setReasonChoice(e.target.value as DisputeReason)}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    border: "2px solid var(--ink)",
+                    background: "var(--paper)",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                  }}
+                >
+                  {DISPUTE_REASONS.map((r) => (
+                    <option key={r} value={r}>
+                      {STRINGS[lang].reasons[r]}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-          <button
-            type="button"
-            className="btn o block"
-            onClick={() => setRecording(!recording)}
-          >
-            {recording
-              ? "🔴 Recording audio note..."
-              : isEn
-              ? "🎙 Record Spanish / English voice dispute"
-              : "🎙 Grabar nota de voz en español"}
-          </button>
+              <div style={{ marginBottom: "16px" }}>
+                <label className="small" style={{ fontWeight: 700, display: "block", marginBottom: "6px" }}>
+                  {isEn
+                    ? "3. Optional Note (Never tied to your name or IP):"
+                    : "3. Nota opcional (Anónima):"}
+                </label>
+                <textarea
+                  rows={3}
+                  maxLength={500}
+                  value={reasonText}
+                  onChange={(e) => setReasonText(e.target.value)}
+                  placeholder={
+                    isEn
+                      ? "e.g. I was seated inside the forklift cab, or overhead shadow hid my hardhat…"
+                      : "ej. Estaba sentado dentro de la cabina del montacargas…"
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    border: "2px solid var(--ink)",
+                    background: "var(--paper)",
+                    fontFamily: "inherit",
+                    fontSize: "14px",
+                  }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn alert block"
+                disabled={submitting || !selectedCode}
+              >
+                {submitting
+                  ? isEn
+                    ? "Submitting to Tier-2 Verifier & Chain…"
+                    : "Enviando disputa…"
+                  : isEn
+                    ? `Submit Anonymous Dispute for #${selectedCode}`
+                    : `Enviar Disputa Anónima para #${selectedCode}`}
+              </button>
+            </form>
+          ) : (
+            <div
+              style={{
+                padding: "16px",
+                background: "var(--paper)",
+                border: "1.5px solid var(--ink)",
+              }}
+            >
+              <p className="small">
+                {isEn
+                  ? `No recent alerts recorded on ${cameraId} in the last 15-minute window. Switch to CAM-02, CAM-03, CAM-04, CAM-05, CAM-06, CAM-08, or CAM-09 above to test disputing a live event.`
+                  : `No hay alertas recientes en ${cameraId}. Seleccione otra cámara arriba.`}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

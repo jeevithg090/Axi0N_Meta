@@ -88,6 +88,7 @@ from rulecam.api.prometheus import (
     VerdictCounter,
     dependency_probes,
     metrics_router,
+    serverless_gpu_rate,
 )
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
@@ -148,6 +149,7 @@ from rulecam.runtime.factory import (
 from rulecam.runtime.idle_stop import IdleGpuStop
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
 from rulecam.runtime.response import Response, ResponseStatus, build_response
+from rulecam.runtime.serverless import GpuHealth, RunPodServerless
 from rulecam.verify.tier2 import SparkOpenVerifier
 from rulecam.worker import DisputeService, worker_router
 from rulecam.worker.disputes import DisputeReviewer
@@ -185,7 +187,8 @@ class AppServices:
         auth: Owner login (`rulecam.api.auth`); `None` means loopback only, with login off.
         questions: The planner's questions and re-runs (`PlannerService`).
         verdicts: Verdict counts for `GET /metrics`, fed from `verdict.new`.
-        health_probes: Dependencies (Glimmer, the SAM pod) whose health `GET /metrics` shows.
+        health_probes: Dependencies (Glimmer, SAM) whose state `GET /metrics` and `GET /health`
+            show.
         response: How the policy, firewall and actions are configured (`/runtime/metrics`).
         cost: The dollar budget's report (`/runtime/metrics` → `cost`, `/metrics`).
         advice: Checked Site Advisor cards served at `/advice` (P3-10).
@@ -227,6 +230,7 @@ class AppServices:
     advice: AdviceStore = field(default_factory=AdviceStore)
     plan_factory: PlanFactory | None = None
     public_demo: bool = False
+    revision: str | None = None
     stills_root: Path | None = None
     verify_base: str | None = None
     pdf_printer: PdfPrinter = render_pdf
@@ -264,6 +268,27 @@ async def _poll_forever(poller: Callable[[], object]) -> None:
 
 
 VERIFY_PAGE_DIR = Path(__file__).resolve().parent.parent / "evidence" / "verify_page"
+# Written next to `src/` by `make ship-api` (scripts/deploy/ship_api.sh): the git SHA deployed.
+REVISION_FILE = Path(__file__).resolve().parents[3] / "REVISION"
+
+
+def code_revision(configured: str | None, revision_file: Path = REVISION_FILE) -> str | None:
+    """The git revision this API runs: `RULECAM_REVISION`, else the shipped `REVISION` file.
+
+    Args:
+        configured: `RULECAM_REVISION` (e.g. baked into an image).
+        revision_file: The file `make ship-api` writes at the release root.
+
+    Returns:
+        The revision, or `None` when neither says (a dev checkout).
+    """
+    if configured:
+        return configured.strip()
+    try:
+        lines = revision_file.read_text(encoding="utf-8").split()
+    except OSError:
+        return None
+    return lines[0] if lines else None
 
 
 class DayRoot(BaseModel):
@@ -302,12 +327,19 @@ class CameraInfo(BaseModel):
 
 
 class Health(BaseModel):
-    """Body of `GET /health`."""
+    """Body of `GET /health`.
+
+    `gpus` is each GPU dependency's state (`runtime.serverless`): a serverless GPU scaled to
+    zero is `cold-ready` (up; the UI says "GPU waking" while a request starts it), not down.
+    `revision` is the git SHA deployed (`code_revision`), which `make ship-api` waits for.
+    """
 
     ok: bool
     site: str
     mode: Mode
     runtime: bool
+    revision: str | None = None
+    gpus: dict[str, GpuHealth] = {}
 
 
 def _chain_file(services: AppServices, day: date) -> Path:
@@ -335,6 +367,8 @@ def _core_router(services: AppServices, auth: OwnerAuth) -> APIRouter:
             site=services.site,
             mode=services.cache.mode,
             runtime=services.runtime is not None,
+            revision=services.revision,
+            gpus={probe.service: probe.health() for probe in services.health_probes},
         )
 
     @router.get("/mode")
@@ -828,16 +862,27 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     chain_root = settings.rulecam_data_dir / "evidence" / "chain"
     chain = EventChain(chain_root, site, clock=clock)
     perception = build_perception(settings, cache=cache, clock=clock, bus=bus)
+    probes = dependency_probes(
+        settings.glimmer_base_url,
+        settings.sam_base_url,
+        glimmer_runpod=RunPodServerless.for_service(settings, settings.glimmer_edge_key).fetch,
+        sam_runpod=RunPodServerless.for_service(settings, settings.sam_edge_key).fetch,
+    )
+    glimmer = next((probe.up for probe in probes if probe.service == "glimmer"), None)
     response = build_response(
         settings,
-        tier1=build_tier1(settings, cache=cache, clock=clock, bus=bus),
+        tier1=build_tier1(settings, cache=cache, clock=clock, bus=bus, probe=glimmer),
         segmenter=perception.hosted,
         cache=cache,
         clock=clock,
         bus=bus,
         chain=chain,
     )
-    meter = CostMeter(CostSettings.from_settings(settings), usage=perception.metrics.hosted_usage)
+    meter = CostMeter(
+        CostSettings.from_settings(settings),
+        usage=perception.metrics.hosted_usage,
+        gpu_rate=serverless_gpu_rate(probes, settings.rulecam_gpu_worker_usd_per_hour),
+    )
     runtime = (
         build_runtime(
             settings,
@@ -911,6 +956,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         activator=activator,
         viewer_origins=origins,
         public_demo=settings.public_demo,
+        revision=code_revision(settings.rulecam_revision),
         stills_root=settings.rulecam_data_dir / "strips",
         verify_base=(
             f"{settings.public_ui_url.rstrip('/')}/rulecam-api/verify/"
@@ -918,7 +964,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             else None
         ),
         auth=auth,
-        health_probes=dependency_probes(settings.glimmer_base_url, settings.sam_base_url),
+        health_probes=probes,
         tickers=(
             *response.tickers,
             *((watch.tick,) if watch is not None else ()),

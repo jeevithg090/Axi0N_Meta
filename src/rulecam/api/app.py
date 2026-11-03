@@ -92,6 +92,7 @@ from rulecam.api.prometheus import (
     metrics_router,
     serverless_gpu_rate,
 )
+from rulecam.api.site_tools import build_site_tools
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
     AskAgent,
@@ -1026,6 +1027,15 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 crowd,
                 warden,
                 camera_names=camera_names(settings.rulecam_camera_names),
+                dependencies=_OWNER,
+            ),
+            *build_site_tools(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                perception=perception,
+                site_name=site,
                 dependencies=_OWNER,
             ),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),

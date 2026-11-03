@@ -290,7 +290,13 @@ def build_response(
     firewall, reason = build_firewall(
         settings, tier1=tier1, tier2=tier2, chain=chain, segmenter=segmenter, classifier=classifier
     )
-    policy = VerificationPolicy(tier1=tier1, tier2=tier2, firewall=firewall, screen_required=True)
+    policy = VerificationPolicy(
+        tier1=tier1,
+        tier2=tier2,
+        firewall=firewall,
+        screen_required=True,
+        model_decides=settings.rulecam_prototype_mode,
+    )
     notifier = LanNotifier(bus=bus, clock=clock)
     whatsapp = build_whatsapp(settings, lan=notifier, clock=clock)
     outbound: Notifier = whatsapp or notifier

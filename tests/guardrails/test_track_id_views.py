@@ -16,6 +16,10 @@ from rulecam.rules.store import PERCEPTION_INTERNAL_VIEWS, ParquetTrackStore
 from tests.fakes import make_track
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "rulecam"
+# Exempt on the team lead's decision (1 Nov 2026): owner analytics in prototype mode. `POST /ask`
+# lets a store owner ask about dwell time, which needs one row per track (`track_spans`); the
+# route is served only when RULECAM_PROTOTYPE_MODE is on. Nothing else is exempt.
+PROTOTYPE_EXEMPT = frozenset({"ask/data.py"})
 
 _VIEW = re.compile(
     r"CREATE\s+(?:OR\s+REPLACE\s+)?(?:TEMP(?:ORARY)?\s+)?VIEW\s+(?:IF\s+NOT\s+EXISTS\s+)?"
@@ -50,7 +54,9 @@ def violations(text: str, *, advisor_facing: bool) -> list[str]:
 
 
 def sources() -> list[Path]:
-    return sorted(SRC.rglob("*.py"))
+    return sorted(
+        p for p in SRC.rglob("*.py") if p.relative_to(SRC).as_posix() not in PROTOTYPE_EXEMPT
+    )
 
 
 @pytest.mark.parametrize("path", sources(), ids=lambda p: str(p.relative_to(SRC)))

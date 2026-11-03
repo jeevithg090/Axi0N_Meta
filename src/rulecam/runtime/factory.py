@@ -118,25 +118,47 @@ class LockedTrackStore:
 
 
 class ChunkIndex:
-    """Remembers the most recent chunks of each camera (the correction loop's `ChunkSource`)."""
+    """Remembers the most recent chunks of each camera (the correction loop's `ChunkSource`).
+
+    With a `journal`, every recorded chunk is also appended to a JSON-lines file and the index
+    is reloaded from it on start (chunks whose file is gone are skipped), so the recorded video
+    stays reachable after a restart (`POST /ask` looks at it).
+    """
 
     def __init__(
-        self, metrics: PerceptionMetrics | None = None, per_camera: int = CHUNKS_PER_CAMERA
+        self,
+        metrics: PerceptionMetrics | None = None,
+        per_camera: int = CHUNKS_PER_CAMERA,
+        journal: Path | None = None,
     ) -> None:
-        """Create an empty index.
+        """Create the index, reloading the journal when there is one.
 
         Args:
             metrics: Receives `record_chunk` for every chunk (per-hour cost normalisation).
             per_camera: Chunks kept per camera; older ones are forgotten.
+            journal: JSON-lines file of recorded chunks, appended to and reloaded on start.
         """
         self._metrics = metrics
         self._chunks: dict[str, deque[Chunk]] = defaultdict(lambda: deque(maxlen=per_camera))
         self._lock = threading.Lock()
+        self._journal = journal
+        if journal is not None and journal.is_file():
+            for line in journal.read_text("utf-8").splitlines():
+                try:
+                    chunk = Chunk.model_validate_json(line)
+                except ValueError:
+                    continue
+                if Path(chunk.path).is_file():
+                    self._chunks[chunk.camera_id].append(chunk)
 
     def record(self, chunk: Chunk) -> None:
         """Add a chunk that just became ready."""
         with self._lock:
             self._chunks[chunk.camera_id].append(chunk)
+            if self._journal is not None:
+                self._journal.parent.mkdir(parents=True, exist_ok=True)
+                with self._journal.open("a", encoding="utf-8") as out:
+                    out.write(chunk.model_dump_json() + "\n")
         if self._metrics is not None:
             self._metrics.record_chunk(chunk.camera_id, chunk.n_frames / chunk.fps)
 
@@ -265,7 +287,7 @@ def build_perception(
         router=router,
         metrics=metrics,
         store=store,
-        chunks=ChunkIndex(metrics),
+        chunks=ChunkIndex(metrics, journal=settings.rulecam_data_dir / "chunks" / "index.jsonl"),
         runtime_hosted=runtime_hosted,
         image_worker=worker if picked is not None and isinstance(worker, HttpSamWorker) else None,
     )
@@ -358,6 +380,9 @@ def build_runtime(
             store=perception.store,
             out_dir=settings.rulecam_data_dir / "strips",
             faces=face_detector(settings.rulecam_face_model),
+            frames=settings.rulecam_strip_frames,
+            max_width=settings.rulecam_strip_max_width,
+            raw=settings.rulecam_prototype_mode,
         ),
         chain=chain,
         sampling=SamplingPolicy.from_settings(settings),

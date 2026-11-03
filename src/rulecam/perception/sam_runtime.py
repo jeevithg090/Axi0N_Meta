@@ -31,7 +31,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any, Literal, Protocol, Self
 
-from pydantic import Field, ValidationError, model_validator
+from pydantic import Field, SecretStr, ValidationError, model_validator
 
 from rulecam.bus import Bus, Topic
 from rulecam.clients.errors import ModelClientError
@@ -49,6 +49,7 @@ RELAY_SEGMENT = "perception"
 MAX_PROMPTED_OBJECTS = 16
 HTTP_SEGMENT_PATH = "/segment"  # sam_server.SEGMENT_PATH (that module stays free of pydantic)
 HTTP_SEGMENT_IMAGE_PATH = "/segment_image"  # sam_server.SEGMENT_IMAGE_PATH
+SAM_KEY_HEADER = "X-Rulecam-Key"  # sam_server.KEY_HEADER
 MAX_IMAGES_PER_CALL = 32  # keyframes of one chunk: 3 s at up to 10 fps
 MAX_IMAGE_CONCEPTS = 16
 HTTP_TIMEOUT_S = 60.0
@@ -404,6 +405,31 @@ class ModalWorker:
         )
 
 
+def sam_transport(
+    base_url: str, api_key: SecretStr, edge_key: SecretStr | None = None
+) -> HttpxTransport:
+    """`HttpxTransport` to `sam_server`, on a GPU pod or behind a RunPod load balancer.
+
+    Args:
+        base_url: `SAM_BASE_URL`.
+        api_key: `SAM_API_KEY`, the server's own key.
+        edge_key: `SAM_EDGE_KEY`, the RunPod API key a serverless load balancer checks at its
+            edge. When set, it is the `Authorization` bearer and the server's key travels in
+            `X-Rulecam-Key`.
+
+    Returns:
+        The transport.
+    """
+    if edge_key is None:
+        return HttpxTransport(base_url, api_key.get_secret_value(), timeout_s=HTTP_TIMEOUT_S)
+    return HttpxTransport(
+        base_url,
+        edge_key.get_secret_value(),
+        timeout_s=HTTP_TIMEOUT_S,
+        headers={SAM_KEY_HEADER: api_key.get_secret_value()},
+    )
+
+
 class HttpSamWorker:
     """`SamWorker` that calls `sam_server` on our own GPU pod (`SAM_BASE_URL`, `SAM_API_KEY`).
 
@@ -454,10 +480,8 @@ class HttpSamWorker:
         if not settings.sam_base_url or settings.sam_api_key is None:
             msg = "SAM_BASE_URL and SAM_API_KEY must both be set for the self-hosted SAM server"
             raise SamRuntimeUnavailableError(msg)
-        transport = HttpxTransport(
-            settings.sam_base_url, settings.sam_api_key.get_secret_value(), timeout_s=HTTP_TIMEOUT_S
-        )
-        return cls(transport)
+        edge_key = settings.sam_edge_key
+        return cls(sam_transport(settings.sam_base_url, settings.sam_api_key, edge_key))
 
     def segment(self, video: bytes, request: dict[str, Any]) -> dict[str, Any]:
         """Run one request on the GPU pod.

@@ -88,6 +88,7 @@ from rulecam.runtime.strip_draw import (
     annotation_texts,
     anonymous_frame,
     clean_plate,
+    draw_overlay,
     person_mask,
     standard_frame,
 )
@@ -95,7 +96,9 @@ from rulecam.verify.annotations import write_annotations
 
 _log = get_logger(__name__)
 
-STRIP_FRAMES: Final = 6  # Glimmer reads at most 6 (`verify.tier1.MAX_STRIP_FRAMES`)
+STRIP_FRAMES: Final = (
+    6  # default; `RULECAM_STRIP_FRAMES` (Glimmer reads at most `MAX_STRIP_FRAMES`)
+)
 MIN_SPAN_S: Final = 2.0
 MAX_WIDTH: Final = 640
 TRACK_TOLERANCE_S: Final = 0.6
@@ -351,6 +354,8 @@ class EpisodeStrips:
         faces: FaceDetector,
         decode: Decode = ffmpeg_decode,
         frames: int = STRIP_FRAMES,
+        max_width: int = MAX_WIDTH,
+        raw: bool = False,
     ) -> None:
         """Create the renderer.
 
@@ -361,6 +366,8 @@ class EpisodeStrips:
             faces: Face detector, for blurring only.
             decode: Decodes frames of a chunk in memory (one call per chunk).
             frames: Most keyframes per strip.
+            max_width: Strip width in pixels (frames are scaled down to it, never up).
+            raw: Prototype mode: the real frames with the overlays, no face blurring.
         """
         self._chunks = chunks
         self._store = store
@@ -368,6 +375,8 @@ class EpisodeStrips:
         self._faces = faces
         self._decode = decode
         self._frames = frames
+        self._max_width = max_width
+        self._raw = raw
 
     def render(
         self,
@@ -407,7 +416,7 @@ class EpisodeStrips:
         keyframes = pick_keyframes(
             start, end, [c for c in known if c.camera_id == chunk.camera_id], self._frames
         )
-        size = strip_size(chunk)
+        size = strip_size(chunk, self._max_width)
         decoded = self._decode_all(keyframes, size)
         if not decoded:
             _log.warning(
@@ -429,7 +438,13 @@ class EpisodeStrips:
             )
             for k, (key, _) in enumerate(decoded, start=1)
         ]
-        images = render_frames([frame for _, frame in decoded], overlays, mode, self._faces)
+        frames = [frame for _, frame in decoded]
+        if self._raw:
+            images = [
+                draw_overlay(f, o, strict=False) for f, o in zip(frames, overlays, strict=True)
+            ]
+        else:
+            images = render_frames(frames, overlays, mode, self._faces)
         drawn = [text for overlay in overlays for text in annotation_texts(overlay)]
         paths = self._write(candidate, images, drawn)
         _log.info(
@@ -437,7 +452,7 @@ class EpisodeStrips:
             event_id=candidate.event_id,
             camera_id=candidate.camera_id,
             frames=len(paths),
-            mode=str(mode),
+            mode="raw" if self._raw else str(mode),
         )
         return paths
 

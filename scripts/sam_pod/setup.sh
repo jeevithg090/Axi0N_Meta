@@ -4,7 +4,9 @@
 # Idempotent: installs the GPU venv once (sam3 at the commit pinned in sam_worker.py), downloads
 # the gated facebook/sam3.1 checkpoint once, then starts rulecam.perception.sam_server on port
 # 8090 unless it already answers /health. `--restart` restarts a running server (after a code
-# update). Secrets are read from mode-600 files and never printed or put in argv:
+# update). `--stage` only fills the venv and the checkpoint caches, with no GPU needed: run it on a
+# CPU pod that mounts a network volume, to stage SAM for serverless workers (scripts/sam_pod/
+# serverless.sh, docs/deploy.md "Serverless SAM"). Secrets are read from mode-600 files and never printed or put in argv:
 #
 #   /workspace/.hf_token      Hugging Face token with access to facebook/sam3.1 (setup only)
 #   /workspace/.sam_api_key   Bearer key the API pod sends as SAM_API_KEY
@@ -82,13 +84,15 @@ install_venv() {
   uv pip install --quiet --python "$PY" "torch==2.10.0" torchvision \
     --index-url https://download.pytorch.org/whl/cu128
   # sam_worker imports rulecam.perception.masks -> rulecam.contracts, which needs pydantic.
-  # sam3 does not declare einops, pycocotools or psutil but imports them (found on a RunPod L4).
+  # sam3 does not declare einops, pycocotools or psutil but imports them (found on a RunPod L4);
+  # timm serves /embed (DINOv2).
   uv pip install --quiet --python "$PY" \
     "sam3 @ git+https://github.com/facebookresearch/sam3.git@$commit" \
     opencv-python-headless "setuptools<81" "numpy<2" "pydantic>=2.7" huggingface_hub \
-    einops pycocotools psutil
-  PYTHONPATH="$RULECAM_DIR/src" "$PY" -c \
-    "import sam3.model_builder, torch, rulecam.perception.sam_server; assert torch.cuda.is_available()" \
+    einops pycocotools psutil timm
+  local check="import sam3.model_builder, torch, timm, rulecam.perception.sam_server"
+  [[ "$STAGE" == "1" ]] || check+="; assert torch.cuda.is_available()"
+  PYTHONPATH="$RULECAM_DIR/src" "$PY" -c "$check" \
     || die "the venv does not import sam3/rulecam or sees no CUDA GPU"
   rm -f "$SAM_VENV"/.rulecam-sam3-*
   touch "$marker"
@@ -108,6 +112,16 @@ download_checkpoint() {
     export HF_TOKEN
     "$PY" -c "from huggingface_hub import hf_hub_download as d; d('facebook/sam3.1', 'config.json'); d('facebook/sam3.1', 'sam3.1_multiplex.pt')" >/dev/null
   ) || die "checkpoint download failed: does the token's account have access to facebook/sam3.1?"
+}
+
+download_appearance_model() {  # DINOv2 ViT-S/14 for /embed (public, Apache-2.0)
+  local fetch="import timm; timm.create_model('vit_small_patch14_dinov2.lvd142m', pretrained=True)"
+  if HF_HUB_OFFLINE=1 "$PY" -c "$fetch" >/dev/null 2>&1; then
+    log "DINOv2 cached in $HF_HOME"
+    return
+  fi
+  log "downloading DINOv2 (vit_small_patch14_dinov2.lvd142m) into $HF_HOME"
+  "$PY" -c "$fetch" >/dev/null || log "WARNING: DINOv2 download failed; /embed will fail"
 }
 
 start_server() {
@@ -140,13 +154,21 @@ start_server() {
   die "server did not become healthy in 10 minutes; see $SAM_LOG"
 }
 
+STAGE=0
+
 main() {
   local restart=0
-  [[ "${1:-}" == "--restart" ]] && restart=1
+  case "${1:-}" in
+    --restart) restart=1 ;;
+    --stage) STAGE=1 ;;
+  esac
   [[ -f "$WORKER_PY" ]] || die "no rulecam checkout at $RULECAM_DIR (git archive main there first)"
-  command -v nvidia-smi >/dev/null 2>&1 || die "no NVIDIA GPU visible (nvidia-smi missing)"
+  [[ "$STAGE" == "1" ]] || command -v nvidia-smi >/dev/null 2>&1 \
+    || die "no NVIDIA GPU visible (nvidia-smi missing)"
   install_venv
   download_checkpoint
+  download_appearance_model
+  [[ "$STAGE" == "1" ]] && { log "staged in $RULECAM_DIR, $SAM_VENV and $HF_HOME"; return; }
   start_server "$restart"
 }
 

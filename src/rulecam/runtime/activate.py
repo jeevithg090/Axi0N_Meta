@@ -42,6 +42,7 @@ from rulecam.errors import RulecamError
 from rulecam.evidence.chain import EventChain, canonical_json
 from rulecam.log import get_logger
 from rulecam.planner.scope import rule_calibration_cameras, rule_scope
+from rulecam.prototype import prototype_mode
 from rulecam.replay.cache import atomic_write_text
 from rulecam.runtime.loop import ActivePlan, RuntimeLoop
 
@@ -134,7 +135,8 @@ def gate_rule(plan: SitePlan, rule: RuleIR) -> RuleGate:
     """
     checks = [c for c in plan.acceptance.checks if c.item == rule.id]
     if not checks:
-        return RuleGate(rule_id=rule.id, status="fail", reasons=("no acceptance trace",))
+        status: GateStatus = "amber" if prototype_mode() else "fail"
+        return RuleGate(rule_id=rule.id, status=status, reasons=("no acceptance trace",))
     reasons: list[str] = []
     recorded = {c.check for c in checks}
     reasons.extend(f"{name} not run" for name in RULE_CI_CHECKS if name not in recorded)
@@ -143,7 +145,8 @@ def gate_rule(plan: SitePlan, rule: RuleIR) -> RuleGate:
     reasons.extend(_reason(c.check, c.detail) for c in blocking)
     if reasons:
         reasons.extend(_reason(c.check, c.detail) for c in failing if c not in blocking)
-        return RuleGate(rule_id=rule.id, status="fail", reasons=tuple(reasons))
+        blocked: GateStatus = "amber" if prototype_mode() else "fail"  # prototype: caveats
+        return RuleGate(rule_id=rule.id, status=blocked, reasons=tuple(reasons))
     if failing:
         return RuleGate(
             rule_id=rule.id,

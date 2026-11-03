@@ -84,6 +84,7 @@ from rulecam.planner.steps.compile import compile_rule
 from rulecam.planner.steps.probe import concepts_for_concerns, probe_concepts
 from rulecam.planner.steps.survey import ImageSegmenter, survey_cameras
 from rulecam.planner.steps.understand import FileAttacher, understand
+from rulecam.prototype import prototype_mode
 from rulecam.replay.cache import atomic_write_text
 
 _log = get_logger(__name__)
@@ -404,6 +405,13 @@ def camera_views(camera_frames: dict[str, tuple[Path, ...]]) -> CameraViews:
         )
         for camera_id, frames in camera_frames.items()
     }
+
+
+def _compiles(verdict: FeasibilityVerdict) -> bool:
+    """Whether a concern is compiled: feasible ones; in prototype mode all but declined ones."""
+    if prototype_mode():
+        return verdict.verdict != "declined"
+    return verdict.verdict in COMPILED_VERDICTS
 
 
 def survey_summary(survey: SurveyResult) -> str:
@@ -804,7 +812,7 @@ class PlannerPipeline:
         planned: list[PlannedRule] = []
         for concern in understood.concerns:
             verdict = verdicts.get(concern.text)
-            if verdict is None or verdict.verdict not in COMPILED_VERDICTS:
+            if verdict is None or not _compiles(verdict):
                 continue
             try:
                 rule = self._compile_concern(

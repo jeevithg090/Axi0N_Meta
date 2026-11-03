@@ -1,0 +1,3544 @@
+[
+    {
+        "id": "T01",
+        "clip": "worker_passes",
+        "request": "Keep people at least 2 metres away from a moving forklift.",
+        "report_row": "| worker_passes | t01 | unlabelled | activated | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | 0.0 s | $0.000 |",
+        "camera_id": "phone-49",
+        "plan_id": "plan-51a38c3384b2",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T20:59:56.238519Z",
+        "finished_at": "2026-11-01T21:03:26.449995Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 64.0,
+                "detail": "17 things seen; phone-49 calibrated from person_height_1.7m (0.26 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 63.1,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 2.5,
+                "detail": "1 caveat"
+            },
+            "ask": {
+                "status": "done",
+                "s": 3.6,
+                "detail": "3 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 4.3,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "5/7 checks passed after 0 repair round(s), 1 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 10.4,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.1,
+                "detail": "Rule CI green for 1/1 rules"
+            }
+        },
+        "plan_s": 148.0,
+        "concerns": [
+            "Keep people at least 2 metres away from a moving forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "caveat",
+                "says": "I can see the forklift on phone-49, but not reliably enough yet (lower bound 0.69), so I can check Keep people at least 2 metres away from a moving forklift. with a caveat.",
+                "evidence": [
+                    {
+                        "concept": "forklift",
+                        "detect_rate": 0.8947,
+                        "detect_lb": 0.6861,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "concrete warehouse floor",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Keep people at least 2 metres away from a moving forklift.",
+                "rule_id": "keep-people-2m-from-moving-forklift",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "keep-people-2m-from-moving-forklift",
+                "concepts": {
+                    "forklift": {
+                        "prompt": "forklift",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "distance_m",
+                            "a": "person",
+                            "b": "forklift",
+                            "lt": 2.0,
+                            "gt": null
+                        },
+                        {
+                            "op": "moving",
+                            "object": "forklift",
+                            "speed_mps_gt": 0.2
+                        }
+                    ]
+                },
+                "severity": "high",
+                "calibration": "ground-plane@phone-49",
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- keep-people-2m-from-moving-forklift: Watches for person and forklift objects. Triggers when a person is less than 2.0 m from a forklift AND the forklift is moving faster than 0.2 m/s. Calibration is ground-plane@phone-49. Severity is high. Action is speak by role observer in en after 0.0 s.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'keep-people-2m-from-moving-forklift'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": false,
+                "detail": "concept 'forklift' detect_lb=0.69 < 0.8 on 'phone-49'"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": false,
+                "detail": "camera 'phone-49' calibration error 0.26 m > 0.10 m"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": true,
+                "detail": "boundary 16/16, mutations 6/6"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": true,
+                "detail": "fires on its positive boundary trace and not on its negative one"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": [],
+        "metrics": {
+            "chunks_processed": 5,
+            "sam_calls": 5,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 1.924,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T02",
+        "clip": "worker_passes",
+        "request": "Keep people at least 4 metres away from a moving forklift.",
+        "report_row": "| worker_passes | t02 | unlabelled | activated | 1x | 1 | 1 | 0 | 0/1/0 | 1/1 | 0.0 s | $0.000 |",
+        "camera_id": "phone-50",
+        "plan_id": "plan-acde4ac835b5",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T21:04:40.313593Z",
+        "finished_at": "2026-11-01T21:08:01.481890Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 37.9,
+                "detail": "19 things seen; phone-50 calibrated from person_height_1.7m (0.26 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 73.4,
+                "detail": "4 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 4.4,
+                "detail": "1 caveat"
+            },
+            "ask": {
+                "status": "done",
+                "s": 4.6,
+                "detail": "4 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 6.2,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "5/7 checks passed after 0 repair round(s), 1 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 7.1,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.1,
+                "detail": "Rule CI green for 1/1 rules"
+            }
+        },
+        "plan_s": 133.6,
+        "concerns": [
+            "Keep people at least 4 metres away from a moving forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "caveat",
+                "says": "I can see the forklift on phone-50, but not reliably enough yet (lower bound 0.69), so I can check Keep people at least 4 metres away from a moving forklift. with a caveat.",
+                "evidence": [
+                    {
+                        "concept": "forklift",
+                        "detect_rate": 0.8947,
+                        "detect_lb": 0.6861,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "concrete warehouse floor",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "forklift tire",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Keep people at least 4 metres away from a moving forklift.",
+                "rule_id": "keep-people-4m-from-moving-forklift",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "keep-people-4m-from-moving-forklift",
+                "concepts": {
+                    "forklift": {
+                        "prompt": "forklift",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "distance_m",
+                            "a": "person",
+                            "b": "forklift",
+                            "lt": 4.0,
+                            "gt": null
+                        },
+                        {
+                            "op": "moving",
+                            "object": "forklift",
+                            "speed_mps_gt": 0.2
+                        }
+                    ]
+                },
+                "severity": "high",
+                "calibration": "ground-plane@phone-50",
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- keep-people-4m-from-moving-forklift: Watches for a person and a forklift on the ground-plane@phone-50 calibration. Triggers with high severity when the forklift is moving faster than 0.2 m/s and the distance between person and forklift is less than 4.0 m. Action: notify role supervisor in en. No delay.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'keep-people-4m-from-moving-forklift'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": false,
+                "detail": "concept 'forklift' detect_lb=0.69 < 0.8 on 'phone-50'"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": false,
+                "detail": "camera 'phone-50' calibration error 0.26 m > 0.10 m"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": true,
+                "detail": "boundary 16/16, mutations 6/6"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": true,
+                "detail": "fires on its positive boundary trace and not on its negative one"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [
+            {
+                "event_id": "ev-b19ac078fc685c340d8579ed",
+                "rule_id": "keep-people-4m-from-moving-forklift",
+                "ts_start": "2026-11-01T21:07:26.685202Z",
+                "ts_end": "2026-11-01T21:07:28.585202Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "m",
+                    "value": 2.900231
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.distance_m": true,
+                    "all.0.distance_m.value": 2.900231,
+                    "all.1.moving": true,
+                    "all.1.moving.value": 0.352039,
+                    "all.value": 2.900231,
+                    "episode_s": 2,
+                    "subject": "phone-50:person:b75b9179"
+                },
+                "chained_at": "2026-11-01T21:07:31.805234Z",
+                "calibration": "person_height_1.7m",
+                "cal_err": 0.2630004804851007,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.99,
+                    "reason": "A person is shown within about 2.9 m of an orange forklift that is moving, so the 4 m separation requirement is not met.",
+                    "latency_ms": 12891,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:07:45.673767Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.99)"
+                },
+                "event_to_decision_s": 19.0,
+                "event_to_candidate_s": 5.1,
+                "actions": [
+                    "dry-run: would notify supervisor"
+                ]
+            }
+        ],
+        "actions": [
+            "dry-run: would notify supervisor"
+        ],
+        "metrics": {
+            "chunks_processed": 10,
+            "sam_calls": 10,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 2.071,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T03",
+        "clip": "worker_passes",
+        "request": "Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento.",
+        "report_row": "| worker_passes | t03 | unlabelled | activated | 1x | 1 | 1 | 0 | 0/1/0 | 1/1 | 0.0 s | $0.000 |",
+        "camera_id": "phone-51",
+        "plan_id": "plan-0912b86adaa0",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T21:09:15.167809Z",
+        "finished_at": "2026-11-01T21:12:26.351071Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 37.9,
+                "detail": "20 things seen; phone-51 calibrated from person_height_1.7m (0.26 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 64.8,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 3.7,
+                "detail": "1 caveat"
+            },
+            "ask": {
+                "status": "done",
+                "s": 4.0,
+                "detail": "4 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 4.5,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "5/7 checks passed after 0 repair round(s), 1 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 12.4,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.1,
+                "detail": "Rule CI green for 1/1 rules"
+            }
+        },
+        "plan_s": 127.5,
+        "concerns": [
+            "Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "caveat",
+                "says": "I can see the forklift on phone-51, but not reliably enough yet (lower bound 0.69), so I can check Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento. with a caveat.",
+                "evidence": [
+                    {
+                        "concept": "forklift",
+                        "detect_rate": 0.8947,
+                        "detect_lb": 0.6861,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "warehouse concrete floor",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento.",
+                "rule_id": "personas-4m-carretilla-movimiento",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "personas-4m-carretilla-movimiento",
+                "concepts": {
+                    "forklift": {
+                        "prompt": "forklift",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "distance_m",
+                            "a": "person",
+                            "b": "forklift",
+                            "lt": 4.0,
+                            "gt": null
+                        },
+                        {
+                            "op": "moving",
+                            "object": "forklift",
+                            "speed_mps_gt": 0.2
+                        }
+                    ]
+                },
+                "severity": "high",
+                "calibration": "ground-plane@phone-51",
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- personas-4m-carretilla-movimiento: Watches for person and forklift across the whole scene with ground-plane calibration ground-plane@phone-51. Triggers with high severity when a forklift is moving faster than 0.2 m/s and is within 4.0 m of a person. Action: speak to the operator in Spanish.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'personas-4m-carretilla-movimiento'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": false,
+                "detail": "concept 'forklift' detect_lb=0.69 < 0.8 on 'phone-51'"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": false,
+                "detail": "camera 'phone-51' calibration error 0.26 m > 0.10 m"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": true,
+                "detail": "boundary 16/16, mutations 6/6"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": true,
+                "detail": "fires on its positive boundary trace and not on its negative one"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [
+            {
+                "event_id": "ev-155e91b559d23fc6f0970ae2",
+                "rule_id": "personas-4m-carretilla-movimiento",
+                "ts_start": "2026-11-01T21:11:49.595041Z",
+                "ts_end": "2026-11-01T21:11:51.495041Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "m",
+                    "value": 2.900231
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.distance_m": true,
+                    "all.0.distance_m.value": 2.900231,
+                    "all.1.moving": true,
+                    "all.1.moving.value": 0.352039,
+                    "all.value": 2.900231,
+                    "episode_s": 2,
+                    "subject": "phone-51:person:2e1e5c51"
+                },
+                "chained_at": "2026-11-01T21:11:54.454260Z",
+                "calibration": "person_height_1.7m",
+                "cal_err": 0.2630004804851007,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.98,
+                    "reason": "A person is shown within ~2.9 m of an orange forklift that is moving in the warehouse, well under the required 4 m separation.",
+                    "latency_ms": 14701,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:12:10.845979Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.98)"
+                },
+                "event_to_decision_s": 21.3,
+                "event_to_candidate_s": 4.9,
+                "actions": [
+                    "dry-run: would play the warning (es)"
+                ]
+            }
+        ],
+        "actions": [
+            "dry-run: would play the warning (es)"
+        ],
+        "metrics": {
+            "chunks_processed": 15,
+            "sam_calls": 15,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 2.706,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T04",
+        "clip": "driver_only_bay",
+        "request": "Keep people at least 4 metres away from a moving forklift.",
+        "report_row": "| driver_only_bay | t04 | unlabelled | activated | 1x | 1 | 0 | 0 | 0/0/0 | 1/1 | 0.0 s | $0.000 |",
+        "camera_id": "phone-52",
+        "plan_id": "plan-9bcb4069c0ae",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T21:13:39.732585Z",
+        "finished_at": "2026-11-01T21:18:05.095180Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 55.3,
+                "detail": "23 things seen; phone-52 calibrated from pallet_48x40in (0.06 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 93.7,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 2.6,
+                "detail": "1 caveat"
+            },
+            "ask": {
+                "status": "done",
+                "s": 4.6,
+                "detail": "4 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 6.7,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 21.0,
+                "detail": "6/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 10.3,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.1,
+                "detail": "Rule CI green for 1/1 rules"
+            }
+        },
+        "plan_s": 194.3,
+        "concerns": [
+            "Keep people at least 4 metres away from a moving forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "caveat",
+                "says": "I can see the warehouse concrete floor on phone-52, but not reliably enough yet (lower bound 0.57), so I can check Keep people at least 4 metres away from a moving forklift. with a caveat.",
+                "evidence": [
+                    {
+                        "concept": "forklift",
+                        "detect_rate": 0.8421,
+                        "detect_lb": 0.6243,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "person operating forklift",
+                        "detect_rate": 0.8947,
+                        "detect_lb": 0.6861,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "warehouse concrete floor",
+                        "detect_rate": 0.7895,
+                        "detect_lb": 0.5667,
+                        "n_frames": 19
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Keep people at least 4 metres away from a moving forklift.",
+                "rule_id": "keep-people-4m-from-moving-forklift",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "keep-people-4m-from-moving-forklift",
+                "concepts": {
+                    "forklift": {
+                        "prompt": "forklift",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "distance_m",
+                            "a": "person",
+                            "b": "forklift",
+                            "lt": 4.0,
+                            "gt": null
+                        },
+                        {
+                            "op": "moving",
+                            "object": "forklift",
+                            "speed_mps_gt": 0.2
+                        }
+                    ]
+                },
+                "severity": "high",
+                "calibration": "ground-plane@phone-52",
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- keep-people-4m-from-moving-forklift: Watches for a person and a non-static forklift. Triggers when the forklift is moving faster than 0.2 m/s and the distance between person and forklift is less than 4.0 m, measured with ground-plane@phone-52 calibration. On trigger, notifies the operator immediately with severity high.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'keep-people-4m-from-moving-forklift'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": false,
+                "detail": "concept 'forklift' detect_lb=0.62 < 0.8 on 'phone-52'; concept 'person' detect_lb=0.69 < 0.8 on 'phone-52'"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": true,
+                "detail": "calibrated within 0.10 m"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": true,
+                "detail": "boundary 16/16, mutations 6/6"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": true,
+                "detail": "fires on its positive boundary trace and not on its negative one"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [
+            {
+                "event_id": "ev-04d1e62a2753168a7affbbda",
+                "rule_id": "keep-people-4m-from-moving-forklift",
+                "ts_start": "2026-11-01T21:17:27.327454Z",
+                "ts_end": "2026-11-01T21:17:28.227454Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "m",
+                    "value": 0.013308
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.distance_m": true,
+                    "all.0.distance_m.closest_in_s": 0.248383,
+                    "all.0.distance_m.closest_m": 0,
+                    "all.0.distance_m.separation_m": 0.013308,
+                    "all.0.distance_m.ttc_s": 0,
+                    "all.0.distance_m.value": 0.013308,
+                    "all.1.moving": true,
+                    "all.1.moving.value": 0.713782,
+                    "all.value": 0.013308,
+                    "episode_s": 1,
+                    "subject": "phone-52:person:1f40347b"
+                },
+                "chained_at": "2026-11-01T21:17:31.387133Z",
+                "calibration": "pallet_48x40in",
+                "cal_err": 0.057591947214171164,
+                "verdict": {
+                    "verdict": "no_violation",
+                    "score": 0.05,
+                    "reason": "The red-boxed person is the forklift operator seated inside the cab, not a separate pedestrian near a moving forklift; the frames show the person operating the vehicle rather than a person being too close to it.",
+                    "latency_ms": 17057,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:17:49.674773Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: no_violation (0.05)"
+                },
+                "event_to_decision_s": 22.4,
+                "event_to_candidate_s": 4.1,
+                "actions": [
+                    "dry-run: would notify operator"
+                ]
+            }
+        ],
+        "actions": [
+            "dry-run: would notify operator"
+        ],
+        "metrics": {
+            "chunks_processed": 19,
+            "sam_calls": 19,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 2.706,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T05",
+        "clip": "aisle_driver",
+        "request": "Keep people at least 2 metres away from a moving forklift.",
+        "report_row": "| aisle_driver | t05 | unlabelled | activated | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | 0.0 s | $0.000 |",
+        "camera_id": "phone-53",
+        "plan_id": "plan-d59071242a04",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T21:19:19.516570Z",
+        "finished_at": "2026-11-01T21:24:08.803366Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 45.0,
+                "detail": "12 things seen; phone-53 calibrated from pallet_48x40in (0.08 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 156.3,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 observable"
+            },
+            "ask": {
+                "status": "done",
+                "s": 4.9,
+                "detail": "4 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 7.3,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "7/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 10.2,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.1,
+                "detail": "Rule CI green for 1/1 rules"
+            }
+        },
+        "plan_s": 223.9,
+        "concerns": [
+            "Keep people at least 2 metres away from a moving forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "observable",
+                "says": "I can see the person, forklift, warehouse floor on phone-53, so I can check Keep people at least 2 metres away from a moving forklift..",
+                "evidence": [
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8454,
+                        "n_frames": 21
+                    },
+                    {
+                        "concept": "forklift",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8454,
+                        "n_frames": 21
+                    },
+                    {
+                        "concept": "warehouse floor",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8454,
+                        "n_frames": 21
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Keep people at least 2 metres away from a moving forklift.",
+                "rule_id": "keep-people-2m-from-moving-forklift",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "keep-people-2m-from-moving-forklift",
+                "concepts": {
+                    "forklift": {
+                        "prompt": "forklift",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "distance_m",
+                            "a": "person",
+                            "b": "forklift",
+                            "lt": 2.0,
+                            "gt": null
+                        },
+                        {
+                            "op": "moving",
+                            "object": "forklift",
+                            "speed_mps_gt": 0.2
+                        }
+                    ]
+                },
+                "severity": "high",
+                "calibration": "ground-plane@phone-53",
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- keep-people-2m-from-moving-forklift: Watches for person and forklift objects with ground-plane calibration ground-plane@phone-53. Triggers with high severity when a person is within 2.0 m of a forklift AND the forklift is moving faster than 0.2 m/s. Action: notify role supervisor in en after 0.0 s.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'keep-people-2m-from-moving-forklift'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": true,
+                "detail": "lowest detect_lb 0.85 (forklift)"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": true,
+                "detail": "calibrated within 0.10 m"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": true,
+                "detail": "boundary 16/16, mutations 6/6"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": true,
+                "detail": "fires on its positive boundary trace and not on its negative one"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": [],
+        "metrics": {
+            "chunks_processed": 27,
+            "sam_calls": 27,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 2.071,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T06",
+        "clip": "worker_passes",
+        "request": "Everyone on the warehouse floor must wear a hard hat.",
+        "report_row": "| worker_passes | t06 | unlabelled | activated | 1x | 4 | 2 | 0 | 0/2/0 | 4/4 | 0.0 s | $0.000 |",
+        "camera_id": "phone-54",
+        "plan_id": "plan-9951e3a87be9",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T21:25:22.360088Z",
+        "finished_at": "2026-11-01T21:29:14.532647Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 33.1,
+                "detail": "21 things seen; phone-54 calibrated from person_height_1.7m (0.50 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 67.5,
+                "detail": "4 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 observable"
+            },
+            "ask": {
+                "status": "done",
+                "s": 2.8,
+                "detail": "3 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 5.1,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 31.2,
+                "detail": "7/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 9.3,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "Rule CI green for 0/1 rules"
+            }
+        },
+        "plan_s": 149.0,
+        "concerns": [
+            "Everyone on the warehouse floor must wear a hard hat."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "observable",
+                "says": "I can see the person walking, forklift operator, red hard hat, concrete warehouse floor on phone-54, so I can check Everyone on the warehouse floor must wear a hard hat..",
+                "evidence": [
+                    {
+                        "concept": "person walking",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "forklift operator",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "red hard hat",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "concrete warehouse floor",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Everyone on the warehouse floor must wear a hard hat.",
+                "rule_id": "hard-hat-required",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "hard-hat-required",
+                "concepts": {
+                    "hard_hat": {
+                        "prompt": "hard hat",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "without",
+                    "subject": "person",
+                    "item": "hard_hat",
+                    "region": "top_25pct"
+                },
+                "severity": "medium",
+                "calibration": null,
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- hard-hat-required: Monitors for a person without a hard hat in the top 25% of the frame. When detected, notifies supervisor immediately. Severity is medium.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'hard-hat-required'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": true,
+                "detail": "lowest detect_lb 0.83 (hard_hat)"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": true,
+                "detail": "the rule measures no distance"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": false,
+                "detail": "boundary 0/0, mutations 0/0; no boundary traces: no boundary-trace generator for without"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": false,
+                "detail": "no boundary pair where it fires on the positive and not the negative trace"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [
+            {
+                "event_id": "ev-71d422d63bc224491e8469ef",
+                "rule_id": "hard-hat-required",
+                "ts_start": "2026-11-01T21:28:20.849623Z",
+                "ts_end": "2026-11-01T21:28:23.749623Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "episode_s": 3,
+                    "subject": "phone-54:person:36334ee3",
+                    "without": true,
+                    "without.value": 0
+                },
+                "chained_at": "2026-11-01T21:28:25.821814Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.98,
+                    "reason": "A person on the warehouse floor in the red box is walking without a hard hat while another person on the forklift is wearing a red hard hat, so the hard-hat-required rule is broken.",
+                    "latency_ms": 19020,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:28:46.230905Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.98)"
+                },
+                "event_to_candidate_s": 5.0,
+                "event_to_decision_s": 25.6,
+                "actions": [
+                    "dry-run: would notify supervisor"
+                ]
+            },
+            {
+                "event_id": "ev-1293a8e30970ba401acdf95f",
+                "rule_id": "hard-hat-required",
+                "ts_start": "2026-11-01T21:28:21.349623Z",
+                "ts_end": "2026-11-01T21:28:21.749623Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "episode_s": 0.5,
+                    "subject": "phone-54:person:344f2bb7",
+                    "without": true,
+                    "without.value": 0
+                },
+                "chained_at": "2026-11-01T21:28:25.907836Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.98,
+                    "reason": "A person on the warehouse floor is walking without a hard hat while another person on the forklift is wearing one, so the hard-hat requirement is not met for everyone on the floor.",
+                    "latency_ms": 23117,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:28:50.790503Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.98)"
+                },
+                "event_to_candidate_s": 4.6,
+                "event_to_decision_s": 29.5,
+                "actions": [
+                    "dry-run: would notify supervisor"
+                ]
+            },
+            {
+                "event_id": "ev-5b77c04c7d4d1d3f86ae16da",
+                "rule_id": "hard-hat-required",
+                "ts_start": "2026-11-01T21:28:25.756437Z",
+                "ts_end": "2026-11-01T21:28:27.156437Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "episode_s": 1.5,
+                    "subject": "phone-54:person:4ce064d0",
+                    "without": true,
+                    "without.value": 0
+                },
+                "chained_at": "2026-11-01T21:28:28.690007Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.98,
+                    "reason": "A person on the warehouse floor is walking without a hard hat while the forklift operator is wearing one.",
+                    "latency_ms": 28999,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:28:58.740818Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.98)"
+                },
+                "event_to_candidate_s": 2.9,
+                "event_to_decision_s": 33.1,
+                "actions": [
+                    "dry-run: would notify supervisor"
+                ]
+            },
+            {
+                "event_id": "ev-203c00f7f4fa2b85dd5c2c97",
+                "rule_id": "hard-hat-required",
+                "ts_start": "2026-11-01T21:28:35.259871Z",
+                "ts_end": "2026-11-01T21:28:35.459871Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "episode_s": 0.3,
+                    "subject": "phone-54:person:c47c5004",
+                    "without": true,
+                    "without.value": 0
+                },
+                "chained_at": "2026-11-01T21:28:36.482555Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.98,
+                    "reason": "A person on the warehouse floor in the red box is walking without a hard hat while the forklift operator is wearing one.",
+                    "latency_ms": 20259,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:28:57.434813Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.98)"
+                },
+                "event_to_candidate_s": 1.2,
+                "event_to_decision_s": 22.2,
+                "actions": [
+                    "dry-run: would notify supervisor"
+                ]
+            }
+        ],
+        "actions": [
+            "dry-run: would notify supervisor",
+            "dry-run: would notify supervisor",
+            "dry-run: would notify supervisor",
+            "dry-run: would notify supervisor"
+        ],
+        "metrics": {
+            "chunks_processed": 32,
+            "sam_calls": 32,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 2.071,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T07",
+        "clip": "kitchen",
+        "request": "Kitchen staff must wear a hair net or a hat while preparing food.",
+        "report_row": "| kitchen | t07 | unlabelled | activated | 1x | 20 | 1 | 0 | 0/1/0 | 17/20 | 0.0 s | $0.000 |",
+        "camera_id": "phone-55",
+        "plan_id": "plan-2073857284bf",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T21:30:27.657109Z",
+        "finished_at": "2026-11-01T21:36:31.394290Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 45.8,
+                "detail": "18 things seen; phone-55 calibrated from person_height_1.7m (0.32 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 61.2,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 not_observable"
+            },
+            "ask": {
+                "status": "done",
+                "s": 3.6,
+                "detail": "4 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 7.5,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "6/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 11.0,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "Rule CI green for 0/1 rules"
+            }
+        },
+        "plan_s": 129.3,
+        "concerns": [
+            "Kitchen staff must wear a hair net or a hat while preparing food."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "not_observable",
+                "says": "I can't see the hat reliably (lower bound 0.39), so I can't check Kitchen staff must wear a hair net or a hat while preparing food..",
+                "evidence": [
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8241,
+                        "n_frames": 18
+                    },
+                    {
+                        "concept": "hairnet",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8241,
+                        "n_frames": 18
+                    },
+                    {
+                        "concept": "hat",
+                        "detect_rate": 0.6111,
+                        "detect_lb": 0.3862,
+                        "n_frames": 18
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Kitchen staff must wear a hair net or a hat while preparing food.",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "wear-hairnet-or-hat-while-preparing-food",
+                "concepts": {
+                    "hairnet": {
+                        "prompt": "hairnet",
+                        "static": false
+                    },
+                    "hat": {
+                        "prompt": "hat",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "without",
+                            "subject": "person",
+                            "item": "hairnet",
+                            "region": "top_25pct"
+                        },
+                        {
+                            "op": "without",
+                            "subject": "person",
+                            "item": "hat",
+                            "region": "top_25pct"
+                        }
+                    ]
+                },
+                "severity": "medium",
+                "calibration": null,
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- wear-hairnet-or-hat-while-preparing-food: Monitors persons and triggers when a person is detected without a hairnet in the top 25% region AND without a hat in the top 25% region. On trigger, sends a medium severity notification to staff in English.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'wear-hairnet-or-hat-while-preparing-food'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": false,
+                "detail": "concept 'hat' detect_lb=0.39 < 0.8 on 'phone-55'"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": true,
+                "detail": "the rule measures no distance"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": false,
+                "detail": "boundary 0/0, mutations 0/1; no boundary traces: no boundary-trace generator for all(without,without); 1 mutants not run: no traces"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": false,
+                "detail": "no boundary pair where it fires on the positive and not the negative trace"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [
+            {
+                "event_id": "ev-0aec8164857ebcc8dc3f0536",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:10.984038Z",
+                "ts_end": "2026-11-01T21:33:13.884038Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 3,
+                    "subject": "phone-55:person:bcae3a44"
+                },
+                "chained_at": "2026-11-01T21:33:15.988628Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "no_violation",
+                    "score": 0.15,
+                    "reason": "The red-boxed kitchen staff member is not wearing a hair net or hat, but across the frames he is standing idle and looking up rather than actively preparing food, while other staff at the stations are wearing hair nets.",
+                    "latency_ms": 24054,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:33:43.486672Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: no_violation (0.15)"
+                },
+                "event_to_candidate_s": 5.0,
+                "event_to_decision_s": 32.5,
+                "actions": []
+            },
+            {
+                "event_id": "ev-261c9f69a4186368b7da5692",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:10.984038Z",
+                "ts_end": "2026-11-01T21:33:12.384038Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 1.5,
+                    "subject": "phone-55:person:64afe2fc"
+                },
+                "chained_at": "2026-11-01T21:33:16.119015Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.95,
+                    "reason": "The red-boxed kitchen staff member is at the cooking station preparing food and is visible without a hair net or hat on the head in the top portion of the frames.",
+                    "latency_ms": 18259,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:33:38.153924Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.95)"
+                },
+                "event_to_candidate_s": 5.1,
+                "event_to_decision_s": 27.4,
+                "actions": [
+                    "dry-run: would notify staff"
+                ]
+            },
+            {
+                "event_id": "ev-bcda5c4ec109dc4f55b86bf1",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:10.984038Z",
+                "ts_end": "2026-11-01T21:33:13.884038Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 3,
+                    "subject": "phone-55:person:c6059cce"
+                },
+                "chained_at": "2026-11-01T21:33:16.371420Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "no_violation",
+                    "score": 0.05,
+                    "reason": "The red-boxed subject person visible on the left edge is wearing a white hair net while in the kitchen, so the required head covering is present for the tracked individual.",
+                    "latency_ms": 43300,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:34:02.816434Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: no_violation (0.05)"
+                },
+                "event_to_candidate_s": 5.4,
+                "event_to_decision_s": 51.8,
+                "actions": []
+            },
+            {
+                "event_id": "ev-d2ab19f6d3b48a4d3d2d99b7",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:10.984038Z",
+                "ts_end": "2026-11-01T21:33:13.884038Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 3,
+                    "subject": "phone-55:person:fc493681"
+                },
+                "chained_at": "2026-11-01T21:33:16.658862Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "unsure",
+                    "score": 0.15,
+                    "reason": "The red-boxed subject on the right is bent over with the head not visible in any frame, so whether a hair net or hat is worn while preparing food cannot be confirmed from the visible scene.",
+                    "latency_ms": 35348,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:33:54.906509Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: unsure (0.15)"
+                },
+                "event_to_candidate_s": 5.7,
+                "event_to_decision_s": 43.9,
+                "actions": []
+            },
+            {
+                "event_id": "ev-5db868ccde02d1eca9adc3bb",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:11.984038Z",
+                "ts_end": "2026-11-01T21:33:13.884038Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 2,
+                    "subject": "phone-55:person:5f1f2528"
+                },
+                "chained_at": "2026-11-01T21:33:16.926429Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.9,
+                    "reason": "The red-boxed kitchen staff member is preparing food at the station and is visible without a hair net or hat on the head in the top portion of the frames.",
+                    "latency_ms": 35000,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:34:13.961480Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.90)"
+                },
+                "event_to_candidate_s": 4.9,
+                "event_to_decision_s": 62.1,
+                "actions": [
+                    "dry-run: would notify staff"
+                ]
+            },
+            {
+                "event_id": "ev-a44a147de85e4e2e038026d2",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:11.984038Z",
+                "ts_end": "2026-11-01T21:33:13.884038Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 2,
+                    "subject": "phone-55:person:fe15ce4f"
+                },
+                "chained_at": "2026-11-01T21:33:17.225321Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "no_violation",
+                    "score": 0.18,
+                    "reason": "The person highlighted in red is standing behind the cooking line with no visible food handling; other staff who are actively preparing food are wearing hair nets, and the subject does not appear to be preparing food in the shown frames.",
+                    "latency_ms": 37666,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:34:21.747745Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: no_violation (0.18)"
+                },
+                "event_to_candidate_s": 5.2,
+                "event_to_decision_s": 69.8,
+                "actions": []
+            },
+            {
+                "event_id": "ev-ee1a99e147db2c370433c4e3",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:12.484038Z",
+                "ts_end": "2026-11-01T21:33:13.884038Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 1.5,
+                    "subject": "phone-55:person:0b3b730b"
+                },
+                "chained_at": "2026-11-01T21:33:17.469869Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.95,
+                    "reason": "The person highlighted by the red subject box is in the kitchen preparing food and is visible without a hair net or hat on the top of the head.",
+                    "latency_ms": 33906,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:34:29.455048Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.95)"
+                },
+                "event_to_candidate_s": 5.0,
+                "event_to_decision_s": 77.1,
+                "actions": [
+                    "dry-run: would notify staff"
+                ]
+            },
+            {
+                "event_id": "ev-e854a0fefbdf8fced5767825",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:12.984038Z",
+                "ts_end": "2026-11-01T21:33:13.884038Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 1,
+                    "subject": "phone-55:person:227fde7f"
+                },
+                "chained_at": "2026-11-01T21:33:17.692664Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "no_violation",
+                    "score": 0.05,
+                    "reason": "The red-boxed subject is a kitchen staff member preparing food and is wearing a hair net over the top of the head, so the required hair covering is present.",
+                    "latency_ms": 31694,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:34:35.149713Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: no_violation (0.05)"
+                },
+                "event_to_candidate_s": 4.7,
+                "event_to_decision_s": 82.2,
+                "actions": []
+            },
+            {
+                "event_id": "ev-23c7b7f4394c1e2bc7e33ef0",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:14.849962Z",
+                "ts_end": "2026-11-01T21:33:15.249962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 0.5,
+                    "subject": "phone-55:person:b1300742"
+                },
+                "chained_at": "2026-11-01T21:33:18.680988Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "no_violation",
+                    "score": 0.05,
+                    "reason": "The red-boxed kitchen staff member preparing food is wearing a hair net on the head, so the required hair covering is present.",
+                    "latency_ms": 25363,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:34:40.459226Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: no_violation (0.05)"
+                },
+                "event_to_candidate_s": 3.8,
+                "event_to_decision_s": 85.6,
+                "actions": []
+            },
+            {
+                "event_id": "ev-a5c102692a1580e3ceefecbd",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:14.849962Z",
+                "ts_end": "2026-11-01T21:33:16.249962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 1.5,
+                    "subject": "phone-55:person:ecdcddfa"
+                },
+                "chained_at": "2026-11-01T21:33:18.922362Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "unsure",
+                    "score": 0.35,
+                    "reason": "The red-boxed subject person on the far left is heavily occluded and the head/top of the person is not visible in the frames, so it cannot be confirmed whether a hair net or hat is being worn while preparing food.",
+                    "latency_ms": 29548,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:34:51.911999Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: unsure (0.35)"
+                },
+                "event_to_candidate_s": 4.1,
+                "event_to_decision_s": 97.1,
+                "actions": []
+            },
+            {
+                "event_id": "ev-bfbecb5a85e26ba1c992a85b",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:14.849962Z",
+                "ts_end": "2026-11-01T21:33:15.749962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 1,
+                    "subject": "phone-55:person:21fcb511"
+                },
+                "chained_at": "2026-11-01T21:33:19.156574Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.9,
+                    "reason": "The tracked kitchen staff member in the foreground is preparing food and is visible without a hair net or hat on the top of the head.",
+                    "latency_ms": 26504,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:34:57.143468Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.90)"
+                },
+                "event_to_candidate_s": 4.3,
+                "event_to_decision_s": 102.4,
+                "actions": [
+                    "dry-run: would notify staff"
+                ]
+            },
+            {
+                "event_id": "ev-41a8b3b3b0c8b53e5c5c4617",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:15.349962Z",
+                "ts_end": "2026-11-01T21:33:16.749962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 1.5,
+                    "subject": "phone-55:person:8da3fd98"
+                },
+                "chained_at": "2026-11-01T21:33:19.577727Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "unsure",
+                    "score": 0.35,
+                    "reason": "The red-boxed subject person is only partially visible on the far left edge of the frames and the head/top of the person is not clearly visible, so it cannot be reliably determined whether a hair net or hat is being worn while preparing food.",
+                    "latency_ms": 30696,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:35:06.443687Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: unsure (0.35)"
+                },
+                "event_to_candidate_s": 4.2,
+                "event_to_decision_s": 111.1,
+                "actions": []
+            },
+            {
+                "event_id": "ev-6dcbbcecff8f559c16bcbedf",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:15.349962Z",
+                "ts_end": "2026-11-01T21:33:15.749962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 0.5,
+                    "subject": "phone-55:person:4b74f983"
+                },
+                "chained_at": "2026-11-01T21:33:19.873384Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "no_violation",
+                    "score": 0.05,
+                    "reason": "The tracked kitchen staff member is preparing food while wearing a hair net on the top of the head, so the required head covering is present.",
+                    "latency_ms": 28327,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:35:09.879498Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: no_violation (0.05)"
+                },
+                "event_to_candidate_s": 4.5,
+                "event_to_decision_s": 114.5,
+                "actions": []
+            },
+            {
+                "event_id": "ev-76275f3908887ceeaf315925",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:15.549962Z",
+                "ts_end": "2026-11-01T21:33:16.249962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 0.8,
+                    "subject": "phone-55:person:43c3b341"
+                },
+                "chained_at": "2026-11-01T21:33:20.122485Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "no_violation",
+                    "score": 0.15,
+                    "reason": "The person highlighted by the red subject box is shown preparing food while wearing a hair net in the early frames, and no clear hat-less, hair-net-less preparation by the tracked individual is visible in the clip.",
+                    "latency_ms": 40232,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:35:32.721772Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: no_violation (0.15)"
+                },
+                "event_to_candidate_s": 4.6,
+                "event_to_decision_s": 137.2,
+                "actions": []
+            },
+            {
+                "event_id": "ev-8810abe051f6d2d4b2d6cbd0",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:15.849962Z",
+                "ts_end": "2026-11-01T21:33:16.249962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 0.5,
+                    "subject": "phone-55:person:38aa4a16"
+                },
+                "chained_at": "2026-11-01T21:33:20.350128Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.68,
+                    "reason": "Multiple kitchen staff are visible preparing food and at least one person in the foreground is shown without a visible hair net or hat while working at the station.",
+                    "latency_ms": 29340,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:35:27.159121Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.68)"
+                },
+                "event_to_candidate_s": 4.5,
+                "event_to_decision_s": 131.4,
+                "actions": [
+                    "dry-run: would notify staff"
+                ]
+            },
+            {
+                "event_id": "ev-a2d00f9a2f650398c2439d4b",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:15.849962Z",
+                "ts_end": "2026-11-01T21:33:16.749962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 1,
+                    "subject": "phone-55:person:76b27d90"
+                },
+                "chained_at": "2026-11-01T21:33:20.574965Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.7,
+                    "reason": "The tracked kitchen staff member in the red box is visible preparing/standing at the food prep line with no hair net or hat on the top of the head.",
+                    "latency_ms": 42269,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:35:49.278592Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.70)"
+                },
+                "event_to_candidate_s": 4.7,
+                "event_to_decision_s": 153.5,
+                "actions": [
+                    "dry-run: would notify staff"
+                ]
+            },
+            {
+                "event_id": "ev-f9765ec85e0847f2c42e5835",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:15.849962Z",
+                "ts_end": "2026-11-01T21:33:16.749962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 1,
+                    "subject": "phone-55:person:bb29f6db"
+                },
+                "chained_at": "2026-11-01T21:33:20.799830Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.95,
+                    "reason": "The red-boxed kitchen staff member is preparing food at the station and is visible without a hair net or hat on the top of the head across the frames.",
+                    "latency_ms": 32897,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:35:43.393378Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.95)"
+                },
+                "event_to_candidate_s": 4.9,
+                "event_to_decision_s": 147.6,
+                "actions": [
+                    "dry-run: would notify staff"
+                ]
+            },
+            {
+                "event_id": "ev-92de0f14e9509da69010d821",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:16.249962Z",
+                "ts_end": "2026-11-01T21:33:16.449962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 0.3,
+                    "subject": "phone-55:person:e342653b"
+                },
+                "chained_at": "2026-11-01T21:33:21.045055Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "no_violation",
+                    "score": 0.08,
+                    "reason": "The person tracked by the red box in the early frames is preparing food while wearing a hair net, and no clear instance of the tracked staff member preparing food without a hair net or hat is visible in the clip.",
+                    "latency_ms": 34963,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:36:02.813876Z"
+                },
+                "decision": {
+                    "alert": false,
+                    "route": "auto",
+                    "reason": "glimmer decided: no_violation (0.08)"
+                },
+                "event_to_candidate_s": 4.8,
+                "event_to_decision_s": 166.6,
+                "actions": []
+            },
+            {
+                "event_id": "ev-fa16f008f477eeaab348c138",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:16.349962Z",
+                "ts_end": "2026-11-01T21:33:16.749962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 0.5,
+                    "subject": "phone-55:person:a23650f4"
+                },
+                "chained_at": "2026-11-01T21:33:21.277205Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.62,
+                    "reason": "The tracked kitchen staff member highlighted in the frames is visible preparing/working at the station without a hair net or hat on the top of the head, while another staff member nearby is wearing a hair net.",
+                    "latency_ms": 38310,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:36:11.634449Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.62)"
+                },
+                "event_to_candidate_s": 4.9,
+                "event_to_decision_s": 175.4,
+                "actions": [
+                    "dry-run: would notify staff"
+                ]
+            },
+            {
+                "event_id": "ev-5992f8087e72297fc4040c78",
+                "rule_id": "wear-hairnet-or-hat-while-preparing-food",
+                "ts_start": "2026-11-01T21:33:16.549962Z",
+                "ts_end": "2026-11-01T21:33:16.749962Z",
+                "measurement": {
+                    "hi": null,
+                    "lo": null,
+                    "unit": "count",
+                    "value": 0
+                },
+                "trace": {
+                    "all": true,
+                    "all.0.without": true,
+                    "all.0.without.value": 0,
+                    "all.1.without": true,
+                    "all.1.without.value": 0,
+                    "all.value": 0,
+                    "episode_s": 0.3,
+                    "subject": "phone-55:person:eef79203"
+                },
+                "chained_at": "2026-11-01T21:33:21.500195Z",
+                "calibration": null,
+                "cal_err": null,
+                "verdict": {
+                    "verdict": "violation",
+                    "score": 0.9,
+                    "reason": "The red-boxed kitchen staff member in the foreground is preparing food at the counter with uncovered hair and no visible hair net or hat on the top of the head.",
+                    "latency_ms": 31254,
+                    "tier": "glimmer",
+                    "model_version": "muse-glimmer-30b",
+                    "at": "2026-11-01T21:36:15.341785Z"
+                },
+                "decision": {
+                    "alert": true,
+                    "route": "auto",
+                    "reason": "glimmer decided: violation (0.90)"
+                },
+                "event_to_candidate_s": 5.0,
+                "event_to_decision_s": 178.8,
+                "actions": [
+                    "dry-run: would notify staff"
+                ]
+            }
+        ],
+        "actions": [
+            "dry-run: would notify staff",
+            "dry-run: would notify staff",
+            "dry-run: would notify staff",
+            "dry-run: would notify staff",
+            "dry-run: would notify staff",
+            "dry-run: would notify staff",
+            "dry-run: would notify staff",
+            "dry-run: would notify staff",
+            "dry-run: would notify staff"
+        ],
+        "metrics": {
+            "chunks_processed": 34,
+            "sam_calls": 34,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 2.071,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T08",
+        "clip": "kitchen",
+        "request": "Keep people at least 2 metres away from a moving forklift.",
+        "report_row": "| kitchen | t08 | unlabelled | activated | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | 0.0 s | $0.000 |",
+        "camera_id": "phone-56",
+        "plan_id": "plan-a7cf50238df5",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T21:37:45.547581Z",
+        "finished_at": "2026-11-01T21:40:30.990417Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 40.2,
+                "detail": "20 things seen; phone-56 calibrated from person_height_1.7m (0.32 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 49.4,
+                "detail": "2 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 not_observable"
+            },
+            "ask": {
+                "status": "done",
+                "s": 6.1,
+                "detail": "3 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 6.3,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "5/7 checks passed after 0 repair round(s), 1 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 9.5,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.1,
+                "detail": "Rule CI green for 1/1 rules"
+            }
+        },
+        "plan_s": 111.7,
+        "concerns": [
+            "Keep people at least 2 metres away from a moving forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "not_observable",
+                "says": "I can't see the forklift reliably (lower bound 0.00), so I can't check Keep people at least 2 metres away from a moving forklift..",
+                "evidence": [
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8241,
+                        "n_frames": 18
+                    },
+                    {
+                        "concept": "forklift",
+                        "detect_rate": 0.0,
+                        "detect_lb": 0.0,
+                        "n_frames": 18
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Keep people at least 2 metres away from a moving forklift.",
+                "rule_id": "keep-people-away-from-moving-forklift",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "keep-people-away-from-moving-forklift",
+                "concepts": {
+                    "forklift": {
+                        "prompt": "forklift",
+                        "static": false
+                    },
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "all",
+                    "of": [
+                        {
+                            "op": "distance_m",
+                            "a": "person",
+                            "b": "forklift",
+                            "lt": 2.0,
+                            "gt": null
+                        },
+                        {
+                            "op": "moving",
+                            "object": "forklift",
+                            "speed_mps_gt": 0.2
+                        }
+                    ]
+                },
+                "severity": "high",
+                "calibration": "ground-plane@phone-56",
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- keep-people-away-from-moving-forklift: Watches for a person and a forklift. Triggers when the forklift is moving faster than 0.2 m/s and the distance between person and forklift is less than 2.0 m. Action: speak to staff. Severity: high. Calibration: ground-plane@phone-56. No zone restriction.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'keep-people-away-from-moving-forklift'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": false,
+                "detail": "concept 'forklift' detect_lb=0.00 < 0.8 on 'phone-56'"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": false,
+                "detail": "camera 'phone-56' calibration error 0.32 m > 0.10 m"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": true,
+                "detail": "boundary 16/16, mutations 6/6"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": true,
+                "detail": "fires on its positive boundary trace and not on its negative one"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": [],
+        "metrics": {
+            "chunks_processed": 36,
+            "sam_calls": 36,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 2.071,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T09",
+        "clip": "kitchen",
+        "request": "Alert me if a cook looks sick or has a fever.",
+        "report_row": "| kitchen | t09 | unlabelled | activated | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | 0.0 s | $0.000 |",
+        "camera_id": "phone-57",
+        "plan_id": "plan-0d2f80a5d566",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T21:41:44.024648Z",
+        "finished_at": "2026-11-01T21:45:05.351299Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 42.0,
+                "detail": "19 things seen; phone-57 calibrated from person_height_1.7m (0.30 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 76.6,
+                "detail": "3 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 not_observable"
+            },
+            "ask": {
+                "status": "done",
+                "s": 3.7,
+                "detail": "2 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 7.8,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 missing_action"
+            },
+            "accept": {
+                "status": "done",
+                "s": 8.0,
+                "detail": "7/7 checks passed after 1 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 9.6,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "Rule CI green for 0/1 rules"
+            }
+        },
+        "plan_s": 147.8,
+        "concerns": [
+            "Alert me if a cook looks sick or has a fever."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "not_observable",
+                "says": "I can't see the thermometer reliably (lower bound 0.00), so I can't check Alert me if a cook looks sick or has a fever..",
+                "evidence": [
+                    {
+                        "concept": "person",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8241,
+                        "n_frames": 18
+                    },
+                    {
+                        "concept": "chef coat",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8241,
+                        "n_frames": 18
+                    },
+                    {
+                        "concept": "thermometer",
+                        "detect_rate": 0.0,
+                        "detect_lb": 0.0,
+                        "n_frames": 18
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Alert me if a cook looks sick or has a fever.",
+                "rule_id": "cook-looks-sick-or-has-fever",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "cook-looks-sick-fever-prohibited",
+                "concepts": {
+                    "person": {
+                        "prompt": "person",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "count",
+                    "object": "person",
+                    "zone": null,
+                    "gt": 1000,
+                    "lt": null
+                },
+                "severity": "high",
+                "calibration": null,
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "none",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": [
+                    "Refused: inferring illness or fever ('looks sick or has a fever') is prohibited health inference and cannot be implemented as a camera-checkable rule. No health-detection predicate was created."
+                ]
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- cook-looks-sick-fever-prohibited: Watches for the concept 'person' with no zone restriction. Triggers when the count of detected persons is greater than 1000. Severity is high. Action is to log to role manager in English.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'cook-looks-sick-fever-prohibited'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": true,
+                "detail": "lowest detect_lb 0.82 (person)"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": true,
+                "detail": "the rule measures no distance"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": false,
+                "detail": "boundary 0/0, mutations 0/3; no boundary traces: no boundary-trace generator for count; 3 mutants not run: no traces"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": false,
+                "detail": "no boundary pair where it fires on the positive and not the negative trace"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": [],
+        "metrics": {
+            "chunks_processed": 38,
+            "sam_calls": 38,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 2.071,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    },
+    {
+        "id": "T10",
+        "clip": "worker_passes",
+        "request": "Tell me the name of every worker who walks past the forklift.",
+        "report_row": "| worker_passes | t10 | unlabelled | activated | 1x | 0 | 0 | 0 | 0/0/0 | 0/0 | 0.0 s | $0.000 |",
+        "camera_id": "phone-58",
+        "plan_id": "plan-2bd8b68d3613",
+        "refused": null,
+        "error": null,
+        "started_at": "2026-11-01T21:46:18.831198Z",
+        "finished_at": "2026-11-01T21:49:35.082516Z",
+        "activated": true,
+        "steps": {
+            "understand": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 concerns"
+            },
+            "survey": {
+                "status": "done",
+                "s": 34.5,
+                "detail": "19 things seen; phone-58 calibrated from person_height_1.7m (0.50 m)"
+            },
+            "probe": {
+                "status": "done",
+                "s": 79.4,
+                "detail": "4 probes"
+            },
+            "gauge": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "1 observable"
+            },
+            "ask": {
+                "status": "done",
+                "s": 4.5,
+                "detail": "4 questions"
+            },
+            "compile": {
+                "status": "done",
+                "s": 13.1,
+                "detail": "1 rules"
+            },
+            "lint": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "no lint errors"
+            },
+            "accept": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "7/7 checks passed after 0 repair round(s), 0 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)"
+            },
+            "audit": {
+                "status": "done",
+                "s": 7.6,
+                "detail": "audit_skipped: not audited, Spark Open failed (ModelTransportError); back-translated (en)"
+            },
+            "prove": {
+                "status": "done",
+                "s": 0.0,
+                "detail": "Rule CI green for 0/1 rules"
+            }
+        },
+        "plan_s": 139.1,
+        "concerns": [
+            "Tell me the name of every worker who walks past the forklift."
+        ],
+        "understand": {
+            "languages": [
+                "en"
+            ]
+        },
+        "feasibility": [
+            {
+                "verdict": "observable",
+                "says": "I can see the orange forklift, standing worker in pink shirt, forklift driver, concrete warehouse floor on phone-58, so I can check Tell me the name of every worker who walks past the forklift..",
+                "evidence": [
+                    {
+                        "concept": "orange forklift",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "standing worker in pink shirt",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "forklift driver",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    },
+                    {
+                        "concept": "concrete warehouse floor",
+                        "detect_rate": 1.0,
+                        "detect_lb": 0.8318,
+                        "n_frames": 19
+                    }
+                ]
+            }
+        ],
+        "compiled": [
+            {
+                "concern": "Tell me the name of every worker who walks past the forklift.",
+                "rule_id": "worker-near-forklift-anonymized",
+                "error": ""
+            }
+        ],
+        "rules": [
+            {
+                "id": "worker-near-forklift-anonymized",
+                "concepts": {
+                    "forklift": {
+                        "prompt": "orange forklift",
+                        "static": false
+                    },
+                    "worker": {
+                        "prompt": "standing worker in pink shirt",
+                        "static": false
+                    }
+                },
+                "predicate": {
+                    "op": "overlap",
+                    "a": "worker",
+                    "b": "forklift",
+                    "min_iou": 0.1
+                },
+                "severity": "low",
+                "calibration": null,
+                "verify": {
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree",
+                    "min_confidence": 0.7,
+                    "calibrated_alpha": null
+                },
+                "accept": []
+            }
+        ],
+        "declined": null,
+        "plan_keys": [
+            "plan_id",
+            "version",
+            "site_name",
+            "setting_inferred",
+            "languages",
+            "request",
+            "inventory",
+            "feasibility",
+            "rules",
+            "privacy_mode",
+            "retention_days",
+            "protected_two_key",
+            "roles",
+            "acceptance",
+            "audit",
+            "back_translation",
+            "standards",
+            "cost_usd_per_cam_hour"
+        ],
+        "back_translation": "[en]\n- worker-near-forklift-anonymized: Monitors for overlap between a standing worker in pink shirt and an orange forklift with min IoU 0.1. When overlap is detected, logs an event to the operator with low severity. No zone or schedule is applied.",
+        "audit": [
+            {
+                "by": "spark-open",
+                "text": "audit_skipped: not audited, Spark Open failed (ModelTransportError)",
+                "reasoning_ref": null
+            }
+        ],
+        "acceptance": [
+            {
+                "check": "concern_covered",
+                "passed": true,
+                "detail": "rule 'worker-near-forklift-anonymized'"
+            },
+            {
+                "check": "zone_in_view",
+                "passed": true,
+                "detail": "the rule uses no zones"
+            },
+            {
+                "check": "detect_lb>=0.8",
+                "passed": true,
+                "detail": "lowest detect_lb 0.83 (forklift)"
+            },
+            {
+                "check": "calibration_err<=tol",
+                "passed": true,
+                "detail": "the rule measures no distance"
+            },
+            {
+                "check": "privacy_consistent",
+                "passed": true,
+                "detail": "consistent with standard mode"
+            },
+            {
+                "check": "citation_text_match",
+                "passed": true,
+                "detail": "the rule cites no standard"
+            },
+            {
+                "check": "no_private_spaces",
+                "passed": true,
+                "detail": "no private-space zones"
+            },
+            {
+                "check": "ci_green",
+                "passed": false,
+                "detail": "boundary 0/0, mutations 0/0; no boundary traces: no boundary-trace generator for overlap"
+            },
+            {
+                "check": "nonvacuous",
+                "passed": false,
+                "detail": "no boundary pair where it fires on the positive and not the negative trace"
+            }
+        ],
+        "setting": "general",
+        "languages": [
+            "en"
+        ],
+        "events": [],
+        "actions": [],
+        "metrics": {
+            "chunks_processed": 98,
+            "sam_calls": 98,
+            "billed_frames": 0,
+            "segment_latency_p95_s": 2.805,
+            "lag_s": 0.002
+        },
+        "lag_max_s": 0.002
+    }
+]

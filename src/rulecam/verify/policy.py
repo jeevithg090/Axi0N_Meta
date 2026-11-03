@@ -28,6 +28,12 @@ candidate first (without a Tier 1 description of the frames): if it confirms, th
 (`auto`, after the firewall); anything else, including a confident Tier 2 rejection, still goes
 to a person, because one tier alone never suppresses an alert whose Tier 1 check could not run.
 
+**Model decides** (prototype mode, `model_decides`): the verdict of the strongest tier that ran
+(Tier 2 when it ran, else Tier 1) is final, whatever the severity: `violation` alerts,
+`no_violation` is suppressed, `unsure` alerts when its score is at least `UNSURE_ALERT_SCORE`.
+HIGH rules still act first. Only a candidate no model could judge (Tier 1 failed) or that the
+firewall flags as tampering goes to a person.
+
 **Without the firewall** (`screen_required`: the runtime wanted it but Prompt Guard 2 is not
 available) scene text cannot be screened, so a candidate whose verdicts report scene text is
 never suppressed on those verdicts: it goes to `human_queue` instead.
@@ -51,6 +57,7 @@ _TAMPER_REASON = "text in view tried to instruct the verifier; a person reviews 
 _UNSCREENED_REASON = "text in view could not be screened (firewall degraded); a person reviews it"
 NO_TIER2_REASONING = "no Tier 2 reviewer is configured; a person decides"
 UNAVAILABLE = "verifier unavailable — "
+UNSURE_ALERT_SCORE = 0.5
 
 
 class Tier2(Protocol):
@@ -111,6 +118,16 @@ def _low(tier1: VerifierVerdict, tier2: VerifierVerdict | None, threshold: float
     )
 
 
+def _model(tier1: VerifierVerdict, tier2: VerifierVerdict | None, *, act_first: bool) -> Decision:
+    """Model decides: the strongest tier's verdict is final."""
+    final = tier2 if tier2 is not None else tier1
+    alert = final.verdict == "violation" or (
+        final.verdict == "unsure" and final.score >= UNSURE_ALERT_SCORE
+    )
+    reason = f"{final.tier} decided: {final.verdict} ({final.score:.2f})"
+    return Decision(alert=alert, route="auto", act_first=act_first, reason=reason)
+
+
 def decide_unverified(
     candidate: CandidateEvent,
     rule: RuleIR,
@@ -149,6 +166,7 @@ def decide(
     tier2: VerifierVerdict | None = None,
     *,
     threshold: float | None = None,
+    model_decides: bool = False,
 ) -> Decision:
     """Decide what happens to a verified candidate (a pure function).
 
@@ -158,14 +176,18 @@ def decide(
         tier1: Glimmer's verdict (an error verdict means Tier 1 failed: `decide_unverified`).
         tier2: Spark Open's verdict, when it ran.
         threshold: Calibrated threshold; defaults to `rule.verify.min_confidence`.
+        model_decides: Prototype mode: the strongest tier's verdict is final (`_model`).
 
     Returns:
-        The decision. For HIGH severity, and whenever Tier 1 failed, `alert` is always true.
+        The decision. For HIGH severity, and whenever Tier 1 failed, `alert` is always true,
+        except under `model_decides`.
     """
     tau = rule.verify.min_confidence if threshold is None else threshold
     error = verifier_error(tier1)
     if error is not None:
         return decide_unverified(candidate, rule, error, tier2, threshold=tau)
+    if model_decides:
+        return _model(tier1, tier2, act_first=candidate.severity == Severity.HIGH)
     if candidate.severity == Severity.HIGH:
         return _high(tier1, tier2, tau)
     return _low(tier1, tier2, tau)
@@ -189,6 +211,7 @@ class VerificationPolicy:
         firewall: SceneTextFirewall | None = None,
         thresholds: Mapping[str, float] | None = None,
         screen_required: bool = False,
+        model_decides: bool = False,
     ) -> None:
         """Create the policy.
 
@@ -199,12 +222,14 @@ class VerificationPolicy:
             thresholds: Calibrated thresholds by rule id (from rule health).
             screen_required: Scene text must be screened; without a firewall, a candidate with
                 scene text is sent to a person instead of being suppressed.
+            model_decides: Prototype mode: the verifiers' verdict is final (see the module).
         """
         self._tier1 = tier1
         self._tier2 = tier2
         self._firewall = firewall
         self._thresholds = dict(thresholds or {})
-        self._screen_required = screen_required
+        self._screen_required = screen_required and not model_decides
+        self._model_decides = model_decides
 
     @property
     def has_tier2(self) -> bool:
@@ -249,7 +274,9 @@ class VerificationPolicy:
                 "policy_verification_error", event_id=candidate.event_id, error=type(exc).__name__
             )
             return self._to_human(candidate, rule, "verification error; a person reviews it")
-        decision = decide(candidate, rule, tier1, tier2, threshold=tau)
+        decision = decide(
+            candidate, rule, tier1, tier2, threshold=tau, model_decides=self._model_decides
+        )
         if self._unscreened(decision, tier1, tier2):
             return self._to_human(candidate, rule, _UNSCREENED_REASON)
         _log.info(

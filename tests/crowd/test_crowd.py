@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from tests.fakes import FakeLLM
 
 from rulecam.ask.watch import Clip
 from rulecam.clients.errors import ModelResponseError
@@ -28,6 +27,7 @@ from rulecam.crowd import (
     sample,
 )
 from rulecam.crowd.watch import MAX_CHECKS, _thin
+from tests.fakes import FakeLLM
 
 T0 = datetime(2026, 11, 3, 21, 0, tzinfo=UTC)
 LEVELS = CrowdLevels()

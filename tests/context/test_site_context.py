@@ -10,7 +10,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-from tests.fakes import FakeClock
 
 from rulecam.clients.errors import ModelResponseError
 from rulecam.clients.meta_hosted.grounding import Grounded, SearchSource, normal_url
@@ -24,6 +23,7 @@ from rulecam.context import (
     context_router,
     relink,
 )
+from tests.fakes import FakeClock
 
 RECALL_PAGE = "https://alerts.food.gov.uk/news-alerts/alert/FSA-AA-50-2026-update-1"
 FORECAST = "https://weather.metoffice.gov.uk/forecast/gcw2hzs1u"

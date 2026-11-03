@@ -11,13 +11,13 @@ import numpy as np
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from tests.fakes import FakeLLM
 
 from rulecam.ask.vision import Frame
 from rulecam.clients.errors import ModelResponseError
 from rulecam.contracts import Detection, Mask
 from rulecam.shelf import ShelfError, ShelfScanner, clamp, cover, shelf_router
 from rulecam.shelf.gaps import to_pixels
+from tests.fakes import FakeLLM
 
 AT = datetime(2026, 11, 3, 10, 0, tzinfo=UTC)
 W, H = 400, 200

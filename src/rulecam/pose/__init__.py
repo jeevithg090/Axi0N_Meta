@@ -8,14 +8,17 @@ from rulecam.pose.features import (
     ladder_three_point_lost,
 )
 from rulecam.pose.keypoints import (
+    RTMPOSE_BODY7_ONNX_SHA256,
     PoseEstimator,
     RtmposeOnnx,
     estimate_track,
     fill_keypoints,
+    load_pose_estimator,
     sample_indices,
 )
 
 __all__ = [
+    "RTMPOSE_BODY7_ONNX_SHA256",
     "PoseEstimator",
     "PoseStates",
     "RtmposeOnnx",
@@ -25,5 +28,6 @@ __all__ = [
     "hands_above_shoulder",
     "is_down",
     "ladder_three_point_lost",
+    "load_pose_estimator",
     "sample_indices",
 ]

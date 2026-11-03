@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-11-02T19:23:12Z",
+  "items": 29,
+  "calls": 58,
+  "variants": {
+    "raw8_960": "8 raw frames at 960 px (prototype mode)",
+    "blur6_640": "6 frames at 640 px, faces blurred (YuNet)"
+  },
+  "verdicts": {
+    "raw8_960": {
+      "violation": 18,
+      "no_violation": 8,
+      "unsure": 3
+    },
+    "blur6_640": {
+      "violation": 20,
+      "no_violation": 5,
+      "unsure": 4
+    }
+  },
+  "original_verdicts": {
+    "violation": 16,
+    "no_violation": 10,
+    "unsure": 3
+  },
+  "latency_ms_median": {
+    "raw8_960": 10898,
+    "blur6_640": 8505
+  },
+  "agreement": {
+    "raw8_960_vs_blur6_640": 18,
+    "raw8_960_vs_original": 27,
+    "blur6_640_vs_original": 18
+  },
+  "raw8_vs_blur6_pairs": {
+    "no_violation|no_violation": 3,
+    "no_violation|unsure": 1,
+    "no_violation|violation": 4,
+    "unsure|unsure": 1,
+    "unsure|violation": 2,
+    "violation|no_violation": 2,
+    "violation|unsure": 2,
+    "violation|violation": 14
+  },
+  "decisive_flips_raw8_vs_blur6": 6,
+  "note": "Aggregates only. The per-item replay (reports/eval/2026-11-02-verifier-replay.jsonl on the API pod) holds verdicts by item id and stays out of git until the two human labellers have finished, so it cannot bias them. No human labels yet: accuracy is unmeasured.",
+  "git_sha": "8bb65e31396bf3fbb3b193cbba7eb28ddce370c6"
+}

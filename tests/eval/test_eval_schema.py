@@ -156,9 +156,16 @@ def test_the_committed_seed_set() -> None:
     assert kitchen.rule("handwash_20s").status == "unlabelled"
     placeholders = [c for c in evalset.clips if c.placeholder]
     assert len(placeholders) >= 12
-    assert {c.name for c in evalset.runnable()} == {
+    runnable = {c.name for c in evalset.runnable()}
+    assert {n for n in runnable if not n.startswith("caviar_")} == {
         "warehouse_45848",
         "kitchen_15875",
         "pexels_32243653",
         "pexels_32243654",
     }
+    corridor = {n for n in runnable if n.startswith("caviar_")}
+    assert len(corridor) == 7  # add-on 1.3: the CAVIAR corridor clips, shop entries labelled
+    for name in corridor:
+        clip = evalset.clip(name)
+        assert clip.rule("caviar_shop_enter").events
+        assert clip.tracks is not None

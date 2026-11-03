@@ -15,6 +15,9 @@
 **Tracker.** [Roboflow `trackers`](https://github.com/roboflow/trackers) (Apache-2.0) ByteTrack:
 a Kalman filter per track predicts where it is at the next keyframe, then high-confidence
 detections are matched by IoU (Hungarian), low-confidence ones only to the tracks left over.
+Self-hosted SAM returns detections down to `LOW_CONFIDENCE` (0.1) for this second pass; anything
+below `HIGH_CONFIDENCE` (0.5) can only extend a track the tracker already has, never start one,
+and the static cache keeps only confident objects, so the 0.5 cut holds everywhere but here.
 Its timestamp mode scales the prediction by the real gap, so keyframes 0.25 to 0.5 s apart, and a
 skipped chunk, are handled. Between keyframes 0.5 s apart a walking person (1.4 m/s, about 0.5 m
 wide) moves more than its own width, so plain IoU would never match its new box before the filter
@@ -23,6 +26,13 @@ grown by `BUFFER_RATIO` of its size on every side), which keeps that overlap at 
 track lost for `LOST_TRACK_S` is dropped; a later detection starts a new one. `trackers` only
 names a track at its second detection; `_ByteTrack` names it at its first (a SAM detection above
 the threshold is already a confident observation), so no keyframe of an object is lost.
+
+**People: BoT-SORT with re-ID** (add-on 3.1, `perception.botsort`). In prototype mode, with the
+`reid` extra installed, person concepts are tracked by BoxMOT's BoT-SORT instead: the same Kalman
+filter, buffered IoU and two confidence stages, plus OSNet-AIN appearance vectors that the SAM
+pod computes inside `/segment_image`, so two people who cross keep their ids. Carts, forklifts
+and every other concept stay on ByteTrack. `KeyframeIdentities` drives either through
+`StreamTracker`, built per camera and concept by its `TrackerFactory`.
 
 Tracks keep the video path's contracts: ids `{camera_id}:{concept}:{8 hex}` (opaque, never an
 analytics key, rule R13), one `Track` per id per chunk with this chunk's points only, foot points
@@ -44,7 +54,7 @@ import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Literal, override
+from typing import Literal, Protocol, override
 from uuid import uuid4
 
 import numpy as np
@@ -57,6 +67,8 @@ from rulecam.clients.meta_hosted.sam_cost import USD_PER_IMAGE, USD_PER_VIDEO_FR
 from rulecam.contracts import Chunk, Detection, Track, TrackStore
 from rulecam.log import get_logger
 from rulecam.perception.keyframes import (
+    Embedding,
+    Embeddings,
     FrameDecoder,
     Keyframe,
     KeyframeBatch,
@@ -77,6 +89,7 @@ LOST_TRACK_S = 2.0  # a track unseen this long is dropped
 MIN_IOU = 0.1  # ByteTrack's association threshold (after the Kalman prediction)
 BUFFER_RATIO = 0.5  # boxes grow by half their size each side before IoU (buffered IoU)
 HIGH_CONFIDENCE = 0.5  # first-stage detections; below it they only extend existing tracks
+LOW_CONFIDENCE = 0.1  # the floor of the second stage; weaker detections are ignored
 TRACK_ACTIVATION = 0.5  # the confidence a detection needs to start a track
 TRACKERS_REFERENCE_FPS = 30.0  # `trackers` counts `lost_track_buffer` in 30 fps frames
 
@@ -129,23 +142,88 @@ def new_bytetrack(lost_track_s: float = LOST_TRACK_S) -> ByteTrackTracker:
     )
 
 
+class StreamTracker(Protocol):
+    """One camera's and concept's multi-object tracker over keyframes."""
+
+    def step(
+        self,
+        detections: Sequence[Detection],
+        embeddings: Sequence[Embedding | None],
+        timestamp_s: float,
+    ) -> list[tuple[int, int]]:
+        """Advance to one keyframe.
+
+        Args:
+            detections: The keyframe's detections (at or above the low-confidence floor).
+            embeddings: Their re-ID vectors, `None` where there is none (same order).
+            timestamp_s: The keyframe's capture time; strictly after the previous step's.
+
+        Returns:
+            `(row in detections, tracker id)` for every detection that belongs to a track.
+        """
+        ...
+
+    def alive(self) -> set[int]:
+        """Tracker ids of tracks still active or lost (not yet dropped)."""
+        ...
+
+
+TrackerFactory = Callable[[str, float], StreamTracker]
+"""Builds a `StreamTracker` for a concept, given seconds a track may go undetected."""
+
+
+class ByteTrackStream:
+    """`StreamTracker` over a `trackers` ByteTrack (boxes only; vectors are ignored)."""
+
+    def __init__(self, tracker: ByteTrackTracker) -> None:
+        """Wrap a ByteTrack (`new_bytetrack`)."""
+        self.tracker = tracker
+
+    def step(
+        self,
+        detections: Sequence[Detection],
+        embeddings: Sequence[Embedding | None],  # noqa: ARG002 - boxes only
+        timestamp_s: float,
+    ) -> list[tuple[int, int]]:
+        """Match the keyframe's boxes; unmatched low-confidence detections get no track."""
+        tracked = self.tracker.update(_as_sv(detections), timestamp=timestamp_s)
+        rows = tracked.data.get("row", np.array([], dtype=int))
+        ids = tracked.tracker_id if tracked.tracker_id is not None else np.array([], dtype=int)
+        return [(int(r), int(i)) for r, i in zip(rows, ids, strict=True) if int(i) >= 0]
+
+    def alive(self) -> set[int]:
+        """Ids of the tracks ByteTrack still holds."""
+        return {int(t.tracker_id) for t in self.tracker.tracks}
+
+
+def bytetrack_stream(concept: str, lost_track_s: float) -> StreamTracker:  # noqa: ARG001
+    """The default `TrackerFactory`: ByteTrack for every concept."""
+    return ByteTrackStream(new_bytetrack(lost_track_s))
+
+
 def _new_suffix() -> str:
     return uuid4().hex[:8]
 
 
 @dataclass
 class _Stream:
-    """One camera's and concept's ByteTrack, and the track ids it has handed out."""
+    """One camera's and concept's tracker, and the track ids it has handed out."""
 
-    tracker: ByteTrackTracker
+    tracker: StreamTracker
     ids: dict[int, str] = field(default_factory=dict)
     last_s: float | None = None
 
 
-def _frames(detections: Iterable[Detection]) -> dict[int, list[Detection]]:
+def confidence_of(detection: Detection) -> float:
+    """A detection's score; one without a score counts as certain."""
+    return 1.0 if detection.mask.confidence is None else detection.mask.confidence
+
+
+def _frames(detections: Iterable[Detection], floor: float) -> dict[int, list[Detection]]:
     by_frame: dict[int, list[Detection]] = {}
     for det in detections:
-        by_frame.setdefault(det.frame_idx, []).append(det)
+        if confidence_of(det) >= floor:
+            by_frame.setdefault(det.frame_idx, []).append(det)
     return by_frame
 
 
@@ -154,31 +232,34 @@ def _as_sv(detections: Sequence[Detection]) -> sv.Detections:
         return sv.Detections.empty()
     return sv.Detections(
         xyxy=np.array([d.mask.box_xyxy for d in detections], dtype=float).reshape(-1, 4),
-        confidence=np.array(
-            [1.0 if d.mask.confidence is None else d.mask.confidence for d in detections]
-        ),
+        confidence=np.array([confidence_of(d) for d in detections]),
         data={"row": np.arange(len(detections))},
     )
 
 
 class KeyframeIdentities:
-    """Stable track ids across keyframes and chunks: one ByteTrack per camera and concept."""
+    """Stable track ids across keyframes and chunks: one tracker per camera and concept."""
 
     def __init__(
         self,
         *,
         lost_track_s: float = LOST_TRACK_S,
+        low_confidence: float = LOW_CONFIDENCE,
         new_suffix: Callable[[], str] = _new_suffix,
-        new_tracker: Callable[[float], ByteTrackTracker] = new_bytetrack,
+        new_tracker: TrackerFactory = bytetrack_stream,
     ) -> None:
         """Create empty state.
 
         Args:
             lost_track_s: Seconds a track may go undetected before it is dropped.
+            low_confidence: Detections scored below it are ignored; between it and
+                `HIGH_CONFIDENCE` they only extend existing tracks.
             new_suffix: Generates the random part of new track ids (injected in tests).
-            new_tracker: Builds a tracker (injected in tests).
+            new_tracker: Builds each camera's and concept's tracker (ByteTrack by default;
+                `botsort.by_concept` puts people on BoT-SORT).
         """
         self._lost_track_s = lost_track_s
+        self._low_confidence = low_confidence
         self._new_suffix = new_suffix
         self._new_tracker = new_tracker
         self._streams: dict[tuple[str, str], _Stream] = {}
@@ -189,23 +270,27 @@ class KeyframeIdentities:
         concept: str,
         keyframes: Sequence[tuple[int, datetime]],
         detections: Iterable[Detection],
+        embeddings: Embeddings | None = None,
     ) -> dict[str, list[Detection]]:
         """Track one concept through one chunk's keyframes, in time order.
 
         Call for a camera's chunks in order. A keyframe without detections still advances the
         tracker (its tracks age). A keyframe not after the previous one restarts the stream.
+        Detections below the low-confidence floor are ignored.
 
         Args:
             camera_id: The camera.
             concept: The concept.
             keyframes: `(frame_idx, ts)` of every keyframe of the chunk, in time order.
             detections: The concept's detections on those keyframes.
+            embeddings: Their re-ID vectors by `(frame_idx, object_id)`, if any.
 
         Returns:
             Track id -> its detections in this chunk, by frame.
         """
         stream = self._stream(camera_id, concept)
-        by_frame = _frames(detections)
+        by_frame = _frames(detections, self._low_confidence)
+        vectors = embeddings or {}
         assigned: dict[str, list[Detection]] = {}
         for frame_idx, ts in keyframes:
             seconds = ts.timestamp()
@@ -214,14 +299,10 @@ class KeyframeIdentities:
                 stream = self._restart(camera_id, concept)
             stream.last_s = seconds
             frame = by_frame.get(frame_idx, [])
-            tracked = stream.tracker.update(_as_sv(frame), timestamp=seconds)
-            rows = tracked.data.get("row", np.array([], dtype=int))
-            ids = tracked.tracker_id if tracked.tracker_id is not None else np.array([], dtype=int)
-            for row, tracker_id in zip(rows, ids, strict=True):
-                if int(tracker_id) < 0:
-                    continue  # an unmatched low-confidence detection: not a track
-                track_id = self._track_id(stream, camera_id, concept, int(tracker_id))
-                assigned.setdefault(track_id, []).append(frame[int(row)])
+            found = [vectors.get((d.frame_idx, d.object_id)) for d in frame]
+            for row, tracker_id in stream.tracker.step(frame, found, seconds):
+                track_id = self._track_id(stream, camera_id, concept, tracker_id)
+                assigned.setdefault(track_id, []).append(frame[row])
         self._forget_dropped(stream)
         return assigned
 
@@ -230,7 +311,7 @@ class KeyframeIdentities:
         return stream if stream is not None else self._restart(camera_id, concept)
 
     def _restart(self, camera_id: str, concept: str) -> _Stream:
-        stream = _Stream(tracker=self._new_tracker(self._lost_track_s))
+        stream = _Stream(tracker=self._new_tracker(concept, self._lost_track_s))
         self._streams[(camera_id, concept)] = stream
         return stream
 
@@ -242,7 +323,7 @@ class KeyframeIdentities:
 
     @staticmethod
     def _forget_dropped(stream: _Stream) -> None:
-        alive = {int(t.tracker_id) for t in stream.tracker.tracks}
+        alive = stream.tracker.alive()
         for tracker_id in [i for i in stream.ids if i not in alive]:
             del stream.ids[tracker_id]
 
@@ -266,7 +347,10 @@ class _FirstKeyframe:
         if box_prompts:
             return []
         frames = self._owner.decode(chunk, (0,))
-        return list(self._owner.call(chunk, frames, (concept,)).detections[concept])
+        found = self._owner.call(chunk, frames, (concept,)).detections[concept]
+        # Static objects are cached as they are: only confident detections, never the tracker's
+        # low-confidence second pass.
+        return [d for d in found if confidence_of(d) >= HIGH_CONFIDENCE]
 
 
 class KeyframeTracker:
@@ -294,7 +378,7 @@ class KeyframeTracker:
             bus: Bus for `tracks.updated`; `None` publishes nothing.
             px_to_m: Image-pixel to ground-metre mapping of the camera's calibration.
             decoder: Decodes keyframes (injected in tests).
-            identities: The ByteTrack state (injected in tests).
+            identities: The per-camera, per-concept trackers (ByteTrack, or BoT-SORT for people).
             timings: Receives `decode` and `sam` (per concept) durations.
             monotonic: Seconds on a monotonic clock.
         """
@@ -343,14 +427,22 @@ class KeyframeTracker:
         unique = tuple(dict.fromkeys(concepts))
         dynamic = tuple(c for c in unique if c not in self._static)
         detections: dict[str, tuple[Detection, ...]] = {}
+        embeddings: dict[str, Embeddings] = {}
         if dynamic:
             frames = self.decode(chunk, self.indices(chunk))
-            detections.update(self.call(chunk, frames, dynamic).detections)
+            batch = self.call(chunk, frames, dynamic)
+            detections.update(batch.detections)
+            embeddings.update(batch.embeddings)
         for concept in unique:
             if concept in self._static:
                 cached = self.cache.get(chunk, concept, calibration=self._generation)
                 detections[concept] = self._spread(cached, chunk)
-        return SegmentedChunk(chunk_id=chunk.chunk_id, concepts=unique, detections=detections)
+        return SegmentedChunk(
+            chunk_id=chunk.chunk_id,
+            concepts=unique,
+            detections=detections,
+            embeddings=embeddings,
+        )
 
     def stitch(self, chunk: Chunk, segmented: SegmentedChunk) -> list[Track]:
         """Track each concept through the chunk's keyframes, store the tracks, publish.
@@ -368,7 +460,11 @@ class KeyframeTracker:
         tracks: list[Track] = []
         for concept in segmented.concepts:
             assigned = self._identities.assign(
-                chunk.camera_id, concept, keyframes, segmented.detections.get(concept, ())
+                chunk.camera_id,
+                concept,
+                keyframes,
+                segmented.detections.get(concept, ()),
+                segmented.embeddings.get(concept),
             )
             found = [self._track(tid, chunk, concept, dets) for tid, dets in assigned.items()]
             found.sort(key=lambda t: (t.points[0].ts, t.track_id))

@@ -1,6 +1,6 @@
 # Rulecam developer commands (task book §3.3). `make check` must pass before every push.
 .PHONY: setup fmt lint type test check ui-check api ui openapi preflight golden live-test \
-	eval-replay golden-verify verify-page-sync
+	eval-replay golden-verify golden-gate verify-page-sync eval-caviar ship-api ship-gpu
 
 UI_EXISTS := $(wildcard ui/package.json)
 
@@ -67,5 +67,25 @@ eval-replay:
 golden-verify:
 	@for s in scenarios/*.yaml; do uv run rulecam golden verify "$$(basename "$$s" .yaml)" || exit 1; done
 
+# Add-on 1.2: re-score every golden run with `eval score` and fail on a broken `demo.score` gate
+# (a false alert on a negative clip, a missing verified alert, ...). CI runs it after golden-verify.
+golden-gate:
+	uv run rulecam golden gate
+
 verify-page-sync:
 	cp src/rulecam/evidence/verify_page/index.html src/rulecam/evidence/verify_page/chain.js ui/public/verify/
+
+# Add-on 1.3: play every runnable CAVIAR clip (eval/clips/caviar_*) into the API and score it.
+# Run ON THE API POD (owner calls are loopback-only); approving each plan replaces the active one.
+eval-caviar:
+	uv run rulecam eval run $(foreach c,$(notdir $(wildcard eval/clips/caviar_*)),--clip $(c)) \
+		--track-store $(or $(TRACK_STORE),data/tracks) $(EVAL_ARGS)
+
+# Add-on 4.1 deploys (docs/deploy.md "Ship the API" / "Ship the GPU code"). ship-api needs
+# RULECAM_API_SSH_HOST and RULECAM_API_SSH_PORT; ship-gpu needs a RunPod S3 API key in
+# RUNPOD_S3_ACCESS_KEY_ID / RUNPOD_S3_SECRET_ACCESS_KEY. Both ship the committed HEAD (or REF).
+ship-api:
+	scripts/deploy/ship_api.sh $(or $(REF),HEAD)
+
+ship-gpu:
+	scripts/deploy/ship_gpu.sh $(or $(REF),HEAD)

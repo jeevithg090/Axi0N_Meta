@@ -112,7 +112,7 @@ def test_splice_refuses_a_file_without_the_markers(tmp_path: Path) -> None:
 def test_writing_a_section_keeps_the_rest_of_the_file(tmp_path: Path) -> None:
     path = results_file(tmp_path, "e4")
     write_section(result(), path)
-    out = path.read_text()
+    out = path.read_text(encoding="utf-8")
     assert "Keep me." in out
     assert "Keep me too." in out
     assert "## E4 —" in out
@@ -139,7 +139,7 @@ def test_publish_writes_every_runner(tmp_path: Path) -> None:
         results_dir=tmp_path / "results",
     )
     assert [p.name for p in written] == ["e4.json", "e7.json"]
-    out = path.read_text()
+    out = path.read_text(encoding="utf-8")
     assert "## E4 —" in out
     assert "## E7 —" in out
 

@@ -104,7 +104,7 @@ def test_writing_the_section_keeps_the_rest_of_the_file(tmp_path: Path) -> None:
     path = tmp_path / "RESULTS.md"
     path.write_text(f"# Results\n\nKeep me.\n\n{BEGIN}\nold\n{END}\n\nKeep me too.\n")
     written = write_results_section(summary_of(), path)
-    out = written.read_text()
+    out = written.read_text(encoding="utf-8")
     assert "Keep me." in out
     assert "Keep me too." in out
     assert "old" not in out

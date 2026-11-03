@@ -260,3 +260,30 @@ def test_load_refuses_weights_that_do_not_match_the_pinned_hash(tmp_path: Path) 
     weights.write_bytes(b"not the pinned weights")
     with pytest.raises(ValueError, match="sha256"):
         RtmposeOnnx.load(weights, sha256="0" * 64)
+
+
+def test_load_pose_estimator_without_a_usable_model_is_none(tmp_path: Path) -> None:
+    from rulecam.pose.keypoints import load_pose_estimator  # noqa: PLC0415 - one test
+
+    assert load_pose_estimator(None) is None
+    assert load_pose_estimator(tmp_path / "missing.onnx") is None
+    weights = tmp_path / "model.onnx"
+    weights.write_bytes(b"not the pinned weights")
+    assert load_pose_estimator(weights) is None  # wrong hash: run without pose, never crash
+
+
+def test_the_pinned_body7_checkpoint_is_the_one_settings_and_the_fetch_script_use() -> None:
+    from rulecam.config import Settings  # noqa: PLC0415 - one test
+    from rulecam.pose.keypoints import (  # noqa: PLC0415
+        RTMPOSE_BODY7_NAME,
+        RTMPOSE_BODY7_ONNX_SHA256,
+        RTMPOSE_BODY7_URL,
+        RTMPOSE_BODY7_ZIP_SHA256,
+    )
+
+    assert Settings(_env_file=None).rulecam_pose_sha256 == RTMPOSE_BODY7_ONNX_SHA256
+    script = (Path(__file__).parents[2] / "scripts" / "fetch_rtmpose.sh").read_text("utf-8")
+    assert RTMPOSE_BODY7_NAME in script
+    assert RTMPOSE_BODY7_URL.removesuffix(f"{RTMPOSE_BODY7_NAME}.zip") in script
+    assert RTMPOSE_BODY7_ZIP_SHA256 in script
+    assert RTMPOSE_BODY7_ONNX_SHA256 in script

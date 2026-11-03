@@ -264,6 +264,11 @@ def verify_step(params: Mapping[str, object], cache: ReplayCache) -> object:  # 
 @register_step("demo.score")
 def score_step(params: Mapping[str, object], cache: ReplayCache) -> object:  # noqa: ARG001
     """Score the run with the eval harness against its clip's labels (`eval_set`: `eval/clips`)."""
+    return score_fixture(params)
+
+
+def score_fixture(params: Mapping[str, object]) -> dict[str, object]:
+    """The `demo.score` output: the fixture's run scored by `rulecam eval score`'s code."""
     fixture = fixture_of(params)
     evalset = load_eval_set(Path(str(params.get("eval_set", "eval/clips"))))
     (run,) = score_runs([fixture.run()], evalset, generated_at=_SCORED_AT).runs

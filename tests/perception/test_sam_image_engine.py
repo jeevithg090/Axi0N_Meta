@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import Any
 
 import cv2
@@ -14,6 +14,8 @@ from rulecam.perception.masks import NO_MASK, decode_rle
 from rulecam.perception.sam_runtime import SamImageRequest, parse_image_response
 from rulecam.perception.sam_worker import (
     IMAGE_MODEL_VERSION,
+    BatchImagePredictor,
+    BoxEmbedder,
     ImagePredictor,
     Sam31ImageEngine,
     decode_jpeg,
@@ -90,6 +92,113 @@ def test_each_image_is_encoded_once_and_every_concept_detected_on_it() -> None:
     assert response.objects[0].box_xyxy == (4.0, 1.0, 7.0, 5.0)
 
 
+def test_requests_cut_at_their_min_confidence_and_old_requests_at_one_half() -> None:
+    predictor = FakeImagePredictor({"person": [(0.9, (0, 0, 2, 3)), (0.3, (4, 1, 7, 5))]})
+    engine = Sam31ImageEngine(predictor)
+    low = engine.segment_images(
+        [jpeg()], request(concepts=["person"], n_images=1, min_confidence=0.1)
+    )
+    assert [o["confidence"] for o in low["objects"]] == [0.9, 0.3]
+    legacy = {
+        k: v for k, v in request(concepts=["person"], n_images=1).items() if k != "min_confidence"
+    }
+    assert [o["confidence"] for o in engine.segment_images([jpeg()], legacy)["objects"]] == [0.9]
+    default = engine.segment_images([jpeg()], request(concepts=["person"], n_images=1))
+    assert [o["object_id"] for o in default["objects"]] == [0]
+
+
+class FakeReid:
+    """Embeds each box as `[x0, y0]` normalised, records the batches."""
+
+    model_name = "fake-osnet"
+
+    def __init__(self) -> None:
+        self.calls: list[list[tuple[int, ...]]] = []
+
+    def embed_boxes(
+        self, images: Sequence[np.ndarray], boxes: Sequence[np.ndarray]
+    ) -> list[np.ndarray]:
+        self.calls.append([b.shape for b in boxes])
+        assert all(image.shape == (H, W, 3) for image in images)
+        return [np.array([[x0 + 1.0, y0] for x0, y0, *_ in found]) for found in boxes]
+
+
+def test_embed_concepts_get_reid_vectors_in_one_batch() -> None:
+    predictor = FakeImagePredictor(
+        {"person": [(0.9, (0, 0, 2, 3)), (0.3, (4, 1, 7, 5))], "forklift": [(0.8, (1, 1, 3, 3))]}
+    )
+    reid = FakeReid()
+    engine = Sam31ImageEngine(predictor, reid=reid)
+    reply = engine.segment_images(
+        [jpeg(), jpeg(50)], request(min_confidence=0.1, embed_concepts=["person"])
+    )
+    assert reid.calls == [[(2, 4), (2, 4)]]  # one call: every image's people
+    people = [o for o in reply["objects"] if o["concept"] == "person"]
+    assert [o["embedding"] for o in people[:2]] == [[1.0, 0.0], [5.0, 1.0]]
+    assert all("embedding" not in o for o in reply["objects"] if o["concept"] == "forklift")
+    assert engine.memory_stats()["reid"] == "fake-osnet"
+    response = parse_image_response(reply, SamImageRequest.model_validate(request()))
+    assert response.objects[0].embedding == (1.0, 0.0)
+
+
+def test_no_vectors_without_a_reid_model_or_embed_concepts() -> None:
+    predictor = FakeImagePredictor({"person": [(0.9, (0, 0, 2, 3))]})
+    plain = Sam31ImageEngine(predictor).segment_images(
+        [jpeg()], request(concepts=["person"], n_images=1, embed_concepts=["person"])
+    )
+    reid = FakeReid()
+    unasked = Sam31ImageEngine(predictor, reid=reid).segment_images(
+        [jpeg()], request(concepts=["person"], n_images=1)
+    )
+    assert all("embedding" not in o for o in (*plain["objects"], *unasked["objects"]))
+    assert reid.calls == []
+
+
+def test_fake_reid_satisfies_the_protocol() -> None:
+    reid: BoxEmbedder = FakeReid()
+    assert reid.model_name == "fake-osnet"
+
+
+class FakeBatchPredictor(FakeImagePredictor):
+    """Also encodes several images at once; records the batch sizes."""
+
+    def __init__(
+        self, by_concept: dict[str, list[tuple[float, tuple[int, int, int, int]]]]
+    ) -> None:
+        super().__init__(by_concept)
+        self.batches: list[int] = []
+
+    def set_images(self, images: Sequence[np.ndarray]) -> list[Any]:
+        self.batches.append(len(images))
+        return [self.set_image(image) for image in images]
+
+
+def test_batched_encoding_gives_the_same_answer_in_fewer_backbone_passes() -> None:
+    found = {
+        "person": [(0.6, (0, 0, 2, 3)), (0.9, (4, 1, 7, 5))],
+        "forklift": [(0.7, (1, 1, 3, 3))],
+    }
+    images = [jpeg(v) for v in (10, 60, 110, 160, 210)]
+    single = Sam31ImageEngine(FakeImagePredictor(found)).segment_images(images, request(n_images=5))
+    predictor = FakeBatchPredictor(found)
+    engine = Sam31ImageEngine(predictor, batch_size=2)
+    batched = engine.segment_images(images, request(n_images=5))
+    assert predictor.batches == [2, 2, 1]
+    assert batched["objects"] == single["objects"]
+    assert engine.memory_stats()["batch"] == 2
+
+
+def test_batching_is_off_by_default_and_needs_a_batch_predictor() -> None:
+    predictor = FakeBatchPredictor({"person": [(0.9, (0, 0, 2, 3))]})
+    Sam31ImageEngine(predictor).segment_images([jpeg(), jpeg()], request())
+    assert predictor.batches == []
+    plain = FakeImagePredictor({"person": [(0.9, (0, 0, 2, 3))]})
+    reply = Sam31ImageEngine(plain, batch_size=4).segment_images([jpeg(), jpeg()], request())
+    assert reply["images_processed"] == 2
+    assert not isinstance(plain, BatchImagePredictor)
+    assert isinstance(predictor, BatchImagePredictor)
+
+
 def test_masks_and_confidences_on_request() -> None:
     predictor = FakeImagePredictor({"person": [(0.7, (1, 1, 3, 4))]})
     reply = Sam31ImageEngine(predictor).segment_images(
@@ -121,7 +230,7 @@ def test_inference_context_and_memory_release_around_every_call() -> None:
     engine.segment_images([jpeg()], request(n_images=1))
     assert entered == ["in", "out"]
     assert memory.calls == ["release", "stats"]
-    assert engine.memory_stats() == {"calls": 1, "guard_trips": 0}
+    assert engine.memory_stats() == {"calls": 1, "guard_trips": 0, "reid": None, "batch": 1}
 
 
 def test_memory_guard_frees_again_and_counts() -> None:

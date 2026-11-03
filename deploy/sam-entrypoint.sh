@@ -31,6 +31,8 @@ SAM_ENV_FILE="${SAM_ENV_FILE:-$SAM_HOME/sam.env}"
 export HF_HOME="${HF_HOME:-$SAM_HOME/hf-cache}"
 SAM_PYTHON="${SAM_PYTHON:-python3}"
 CHECKPOINT_FILES="config.json sam3.1_multiplex.pt"
+# sam_worker.REID_WEIGHTS_URL: osnet_ain_x1_0_msmt17.pt (BoxMOT's catalogue, Google Drive)
+REID_WEIGHTS_URL="https://drive.google.com/uc?id=1SigwBE6mPdqiJMqhuIY4aqC7--5CsMal"
 
 checkpoint_cached() {
   # shellcheck disable=SC2086  # the file list is split on purpose
@@ -62,10 +64,20 @@ for name in sys.argv[1:]:
 PY
 }
 
+download_reid_weights() {  # OSNet-AIN for person re-ID; without it SAM serves boxes only
+  local weights="${SAM_REID_WEIGHTS:-$(dirname "$HF_HOME")/reid/osnet_ain_x1_0_msmt17.pt}"
+  [[ -s "$weights" || "${SAM_REID:-1}" == "0" ]] && return 0
+  mkdir -p "$(dirname "$weights")"
+  log "downloading OSNet-AIN re-ID weights into $weights"
+  "$SAM_PYTHON" -m gdown --quiet "$REID_WEIGHTS_URL" -O "$weights" \
+    || log "WARNING: re-ID weights download failed; people are tracked without appearance"
+}
+
 serve() {  # runs as the service user: the cache it fills is its own
   umask 022
   mkdir -p "$HF_HOME"
   download_checkpoint
+  download_reid_weights
   unset HF_TOKEN
   export HF_HUB_OFFLINE=1
   log "starting sam_server on :$SAM_PORT"

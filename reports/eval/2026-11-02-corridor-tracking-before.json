@@ -1,0 +1,40 @@
+{
+  "camera_id": "phone-68",
+  "start": "2026-11-02T09:44:11.875000+00:00",
+  "end": "2026-11-02T09:53:25.475000+00:00",
+  "fps": 25.0,
+  "scale": [
+    0.5,
+    0.5
+  ],
+  "points": 5105,
+  "tracks": 399,
+  "identities": 62,
+  "unlinked_tracks": 2,
+  "scores": [
+    {
+      "ids": "raw",
+      "concept": "person",
+      "predicted_ids": 399,
+      "frames": 1072,
+      "gt_ids": 80,
+      "hota": 0.23900060564511916,
+      "idf1": 0.23955801104972377,
+      "mota": -0.297084917617237,
+      "id_switches": 181,
+      "id_switches_per_min": 19.60571923743501
+    },
+    {
+      "ids": "reid",
+      "concept": "person",
+      "predicted_ids": 64,
+      "frames": 1072,
+      "gt_ids": 80,
+      "hota": 0.20378294947168485,
+      "idf1": 0.23977900552486187,
+      "mota": -0.28593155893536126,
+      "id_switches": 137,
+      "id_switches_per_min": 14.839688041594455
+    }
+  ]
+}

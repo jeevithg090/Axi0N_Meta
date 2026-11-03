@@ -1,3 +1,4 @@
+# ruff: noqa
 """Ping SAM and Glimmer, find people in a photo, embed two crops, ask Glimmer about the photo."""
 
 import base64
@@ -75,8 +76,14 @@ answer = timed(
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "How many people are in this photo? One sentence."},
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{jpeg}"}},
+                        {
+                            "type": "text",
+                            "text": "How many people are in this photo? One sentence.",
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{jpeg}"},
+                        },
                     ],
                 }
             ],

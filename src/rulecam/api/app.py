@@ -88,10 +88,12 @@ from rulecam.api.prometheus import (
     VerdictCounter,
     dependency_probes,
     metrics_router,
+    serverless_gpu_rate,
 )
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
     AskAgent,
+    AskLimits,
     CaptionMemory,
     FrameGrabber,
     camera_names,
@@ -99,6 +101,9 @@ from rulecam.ask import (
     planner_profiles,
 )
 from rulecam.ask.identity import IdentityMemory, gpu_embedder
+from rulecam.ask.review import SparkOpenReviewer
+from rulecam.ask.runlog import AskRunLog, git_sha
+from rulecam.ask.watch import ClipJoiner
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
 from rulecam.clients.errors import ClientConfigError
@@ -143,11 +148,15 @@ from rulecam.runtime.factory import (
     Perception,
     build_perception,
     build_runtime,
+    build_tier0,
     build_tier1,
+    crop_segmenter,
+    geometry_estimator,
 )
 from rulecam.runtime.idle_stop import IdleGpuStop
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
 from rulecam.runtime.response import Response, ResponseStatus, build_response
+from rulecam.runtime.serverless import GpuHealth, RunPodServerless
 from rulecam.verify.tier2 import SparkOpenVerifier
 from rulecam.worker import DisputeService, worker_router
 from rulecam.worker.disputes import DisputeReviewer
@@ -185,7 +194,8 @@ class AppServices:
         auth: Owner login (`rulecam.api.auth`); `None` means loopback only, with login off.
         questions: The planner's questions and re-runs (`PlannerService`).
         verdicts: Verdict counts for `GET /metrics`, fed from `verdict.new`.
-        health_probes: Dependencies (Glimmer, the SAM pod) whose health `GET /metrics` shows.
+        health_probes: Dependencies (Glimmer, SAM) whose state `GET /metrics` and `GET /health`
+            show.
         response: How the policy, firewall and actions are configured (`/runtime/metrics`).
         cost: The dollar budget's report (`/runtime/metrics` → `cost`, `/metrics`).
         advice: Checked Site Advisor cards served at `/advice` (P3-10).
@@ -227,6 +237,7 @@ class AppServices:
     advice: AdviceStore = field(default_factory=AdviceStore)
     plan_factory: PlanFactory | None = None
     public_demo: bool = False
+    revision: str | None = None
     stills_root: Path | None = None
     verify_base: str | None = None
     pdf_printer: PdfPrinter = render_pdf
@@ -264,6 +275,27 @@ async def _poll_forever(poller: Callable[[], object]) -> None:
 
 
 VERIFY_PAGE_DIR = Path(__file__).resolve().parent.parent / "evidence" / "verify_page"
+# Written next to `src/` by `make ship-api` (scripts/deploy/ship_api.sh): the git SHA deployed.
+REVISION_FILE = Path(__file__).resolve().parents[3] / "REVISION"
+
+
+def code_revision(configured: str | None, revision_file: Path = REVISION_FILE) -> str | None:
+    """The git revision this API runs: `RULECAM_REVISION`, else the shipped `REVISION` file.
+
+    Args:
+        configured: `RULECAM_REVISION` (e.g. baked into an image).
+        revision_file: The file `make ship-api` writes at the release root.
+
+    Returns:
+        The revision, or `None` when neither says (a dev checkout).
+    """
+    if configured:
+        return configured.strip()
+    try:
+        lines = revision_file.read_text(encoding="utf-8").split()
+    except OSError:
+        return None
+    return lines[0] if lines else None
 
 
 class DayRoot(BaseModel):
@@ -302,12 +334,19 @@ class CameraInfo(BaseModel):
 
 
 class Health(BaseModel):
-    """Body of `GET /health`."""
+    """Body of `GET /health`.
+
+    `gpus` is each GPU dependency's state (`runtime.serverless`): a serverless GPU scaled to
+    zero is `cold-ready` (up; the UI says "GPU waking" while a request starts it), not down.
+    `revision` is the git SHA deployed (`code_revision`), which `make ship-api` waits for.
+    """
 
     ok: bool
     site: str
     mode: Mode
     runtime: bool
+    revision: str | None = None
+    gpus: dict[str, GpuHealth] = {}
 
 
 def _chain_file(services: AppServices, day: date) -> Path:
@@ -335,6 +374,8 @@ def _core_router(services: AppServices, auth: OwnerAuth) -> APIRouter:
             site=services.site,
             mode=services.cache.mode,
             runtime=services.runtime is not None,
+            revision=services.revision,
+            gpus={probe.service: probe.health() for probe in services.health_probes},
         )
 
     @router.get("/mode")
@@ -711,6 +752,8 @@ def build_planner(
         store=PlanStore(PLANS_DIR),
         audit=audit_hook(SparkOpenVerifier(spark_open), glimmer, glimmer_model=glimmer.model),
         prove=prove_plan_hook(bus, calibrations=run_calibrations(PlanStore(PLANS_DIR))),
+        zoom=crop_segmenter(settings, perception),
+        geometry=geometry_estimator(settings, perception),
     )
     frames = ChunkFrames(
         perception.chunks,
@@ -828,16 +871,34 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     chain_root = settings.rulecam_data_dir / "evidence" / "chain"
     chain = EventChain(chain_root, site, clock=clock)
     perception = build_perception(settings, cache=cache, clock=clock, bus=bus)
+    probes = dependency_probes(
+        settings.glimmer_base_url,
+        settings.sam_base_url,
+        glimmer_runpod=RunPodServerless.for_service(settings, settings.glimmer_edge_key).fetch,
+        sam_runpod=RunPodServerless.for_service(settings, settings.sam_edge_key).fetch,
+    )
+    glimmer = next((probe.up for probe in probes if probe.service == "glimmer"), None)
     response = build_response(
         settings,
-        tier1=build_tier1(settings, cache=cache, clock=clock, bus=bus),
+        tier1=build_tier1(
+            settings,
+            cache=cache,
+            clock=clock,
+            bus=bus,
+            tier0=build_tier0(settings, perception),
+            probe=glimmer,
+        ),
         segmenter=perception.hosted,
         cache=cache,
         clock=clock,
         bus=bus,
         chain=chain,
     )
-    meter = CostMeter(CostSettings.from_settings(settings), usage=perception.metrics.hosted_usage)
+    meter = CostMeter(
+        CostSettings.from_settings(settings),
+        usage=perception.metrics.hosted_usage,
+        gpu_rate=serverless_gpu_rate(probes, settings.rulecam_gpu_worker_usd_per_hour),
+    )
     runtime = (
         build_runtime(
             settings,
@@ -911,6 +972,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         activator=activator,
         viewer_origins=origins,
         public_demo=settings.public_demo,
+        revision=code_revision(settings.rulecam_revision),
         stills_root=settings.rulecam_data_dir / "strips",
         verify_base=(
             f"{settings.public_ui_url.rstrip('/')}/rulecam-api/verify/"
@@ -918,7 +980,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             else None
         ),
         auth=auth,
-        health_probes=dependency_probes(settings.glimmer_base_url, settings.sam_base_url),
+        health_probes=probes,
         tickers=(
             *response.tickers,
             *((watch.tick,) if watch is not None else ()),
@@ -954,7 +1016,11 @@ def build_ask(
 
     Served in prototype mode only: it reads per-track spans (dwell time per tracked person). The
     caption memory runs when `RULECAM_ASK_CAPTION_EVERY_S` is above 0; the identity memory
-    (DINOv2 re-identification on the GPU pod) when `SAM_BASE_URL` and `SAM_API_KEY` are set.
+    (re-identification on the GPU pod: OSNet-AIN for people, DINOv2 for objects) when
+    `SAM_BASE_URL` and `SAM_API_KEY` are set. Every answer is appended to the hash-chained run log
+    `<data>/ask/runs.jsonl`. With `RULECAM_ASK_REVIEW` and a Baseten key, Muse Spark Open (the
+    Tier 2 client) reviews each draft answer and can send it back once. Its `watch` tool joins
+    recorded chunks into one clip for Spark (`muse-spark-1.2`) to watch as video.
 
     Returns:
         The agent and the tickers; `(None, ())` (logged) outside prototype mode or without a
@@ -988,20 +1054,27 @@ def build_ask(
     )
     identity = None
     if settings.rulecam_ask_identities and settings.sam_base_url and settings.sam_api_key:
+        base_url, key = settings.sam_base_url, settings.sam_api_key.get_secret_value()
+        edge = settings.sam_edge_key.get_secret_value() if settings.sam_edge_key else None
         identity = IdentityMemory(
             tracks_root=settings.rulecam_data_dir / "tracks",
             frames=frames,
-            embed=gpu_embedder(
-                settings.sam_base_url,
-                settings.sam_api_key.get_secret_value(),
-                edge_key=(
-                    settings.sam_edge_key.get_secret_value() if settings.sam_edge_key else None
-                ),
+            embed=gpu_embedder(base_url, key, edge_key=edge),
+            embed_person=(
+                gpu_embedder(base_url, key, edge_key=edge, model="person")
+                if settings.rulecam_ask_person_reid
+                else None
             ),
             glimmer=glimmer,
             glimmer_model=glimmer.model,
             out_dir=ask_dir / "identity",
             site_profile=settings.rulecam_site_profile,
+        )
+    reviewer = None
+    if settings.rulecam_ask_review and settings.baseten_api_key is not None:
+        reviewer = SparkOpenReviewer(
+            SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus),
+            max_result_chars=settings.rulecam_ask_max_result_chars,
         )
     agent = AskAgent(
         spark=spark,
@@ -1013,6 +1086,7 @@ def build_ask(
             ask_dir / "captions.jsonl",
             identity.identities_path if identity is not None else None,
             identity.notes_path if identity is not None else None,
+            max_rows=settings.rulecam_ask_max_rows,
         ),
         frames=frames,
         clock=clock,
@@ -1022,6 +1096,24 @@ def build_ask(
         camera_profiles=planner_profiles(PLANS_DIR),
         caption_every_s=every,
         marks_dir=ask_dir / "marked",
+        limits=AskLimits(
+            max_rows=settings.rulecam_ask_max_rows,
+            max_result_chars=settings.rulecam_ask_max_result_chars,
+            max_frames=settings.rulecam_ask_max_frames,
+            max_actions=settings.rulecam_ask_max_actions,
+        ),
+        runs=AskRunLog(
+            ask_dir / "runs.jsonl",
+            clock=clock,
+            git_sha=git_sha(settings.rulecam_git_sha),
+            max_result_chars=settings.rulecam_ask_max_result_chars,
+        ),
+        reviewer=reviewer,
+        clips=ClipJoiner(
+            perception.chunks, ask_dir / "clips", max_seconds=settings.rulecam_ask_max_watch_s
+        ),
+        files=spark,
+        watch_model=settings.rulecam_ask_watch_model,
     )
     return agent, tuple(m.tick for m in (memory, identity) if m is not None)
 

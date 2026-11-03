@@ -66,11 +66,34 @@ Gate approach (2 × 2 m zone):
 3. Alert `crowd-9b1657daaaf0` sent at 16:43:39 without a check (by design: an unreachable verifier does not hold a safety warning): MMS-TTS WAVs for both languages, notifier id `al-1`, chained as candidate + actions (`chain_hash bd9fc13c…`).
 4. Next assessment only at 16:43:46 on the 16:42:04 reading (`normal`, 6.8 s). The peak (8.2/m² at 16:41:10) was never assessed: one assessment runs at a time and the stuck check held the slot.
 
+## After the fix (build `559f976`, 18:10 UTC, same clip as `phone-103`)
+
+`559f976` gives Glimmer 20 s (`RULECAM_CROWD_CHECK_TIMEOUT_S`), sends the alert unchecked past that
+with `check_note`, delivers alerts on their own threads so assessments keep running, and notifies
+staff before synthesising speech. Glimmer still had no GPU.
+
+| Reading (clip t) | Gate density | Spark (done at) | Alert sent | Reading → alert |
+|---|---|---|---|---|
+| 18:10:35 (1 s) | 4.0 | `warning` (18:10:54, 11.3 s) | 18:11:18, unchecked after 20 s | 43 s |
+| 18:10:48 (13 s) | 8.0 | `critical` (18:11:08, 12.8 s) | 18:11:30, unchecked after 20 s | 41 s |
+| 18:11:06 (31 s) | 6.7 | `critical` (18:11:19) | none: a critical alert was in flight | |
+| 18:11:30 (55 s) | 1.8 | `normal` (18:11:45) | | |
+
+- The peak is now assessed and escalated: `critical` at 8.0/m² (truth 8.0), "well into the 6-7
+  crush range", with stop-inflow and close-gate actions and Hindi and English announcements; the
+  run before it never assessed this reading.
+- Reading to alert fell from 2 min 35 s to about 40 s: Spark about 12 s, Glimmer's 20 s, notify
+  and speech 2-4 s, plus the time the reading waits for its turn.
+- No duplicate: the 18:11:06 `critical` came while the first `critical` was in flight and was not
+  sent again.
+- Both alerts: notifier ids `al-1`, `al-2`, two WAVs each, chained (`7bb908f8…`, `b086a13c…`).
+  Glimmer's calls ended in ReadTimeout at 18:12:55 and 18:13:09, so no late verdict was chained.
+
 ## Findings
 
 - **Works end to end, and the measurements are right:** plain-language Hindi instruction → SAM count per zone (95–99% of the true heads) → density per zone (within about 10% at the gate) → Spark level, actions and bilingual announcements → speech, notifier, evidence chain.
 - **The warning was right but too mild once the crowd peaked:** Spark warned at the first reading (truth 3.8/m², rising), but the crowd then stood at 7–9.5/m² for about 30 s, and that reading was never assessed (next finding). The 14:27 run, which did assess a dense reading, said `critical`.
-- **Alert latency 2 min 35 s** from reading to alert when Glimmer is down: the check waits out the 120 s transport timeout, and the warden cannot assess while it waits. Fix: give the crowd check a short timeout (or send first and verify after), and let assessments continue while a check runs.
+- **Alert latency 2 min 35 s** from reading to alert when Glimmer is down: the check waited out the 120 s transport timeout, and the warden could not assess while it waited. Fixed in `559f976` (about 40 s, above).
 - **No Glimmer verification in this run:** RTX 4090 stock was out across every CUDA version (RunPod capacity read at 16:25 UTC); `warm.sh on` got no worker on either endpoint in 9 min. Re-run when capacity returns to cover the verify/hold path live.
 - **Earlier run (14:27 UTC, phone-101)** reached `critical` (6.0/m²), but the API was restarted for the final deploy while its Glimmer check was in flight, so that alert was lost.
 - **Ops:** the API pod's 20 GB volume hit its quota during the run (`Disk quota exceeded`); four superseded crowd releases were removed (~800 MB). `live_run.sh` needs absolute paths (it changes into `/workspace/rulecam` before writing the feed log).

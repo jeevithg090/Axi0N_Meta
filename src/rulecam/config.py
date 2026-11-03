@@ -130,6 +130,8 @@ class Settings(BaseSettings):
     rulecam_crowd_grid: int = Field(default=2, ge=1, le=4)
     # Seconds between the warden's assessments (Muse Spark) of a watched camera.
     rulecam_crowd_assess_every_s: float = Field(default=10.0, gt=0.0)
+    # Seconds Muse Glimmer gets to check an alert's frames; past it the alert goes unchecked.
+    rulecam_crowd_check_timeout_s: float = Field(default=20.0, gt=0.0)
     # Cameras to measure (comma-separated ids; empty: every camera with video). With an
     # instruction, they are watched from start-up in these announcement languages ("hi,en").
     rulecam_crowd_cameras: str = ""

@@ -13,10 +13,15 @@ gate 4"; `POST /crowd/watch`). Then, every `every_s` seconds for each watched ca
 2. **Muse Glimmer checks the frames.** Before anyone is alerted, Glimmer looks at the newest
    frame, its density heatmap and a frame from earlier, with Spark's concern and the question
    Spark wants checked. If Glimmer does not see it, nothing goes out and the hold is recorded
-   with Glimmer's reason.
-3. **Act and prove.** A confirmed warning is appended to the hash-chained evidence log (kind
-   `crowd`), sent to staff through the site's notifier (LAN, WhatsApp, Telegram) with the
-   heatmap, and each announcement is spoken with Meta MMS-TTS into a WAV the live page plays.
+   with Glimmer's reason. Glimmer gets `check_timeout_s`: a verifier that is down or cold must
+   not delay a safety warning, so past it the alert goes out unverified, saying so, and a verdict
+   that arrives later is still chained.
+3. **Act and prove.** A confirmed warning is sent to staff through the site's notifier (LAN,
+   WhatsApp, Telegram) with the heatmap, each announcement is spoken with Meta MMS-TTS into a WAV
+   the live page plays, and the alert is appended to the hash-chained evidence log.
+
+On the ticking path the alert is delivered on its own threads, so the next assessment does not
+wait for Glimmer, the notifier or speech; an alert in flight counts as sent for the repeat rule.
 
 Every assessment, check and alert is appended to JSON-lines files that `POST /ask` loads
 (`crowd_assessments`, `crowd_alerts`), so the operator can ask what happened and why.
@@ -28,7 +33,7 @@ import json
 import threading
 import time
 import uuid
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -58,6 +63,7 @@ HISTORY_S: Final = 300.0  # minutes of readings Spark sees, and the trend fits
 MAX_ROWS: Final = 60  # readings per zone in the prompt (the newest)
 REPEAT_S: Final = 120.0  # an alert at the same level is sent again after this
 EARLIER_S: Final = 30.0  # Glimmer's comparison frame is this long before the newest
+CHECK_TIMEOUT_S: Final = 20.0  # Glimmer's time to check the frames before the alert goes anyway
 _LEVELS: Final = ("normal", "watch", "warning", "critical")
 
 Level = Literal["normal", "watch", "warning", "critical"]
@@ -140,6 +146,9 @@ class CrowdAlert(Frozen):
     check: CrowdCheck | None
     sent: bool
     held_reason: str | None = None
+    check_note: str | None = Field(
+        default=None, description="Why a sent alert has no check (Glimmer failed or was late)."
+    )
     heatmap: str | None = None
     audio: list[dict[str, str]] = Field(default_factory=list)
     chain_hash: str | None = None
@@ -173,10 +182,12 @@ against each other); one cell much denser than its neighbours (a pinch point at 
 announce calmly in the languages people speak, send stewards. Announcements must be calm and \
 specific; never say "danger" or "crush" to a crowd.
 
-About the measurements: people are SAM 3.1 detections on enlarged tiles of the frame; in very \
-dense crowds people hide each other, so counts and densities are lower bounds there. Densities \
-need a ground calibration (the reading says which: plan, moge2 or people, and its error in \
-metres); `people` calibration comes from the crowd's own boxes and can be off by tens of percent. \
+About the measurements: people are SAM 3.1 detections on enlarged tiles of the frame. Seen from \
+above, they found 95-99% of the people even at 9 per square metre (scored against published \
+trajectories); at a shallow angle people hide each other and counts fall short. Densities also \
+depend on the ground calibration (the reading says which: owner, plan, moge2 or people, and its \
+error in metres), and can be off either way where a zone reaches past the calibrated floor; \
+`people` calibration comes from the crowd's own boxes and can be off by tens of percent. \
 Speeds come from optical flow between two frames half a second apart. Grid cells are numbered \
 (row, col) from the top left; `peak_density_ppm2` is the densest cell.\
 """
@@ -199,6 +210,7 @@ class CrowdWarden:
         clock: Clock,
         out_dir: Path,
         every_s: float = 10.0,
+        check_timeout_s: float = CHECK_TIMEOUT_S,
         site_profile: str = "",
         camera_names: dict[str, str] | None = None,
     ) -> None:
@@ -216,6 +228,7 @@ class CrowdWarden:
             clock: Time source.
             out_dir: Where assessments, alerts and audio are written.
             every_s: Seconds between assessments of one camera.
+            check_timeout_s: Seconds Glimmer gets to check an alert before it is sent unverified.
             site_profile: The owner's description of the site.
             camera_names: Camera id -> the owner's name for it.
         """
@@ -230,13 +243,17 @@ class CrowdWarden:
         self._clock = clock
         self._out_dir = out_dir
         self._every = timedelta(seconds=every_s)
+        self._check_timeout = check_timeout_s
         self._profile = site_profile
         self._names = dict(camera_names or {})
         self._watches: dict[str, Watch] = {}
         self._states: dict[str, WardenState] = {}
         self._assessed: dict[str, datetime] = {}
         self._alerts: list[CrowdAlert] = []
+        self._pending: dict[str, dict[str, Level]] = {}  # camera -> alerts in flight, by id
         self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="crowd-warden")
+        self._delivery = ThreadPoolExecutor(max_workers=2, thread_name_prefix="crowd-alert")
+        self._checks = ThreadPoolExecutor(max_workers=2, thread_name_prefix="crowd-check")
         self._running: Future[None] | None = None
         self._lock = threading.Lock()
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -377,13 +394,29 @@ class CrowdWarden:
         return None
 
     def _safe_assess(self, watch: Watch, latest: CrowdReading) -> None:
+        """The ticking path: assess here, deliver an alert on the delivery threads."""
         try:
-            self.assess(watch, latest)
+            assessment = self._judge(watch, latest)
         except (RulecamError, OSError, ValueError) as exc:
             _log.warning("crowd_assess_failed", camera_id=watch.camera_id, error=str(exc)[:300])
+            return
+        except Exception as exc:  # a background assessment must log, never vanish
+            _log.exception("crowd_assess_crashed", camera_id=watch.camera_id, error=repr(exc))
+            return
+        alert_id = self._claim(watch.camera_id, assessment, latest.at)
+        if alert_id is not None:
+            self._delivery.submit(self._safe_alert, alert_id, watch, latest, assessment)
+
+    def _safe_alert(
+        self, alert_id: str, watch: Watch, latest: CrowdReading, assessment: CrowdAssessment
+    ) -> None:
+        try:
+            self._alert(alert_id, watch, latest, assessment)
+        except Exception as exc:  # a background alert must log, never vanish
+            _log.exception("crowd_alert_crashed", alert_id=alert_id, error=repr(exc))
 
     def assess(self, watch: Watch, latest: CrowdReading) -> CrowdAssessment:
-        """Assess one camera now; check, alert and announce when Spark says so.
+        """Assess one camera now; check, alert and announce when Spark says so (and wait).
 
         Returns:
             Spark's assessment.
@@ -391,6 +424,14 @@ class CrowdWarden:
         Raises:
             RulecamError: Spark fails.
         """
+        assessment = self._judge(watch, latest)
+        alert_id = self._claim(watch.camera_id, assessment, latest.at)
+        if alert_id is not None:
+            self._alert(alert_id, watch, latest, assessment)
+        return assessment
+
+    def _judge(self, watch: Watch, latest: CrowdReading) -> CrowdAssessment:
+        """Spark's assessment of one camera, recorded."""
         self._assessed[watch.camera_id] = latest.at
         history = self._memory.readings(watch.camera_id, latest.at - timedelta(seconds=HISTORY_S))
         started = time.perf_counter()
@@ -423,19 +464,30 @@ class CrowdWarden:
             minutes_to_danger=assessment.minutes_to_danger,
             seconds=seconds,
         )
-        if assessment.alert and self._should_alert(watch.camera_id, assessment.level, latest.at):
-            self._alert(watch, latest, assessment)
         return assessment
 
-    def _should_alert(self, camera_id: str, level: Level, at: datetime) -> bool:
-        """Alert unless the last sent alert was at this level or higher within `REPEAT_S`."""
+    def _claim(self, camera_id: str, assessment: CrowdAssessment, at: datetime) -> str | None:
+        """A new alert id when this assessment should alert now, marked in flight; else `None`.
+
+        No alert while one at this level or higher is in flight, or was sent within `REPEAT_S`;
+        a higher level always goes.
+        """
+        if not assessment.alert:
+            return None
+        rank = _LEVELS.index(assessment.level)
         with self._lock:
+            flying = self._pending.setdefault(camera_id, {})
+            if any(_LEVELS.index(level) >= rank for level in flying.values()):
+                return None
             state = self._states.get(camera_id)
             last = state.last_alert if state is not None else None
-        if last is None or not last.sent:
-            return True
-        higher = _LEVELS.index(level) > _LEVELS.index(last.level)
-        return higher or (at - last.at).total_seconds() >= REPEAT_S
+            if last is not None and last.sent:
+                higher = rank > _LEVELS.index(last.level)
+                if not higher and (at - last.at).total_seconds() < REPEAT_S:
+                    return None
+            alert_id = f"crowd-{uuid.uuid4().hex[:12]}"
+            flying[alert_id] = assessment.level
+        return alert_id
 
     def _prompt(
         self, watch: Watch, history: Sequence[CrowdReading], latest: CrowdReading
@@ -476,9 +528,20 @@ class CrowdWarden:
             {"role": "user", "content": json.dumps(context, default=str)},
         ]
 
-    def _alert(self, watch: Watch, latest: CrowdReading, assessment: CrowdAssessment) -> None:
-        alert_id = f"crowd-{uuid.uuid4().hex[:12]}"
-        check = self._check(watch, latest, assessment)
+    def _alert(
+        self, alert_id: str, watch: Watch, latest: CrowdReading, assessment: CrowdAssessment
+    ) -> None:
+        """Check, then send, announce and chain (or hold); the alert stops being in flight."""
+        try:
+            self._deliver(alert_id, watch, latest, assessment)
+        finally:
+            with self._lock:
+                self._pending.get(watch.camera_id, {}).pop(alert_id, None)
+
+    def _deliver(
+        self, alert_id: str, watch: Watch, latest: CrowdReading, assessment: CrowdAssessment
+    ) -> None:
+        check, note = self._timed_check(alert_id, watch, latest, assessment)
         heatmap = self._memory.heatmaps / latest.heatmap if latest.heatmap else None
         if check is not None and not check.agrees:
             self._record(
@@ -495,8 +558,8 @@ class CrowdWarden:
                 )
             )
             return
-        audio = self._speak(alert_id, assessment.announce)
         notified = self._notify(alert_id, watch, latest, assessment, heatmap)
+        audio = self._speak(alert_id, assessment.announce)
         alert = CrowdAlert(
             alert_id=alert_id,
             camera_id=watch.camera_id,
@@ -505,6 +568,7 @@ class CrowdWarden:
             assessment=assessment,
             check=check,
             sent=True,
+            check_note=note,
             heatmap=latest.heatmap,
             audio=audio,
             notified=notified,
@@ -512,6 +576,46 @@ class CrowdWarden:
         self._record(
             alert.model_copy(update={"chain_hash": self._chain_alert(alert, watch, latest)})
         )
+
+    def _timed_check(
+        self, alert_id: str, watch: Watch, latest: CrowdReading, assessment: CrowdAssessment
+    ) -> tuple[CrowdCheck | None, str | None]:
+        """Glimmer's check within `check_timeout_s`, and why there is none (`None`: checked).
+
+        A check still running at the deadline keeps running; its verdict is chained when it
+        comes (`_late_check`).
+        """
+        future = self._checks.submit(self._check, watch, latest, assessment)
+        try:
+            check = future.result(timeout=self._check_timeout)
+        except TimeoutError:
+            _log.warning(
+                "crowd_check_timeout",
+                camera_id=watch.camera_id,
+                alert_id=alert_id,
+                seconds=self._check_timeout,
+            )
+            future.add_done_callback(lambda done: self._late_check(alert_id, done))
+            return None, f"Glimmer did not answer within {self._check_timeout:g} s; sent unchecked"
+        except Exception as exc:  # a broken verifier must not stop a safety warning
+            _log.warning("crowd_check_failed", camera_id=watch.camera_id, error=repr(exc)[:200])
+            check = None
+        if check is None:
+            return None, "Glimmer's check failed or had no frames; sent unchecked"
+        return check, None
+
+    def _late_check(self, alert_id: str, done: Future[CrowdCheck | None]) -> None:
+        """Chain the verdict of a check that came after its alert was sent."""
+        check = None if done.exception() is not None else done.result()
+        if check is None:
+            return
+        _log.info("crowd_check_late", alert_id=alert_id, agrees=check.agrees)
+        if self._chain is None:
+            return
+        try:
+            self._chain.append("verdict", _verdict(alert_id, self._glimmer_model, check, late=True))
+        except (RulecamError, OSError, ValueError) as exc:
+            _log.warning("crowd_late_verdict_failed", alert_id=alert_id, error=str(exc)[:200])
 
     def _check(
         self, watch: Watch, latest: CrowdReading, assessment: CrowdAssessment
@@ -601,16 +705,7 @@ class CrowdWarden:
             },
         )
         if check is not None:
-            self._chain.append(
-                "verdict",
-                {
-                    "event_id": alert.alert_id,
-                    "tier": self._glimmer_model,
-                    "verdict": "confirmed" if check.agrees else "rejected",
-                    "score": check.confidence,
-                    "reason": check.seen,
-                },
-            )
+            self._chain.append("verdict", _verdict(alert.alert_id, self._glimmer_model, check))
         done = [
             f"alert {assessment.level}: {'; '.join(assessment.staff_actions) or assessment.why}"
         ]
@@ -676,6 +771,22 @@ class CrowdWarden:
     def _append(self, path: Path, row: dict[str, object]) -> None:
         with self._lock, path.open("a", encoding="utf-8") as out:
             out.write(json.dumps(row, default=str) + "\n")
+
+
+def _verdict(
+    alert_id: str, model: str, check: CrowdCheck, *, late: bool = False
+) -> Mapping[str, object]:
+    """Glimmer's check as a chain `verdict` payload (`late`: it came after the alert went)."""
+    payload: dict[str, object] = {
+        "event_id": alert_id,
+        "tier": model,
+        "verdict": "confirmed" if check.agrees else "rejected",
+        "score": check.confidence,
+        "reason": check.seen,
+    }
+    if late:
+        payload["late"] = True
+    return payload
 
 
 def _describe(frames: Sequence[Frame], latest: CrowdReading) -> str:

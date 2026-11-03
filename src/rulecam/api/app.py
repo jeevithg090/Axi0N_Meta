@@ -1255,6 +1255,7 @@ def build_crowd(
         clock=clock,
         out_dir=crowd_dir,
         every_s=settings.rulecam_crowd_assess_every_s,
+        check_timeout_s=settings.rulecam_crowd_check_timeout_s,
         site_profile=settings.rulecam_site_profile,
         camera_names=names,
     )

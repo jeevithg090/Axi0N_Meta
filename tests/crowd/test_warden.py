@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import threading
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -56,6 +58,20 @@ class Notifier:
         return f"msg-{len(self.sent)}"
 
 
+class Gate:
+    """Muse Glimmer that answers only once the test opens the gate."""
+
+    def __init__(self, inner: FakeLLM) -> None:
+        self.inner = inner
+        self.started = threading.Event()
+        self.open = threading.Event()
+
+    def structured(self, **kwargs: Any) -> Any:
+        self.started.set()
+        self.open.wait(5.0)
+        return self.inner.structured(**kwargs)
+
+
 class Speech:
     def __init__(self) -> None:
         self.said: list[tuple[str, str]] = []
@@ -88,10 +104,11 @@ def warden(
     crowd: CrowdMemory,
     grabber: FrameGrabber,
     spark: FakeLLM,
-    glimmer: FakeLLM,
+    glimmer: FakeLLM | Gate,
     *,
     notifier: Notifier | None = None,
     speech: Speech | None = None,
+    check_timeout_s: float = 20.0,
 ) -> tuple[CrowdWarden, EventChain]:
     clock = FakeClock(EPOCH)
     chain = EventChain(tmp_path / "chain", "stadium", clock=clock)
@@ -106,6 +123,7 @@ def warden(
         tts=speech,
         clock=clock,
         out_dir=tmp_path / "crowd",
+        check_timeout_s=check_timeout_s,
         site_profile="Stadium gate 3",
         camera_names={"gate": "Gate 3 approach"},
     )
@@ -309,3 +327,109 @@ def test_an_unreadable_watches_file_is_skipped(
     (tmp_path / "crowd" / "watches.json").write_text("[{]")
     chosen, _ = warden(tmp_path, crowd, grabber, FakeLLM([]), FakeLLM([]))
     assert chosen.states() == []
+
+
+def test_a_late_glimmer_does_not_hold_the_alert_and_its_verdict_is_chained_when_it_comes(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    glimmer = Gate(FakeLLM([{"agrees": True, "seen": "Packed.", "confidence": 0.9}]))
+    notifier = Notifier()
+    chosen, chain = warden(
+        tmp_path,
+        crowd,
+        grabber,
+        FakeLLM([warning()]),
+        glimmer,
+        notifier=notifier,
+        speech=Speech(),
+        check_timeout_s=0.05,
+    )
+    chosen.assess(chosen.watch("gate", INSTRUCTION, ["hi", "en"]), latest(crowd))
+    (alert,) = chosen.alerts()
+    assert alert.sent
+    assert alert.check is None
+    assert alert.check_note == "Glimmer did not answer within 0.05 s; sent unchecked"
+    assert len(notifier.sent) == 1
+    path = chain.path_for(EPOCH.date())
+    assert [r.kind for r in read_chain(path)] == ["candidate", "action", "action", "action"]
+    glimmer.open.set()
+    wait_for(lambda: read_chain(path)[-1].kind == "verdict")
+    late = read_chain(path)[-1].payload
+    assert (late["event_id"], late["verdict"], late["late"]) == (alert.alert_id, "confirmed", True)
+    (row,) = candidates(read_chain(path))
+    assert row.verdict == "confirmed"
+
+
+def test_a_failed_check_sends_the_alert_unchecked_and_says_so(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    chosen, _ = warden(
+        tmp_path, crowd, grabber, FakeLLM([warning()]), FakeLLM([]), notifier=Notifier()
+    )
+    chosen.assess(chosen.watch("gate", INSTRUCTION), latest(crowd))  # FakeLLM([]) raises
+    (alert,) = chosen.alerts()
+    assert alert.sent
+    assert alert.check_note == "Glimmer's check failed or had no frames; sent unchecked"
+
+
+def test_ticking_keeps_assessing_while_an_alert_is_in_flight(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    agree = {"agrees": True, "seen": "Packed.", "confidence": 0.9}
+    glimmer = Gate(FakeLLM([agree, agree]))
+    spark = FakeLLM([warning(), warning(), warning(level="critical")])
+    notifier = Notifier()
+    chosen, _ = warden(tmp_path, crowd, grabber, spark, glimmer, notifier=notifier, speech=Speech())
+    watch = chosen.watch("gate", INSTRUCTION)
+    chosen.tick()
+    assert glimmer.started.wait(5.0)  # the first alert waits for Glimmer on its own thread
+    wait_for(lambda: chosen.states()[0].assessment is not None)
+    reading = latest(crowd)
+    chosen.assess(watch, reading)  # assessed while the first alert is in flight: not sent twice
+    assert len(glimmer.inner.calls) == 0
+    glimmer.open.set()
+    chosen.assess(watch, reading)  # a higher level goes at once
+    wait_for(lambda: len(chosen.alerts()) == 2)
+    assert sorted(a.level for a in chosen.alerts()) == ["critical", "warning"]
+    assert len(notifier.sent) == 2
+    assert len(spark.calls) == 3
+
+
+def test_a_crashing_alert_is_logged_and_no_longer_in_flight(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    class Broken(Notifier):
+        def send(self, *args: Any, **kwargs: Any) -> str:
+            msg = "notifier bug"
+            raise RuntimeError(msg)
+
+    agree = {"agrees": True, "seen": "Packed.", "confidence": 0.9}
+    glimmer = FakeLLM([agree, agree])
+    spark = FakeLLM([warning(), warning()])
+    chosen, _ = warden(tmp_path, crowd, grabber, spark, glimmer, notifier=Broken())
+    watch = chosen.watch("gate", INSTRUCTION)
+    chosen.tick()
+    wait_for(lambda: len(glimmer.calls) == 1)
+    wait_for(lambda: not chosen._pending.get("gate"))
+    assert chosen.alerts() == []
+    with pytest.raises(RuntimeError):
+        chosen.assess(watch, latest(crowd))  # the direct path raises; a retry was allowed
+    assert len(glimmer.calls) == 2
+
+
+def test_a_crashing_assessment_is_logged_not_raised(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    class Crash(FakeLLM):
+        def structured(self, **kwargs: Any) -> Any:
+            msg = "client bug"
+            raise RuntimeError(msg)
+
+    spark = Crash([])
+    chosen, _ = warden(tmp_path, crowd, grabber, spark, FakeLLM([]))
+    chosen.watch("gate", INSTRUCTION)
+    chosen.tick()
+    wait_for(lambda: chosen._running is not None and chosen._running.done())
+    assert chosen._running is not None
+    assert chosen._running.exception() is None
+    assert chosen.alerts() == []

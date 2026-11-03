@@ -1173,7 +1173,9 @@ def build_crowd(
 ) -> tuple[CrowdMemory | None, CrowdWarden | None, tuple[Callable[[], object], ...]]:
     """Crowd early warning: readings every few seconds and the warden that judges them.
 
-    SAM 3.1 (Meta hosted) counts on tiles; the ground calibration is the active plan's, else
+    Only watched cameras (`POST /crowd/watch`) and `RULECAM_CROWD_CAMERAS` are measured; Ask's
+    `crowd_scan` measures any camera on demand. SAM 3.1 (Meta hosted) counts on tiles; the ground
+    calibration is the operator's marked floor points, else the active plan's, else
     MoGe-2's on the GPU pod, else the crowd's own people. The warden uses Muse Spark to assess,
     Muse Glimmer to check frames, the site's notifier, the evidence chain and MMS-TTS (when the
     `ml` extra is installed). Prototype mode only, and only with `RULECAM_CROWD_EVERY_S` > 0.
@@ -1225,7 +1227,7 @@ def build_crowd(
         calibrations=Calibrations(plan=planned, model=model, clock=clock.now),
         path=crowd_dir / "readings.jsonl",
         every_s=settings.rulecam_crowd_every_s,
-        cameras=(lambda: cameras) if cameras else None,
+        cameras=lambda: {*cameras, *warden.watched()},
         zones=named_zones,
         counting=counting,
         clock=clock,

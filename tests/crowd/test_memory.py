@@ -76,7 +76,7 @@ def test_the_crowd_itself_calibrates_when_nothing_else_does(
     assert found[1] == "people"
 
 
-def test_moge2_wins_over_the_crowd_and_failures_wait_before_a_retry(
+def test_moge2_runs_in_the_background_and_failures_wait_before_a_retry(
     frame_at: Callable[[int, datetime], Frame],
 ) -> None:
     frame = frame_at(1, EPOCH)
@@ -89,13 +89,17 @@ def test_moge2_wins_over_the_crowd_and_failures_wait_before_a_retry(
 
     now = [EPOCH]
     lookup = Calibrations(model=model, clock=lambda: now[0])
-    assert lookup.get("gate", frame, []) is None  # model failed, no people to use
-    assert lookup.get("gate", frame, []) is None  # not retried yet
+    assert lookup.get("gate", frame, []) is None  # started; nothing to use yet
+    wait_for(lambda: calls == ["gate"])
+    wait_for(lambda: lookup.get("gate", frame, []) is None and not answers[:-1])
+    assert lookup.get("gate", frame, []) is None  # failed: not retried within MODEL_RETRY_S
+    assert calls == ["gate"]
     now[0] = EPOCH + timedelta(minutes=10)
+    assert lookup.get("gate", frame, []) is None  # retried in the background
+    wait_for(lambda: lookup.get("gate", frame, []) is not None)
     found = lookup.get("gate", frame, [])
     assert found is not None
     assert found[1] == "moge2"
-    assert lookup.get("gate", frame, []) == found
     assert calls == ["gate", "gate"]
 
 

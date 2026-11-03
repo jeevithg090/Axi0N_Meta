@@ -76,6 +76,8 @@ class Calibrations:
         self._found: dict[str, tuple[Calibration, str]] = {}
         self._owner: dict[str, Calibration] = {}
         self._tried: dict[str, datetime] = {}
+        self._running: dict[str, Future[Calibration | None]] = {}
+        self._pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="crowd-calibration")
         self._lock = threading.Lock()
 
     def set_owner(self, calibration: Calibration) -> None:
@@ -116,15 +118,27 @@ class Calibrations:
         return self._from_people(camera_id, frame, boxes)
 
     def _from_model(self, camera_id: str, frame: Frame) -> tuple[Calibration, str] | None:
+        """MoGe-2's calibration once it is ready (`None` until then).
+
+        It runs on its own thread, never blocking a reading (a cold GPU worker can take minutes),
+        and is retried `MODEL_RETRY_S` after a failure.
+        """
         if self._model is None:
             return None
         now = self._clock() if self._clock is not None else frame.at
         with self._lock:
-            tried = self._tried.get(camera_id)
-            if tried is not None and (now - tried).total_seconds() < MODEL_RETRY_S:
+            running = self._running.get(camera_id)
+            if running is not None and not running.done():
                 return None
-            self._tried[camera_id] = now
-        found = self._model(camera_id, frame.path)
+            if running is None:
+                tried = self._tried.get(camera_id)
+                if tried is not None and (now - tried).total_seconds() < MODEL_RETRY_S:
+                    return None
+                self._tried[camera_id] = now
+                self._running[camera_id] = self._pool.submit(self._model, camera_id, frame.path)
+                return None
+            del self._running[camera_id]
+        found = running.result()
         if found is None:
             return None
         with self._lock:

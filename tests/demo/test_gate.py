@@ -46,10 +46,14 @@ def test_check_gate() -> None:
 
 
 def test_the_committed_goldens_pass_their_gates() -> None:
-    results = gate_all(SCENARIOS)
-    assert [r.scenario for r in results] == ["warehouse_driver"]
-    assert all(r.ok for r in results), [r.failures for r in results]
-    assert results[0].score["alerts"] == 0
+    results = {r.scenario: r for r in gate_all(SCENARIOS)}
+    assert sorted(results) == ["driver_only_4m", "warehouse_driver", "worker_passes_4m"]
+    assert all(r.ok for r in results.values()), [r.failures for r in results.values()]
+    assert results["warehouse_driver"].score["alerts"] == 0
+    assert results["driver_only_4m"].score["alerts"] == 0
+    alerts = results["worker_passes_4m"].score["alerts"]
+    assert isinstance(alerts, int)
+    assert alerts >= 1
 
 
 def test_a_broken_gate_fails(tmp_path: Path) -> None:
@@ -78,20 +82,22 @@ def test_cli_gate(tmp_path: Path) -> None:
     assert cli.invoke(app, ["golden", "gate", "--scenarios-dir", str(tmp_path)]).exit_code == 2
 
 
-def test_pending_t02_t04_are_ready_to_record() -> None:
+def test_t02_t04_are_recorded_goldens() -> None:
     evalset = load_eval_set(REPO / "eval" / "clips")
     expected = {
         "worker_passes_4m": ("pexels_32243654", "violation"),
         "driver_only_4m": ("pexels_32243653", "no_violation"),
     }
     for name, (clip, verdict) in expected.items():
-        scenario = load_scenario(SCENARIOS / "pending" / f"{name}.yaml")
+        scenario = load_scenario(SCENARIOS / f"{name}.yaml")
         assert scenario.name == name
         assert all(s.params["fixture"] == f"scenarios/{name}" for s in scenario.steps)
+        assert (SCENARIOS / name / "run.json").is_file()
         gate = scenario.steps[-1].params["gate"]
         assert isinstance(gate, dict)
         assert gate["tier1_includes"] == verdict
         assert evalset.clip(clip).rule("forklift_4m").request.startswith("Keep people at least 4")
     ui = (REPO / "ui" / "src" / "fixtures" / "golden" / "index.ts").read_text(encoding="utf-8")
     for name in expected:
-        assert f'name: "{name}"' in ui
+        assert f'from "./{name}.json"' in ui
+        assert f'name: "{name}"' not in ui  # no longer pending

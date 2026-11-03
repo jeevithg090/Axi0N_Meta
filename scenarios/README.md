@@ -72,9 +72,9 @@ right after `make golden-verify`.
 
 ### Recording T02 and T04 (the verified-alert and rejected-candidate goldens)
 
-The only golden run today has no candidate, so the REPLAY demo shows no verdict. Two runs of the
-1 Nov campaign do, and their scenario files wait in `scenarios/pending/` (outside the
-`scenarios/*.yaml` glob, so CI ignores them until they are recorded):
+`warehouse_driver` has no candidate, so its REPLAY shows no verdict. Two runs of the 1 Nov
+campaign do; both were recorded this way on 2 Nov and are now goldens (their scenario files
+waited in `scenarios/pending/`, outside the `scenarios/*.yaml` glob, until then):
 
 | Scenario | Campaign test | Clip and rule | What it shows | Gate |
 |---|---|---|---|---|

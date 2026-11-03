@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/ci", label: "Rule CI" },
   { href: "/audit", label: "Audit" },
   { href: "/worker", label: "Worker" },
+  { href: "/site", label: "Site tools" },
   { href: "/system", label: "System Sheet" },
 ];
 

@@ -1033,6 +1033,64 @@ def advisor_seal_status(
         typer.echo(dumps_status(seal_status(records, seal_id)))
 
 
+@app.command()
+def context(
+    vertical: Annotated[str, typer.Argument(help="festival, supermarket or general")],
+    *,
+    city: Annotated[str | None, typer.Option(help="Overrides RULECAM_SITE_CITY")] = None,
+    country: Annotated[str | None, typer.Option(help="ISO 3166-1 alpha-2, e.g. GB")] = None,
+    notes: Annotated[str, typer.Option(help="The event's name, the store's street")] = "",
+    site: Annotated[str, typer.Option(help="Site name for the prompt")] = "demo",
+) -> None:
+    """Fetch live site context with search-grounded Muse Spark; print the checked items."""
+    from rulecam.api.site_tools import site_location  # noqa: PLC0415 - heavy imports, only here
+    from rulecam.clients.meta_hosted.spark import SparkClient  # noqa: PLC0415
+    from rulecam.context import SiteContextService  # noqa: PLC0415
+
+    if vertical not in {"festival", "supermarket", "general"}:
+        raise typer.BadParameter("festival, supermarket or general", param_hint="VERTICAL")
+    settings = get_settings()
+    clock = SystemClock()
+    where = site_location(settings)
+    where = where.model_copy(
+        update={
+            k: v
+            for k, v in {"city": city, "country": country.upper() if country else None}.items()
+            if v
+        }
+    )
+    service = SiteContextService(
+        SparkClient.from_settings(settings, clock=clock),
+        clock=clock,
+        out_dir=settings.rulecam_data_dir / "context",
+        site_name=site,
+        location=where,
+    )
+    found = service.refresh(vertical, notes=notes)  # type: ignore[arg-type]
+    typer.echo(found.model_dump_json(indent=2))
+
+
+@app.command("shelf-scan")
+def shelf_scan(
+    image: Annotated[Path, typer.Argument(help="A JPEG or PNG of a shelf")],
+) -> None:
+    """Find shelf gaps on an image: Muse Spark proposes them, SAM 3.1 confirms them."""
+    from rulecam.clients.meta_hosted.sam import HostedSam31  # noqa: PLC0415 - heavy imports
+    from rulecam.clients.meta_hosted.spark import SparkClient  # noqa: PLC0415
+    from rulecam.shelf import ShelfScanner  # noqa: PLC0415
+
+    settings = get_settings()
+    clock = SystemClock()
+    spark = SparkClient.from_settings(settings, clock=clock)
+    scanner = ShelfScanner(
+        spark=spark,
+        files=spark,
+        sam=HostedSam31.from_settings(settings, clock=clock),
+        out_dir=settings.rulecam_data_dir / "shelf" / "marked",
+    )
+    typer.echo(scanner.scan_image(image).model_dump_json(indent=2))
+
+
 @app.callback()
 def main() -> None:
     """Rulecam command line."""

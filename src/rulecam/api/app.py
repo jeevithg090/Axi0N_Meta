@@ -90,6 +90,7 @@ from rulecam.api.prometheus import (
     metrics_router,
     serverless_gpu_rate,
 )
+from rulecam.api.site_tools import build_site_tools
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
     AskAgent,
@@ -1003,6 +1004,15 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             ),
             owner_alerts_router(response, on_false_alarm=false_alarm),
             ask_router(ask_agent, dependencies=_OWNER),
+            *build_site_tools(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                perception=perception,
+                site_name=site,
+                dependencies=_OWNER,
+            ),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
         ),

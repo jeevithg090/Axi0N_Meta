@@ -723,6 +723,42 @@ p {
   }
 }
 
+/* --- Site tools: site context, shelf gaps, crowd density --------------------------------- */
+.site-page {
+  display: grid;
+  gap: 16px;
+  max-width: 980px;
+}
+.site-panel {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  min-width: 0;
+}
+.site-panel form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.site-items {
+  display: grid;
+  gap: 10px;
+  padding-left: 18px;
+}
+.site-items p {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
+}
+.site-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
 /* --- Ask: free-form questions, each step streamed as it happens ---------------------------- */
 .ask-page {
   display: grid;

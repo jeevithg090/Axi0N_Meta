@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import { bucketLabel, STRINGS, uiLang, workerView, type WorkerPage } from "@/lib/worker";
 
 import { DisputeSheet } from "./DisputeSheet";
+import { VoiceReport } from "./VoiceReport";
 import styles from "./worker.module.css";
 
 export default function WorkerRulesPage() {
@@ -146,6 +147,8 @@ function WorkerRules() {
           </li>
         ))}
       </ul>
+
+      <VoiceReport lang={page.lang} />
 
       {disputing && (
         <DisputeSheet

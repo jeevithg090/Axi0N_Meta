@@ -1069,7 +1069,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 dependencies=_OWNER,
             ),
             extensions.router(_OWNER),
-            build_warehouse(
+            *build_warehouse(
                 settings,
                 cache=cache,
                 clock=clock,
@@ -1080,6 +1080,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 perception=perception,
                 planner=planner,
                 whatsapp=response.whatsapp,
+                client_address=client_address,
                 dependencies=_OWNER,
             ),
             chain_router(settings.rulecam_chains_dir, dependencies=_OWNER),

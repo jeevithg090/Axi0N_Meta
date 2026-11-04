@@ -273,3 +273,54 @@ def test_clause_cited_off_search_is_relinked_by_spark(tmp_path: Path, chain: Eve
     assert clause.source_retrieved is True
     assert clause.source_url == OSHA
     assert writer.clause() == clause  # saved: looked up once
+
+
+def test_public_voice_report_says_only_what_was_heard_and_has_a_quota(
+    tmp_path: Path, t02_records: list[EventRecord], chain: EventChain
+) -> None:
+    from fastapi import FastAPI  # noqa: PLC0415
+    from fastapi.testclient import TestClient  # noqa: PLC0415
+
+    from rulecam.warehouse.api import PlanSource, WarehouseService, warehouse_public_router  # noqa: PLC0415
+    from rulecam.worker.disputes import DailyLimiter  # noqa: PLC0415
+
+    draft = ReportDraft(
+        lang="es",
+        summary_en="close pass",
+        what_happened="Pasó muy cerca",
+        matches_event_id=EVENT,
+        proposed_rule="r",
+        proposed_rule_en="r",
+    )
+    reporter = NearMissReporter(
+        FakeSpark({ReportDraft: draft}),
+        FakeTranscriber("pasó muy cerca"),
+        store=Store(tmp_path / "w"),
+        clock=FakeClock(NOW),
+        chain=chain,
+        near=lambda t0, t1: _near(t02_records),
+        convert=lambda audio: audio,
+    )
+    service = WarehouseService(
+        chain_dir=tmp_path / "c",
+        regressions_dir=tmp_path / "r",
+        stills_root=None,
+        plans=PlanSource(list, frozenset),
+        store=Store(tmp_path / "w"),
+        reports=reporter,
+    )
+    app = FastAPI()
+    limiter = DailyLimiter(FakeClock(NOW), per_client=1, per_day=10)
+    app.include_router(
+        warehouse_public_router(service, client_address=lambda r: "1.2.3.4", limiter=limiter)
+    )
+    client = TestClient(app)
+    reply = client.post("/warehouse/public/reports/voice?lang=es", content=b"RIFF")
+    assert reply.json() == {
+        "heard": "pasó muy cerca",
+        "what_happened": "Pasó muy cerca",
+        "matched": True,
+        "measured_m": pytest.approx(3.991023),
+    }
+    assert "event" not in reply.text
+    assert client.post("/warehouse/public/reports/voice", content=b"RIFF").status_code == 429

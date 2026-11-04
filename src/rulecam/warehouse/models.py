@@ -548,3 +548,15 @@ class VoiceNoteRequest(BaseModel):
     role: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z][\w-]*$")
     lang: str = Field(default="es", pattern=r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
     also: str | None = Field(default=None, pattern=r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
+
+
+class HeardReport(Frozen):
+    """What a worker gets back after reporting a near miss by voice on the public page.
+
+    Only what they said and whether a camera measured it: no event id, no other report.
+    """
+
+    heard: str
+    what_happened: str
+    matched: bool
+    measured_m: float | None

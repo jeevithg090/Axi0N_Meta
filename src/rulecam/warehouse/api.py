@@ -60,6 +60,7 @@ from rulecam.runtime.loop import RuntimeLoop
 from rulecam.warehouse.duty import ChainWriter, DutyWriter, GroundedModel
 from rulecam.warehouse.models import (
     DutyDone,
+    HeardReport,
     Heatmap,
     NearMiss,
     RefresherDuty,
@@ -99,9 +100,12 @@ from rulecam.warehouse.voice_note import (
     VoiceNoteError,
     VoiceNoteSender,
 )
+from rulecam.worker.disputes import DailyLimiter
 
 _log = get_logger(__name__)
 
+PUBLIC_REPORTS_PER_CLIENT = 5
+PUBLIC_REPORTS_PER_DAY = 200
 EventId = Annotated[str, PathParam(pattern=r"^[A-Za-z0-9_.:-]{1,128}$")]
 CameraId = Annotated[str, PathParam(pattern=r"^[A-Za-z0-9_.:-]{1,80}$")]
 Lang = Annotated[str, Query(pattern=r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")]
@@ -539,6 +543,44 @@ def _voice_report_routes(router: APIRouter, service: WarehouseService) -> None:
         return service.propose(report_id)
 
 
+def warehouse_public_router(
+    service: WarehouseService,
+    *,
+    client_address: Callable[[Request], str],
+    limiter: DailyLimiter,
+) -> APIRouter:
+    """`POST /warehouse/public/reports/voice`: a worker reports a near miss from the QR page.
+
+    No login (the worker page is public): each client address gets a small daily quota, the
+    audio is never kept, and the answer says only what was heard and whether a camera measured
+    it. The owner sees the full report under `GET /warehouse/reports`.
+    """
+    router = APIRouter(prefix="/warehouse/public", tags=["warehouse"])
+
+    @router.post("/reports/voice")
+    async def report_voice(request: Request, lang: Lang | None = None) -> HeardReport:
+        reporter = service.reports
+        if reporter is None:
+            raise HTTPException(503, "voice reports are not set up")
+        if not limiter.allow(client_address(request)):
+            raise HTTPException(429, "too many reports from here today")
+        audio = await request.body()
+        if not audio or len(audio) > MAX_AUDIO_BYTES:
+            raise HTTPException(400, "send one recording, at most 10 MB")
+        try:
+            report = await run_in_threadpool(_model_call, lambda: reporter.report(audio, lang=lang))
+        except ReportError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        return HeardReport(
+            heard=report.transcript,
+            what_happened=report.what_happened,
+            matched=report.matches_event_id is not None,
+            measured_m=report.measured_m,
+        )
+
+    return router
+
+
 def speech_engines(bus: Bus) -> list[tuple[str, TTS]]:
     """Meta MMS-TTS first (when `transformers` is installed), then the system voice."""
     from rulecam.voice_out.system_tts import SystemTts  # noqa: PLC0415 - optional engines
@@ -623,8 +665,9 @@ def build_warehouse(
     planner: PlannerSubmit | None = None,
     whatsapp: VoiceChannel | None = None,
     plans_dir: Path = Path("plans"),
+    client_address: Callable[[Request], str] | None = None,
     dependencies: Sequence[Any] = (),
-) -> APIRouter:
+) -> tuple[APIRouter, ...]:
     """The `/warehouse` router, wired to the app's chain, plans, runtime and perception.
 
     Args:
@@ -639,10 +682,12 @@ def build_warehouse(
         planner: The Site Planner (a worker's proposed rule is planned and Rule CI-tested).
         whatsapp: WhatsApp, for spoken warnings sent as voice notes (when configured).
         plans_dir: The planner's store (step timings of each run).
+        client_address: The client's address for the public route's daily quota; without it
+            the public voice-report route is not served.
         dependencies: Route dependencies (owner login).
 
     Returns:
-        The router.
+        The owner router, and the public voice-report router when `client_address` is given.
     """
     data = settings.rulecam_data_dir
     store = Store(data / "warehouse")
@@ -689,4 +734,11 @@ def build_warehouse(
         ),
         plan_store=PlanStore(plans_dir),
     )
-    return warehouse_router(service, dependencies=dependencies)
+    owner = warehouse_router(service, dependencies=dependencies)
+    if client_address is None:
+        return (owner,)
+    limiter = DailyLimiter(
+        clock, per_client=PUBLIC_REPORTS_PER_CLIENT, per_day=PUBLIC_REPORTS_PER_DAY
+    )
+    public = warehouse_public_router(service, client_address=client_address, limiter=limiter)
+    return owner, public

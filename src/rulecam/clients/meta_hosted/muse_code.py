@@ -6,7 +6,8 @@ authenticates once per machine (`muse auth set --api-key-stdin`) and runs on Mus
 Model API pay-as-you-go pricing (Meta's "Build with Muse Code" post). This client:
 
 1. writes the given files into a fresh temporary directory;
-2. runs `<binary> exec --json [extra args] <prompt>` there, through an injectable process runner,
+2. runs `<binary> exec --json --model <model> [extra args] <prompt>` there (so the recorded
+   model is the one that ran), through an injectable process runner,
    with only `PATH`, `HOME`, `LANG` and `MUSE_*` variables in its environment (no Rulecam
    secrets), under a wall timeout;
 3. counts the JSONL events, keeps the last message as a summary, and reads the requested output
@@ -190,7 +191,7 @@ class MuseCodeClient:
                 target = workspace / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(text, encoding="utf-8")
-            argv = [path, "exec", "--json", *self._args, prompt]
+            argv = [path, "exec", "--json", "--model", self._model, *self._args, prompt]
             done = self._runner(argv, workspace, child_env(os.environ), self._timeout_s)
             if done.returncode != 0:
                 msg = f"Muse Code exited with {done.returncode}: {done.stderr[-_STDERR_CHARS:]}"

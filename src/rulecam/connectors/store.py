@@ -18,6 +18,9 @@ from pydantic import BaseModel, Field, SecretStr
 
 from rulecam.connectors.sources import SourceKind
 from rulecam.contracts import Provenance
+from rulecam.log import get_logger
+
+_log = get_logger(__name__)
 
 FILE_MODE: Final = 0o600
 
@@ -77,15 +80,20 @@ class CameraStore:
         self._cameras_file = root / "cameras.json"
         self._secrets_file = root / "secrets.json"
         self._lock = threading.Lock()
-        self._saved = (
-            _Saved.model_validate_json(self._cameras_file.read_text("utf-8"))
-            if self._cameras_file.is_file()
-            else _Saved()
-        )
+        self._saved = _Saved()
         self._secrets: dict[str, Credentials] = {}
-        if self._secrets_file.is_file():
-            raw = json.loads(self._secrets_file.read_text("utf-8"))
-            self._secrets = {k: Credentials.model_validate(v) for k, v in raw.items()}
+        try:
+            if self._cameras_file.is_file():
+                self._saved = _Saved.model_validate_json(self._cameras_file.read_text("utf-8"))
+            if self._secrets_file.is_file():
+                raw = json.loads(self._secrets_file.read_text("utf-8"))
+                self._secrets = {k: Credentials.model_validate(v) for k, v in raw.items()}
+        except (OSError, ValueError) as exc:  # never let a damaged file stop the API starting
+            _log.error("connector_store_unreadable", error=type(exc).__name__)
+            for path in (self._cameras_file, self._secrets_file):
+                if path.is_file():
+                    path.replace(path.with_suffix(".unreadable"))
+            self._saved, self._secrets = _Saved(), {}
 
     def records(self) -> list[CameraRecord]:
         """Every stored camera, oldest first."""

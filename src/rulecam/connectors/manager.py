@@ -498,7 +498,18 @@ class ConnectorManager:
                 survey.model_copy(update={"timings": {"first_frame_s": wait_s, **survey.timings}})
             )
 
-        survey = surveyor.run(camera_id, shot, chunk_id=chunk.chunk_id, on_step=progress)
+        try:
+            survey = surveyor.run(camera_id, shot, chunk_id=chunk.chunk_id, on_step=progress)
+        except Exception as exc:  # a pool thread must never leave a survey stuck mid-way
+            _log.exception("camera_survey_crashed", camera_id=camera_id)
+            failed = CameraSurvey(
+                camera_id=camera_id,
+                status="failed",
+                error=f"the first look stopped: {type(exc).__name__}",
+                finished_at=self._clock.now(),
+            )
+            self._set_survey(failed)
+            return
         self._after_survey(survey)
 
     def _after_survey(self, survey: CameraSurvey) -> None:

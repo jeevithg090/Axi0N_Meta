@@ -203,3 +203,12 @@ def test_discovery_routes(
     assert refused.status_code == 502
     brands = client.get("/connectors/brands").json()
     assert any(b["brand"] == "Hikvision" for b in brands)
+
+
+def test_damaged_store_does_not_stop_the_api(tmp_path: Path) -> None:
+    root = tmp_path / "connectors"
+    root.mkdir()
+    (root / "cameras.json").write_text("{not json")
+    manager = ConnectorManager(ConnectorSettings(root=root), bus=Bus(), clock=SystemClock())
+    assert manager.cameras() == []
+    assert (root / "cameras.unreadable").is_file()

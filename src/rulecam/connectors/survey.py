@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 
 from rulecam.clients.errors import ModelClientError
 from rulecam.contracts import Clock, Detection, StructuredLLM
+from rulecam.errors import RulecamError
 from rulecam.log import get_logger
 
 _log = get_logger(__name__)
@@ -277,7 +278,7 @@ class CameraSurveyor:
         started = time.monotonic()
         try:
             survey = self._steps(survey, snapshot, report)
-        except ModelClientError as exc:
+        except RulecamError as exc:  # model errors, replay misses: the survey says so
             survey = survey.model_copy(update={"status": "failed", "error": str(exc)[:500]})
             _log.warning("camera_survey_failed", camera_id=camera_id, error=type(exc).__name__)
         timings = {**survey.timings, "total_s": round(time.monotonic() - started, 2)}

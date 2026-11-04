@@ -131,10 +131,22 @@ function isPhone(): boolean {
   return typeof window !== "undefined" && (window.matchMedia?.(PHONE_QUERY)?.matches ?? false);
 }
 
-/** Which frame a route sits in: the landing page, a bare phone or tablet screen, or the app. */
+/**
+ * Routes for people outside the owner's console, framed bare (the wordmark and the badge, no
+ * sidebar): the worker QR page, the station tablet, the staff companion PWA, and the proof
+ * portal's inspector view for outside recipients.
+ */
+const BARE_ROUTES: RegExp[] = [
+  /^\/worker\/[^/]+\/[^/]+/,
+  /^\/station\//,
+  /^\/staff(\/|$)/,
+  /^\/inspector\/view(\/|$)/,
+];
+
+/** Which frame a route sits in: the landing page, a bare outside-facing screen, or the app. */
 export function chromeFor(pathname: string): "page" | "bare" | "app" {
   if (pathname === "/") return "page";
-  if (/^\/worker\/[^/]+\/[^/]+/.test(pathname) || pathname.startsWith("/station/")) return "bare";
+  if (BARE_ROUTES.some((route) => route.test(pathname))) return "bare";
   return "app";
 }
 
@@ -146,15 +158,17 @@ function isActive(pathname: string, href: string): boolean {
  * The header's page name: the group and nav label of the current page, or `null` where no
  * breadcrumb belongs (the landing page and the golden replay, which carry their own titles).
  */
-function pageName(pathname: string): { group: string; label: string } | null {
+function pageName(pathname: string, mounted: boolean): { group: string; label: string } | null {
   if (pathname === "/" || pathname === "/demo" || pathname.startsWith("/demo/")) return null;
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
       if (!item.external && isActive(pathname, item.href)) return { group: group.group, label: item.label };
     }
   }
+  // A route outside the nav (a 404 among them) is named from the URL only after mount: the
+  // prerendered not-found page has another path, and naming it there breaks hydration (QA-B17).
   const first = pathname.split("/").filter(Boolean)[0];
-  return first ? { group: "Rulecam", label: first.replace(/-/g, " ") } : null;
+  return mounted && first ? { group: "Rulecam", label: first.replace(/-/g, " ") } : null;
 }
 
 /** The session line in the sidebar footer, from the real auth state (no made-up user). */
@@ -245,6 +259,8 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   const demoQuery = useDemoQuery();
   const chrome = chromeFor(pathname);
   const [collapsedPref, setCollapsed] = useState<boolean>(false);
+  const [mounted, setMounted] = useState<boolean>(false);
+  useEffect(() => setMounted(true), []);
   // On a phone the sidebar is a drawer over the page, open or closed; an open drawer always
   // shows the full labels.
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
@@ -328,7 +344,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const crumb = pageName(pathname);
+  const crumb = pageName(pathname, mounted);
   const gpus = health.phase === "ok" ? health.health.gpus : undefined;
   const samGpu = gpus ? gpuLine(gpus.sam).state : "unknown";
   const glimmerGpu = gpus ? gpuLine(gpus.glimmer).state : "unknown";

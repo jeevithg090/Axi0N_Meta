@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { api, errorText } from "../../lib/api";
 import { PairPhoneButton } from "../PairPhoneButton";
 import { SampleDataTag } from "../SampleDataTag";
+import { ClipPlayer } from "../ClipPlayer";
 
 interface RulePreset {
   id: string;
@@ -609,7 +610,7 @@ export function PlannerSignage() {
             </div>
 
             <div style={{ position: "relative", background: "var(--color-scene)", border: "1px solid var(--color-rule)" }}>
-              <video
+              <ClipPlayer
                 key={preset.videoSrc}
                 src={preset.videoSrc}
                 autoPlay

@@ -5,6 +5,7 @@ import { API_PROXY } from "../../lib/config";
 import { withCsrf } from "../../lib/api";
 import { SampleDataTag } from "../SampleDataTag";
 import { EmptyState, Skeleton } from "../kit";
+import { ClipPlayer } from "../ClipPlayer";
 
 interface IncidentSummary {
   event_id: string;
@@ -420,7 +421,7 @@ export function IncidentsSignage() {
                       position: "relative",
                     }}
                   >
-                    <video
+                    <ClipPlayer
                       key={videoSrc}
                       src={videoSrc}
                       controls

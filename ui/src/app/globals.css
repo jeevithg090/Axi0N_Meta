@@ -1261,3 +1261,8 @@ button.primary:not(.btn):disabled { opacity: 0.55; cursor: not-allowed; }
 .diff-change { background: var(--color-accent-soft); }
 .badge[aria-label="Checking"] { border-style: dashed; min-width: 2.75rem; justify-content: center; }
 .pair-phone { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }
+
+/* a camera clip that is not bundled: its committed still, and a plain note (ClipPlayer) */
+.clip-still { position: relative; margin: 0; display: block; width: 100%; min-height: 160px; overflow: hidden; background: var(--color-scene); }
+.clip-still img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.clip-still figcaption { position: absolute; left: var(--space-xs); bottom: var(--space-xs); padding: var(--space-3xs) var(--space-xs); border-radius: var(--radius-chip); background: color-mix(in oklab, var(--color-scene) 85%, transparent); color: var(--color-on-scene); font-size: var(--text-xs); line-height: 1.4; }

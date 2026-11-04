@@ -15,7 +15,7 @@ export const WORLDS = [
       src: "/usecases/supermarket.jpg",
       label: "Stock footage, Pexels 39221979",
       alt: "Shoppers unloading trolleys at a supermarket checkout lane",
-      credit: "Stock footage, Pexels video 39221979: the checkout clip the Ask agent watched on 1 Nov.",
+      credit: "Stock footage, Pexels video 39221979 (faces blurred): the checkout clip the Ask agent watched on 1 Nov.",
     },
   },
   {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { api, type CameraInfo } from "../../lib/api";
 import { SampleDataTag } from "../SampleDataTag";
+import { ClipPlayer } from "../ClipPlayer";
 
 interface FleetCamera {
   id: string;
@@ -363,7 +364,7 @@ export function StreamsSignage() {
               </div>
             </div>
             {selectedCam.videoSrc && (
-              <video
+              <ClipPlayer
                 src={selectedCam.videoSrc}
                 controls
                 autoPlay
@@ -412,7 +413,7 @@ export function StreamsSignage() {
                   }}
                   title="Click to expand HD stream"
                 >
-                  <video
+                  <ClipPlayer
                     src={c.videoSrc}
                     autoPlay
                     loop

@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import Link from "next/link";
 
 import { SampleDataTag } from "../SampleDataTag";
+import { ClipPlayer } from "../ClipPlayer";
 
 interface ActSpec {
   id: number;
@@ -42,13 +43,13 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.99",
     glimmerVerdict: "CONFIRMED VIOLATION",
     glimmerReason:
-      "Worker #208 walks inside the 2.0m rear-right exclusion zone of moving Forklift #09 (measured 1.18m on calibrated floor plane; TTC 0.42s). Workers #201 & #204 remain outside at >2.4m.",
+      "A person on the right walks inside the 2.0 m rear-right exclusion zone of the moving forklift (measured 1.18 m on the calibrated floor plane; TTC 0.42 s). The two people on the left and in the centre stay outside, at more than 2.4 m.",
     plcState: "TRIPPED · 8 ms Interlock + Horn",
     entities: [
-      { id: "FORKLIFT #09", role: "Vehicle · Moving", metric: "2.4 m/s North", status: "warn" },
-      { id: "WORKER #208", role: "Pedestrian · Right", metric: "1.18 m (TTC 0.42s)", status: "bad" },
-      { id: "WORKER #204", role: "Pedestrian · Center", metric: "2.45 m · PPE OK", status: "ok" },
-      { id: "WORKER #201", role: "Pedestrian · Left", metric: "3.60 m · PPE OK", status: "ok" },
+      { id: "Forklift", role: "Vehicle, moving", metric: "2.4 m/s North", status: "warn" },
+      { id: "Person", role: "Pedestrian, right", metric: "1.18 m (TTC 0.42s)", status: "bad" },
+      { id: "Person", role: "Pedestrian, centre", metric: "2.45 m · PPE OK", status: "ok" },
+      { id: "Person", role: "Pedestrian, left", metric: "3.60 m · PPE OK", status: "ok" },
     ],
   },
   {
@@ -67,13 +68,13 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.98",
     glimmerVerdict: "CONFIRMED VIOLATION",
     glimmerReason:
-      "Worker #102 (red hardhat verified) escorts three visitors (#301, #302, #303) through active forklift aisle without mandatory head protection.",
+      "A person in a red hardhat walks three people without hardhats through the active forklift aisle, where head protection is mandatory.",
     plcState: "PA WARNING + SUPERVISOR ALERT",
     entities: [
-      { id: "WORKER #102", role: "Escort Lead", metric: "Red Hardhat Verified", status: "ok" },
-      { id: "VISITOR #301", role: "Visitor · Center-L", metric: "NO HARDHAT DETECTED", status: "bad" },
-      { id: "VISITOR #302", role: "Visitor · Center-R", metric: "NO HARDHAT DETECTED", status: "bad" },
-      { id: "VISITOR #303", role: "Visitor · Far-Right", metric: "NO HARDHAT DETECTED", status: "bad" },
+      { id: "Person", role: "Leading, left", metric: "Red Hardhat Verified", status: "ok" },
+      { id: "Person", role: "Centre-left", metric: "NO HARDHAT DETECTED", status: "bad" },
+      { id: "Person", role: "Centre-right", metric: "NO HARDHAT DETECTED", status: "bad" },
+      { id: "Person", role: "Far right", metric: "NO HARDHAT DETECTED", status: "bad" },
     ],
   },
   {
@@ -92,11 +93,11 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.97",
     glimmerVerdict: "CONFIRMED VIOLATION",
     glimmerReason:
-      "Forklift #04 crosses laterally from right rack aisle at 2.6 m/s directly across Engineer #108's forward walking trajectory (distance drops 3.40m -> 1.28m).",
+      "A forklift crosses from the right rack aisle at 2.6 m/s, straight across the path of a person walking north (the gap drops from 3.40 m to 1.28 m).",
     plcState: "JUNCTION STROBE + HORN TRIPPED",
     entities: [
-      { id: "FORKLIFT #04", role: "Cross-Aisle Vehicle", metric: "2.6 m/s Westbound", status: "bad" },
-      { id: "ENGINEER #108", role: "Pedestrian · North", metric: "Dist 1.28m · TTC 0.58s", status: "bad" },
+      { id: "Forklift", role: "Cross-aisle vehicle", metric: "2.6 m/s Westbound", status: "bad" },
+      { id: "Person", role: "Pedestrian, walking north", metric: "Dist 1.28m · TTC 0.58s", status: "bad" },
     ],
   },
   {
@@ -115,12 +116,12 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.00",
     glimmerVerdict: "BYPASSED (OPERATOR LINKED)",
     glimmerReason:
-      "Person track #01-OP overlaps Forklift #01 cabin at IoU 0.89 during 1.0s warm-up window. Linked as seated operator; Rule CI mutant drop_operator_warmup verified.",
+      "A person overlaps the forklift cabin at IoU 0.89 during the 1.0 s warm-up window, so they are linked as the seated operator; Rule CI mutant drop_operator_warmup verified.",
     plcState: "ARMED · CLEAR (0 False Alerts)",
     entities: [
-      { id: "FORKLIFT #01", role: "Active Vehicle", metric: "2.2 m/s · Cabin Mask", status: "ok" },
-      { id: "OPERATOR #01", role: "Seated Driver", metric: "IoU 0.89 · EXEMPT", status: "ok" },
-      { id: "PALLET REF #12", role: "Calibration Anchor", metric: "1.20m × 1.00m (Err 0.09m)", status: "ok" },
+      { id: "Forklift", role: "Active vehicle", metric: "2.2 m/s · Cabin Mask", status: "ok" },
+      { id: "Operator", role: "Seated in the cab", metric: "IoU 0.89 · EXEMPT", status: "ok" },
+      { id: "Pallet", role: "Calibration reference", metric: "1.20m × 1.00m (Err 0.09m)", status: "ok" },
     ],
   },
   {
@@ -139,11 +140,11 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.02",
     glimmerVerdict: "COMPLIANT (NO FOOT TRAFFIC)",
     glimmerReason:
-      "Excavator #EXC-02 boom slews from -42° to +12° to load Haul Truck #TRK-08. Full 5.0m radial exclusion zone is clear of ground personnel.",
+      "The excavator boom slews from -42° to +12° to load the haul truck. The full 5.0 m radial exclusion zone is clear of people on the ground.",
     plcState: "SLEW INTERLOCK ARMED · CLEAR",
     entities: [
-      { id: "EXCAVATOR #EXC-02", role: "Articulated Boom", metric: "Slew -42° -> +12°", status: "warn" },
-      { id: "HAUL TRUCK #TRK-08", role: "Dump Bed Target", metric: "Locked in Bay", status: "ok" },
+      { id: "Excavator", role: "Articulated boom", metric: "Slew -42° -> +12°", status: "warn" },
+      { id: "Haul truck", role: "Dump bed target", metric: "Locked in Bay", status: "ok" },
       { id: "5.0m SWING ARC", role: "Radial Exclusion", metric: "0 Personnel Inside", status: "ok" },
     ],
   },
@@ -163,11 +164,11 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.99",
     glimmerVerdict: "CONFIRMED WORKPLACE INCIDENT",
     glimmerReason:
-      "Blueprint discussion between Worker #401 and Supervisor #402 escalates into a physical shove at T+73.2s (4.8G lateral displacement spike).",
+      "Two people in the aisle come into sudden physical contact at T+73.2 s (a 4.8 G lateral motion spike); the event is escalated for a person to review.",
     plcState: "SECURITY DISPATCH + EVIDENCE LOCKED",
     entities: [
-      { id: "WORKER #401", role: "Personnel · Left", metric: "Shoved · 4.8G Spike", status: "bad" },
-      { id: "SUPERVISOR #402", role: "Personnel · Right", metric: "Aggressor Vector", status: "bad" },
+      { id: "Person", role: "Left", metric: "Sudden contact, 4.8 G", status: "bad" },
+      { id: "Person", role: "Right", metric: "Sudden contact", status: "bad" },
     ],
   },
   {
@@ -186,12 +187,12 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.99 / 0.01",
     glimmerVerdict: "DOCK BREACH · KITCHEN COMPLIANT",
     glimmerReason:
-      "Part A: Worker #502 steps directly into approach path of Freight Truck #TRK-14 (1.05m). Part B: Kitchen Staff #601–#603 complete >=20.0s handwash dwell.",
+      "Part A: a person steps into the approach path of a freight truck (1.05 m). Part B: three people at the kitchen sink each wash for at least 20.0 s.",
     plcState: "DOCK SIREN TRIPPED · PREP LINE OPEN",
     entities: [
-      { id: "FREIGHT #TRK-14", role: "Heavy HGV Truck", metric: "3.1 m/s Dock Approach", status: "warn" },
-      { id: "WORKER #502", role: "Dock Pedestrian", metric: "1.05m Blind-Spot Breach!", status: "bad" },
-      { id: "STAFF #601-#603", role: "Kitchen Prep Crew", metric: "22.4s / 20.0s Verified", status: "ok" },
+      { id: "Freight truck", role: "Heavy goods vehicle", metric: "3.1 m/s Dock Approach", status: "warn" },
+      { id: "Person", role: "Dock pedestrian", metric: "1.05m Blind-Spot Breach!", status: "bad" },
+      { id: "3 people", role: "At the handwash sink", metric: "22.4s / 20.0s Verified", status: "ok" },
     ],
   },
 ];
@@ -458,9 +459,10 @@ export function MonitorSignage() {
                 </div>
               ) : (
                 <div style={{ position: "relative", width: "100%", background: "var(--color-scene)" }}>
-                  <video
+                  <ClipPlayer
                     ref={videoRef}
                     key={activeCam}
+                    poster={`/strips/${activeCam === "master" ? currentAct.camId.split(" ")[0] : activeCam === "cam-04" ? "CAM-04" : "CAM-05"}_strip_1.jpg`}
                     src={
                       activeCam === "master"
                         ? "/videos/master_capabilities_demo.mp4"
@@ -558,7 +560,7 @@ export function MonitorSignage() {
                   fontWeight="600"
                   fontSize="16"
                 >
-                  Forklift #09 · 2.4 m/s
+                  Forklift · 2.4 m/s
                 </text>
 
                 {/* Pedestrian */}
@@ -576,7 +578,7 @@ export function MonitorSignage() {
                     fontWeight="600"
                     fontSize="16"
                   >
-                    Pedestrian #204
+                    Person
                   </text>
                 </g>
 
@@ -632,7 +634,7 @@ export function MonitorSignage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "10px" }}>
               {currentAct.entities.map((ent) => (
                 <div
-                  key={ent.id}
+                  key={`${ent.id}-${ent.role}`}
                   style={{
                     padding: "10px 12px",
                     border: "1px solid var(--color-rule)",

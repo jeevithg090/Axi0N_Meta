@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { initialState, type UiState } from "@/lib/store";
 
-import { DashboardShell, shellBadge } from "./DashboardShell";
+import { chromeFor, DashboardShell, shellBadge } from "./DashboardShell";
 import { SampleDataTag } from "./SampleDataTag";
 
 let streamState: UiState = initialState;
@@ -177,11 +177,17 @@ describe("DashboardShell information architecture", () => {
     expect(screen.getByTestId("mode-badge")).toBeTruthy();
     cleanup();
 
-    pathname = "/worker/plan-1/phone-1";
-    render(<DashboardShell>page</DashboardShell>);
-    expect(document.querySelector(".shell-sidebar")).toBeNull();
-    expect(document.querySelector(".bare-header")).not.toBeNull();
-    expect(screen.getByTestId("mode-badge")).toBeTruthy();
+    for (const path of ["/worker/plan-1/phone-1", "/inspector/view", "/inspector/view/pack-1", "/staff", "/staff/alerts"]) {
+      pathname = path;
+      render(<DashboardShell>page</DashboardShell>);
+      expect(document.querySelector(".shell-sidebar")).toBeNull();
+      expect(document.querySelector(".bare-header")).not.toBeNull();
+      expect(screen.getByTestId("mode-badge")).toBeTruthy();
+      cleanup();
+    }
+    expect(chromeFor("/inspector")).toBe("app");
+    expect(chromeFor("/staffing")).toBe("app");
+    expect(chromeFor("/station/sink-1")).toBe("bare");
   });
 });
 

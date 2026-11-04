@@ -42,6 +42,19 @@ def _get(api: httpx.Client, path: str, **kwargs: object) -> httpx.Response:
     return api.get(path, **kwargs)  # type: ignore[arg-type]
 
 
+def _peek(api: httpx.Client, path: str, limit: int = 65_536, max_s: float = 5.0) -> tuple[int, str]:
+    """Status and the first `limit` bytes, so an event stream cannot hang the check."""
+    time.sleep(PACE_S)
+    data = b""
+    started = time.monotonic()
+    with api.stream("GET", path) as reply:
+        for chunk in reply.iter_bytes():
+            data += chunk
+            if len(data) >= limit or time.monotonic() - started > max_s:
+                break
+        return reply.status_code, data[:limit].decode("utf-8", errors="replace")
+
+
 def test_health_is_ok_and_names_its_revision(api: httpx.Client) -> None:
     health = _get(api, "/health").json()
     assert health["ok"] is True
@@ -54,9 +67,9 @@ def test_every_owner_read_refuses_a_visitor(api: httpx.Client, spec: dict[str, o
     for method, path in spec_operations(spec):
         if method != "GET" or (method, path) in PUBLIC:
             continue
-        reply = _get(api, fill(path))
-        if reply.status_code != 403:
-            open_routes.append(f"GET {path} -> {reply.status_code}")
+        status, _ = _peek(api, fill(path))
+        if status != 403:
+            open_routes.append(f"GET {path} -> {status}")
     assert open_routes == []
 
 
@@ -66,13 +79,13 @@ def test_no_public_read_crashes_or_leaks(api: httpx.Client, spec: dict[str, obje
     for method, path in spec_operations(spec):
         if method != "GET":
             continue
-        reply = _get(api, fill(path))
-        if reply.status_code >= 500 and reply.status_code != 503:
-            problems.append(f"GET {path} -> {reply.status_code}")
-        if found := leaks(reply.text, secrets):
+        status, text = _peek(api, fill(path))
+        if status >= 500 and status != 503:
+            problems.append(f"GET {path} -> {status}")
+        if found := leaks(text, secrets):
             problems.append(f"GET {path} leaks {found}")
     for path in ("/metrics", "/openapi.json", "/no-such-route"):
-        if found := leaks(_get(api, path).text, secrets):
+        if found := leaks(_peek(api, path, limit=1_000_000)[1], secrets):
             problems.append(f"GET {path} leaks {found}")
     assert problems == []
 

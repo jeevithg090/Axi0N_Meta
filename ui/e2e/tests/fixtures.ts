@@ -104,6 +104,36 @@ export async function horizontalOverflow(page: Page): Promise<number> {
   });
 }
 
+/**
+ * Visible elements in `main` that stick out past the right edge of the viewport and are cut off
+ * (no horizontal scroller around them): the page does not scroll, but content is clipped.
+ */
+export async function clippedElements(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const scrolls = (el: Element | null): boolean => {
+      // A scroller inside main (a wide table, a code block) is fine; main itself scrolling
+      // sideways is the overflow this check is for.
+      for (let node = el; node && node.tagName !== "MAIN" && node !== document.body; node = node.parentElement) {
+        const x = getComputedStyle(node).overflowX;
+        if ((x === "auto" || x === "scroll") && node.scrollWidth > node.clientWidth) return true;
+      }
+      return false;
+    };
+    return [...document.querySelectorAll("main *")]
+      .filter((el) => {
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.height > 0 && r.right > window.innerWidth + 2 && !scrolls(el.parentElement);
+      })
+      .filter((el, _, all) => !all.includes(el.parentElement as Element))
+      .slice(0, 5)
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        const text = (el.textContent ?? "").trim().slice(0, 40);
+        return `${el.tagName.toLowerCase()} right=${Math.round(r.right)} "${text}"`;
+      });
+  });
+}
+
 /** The mode badge's text once it has left its initial "…" state (or "…" if it never does). */
 export async function badgeText(page: Page): Promise<string> {
   const badge = page.getByTestId("mode-badge").first();

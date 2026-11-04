@@ -1,4 +1,13 @@
-import { badgeText, expect, horizontalOverflow, NOT_FOUND, PAGES, settle, test } from "./fixtures";
+import {
+  badgeText,
+  clippedElements,
+  expect,
+  horizontalOverflow,
+  NOT_FOUND,
+  PAGES,
+  settle,
+  test,
+} from "./fixtures";
 
 // Every page a judge can reach: it loads, settles (no endless spinner), shows the mode badge,
 // fits the viewport, and a visitor sees a clear owner-only state rather than a raw API error.
@@ -15,9 +24,10 @@ for (const path of PAGES) {
     if (path.includes("demo=1")) expect(badge, "a replay is never shown as LIVE").toBe("REPLAY");
 
     expect(await horizontalOverflow(page), `horizontal overflow on ${path}`).toBeLessThanOrEqual(1);
+    expect.soft(await clippedElements(page), `content cut off at the right on ${path}`).toEqual([]);
 
     // QA-B6: the API's refusal text is not a page; visitors get the owner-only notice.
-    await expect(page.locator("main")).not.toContainText(/owner login required/i);
+    await expect(page.locator("main").first()).not.toContainText(/owner login required/i);
   });
 }
 

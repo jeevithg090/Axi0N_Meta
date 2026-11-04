@@ -10,8 +10,9 @@ every page, the judge journey, the worker page on a 375 px phone, the API down),
 pass in the browser on https://rulecam.vercel.app and on local builds of the agents' branches.
 Re-run: see `docs/qa/README.md`.
 
-Status as of 2026-11-04 01:20 UTC. Live = https://rulecam.vercel.app (deployed ~11 h before this
-pass, API revision `559f976`).
+Status as of 2026-11-04 01:15 UTC. Live = https://rulecam.vercel.app (deployed ~11 h before this
+pass, API revision `559f976`). Branch builds tested: `p1/final-integration` 0b35805,
+`p1/ui-hallmark`, `p1/uc-warehouse`, `p1/uc-crowd`, `p1/uc-supermarket` (heads at 00:55 UTC).
 
 ## Open
 
@@ -22,8 +23,7 @@ pass, API revision `559f976`).
 | QA-B2 | P1 | UI agent (`lib/store.ts`, `ModeBadge`) + ops (`PUBLIC_DEMO`) | every live page | The badge says OFFLINE to every visitor while the API is up and LIVE |
 | QA-B3 | P1 | warehouse (`ui/demo`) | `/demo?demo=1` | Three "Next golden run · Not recorded yet. Needs: … `rulecam golden capture`" blocks show internal TODOs to judges |
 | QA-B4 | P1 | cleanup (deploy) | live UI | Production deploy is stale: `/system`, `/site`, `/streams`, `/audit`, `/extensions`, `/worker` answer 404 on rulecam.vercel.app |
-| QA-B6 | P2 | warehouse (`/plans`), QA (`/cards`) | `/plans`, `/cards` | A visitor sees the API's raw "owner login required" instead of the owner-only notice with a Log in link |
-| QA-B7 | P2 | QA (unowned `/alerts`) | `/alerts` | "Could not reach the Rulecam API" when the API answered 403 (it was reached; the visitor is not the owner) |
+| QA-B6 | P2 | warehouse (`/plans`) | `/plans` | A visitor sees the API's raw "owner login required" ("Site Plans Registry · … owner login required") instead of the owner-only notice; `/cards` is fixed on `p1/qa`, and `usePlans()` now returns `forbidden` for `/plans` to use |
 | QA-B8 | P2 | UI agent (`lib/stream.tsx`) | every page | Every page opens `wss://…/ws`; a visitor is refused, so each page logs 1–5 console errors, including the REPLAY page that needs no server |
 | QA-B9 | P2 | ops (pod data) | `/planner` | The camera list shows 37 test cameras (`phone-66` … `phone-103`, `run5-030`) to visitors |
 | QA-B10 | P2 | pitch (docs) | `docs/DEMO.md` | The checklist expects "✓ Chain intact · 32 records"; the replay shows 35 (the same doc says 35 above) |
@@ -37,6 +37,11 @@ pass, API revision `559f976`).
 | QA-B19 | P1 | UI agent (`components/signage/SystemSignage.tsx`) | `/system` | Made-up numbers shown as live: "Candidates Emitted 7", "Tier-1 Verifications 7 / 0" (wrong field names, so always 7), mode "LIVE" when `/health` fails, cost $0.14 and cap $0.50 defaults, "Muse Spark Open 70B" Tier 2, "10.0 Hz Engine" |
 | QA-B20 | P1 | supermarket (`ui site`; `components/signage/SiteSignage.tsx`) | `/site` | Seeded web-context results (FSA recalls naming real brands, "Searches: 15 · Pages Read: 87", "✓ source picked from the pages the search returned", "LIVE EVAL VERIFIED (PR #145)") shown as today's live research with no SAMPLE/recorded label |
 | QA-B21 | P1 | lead (merge order) | landing (`p1/ui-hallmark`) | The new landing links `/usecases/supermarket`, `/usecases/warehouse`, `/usecases/crowd`; each page lives on its own branch, so the landing has dead links unless all three merge with it |
+| QA-B22 | P2 | warehouse (`/ci`, `/worker`), supermarket (`/advice`, `/site`) | 375 px phone | Content is cut off at the right edge: the shell's `main` scrolls sideways (`/site` label to 492 px, a span to 941 px; `/advice` cards to 417 px; `/ci` trace rows, `/worker` camera select to ~390 px) |
+| QA-B23 | P1 | warehouse (`/usecases/warehouse`), crowd (`/usecases/crowd`) | use-case pages, visitor | A visitor sees the API's raw "owner login required" on both use-case pages; `/usecases/warehouse` also shows a raw "Not Found" and "Loading the story…" forever when the API lacks `/warehouse/story` (UI deployed before the API) |
+| QA-B24 | P1 | supermarket | `/usecases/supermarket` | No branch has this page yet (`p1/uc-supermarket` has no `ui/src/app/usecases/`), but the new landing links it |
+| QA-B25 | P2 | warehouse | `/usecases/warehouse` | Two nested `<main>` landmarks (the shell's and the page's): invalid HTML, confuses screen readers |
+| QA-B26 | P2 | warehouse (`ui/demo`) | `/demo?demo=1` | The first card is tagged "RECORDED LIVE RUN · 1 NOV 2026 · NOT A REPLAY, NOT LIVE NOW" while the header badge says REPLAY: two labels that contradict each other on the judge's first page |
 
 ### QA-B18 · P0 · Ask fabricates answers when the API says no
 
@@ -86,6 +91,24 @@ pass, API revision `559f976`).
   `p1/ui-hallmark`, or hide a card whose page is not in the build. Re-run `journey.spec.ts` on the
   merged build.
 
+### QA-B23 · P1 · Use-case pages show API refusals to visitors
+
+- **Repro:** `ui/e2e` `visitor.spec.ts` (the API answers only its public routes, as the deployed
+  API does for a visitor) on the `p1/uc-warehouse` and `p1/uc-crowd` builds: both pages contain
+  "owner login required". With an API that lacks the branch's routes (`/warehouse/story`,
+  `/warehouse/reports` → 404), `/usecases/warehouse` shows "Not Found" in red and "Loading the
+  story…" never ends.
+- **Expected:** judges reach these pages from the landing without logging in: show the recorded
+  story (labelled REPLAY / recorded) or the owner-only notice for the controls, and an empty or
+  error state instead of a loader when a call fails.
+- **Fix:** catch 403 → `OwnerOnly` for the owner-only panels, keep the public explanation visible;
+  catch 404/5xx → "Not available on this server" and stop the loader. Deploy the API before the UI.
+
+### QA-B26 · P2 · "NOT A REPLAY" under a REPLAY badge
+
+- **Fix:** "RECORDED ON THE DEPLOYED STACK · 1 NOV 2026" (drop "not a replay"), or explain once:
+  "REPLAY = a recorded run; nothing on this page is live".
+
 ### QA-B1 · P1 · Owner login is off on the live pod
 
 - **Repro:** `curl https://rulecam.vercel.app/rulecam-api/auth/me` →
@@ -130,15 +153,11 @@ pass, API revision `559f976`).
 
 ### QA-B6 · P2 · Raw "owner login required"
 
-- **Repro:** visitor opens `/plans` → "Plans · owner login required"; `/cards` → "Rule cards ·
-  owner login required".
+- **Repro:** visitor opens `/plans` → "Plans · owner login required" (live) / "Site Plans
+  Registry · GET /plans (0 registered) · … owner login required" (branch builds).
 - **Expected:** the shared `OwnerOnly` notice ("… is for the site owner. Log in to continue.").
-- **Fix:** on a 403 from the API, render `<OwnerOnly what="…" checking={false} />`.
-
-### QA-B7 · P2 · "/alerts" blames the network for a 403
-
-- **Repro:** visitor opens `/alerts` → "Could not reach the Rulecam API; alerts will appear live."
-- **Fix:** distinguish 403 (owner-only notice) from a network failure.
+- **Fix:** `const { forbidden } = usePlans()` (added on `p1/qa`) → render
+  `<OwnerOnly what="The site's plans" checking={false} />`, as `/cards` now does.
 
 ### QA-B8 · P2 · Console errors on every page from the refused socket
 
@@ -210,8 +229,18 @@ pass, API revision `559f976`).
 | ID | Sev | Where | Summary | Fix | Regression test |
 |---|---|---|---|---|---|
 | QA-B5 | P2 | every JSON route (API) | A non-UTF-8 body under a non-JSON content type crashed FastAPI's 422 handler (`UnicodeDecodeError`) → 500 | `src/rulecam/api/validation.py`: the 422 handler decodes bytes leniently | `tests/e2e/test_api_surface.py::test_public_writes_reject_bad_bodies_cleanly[binary]` |
+| QA-B6 (cards) | P2 | `/cards` | Raw "owner login required" | `usePlans` reports `forbidden`; the page renders `OwnerOnly` | `ui/src/app/cards/owner-only.test.tsx`, `ui/e2e` `visitor.spec.ts` |
+| QA-B7 | P2 | `/alerts` | "Could not reach the Rulecam API" on a 403 | 403 → `OwnerOnly`; a network failure still says so | `ui/src/app/cards/owner-only.test.tsx` |
 
 ## Checked and fine
+
+- Branch APIs (01:10 UTC heads of `p1/glasses`, `p1/staff-app`, `p1/compliance`,
+  `p1/uc-supermarket`, `p1/uc-warehouse`, `p1/uc-crowd`): `tests/e2e/test_api_surface.py` run on
+  each branch's code: every new route refuses visitors, forged sessions, cross-origin and
+  CSRF-less writes; no leaks; only failure is QA-B5 (fixed here, arrives with the merge).
+  `p1/compliance` adds two deliberately public routes, `GET /proof/shared/{token}` and
+  `…/document` (the token is the key): listed in `surface.PUBLIC_PENDING`; move them to `PUBLIC`
+  when it merges.
 
 - Every owner route (53 of 77 HTTP operations on the full app) refuses a visitor, a forged
   session cookie, a drive-by write to the owner's loopback from another origin, and an owner write

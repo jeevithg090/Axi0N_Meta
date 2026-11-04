@@ -48,7 +48,7 @@ test("the worker page reads well on a 375 px phone", async ({ page }) => {
   expect(small).toEqual([]);
 
   // No identity anywhere on the page.
-  await expect(page.locator("main")).not.toContainText(/track[_ ]?id|face id|employee id/i);
+  await expect(page.locator("main").first()).not.toContainText(/track[_ ]?id|face id|employee id/i);
 });
 
 test("the worker page says so when the API is unreachable", async ({ page }) => {
@@ -56,5 +56,5 @@ test("the worker page says so when the API is unreachable", async ({ page }) => 
   await page.route("**/rulecam-api/**", (route) => route.fulfill({ status: 503, json: { detail: "down" } }));
   await page.goto("/worker/qa-plan/dock");
   await settle(page);
-  await expect(page.locator("main")).not.toBeEmpty();
+  await expect(page.locator("main").first()).not.toBeEmpty();
 });

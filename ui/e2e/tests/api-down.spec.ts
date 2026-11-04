@@ -17,7 +17,7 @@ for (const path of PAGES) {
     const badge = await badgeText(page);
     expect(badge, "never LIVE without a server").not.toBe("LIVE");
     if (path.includes("demo=1")) expect(badge).toBe("REPLAY");
-    const text = (await page.locator("main").innerText()).trim();
+    const text = (await page.locator("main").first().innerText()).trim();
     expect(text.length, `${path} shows something`).toBeGreaterThan(0);
   });
 }

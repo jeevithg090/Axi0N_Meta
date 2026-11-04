@@ -7,6 +7,7 @@ it lands: a new route is owner-only unless it is added to `surface.PUBLIC` with 
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 import pytest
@@ -16,7 +17,15 @@ from starlette.websockets import WebSocketDisconnect
 
 from rulecam.api.auth import SESSION_COOKIE
 from tests.e2e.conftest import UI_ORIGIN, canary_values
-from tests.e2e.surface import FRAMEWORK, PUBLIC, RouteInfo, app_routes, fill, leaks
+from tests.e2e.surface import (
+    FRAMEWORK,
+    PUBLIC,
+    PUBLIC_PENDING,
+    RouteInfo,
+    app_routes,
+    fill,
+    leaks,
+)
 
 EVIL_ORIGIN = "https://evil.example"
 
@@ -26,7 +35,8 @@ def _http_routes(app: FastAPI) -> list[RouteInfo]:
 
 
 def _owner_routes(app: FastAPI) -> list[RouteInfo]:
-    return [r for r in _http_routes(app) if (r.method, r.path) not in PUBLIC]
+    public = PUBLIC.keys() | PUBLIC_PENDING.keys()
+    return [r for r in _http_routes(app) if (r.method, r.path) not in public]
 
 
 def _crashed(status: int, text: str) -> bool:
@@ -34,10 +44,28 @@ def _crashed(status: int, text: str) -> bool:
     return status >= 500 and not (status in {501, 503} and text.startswith('{"detail":'))
 
 
+STREAMING = 0  # the status `_call` reports for a stream that was still open after the timeout
+
+
 def _call(client: TestClient, route: RouteInfo, **kwargs: Any) -> tuple[int, str]:
+    """One request; an event stream gets `STREAM_TIMEOUT_S` (TestClient reads the whole body)."""
     body: dict[str, Any] = {"json": {}} if route.method in {"POST", "PUT", "PATCH"} else {}
-    reply = client.request(route.method, fill(route.path), **{**body, **kwargs})
-    return reply.status_code, reply.text
+    if not route.streams:
+        reply = client.request(route.method, fill(route.path), **{**body, **kwargs})
+        return reply.status_code, reply.text
+    done: list[tuple[int, str]] = []
+
+    def request() -> None:
+        reply = client.request(route.method, fill(route.path), **{**body, **kwargs})
+        done.append((reply.status_code, reply.text))
+
+    worker = threading.Thread(target=request, daemon=True)
+    worker.start()
+    worker.join(STREAM_TIMEOUT_S)
+    return done[0] if done else (STREAMING, "")
+
+
+STREAM_TIMEOUT_S = 5.0
 
 
 def test_the_allowlist_names_only_routes_that_exist(local_app: FastAPI) -> None:
@@ -98,7 +126,7 @@ def test_owner_writes_need_the_ui_origin_and_csrf(local_app: FastAPI, owner: Tes
 
 def test_the_owner_session_reaches_owner_reads(local_app: FastAPI, owner: TestClient) -> None:
     """The positive control: a real session is not refused (so the 403s above mean something)."""
-    reads = [r for r in _owner_routes(local_app) if r.method == "GET"]
+    reads = [r for r in _owner_routes(local_app) if r.method == "GET" and not r.streams]
     refused = [r.path for r in reads if _call(owner, r)[0] == 403]
     assert refused == []
 
@@ -119,7 +147,7 @@ def test_no_owner_read_leaks_a_secret(local_app: FastAPI, owner: TestClient) -> 
     """Even the owner never gets a key, token, webhook URL or passphrase back."""
     problems = []
     for route in _http_routes(local_app):
-        if route.method != "GET":
+        if route.method != "GET" or route.streams:  # the owner's own endless event streams
             continue
         status, text = _call(owner, route)
         if _crashed(status, text):
@@ -221,7 +249,9 @@ def test_no_cors_grant_to_a_foreign_origin(local_app: FastAPI, visitor: TestClie
             headers={"Origin": EVIL_ORIGIN, "Access-Control-Request-Method": route.method},
         )
         simple = (
-            visitor.get(url, headers={"Origin": EVIL_ORIGIN}) if route.method == "GET" else None
+            visitor.get(url, headers={"Origin": EVIL_ORIGIN})
+            if route.method == "GET" and not route.streams
+            else None
         )
         for reply in (preflight, simple):
             if reply is None:

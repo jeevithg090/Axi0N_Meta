@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from fastapi.routing import APIRoute, APIWebSocketRoute
 
 Operation = tuple[str, str]  # (METHOD, path template)
@@ -42,6 +43,13 @@ PUBLIC: Final[dict[Operation, str]] = {
     ("POST", "/worker/dispute/voice"): "anonymous spoken dispute",
     ("GET", "/worker/{plan_id}/{camera}"): "the worker's rules page (QR poster)",
     ("GET", "/worker/{plan_id}/{camera}/poster"): "the printable A4 poster",
+}
+
+# Public on purpose in branches not merged yet (QA checked them on the branch); once merged they
+# move to PUBLIC, until then they are not reported as stale.
+PUBLIC_PENDING: Final[dict[Operation, str]] = {
+    ("GET", "/proof/shared/{token}"): "p1/compliance: a shared proof pack; the token is the key",
+    ("GET", "/proof/shared/{token}/document"): "p1/compliance: the shared pack as PDF/HTML",
 }
 
 # FastAPI's own documentation routes: public, and they list nothing the OpenAPI does not.
@@ -80,13 +88,25 @@ class RouteInfo:
     method: str  # "GET", "POST", ... or "WS"
     path: str
     in_schema: bool
+    streams: bool = False  # a server-sent event stream that may never end
+
+
+def _streams(route: APIRoute) -> bool:
+    """Whether `route` answers with a (possibly endless) stream, e.g. server-sent events."""
+    if isinstance(route.response_class, type) and issubclass(
+        route.response_class, StreamingResponse
+    ):
+        return True
+    declared = str(route.responses) + str(getattr(route.endpoint, "__annotations__", {}))
+    return "event-stream" in declared or "StreamingResponse" in declared
 
 
 def _walk(routes: Iterable[object], prefix: str = "") -> Iterator[RouteInfo]:
     for route in routes:
         if isinstance(route, APIRoute):
+            streams = _streams(route)
             for method in sorted((route.methods or set()) - {"HEAD", "OPTIONS"}):
-                yield RouteInfo(method, prefix + route.path, route.include_in_schema)
+                yield RouteInfo(method, prefix + route.path, route.include_in_schema, streams)
         elif isinstance(route, APIWebSocketRoute):
             yield RouteInfo("WS", prefix + route.path, False)
         else:  # FastAPI >= 0.160 wraps included routers; older versions flatten them

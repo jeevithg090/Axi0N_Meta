@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 
-import { badgeText, expect, NOT_FOUND, settle, test } from "./fixtures";
+import { badgeText, clippedElements, expect, NOT_FOUND, settle, test } from "./fixtures";
 
 // The judge's path: landing → each use-case page → the golden replay → the browser verify page →
 // ask → incidents. Every internal link on the way must lead somewhere real.
@@ -41,6 +41,22 @@ test("each use-case page opens from the landing page", async ({ page }) => {
   }
 });
 
+// The three use-case pages, checked directly (a branch may not link them from its landing yet).
+for (const useCase of ["/usecases/warehouse", "/usecases/crowd", "/usecases/supermarket"]) {
+  test(`use case ${useCase} settles with real content`, async ({ page, request }) => {
+    test.skip((await request.get(useCase)).status() === 404, `${useCase} is not in this build`);
+    await page.goto(useCase);
+    await settle(page);
+    await expect(page.locator("main h1, main h2").first()).toBeVisible();
+    // QA-B23: an API route missing from the deployed API must not leave a raw "Not Found" or a
+    // loader that never ends.
+    await expect(page.locator("main").first()).not.toContainText(/^Not Found$|Loading the story…/m, {
+      timeout: 15_000,
+    });
+    expect.soft(await clippedElements(page), `content cut off on ${useCase}`).toEqual([]);
+  });
+}
+
 test("the golden replay tells its story and its evidence verifies in the browser", async ({ page }) => {
   await page.goto("/demo?demo=1");
   await settle(page);
@@ -79,7 +95,7 @@ test("the demo's replay links stay in replay", async ({ page }) => {
 test("ask shows a visitor what it is and how to get in", async ({ page }) => {
   await page.goto("/ask");
   await settle(page);
-  await expect(page.locator("main")).toContainText(/ask/i);
+  await expect(page.locator("main").first()).toContainText(/ask/i);
   const ownerOnly = page.getByTestId("owner-only");
   if (await ownerOnly.count()) await expect(ownerOnly.getByRole("link", { name: /log in/i })).toBeVisible();
 });
@@ -87,6 +103,6 @@ test("ask shows a visitor what it is and how to get in", async ({ page }) => {
 test("incidents shows a visitor a clear state", async ({ page }) => {
   await page.goto("/incidents");
   await settle(page);
-  await expect(page.locator("main")).toContainText(/incident/i);
-  await expect(page.locator("main")).not.toContainText(/owner login required/i);
+  await expect(page.locator("main").first()).toContainText(/incident/i);
+  await expect(page.locator("main").first()).not.toContainText(/owner login required/i);
 });

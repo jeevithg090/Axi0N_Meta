@@ -21,8 +21,8 @@ recorded live runs ([T02 and T04 goldens](scenarios/README.md); the same verdict
 
 ## Try it now
 
-`{{LIVE_UI_URL}}` is the live site's address (see [`SUBMISSION.md`](SUBMISSION.md) for the
-current one).
+`{{LIVE_UI_URL}}` stands for the live site's address, filled in at submission (the UI may move
+from Vercel to RunPod).
 
 | What | Link | What you will see |
 |---|---|---|

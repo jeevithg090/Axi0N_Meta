@@ -750,12 +750,19 @@ export function SiteSignage() {
                 overflow: "hidden",
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={shelfImgUrl}
-                alt="Shelf with confirmed empty bays numbered"
-                style={{ width: "100%", height: "340px", objectFit: "cover", display: "block", opacity: 0.88 }}
-              />
+              {/* /media/ paths are not bundled with the site (QA-B14): show a plain note, not a 404. */}
+              {shelfImgUrl.startsWith("/media/") ? (
+                <figure className="clip-still" style={{ height: "340px" }}>
+                  <figcaption>Shelf photo not bundled with this build.</figcaption>
+                </figure>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={shelfImgUrl}
+                  alt="Shelf with confirmed empty bays numbered"
+                  style={{ width: "100%", height: "340px", objectFit: "cover", display: "block", opacity: 0.88 }}
+                />
+              )}
               {/* Interactive SVG Overlay of Confirmed Gaps vs Rejected Boxes */}
               <svg
                 viewBox={`0 0 ${shelfReport.width} ${shelfReport.height}`}

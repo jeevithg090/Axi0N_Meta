@@ -423,7 +423,8 @@ export function AuditSignage() {
             gap: "var(--s3)",
             padding: "var(--s3)",
             background: "var(--paper-2)",
-            border: "2px solid var(--ink)",
+            border: "1px solid var(--color-rule)",
+            borderRadius: "var(--radius-card)",
           }}
         >
           <div>
@@ -528,7 +529,8 @@ export function AuditSignage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
                 padding: "7px 12px",
-                border: "1.5px solid var(--ink)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
                 background: "var(--paper)",
                 fontFamily: "var(--font-dm-mono, monospace)",
                 fontSize: "12px",
@@ -610,9 +612,9 @@ export function AuditSignage() {
                       className="dm"
                       style={{
                         fontSize: "11px",
-                        textTransform: "uppercase",
                         padding: "1px 5px",
-                        border: "1px solid var(--ink)",
+                        border: "1px solid var(--color-rule)",
+                        borderRadius: "var(--radius-card)",
                         marginRight: "8px",
                       }}
                     >
@@ -636,23 +638,23 @@ export function AuditSignage() {
                   <div
                     style={{
                       padding: "var(--s3)",
-                      background: "#141414",
-                      color: "#ECEAE3",
-                      borderBottom: "2px solid var(--ink)",
+                      background: "var(--color-scene)",
+                      color: "var(--color-on-scene)",
+                      borderBottom: "1px solid var(--color-rule)",
                       fontFamily: "var(--font-dm-mono, monospace)",
                       fontSize: "12px",
                     }}
                   >
                     <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", rowGap: "6px", marginBottom: "12px" }}>
-                      <span style={{ color: "#9e9c94" }}>prev_hash:</span>
+                      <span style={{ color: "var(--color-on-scene-2)" }}>prev_hash:</span>
                       <span style={{ wordBreak: "break-all" }}>{r.prev_hash}</span>
-                      <span style={{ color: "#9e9c94" }}>recorded hash:</span>
-                      <span style={{ wordBreak: "break-all", color: "#F2D100" }}>{r.hash}</span>
-                      <span style={{ color: "#9e9c94" }}>WebCrypto SHA-256:</span>
+                      <span style={{ color: "var(--color-on-scene-2)" }}>recorded hash:</span>
+                      <span style={{ wordBreak: "break-all", color: "var(--color-cool)" }}>{r.hash}</span>
+                      <span style={{ color: "var(--color-on-scene-2)" }}>WebCrypto SHA-256:</span>
                       <span
                         style={{
                           wordBreak: "break-all",
-                          color: r.computedHash === r.hash ? "#5fd38a" : "#ff5a2b",
+                          color: r.computedHash === r.hash ? "var(--color-ok)" : "var(--color-bad)",
                         }}
                       >
                         {r.computedHash} ({r.computedHash === r.hash ? "BYTE-FOR-BYTE MATCH" : "MISMATCH"})
@@ -662,10 +664,10 @@ export function AuditSignage() {
                       style={{
                         margin: 0,
                         padding: "12px",
-                        background: "#0a0b0c",
+                        background: "var(--color-scene)",
                         border: "1px solid #333",
                         overflowX: "auto",
-                        color: "#ECEAE3",
+                        color: "var(--color-on-scene)",
                       }}
                     >
                       {JSON.stringify(r.payload, null, 2)}

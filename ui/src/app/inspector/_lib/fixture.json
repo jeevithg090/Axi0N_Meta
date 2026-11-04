@@ -1,0 +1,3568 @@
+{
+  "golden": {
+    "expires_at": "2026-11-05T00:00:00Z",
+    "pack": {
+      "audiences": ["inspector", "insurer", "hq", "worker_rep"],
+      "created_at": "2026-11-04T01:00:00Z",
+      "crew_lang": "en",
+      "days": [
+        {
+          "chain_ok": true,
+          "committed_n": null,
+          "committed_root": null,
+          "day": "2026-11-01",
+          "n": 35,
+          "reason": "",
+          "root": "6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e",
+          "window_first": 7,
+          "window_last": 31
+        }
+      ],
+      "disclaimer": "Evidence for the period shown, computed from the site's tamper-evident log. It is not a certificate of legal compliance: an inspector, insurer or court decides what it proves.",
+      "format": "rulecam-proof-pack/1",
+      "incidents": [
+        {
+          "camera_id": "phone-24",
+          "event_id": "ev-f0f5b5b2888faeea71cb7f54",
+          "key": "2026-11-01#9",
+          "route": "human_queue",
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "severity": "high",
+          "ts": "2026-11-01T01:40:16.307523Z",
+          "verdict": "no_violation"
+        },
+        {
+          "camera_id": "phone-25",
+          "event_id": "ev-86fe839b744f2f026c25404c",
+          "key": "2026-11-01#16",
+          "route": "human_queue",
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "severity": "high",
+          "ts": "2026-11-01T01:54:52.572911Z",
+          "verdict": "no_violation"
+        },
+        {
+          "camera_id": "phone-26",
+          "event_id": "ev-725c63ca121b14653fc2f43e",
+          "key": "2026-11-01#26",
+          "route": "human_queue",
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "severity": "high",
+          "ts": "2026-11-01T02:29:39.098165Z",
+          "verdict": "no_violation"
+        }
+      ],
+      "metrics": [
+        {
+          "id": "alerts_raised",
+          "label": "Alerts raised by the rules",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-01#16", "2026-11-01#26", "2026-11-01#9"],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 3
+        },
+        {
+          "id": "glimmer_verified",
+          "label": "Confirmed by Muse Glimmer",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "violation"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "glimmer_rejected",
+          "label": "Rejected by Muse Glimmer",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-01#11", "2026-11-01#18", "2026-11-01#28"],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "no_violation"
+            }
+          },
+          "unit": "count",
+          "value": 3
+        },
+        {
+          "id": "glimmer_unsure",
+          "label": "Muse Glimmer unsure",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "unsure"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "sent_to_person",
+          "label": "Sent to a person to review",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-01#12", "2026-11-01#19", "2026-11-01#29"],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.decision.route": "human_queue"
+            }
+          },
+          "unit": "count",
+          "value": 3
+        },
+        {
+          "id": "policy_alerted",
+          "label": "Passed on as alerts by the policy",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-01#12", "2026-11-01#19", "2026-11-01#29"],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.decision.alert": true
+            }
+          },
+          "unit": "count",
+          "value": 3
+        },
+        {
+          "id": "tamper_attempts",
+          "label": "Tamper attempts logged",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "tamper_attempt"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "actions",
+          "label": "Actions taken",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [
+            "2026-11-01#10",
+            "2026-11-01#13",
+            "2026-11-01#17",
+            "2026-11-01#20",
+            "2026-11-01#27",
+            "2026-11-01#30"
+          ],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "action"
+            }
+          },
+          "unit": "count",
+          "value": 6
+        },
+        {
+          "id": "actions_dry_run",
+          "label": "Of which dry-run (logged, not sent)",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [
+            "2026-11-01#10",
+            "2026-11-01#13",
+            "2026-11-01#17",
+            "2026-11-01#20",
+            "2026-11-01#27",
+            "2026-11-01#30"
+          ],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {
+              "payload.detail": "dry-run"
+            },
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "action"
+            }
+          },
+          "unit": "count",
+          "value": 6
+        },
+        {
+          "id": "acks",
+          "label": "Acknowledgements by a role",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "ack"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "time_to_verdict_median",
+          "label": "Median time from alert to Glimmer's verdict",
+          "previous": null,
+          "previous_refs": [],
+          "refs": [
+            "2026-11-01#11",
+            "2026-11-01#16",
+            "2026-11-01#18",
+            "2026-11-01#26",
+            "2026-11-01#28",
+            "2026-11-01#9"
+          ],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "median_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "verdict",
+                "payload.tier": "glimmer"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 22.99452
+        },
+        {
+          "id": "time_to_action_median",
+          "label": "Median time from alert to first action",
+          "previous": null,
+          "previous_refs": [],
+          "refs": [
+            "2026-11-01#10",
+            "2026-11-01#16",
+            "2026-11-01#17",
+            "2026-11-01#26",
+            "2026-11-01#27",
+            "2026-11-01#9"
+          ],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "median_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "action"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 1.177422
+        },
+        {
+          "id": "time_to_action_p90",
+          "label": "90th percentile time from alert to first action",
+          "previous": null,
+          "previous_refs": [],
+          "refs": [
+            "2026-11-01#10",
+            "2026-11-01#16",
+            "2026-11-01#17",
+            "2026-11-01#26",
+            "2026-11-01#27",
+            "2026-11-01#9"
+          ],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "p90_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "action"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 1.327941
+        },
+        {
+          "id": "time_to_ack_median",
+          "label": "Median time from alert to acknowledgement",
+          "previous": null,
+          "previous_refs": [],
+          "refs": [],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "median_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "ack"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": null
+        },
+        {
+          "id": "disputes_filed",
+          "label": "Disputes filed by workers",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "disputes",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "dispute",
+              "payload.dispute.outcome": "pending"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "disputes_upheld",
+          "label": "Disputes upheld (false alarm)",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "disputes",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "dispute",
+              "payload.dispute.outcome": "upheld"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "disputes_rejected",
+          "label": "Disputes rejected",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "disputes",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "dispute",
+              "payload.dispute.outcome": "rejected"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "false_alarm_labels",
+          "label": "Alerts labelled false alarm",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "disputes",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "label",
+              "payload.label": "false_alarm"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "plan_approvals",
+          "label": "Plans approved (Rule CI gate at approval)",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-01#15", "2026-11-01#25", "2026-11-01#8"],
+          "section": "governance",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "plan",
+              "payload.event": "plan_approved"
+            }
+          },
+          "unit": "count",
+          "value": 3
+        },
+        {
+          "id": "setting_proposals",
+          "label": "Protected privacy settings proposed",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "governance",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "rule_change",
+              "payload.action": "setting_proposal"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "settings_applied",
+          "label": "Protected settings changed (both keys)",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "governance",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "rule_change",
+              "payload.action": "setting_applied"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "settings_rejected",
+          "label": "Protected setting changes refused",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "governance",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "rule_change",
+              "payload.action": "setting_rejected"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "settings_without_both_keys",
+          "label": "Protected settings changed without both keys",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "governance",
+          "spec": {
+            "camera": null,
+            "op": "two_key_unapproved",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {}
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "rule:keep-people-2m-from-moving-forklift:alerts_raised",
+          "label": "Near misses recorded",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-01#16", "2026-11-01#26", "2026-11-01#9"],
+          "section": "forklift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": "keep-people-2m-from-moving-forklift",
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 3
+        },
+        {
+          "id": "rule:keep-people-2m-from-moving-forklift:glimmer_verified",
+          "label": "Confirmed by Muse Glimmer (refresher-training review due)",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "forklift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": "keep-people-2m-from-moving-forklift",
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "violation"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "rule:keep-people-2m-from-moving-forklift:glimmer_rejected",
+          "label": "Rejected by Muse Glimmer",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-01#11", "2026-11-01#18", "2026-11-01#28"],
+          "section": "forklift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": "keep-people-2m-from-moving-forklift",
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "no_violation"
+            }
+          },
+          "unit": "count",
+          "value": 3
+        },
+        {
+          "id": "shift:early:alerts_raised",
+          "label": "Alerts raised, early shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "early",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "shift:early:glimmer_verified",
+          "label": "Confirmed by Glimmer, early shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "early",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "violation"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "shift:late:alerts_raised",
+          "label": "Alerts raised, late shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "late",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "shift:late:glimmer_verified",
+          "label": "Confirmed by Glimmer, late shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "late",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "violation"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "shift:night:alerts_raised",
+          "label": "Alerts raised, night shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-01#16", "2026-11-01#26", "2026-11-01#9"],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "night",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 3
+        },
+        {
+          "id": "shift:night:glimmer_verified",
+          "label": "Confirmed by Glimmer, night shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "night",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "violation"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "camera:phone-24:alerts_raised",
+          "label": "Alerts raised on phone-24",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-01#9"],
+          "section": "camera",
+          "spec": {
+            "camera": "phone-24",
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "camera:phone-25:alerts_raised",
+          "label": "Alerts raised on phone-25",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-01#16"],
+          "section": "camera",
+          "spec": {
+            "camera": "phone-25",
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "camera:phone-26:alerts_raised",
+          "label": "Alerts raised on phone-26",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-01#26"],
+          "section": "camera",
+          "spec": {
+            "camera": "phone-26",
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        }
+      ],
+      "notes": [
+        "No camera coverage records were chained in this period, so the pack makes no claim about how much of the period the cameras could see; BLIND time is unknown, not zero.",
+        "Every action in this period ran in dry-run mode: it was logged but no one was notified, spoken to or interlocked.",
+        "No acknowledgements were chained, so there is no acknowledgement time.",
+        "No protected privacy setting (privacy mode, retention, the per-person metrics ban) was proposed or changed in the disclosed records.",
+        "Numbers are per rule, camera and shift (early, late, night, UTC); nothing is measured or grouped per person or per tracked individual."
+      ],
+      "pack_id": "pp-000000000001",
+      "period": {
+        "end": "2026-11-01T02:31:00Z",
+        "previous_end": "2026-11-01T01:40:00Z",
+        "previous_start": "2026-11-01T00:49:00Z",
+        "shifts": [
+          {
+            "name": "early",
+            "start_hour": 6
+          },
+          {
+            "name": "late",
+            "start_hour": 14
+          },
+          {
+            "name": "night",
+            "start_hour": 22
+          }
+        ],
+        "start": "2026-11-01T01:40:00Z",
+        "timezone": "UTC"
+      },
+      "privacy_mode": "strict",
+      "records": [
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#6",
+          "proof": [
+            ["3b5747d84e60a59980af27aa9092cc806177236698fbd3eadc1b411ca7074435", "L"],
+            ["1743d9086039ac8408e7b2b6ed642af85acf6fe2ad7302986f9b9a7a5ad5f31c", "R"],
+            ["d32ededc3e0bd8201ce91a160f7c643a57d5a57df9125657e83c694088b0a5db", "L"],
+            ["2b03e85bcd6e788c791dce045631b47839169afc70a6deccef90edd8fddacb25", "R"],
+            ["7f4e40aea1136c674eabafa15a37e63df602cd97e466bc11e4aa2d63156077ab", "R"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "aca40e9c3627e1a563503ad332f4311e16bbaeccad5deb78c42e643425054a04",
+            "kind": "verdict",
+            "payload": {
+              "event_id": "ev-7c178ff2fc3077ff611eb7e9",
+              "latency_ms": 31450,
+              "model_version": "muse-glimmer-30b",
+              "reason": "The frames show a single person wearing a blue high-visibility jacket seated in the operator\u2019s seat of a yellow forklift and operating its controls; the person is the forklift operator on the vehicle, not a separate pedestrian near a moving forklift.",
+              "reasoning": null,
+              "scene_text": "1/6 t+0.0s keep-people-2m-moving-forklift measured 0.10 m\nsubject: person\n3.3 m\n2/6 t+0.4s keep-people-2m-moving-forklift measured 0.10 m\nsubject: person\n3.1 m\n3/6 t+0.8s keep-people-2m-moving-forklift measured 0.10 m\nsubject: person\n3.1 m\n4/6 t+1.2s keep-people-2m-moving-forklift measured 0.10 m\nsubject: person\n3.1 m\n5/6 t+1.6s keep-people-2m-moving-forklift measured 0.10 m\nsubject: person\n2.9 m\n6/6 t+2.1s keep-people-2m-moving-forklift measured 0.10 m\nsubject: person\n2.8 m",
+              "score": 0.08,
+              "tamper": false,
+              "tier": "glimmer",
+              "verdict": "no_violation"
+            },
+            "prev_hash": "3b5747d84e60a59980af27aa9092cc806177236698fbd3eadc1b411ca7074435",
+            "seq": 6,
+            "site": "demo",
+            "ts": "2026-11-01T00:00:57.274880Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#7",
+          "proof": [
+            ["4fc431ae395c168edd42cd36015b9dfd9ae14f3619e90b9fe04336a1a992ba6f", "R"],
+            ["8079fc38ed47b405e8f87a44a9161b041b7408131f7e7287b7389224282cf6c8", "L"],
+            ["d32ededc3e0bd8201ce91a160f7c643a57d5a57df9125657e83c694088b0a5db", "L"],
+            ["2b03e85bcd6e788c791dce045631b47839169afc70a6deccef90edd8fddacb25", "R"],
+            ["7f4e40aea1136c674eabafa15a37e63df602cd97e466bc11e4aa2d63156077ab", "R"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "4ded5f3dc4076243fb998e9c9b109b818f8e0f9328bc6120bdcf7b1f8b5975c6",
+            "kind": "plan",
+            "payload": {
+              "plan_version_hash": "23e7981d5e923bef7302b44e9b92eceb39cffe8166358bf3146a5c2270cf7586",
+              "rules": ["keep-people-2m-from-moving-forklift"]
+            },
+            "prev_hash": "aca40e9c3627e1a563503ad332f4311e16bbaeccad5deb78c42e643425054a04",
+            "seq": 7,
+            "site": "demo",
+            "ts": "2026-11-01T01:40:04.150727Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#8",
+          "proof": [
+            ["4ded5f3dc4076243fb998e9c9b109b818f8e0f9328bc6120bdcf7b1f8b5975c6", "L"],
+            ["8079fc38ed47b405e8f87a44a9161b041b7408131f7e7287b7389224282cf6c8", "L"],
+            ["d32ededc3e0bd8201ce91a160f7c643a57d5a57df9125657e83c694088b0a5db", "L"],
+            ["2b03e85bcd6e788c791dce045631b47839169afc70a6deccef90edd8fddacb25", "R"],
+            ["7f4e40aea1136c674eabafa15a37e63df602cd97e466bc11e4aa2d63156077ab", "R"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "4fc431ae395c168edd42cd36015b9dfd9ae14f3619e90b9fe04336a1a992ba6f",
+            "kind": "plan",
+            "payload": {
+              "event": "plan_approved",
+              "gates": [
+                {
+                  "reasons": [],
+                  "rule_id": "keep-people-2m-from-moving-forklift",
+                  "status": "pass"
+                }
+              ],
+              "plan_id": "plan-9d3708fd3bba",
+              "plan_version_hash": "23e7981d5e923bef7302b44e9b92eceb39cffe8166358bf3146a5c2270cf7586",
+              "rules": ["keep-people-2m-from-moving-forklift"],
+              "version": 1
+            },
+            "prev_hash": "4ded5f3dc4076243fb998e9c9b109b818f8e0f9328bc6120bdcf7b1f8b5975c6",
+            "seq": 8,
+            "site": "demo",
+            "ts": "2026-11-01T01:40:04.298017Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#9",
+          "proof": [
+            ["54b19bf0f53651c776faf1795a8e59e61c33a434987131c3feaae3c01e407698", "R"],
+            ["05c80c3b390ed53a338d5e3dd72b8b26ec1d21275dc297278fd957790c01d197", "R"],
+            ["9008f5e58e15b42445166de73c9710f5497edfc77bf8de12bc8e538ac98b89b6", "R"],
+            ["63e16e37c9da2d8ccec3646cacd45babe99535a82d9504f9ea3a58006f250f85", "L"],
+            ["7f4e40aea1136c674eabafa15a37e63df602cd97e466bc11e4aa2d63156077ab", "R"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "2466bf4853e91216df3181dfa00bd973f7253caeccb207726e2e20b2c4639682",
+            "kind": "candidate",
+            "payload": {
+              "candidate": {
+                "camera_id": "phone-24",
+                "event_id": "ev-f0f5b5b2888faeea71cb7f54",
+                "measurement": {
+                  "hi": null,
+                  "lo": null,
+                  "unit": "m",
+                  "value": 0.007221
+                },
+                "plan_version_hash": "23e7981d5e923bef7302b44e9b92eceb39cffe8166358bf3146a5c2270cf7586",
+                "predicate_trace": {
+                  "all": true,
+                  "all.0.distance_m": true,
+                  "all.0.distance_m.value": 0.007221,
+                  "all.1.moving": true,
+                  "all.1.moving.value": 1.362096,
+                  "all.value": 0.007221,
+                  "episode_s": 1.1,
+                  "subject": "phone-24:person:140d8500"
+                },
+                "rule_id": "keep-people-2m-from-moving-forklift",
+                "rule_ir_hash": "c7b787dfea023ec4d80b1f0c9fd7e6b9a581b49a1979b64c07f8fcd169a71f00",
+                "severity": "high",
+                "strip_paths": [],
+                "track_window_hash": "e343156d6328dc52ab007c9bfea6d67f64e3fdc74d9b6d401632a604ad270a69",
+                "ts_end": "2026-11-01T01:40:05.142919Z",
+                "ts_start": "2026-11-01T01:40:04.142919Z"
+              },
+              "context": {
+                "calibration": {
+                  "camera_id": "phone-24",
+                  "err_m": 0.09392787013831494,
+                  "homography": [
+                    [0.1030096731263467, 0.00858413942719564, -78.39036124914985],
+                    [-8.497402810329949e-18, 0.8595769109944249, 1.1881257440576895e-14],
+                    [0.01249999999999982, -0.028959760273972155, 0.9999999999999999]
+                  ],
+                  "method": "reference_object",
+                  "reference": "pallet_48x40in"
+                },
+                "cooldown_s": 0,
+                "episode_gap_s": 2,
+                "hz": 10,
+                "operator_exclusion": true,
+                "plan_version_hash": "23e7981d5e923bef7302b44e9b92eceb39cffe8166358bf3146a5c2270cf7586",
+                "rule": {
+                  "accept": ["flag when a person is within 2 m of a moving forklift"],
+                  "actions": [
+                    {
+                      "after_s": null,
+                      "kind": "notify",
+                      "lang": "en",
+                      "role": "safety_officer"
+                    }
+                  ],
+                  "backtestable": "yes",
+                  "calibration": "ground-plane@phone-24",
+                  "concepts": {
+                    "forklift": {
+                      "prompt": "forklift",
+                      "static": false
+                    },
+                    "person": {
+                      "prompt": "person",
+                      "static": false
+                    }
+                  },
+                  "id": "keep-people-2m-from-moving-forklift",
+                  "predicate": {
+                    "of": [
+                      {
+                        "a": "person",
+                        "b": "forklift",
+                        "gt": null,
+                        "lt": 2,
+                        "op": "distance_m"
+                      },
+                      {
+                        "object": "forklift",
+                        "op": "moving",
+                        "speed_mps_gt": 0.2
+                      }
+                    ],
+                    "op": "all"
+                  },
+                  "schedule": null,
+                  "severity": "high",
+                  "source": {
+                    "kind": "text",
+                    "lang": "en",
+                    "plan_id": "plan-9d3708fd3bba",
+                    "standard": [],
+                    "text": "Keep people at least 2 metres away from a moving forklift."
+                  },
+                  "verify": {
+                    "calibrated_alpha": null,
+                    "min_confidence": 0.7,
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree"
+                  },
+                  "version": 1,
+                  "zones": {}
+                },
+                "t0": "2026-11-01T01:39:37.142919Z",
+                "t1": "2026-11-01T01:40:07.142919Z",
+                "zones": {}
+              }
+            },
+            "prev_hash": "4fc431ae395c168edd42cd36015b9dfd9ae14f3619e90b9fe04336a1a992ba6f",
+            "seq": 9,
+            "site": "demo",
+            "ts": "2026-11-01T01:40:16.307523Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#10",
+          "proof": [
+            ["2466bf4853e91216df3181dfa00bd973f7253caeccb207726e2e20b2c4639682", "L"],
+            ["05c80c3b390ed53a338d5e3dd72b8b26ec1d21275dc297278fd957790c01d197", "R"],
+            ["9008f5e58e15b42445166de73c9710f5497edfc77bf8de12bc8e538ac98b89b6", "R"],
+            ["63e16e37c9da2d8ccec3646cacd45babe99535a82d9504f9ea3a58006f250f85", "L"],
+            ["7f4e40aea1136c674eabafa15a37e63df602cd97e466bc11e4aa2d63156077ab", "R"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "54b19bf0f53651c776faf1795a8e59e61c33a434987131c3feaae3c01e407698",
+            "kind": "action",
+            "payload": {
+              "approved_by_role": null,
+              "detail": "dry-run: would notify safety_officer",
+              "event_id": "ev-f0f5b5b2888faeea71cb7f54",
+              "gate": "auto",
+              "kind": "notify",
+              "ok": true,
+              "role": "safety_officer",
+              "ts": "2026-11-01T01:40:17.183082Z"
+            },
+            "prev_hash": "2466bf4853e91216df3181dfa00bd973f7253caeccb207726e2e20b2c4639682",
+            "seq": 10,
+            "site": "demo",
+            "ts": "2026-11-01T01:40:17.183136Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#11",
+          "proof": [
+            ["7dadf0be2782799ea609237d98300425c42dcfbaf0471a9e24888a7a2fd313e3", "R"],
+            ["228cb506dd431015a7229ca63def31d42a9c903a28ac324cc1ae11d253dded15", "L"],
+            ["9008f5e58e15b42445166de73c9710f5497edfc77bf8de12bc8e538ac98b89b6", "R"],
+            ["63e16e37c9da2d8ccec3646cacd45babe99535a82d9504f9ea3a58006f250f85", "L"],
+            ["7f4e40aea1136c674eabafa15a37e63df602cd97e466bc11e4aa2d63156077ab", "R"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "180b90d7bdb726a517fd531d545aa915aa1fabd679d71ecb3dd9525185269867",
+            "kind": "verdict",
+            "payload": {
+              "event_id": "ev-f0f5b5b2888faeea71cb7f54",
+              "latency_ms": 20908,
+              "model_version": "muse-glimmer-30b",
+              "reason": "The visible person is the forklift operator seated inside/operating the forklift, not a separate person near a moving forklift, so the 2-metre separation rule for bystanders is not applicable in the frames.",
+              "reasoning": null,
+              "scene_text": "1/6 t-1.0s keep-people-2m-from-moving-forklift measured 0.01 m\n2/6 t-0.6s keep-people-2m-from-moving-forklift measured 0.01 m\n3/6 t-0.2s keep-people-2m-from-moving-forklift measured 0.01 m\nsubject: person\nforklift\n9.0m\n4/6 t+0.2s keep-people-2m-from-moving-forklift measured 0.01 m\nsubject: person\nforklift\n9.0m\n5/6 t+0.6s keep-people-2m-from-moving-forklift measured 0.01 m\nforklift: person\nforklift\n3.1m\n6/6 t+1.0s keep-people-2m-from-moving-forklift measured 0.01 m\nforklift: person\nforklift\n2.9m",
+              "score": 0.05,
+              "tamper": false,
+              "tier": "glimmer",
+              "verdict": "no_violation"
+            },
+            "prev_hash": "54b19bf0f53651c776faf1795a8e59e61c33a434987131c3feaae3c01e407698",
+            "seq": 11,
+            "site": "demo",
+            "ts": "2026-11-01T01:40:38.342868Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#12",
+          "proof": [
+            ["180b90d7bdb726a517fd531d545aa915aa1fabd679d71ecb3dd9525185269867", "L"],
+            ["228cb506dd431015a7229ca63def31d42a9c903a28ac324cc1ae11d253dded15", "L"],
+            ["9008f5e58e15b42445166de73c9710f5497edfc77bf8de12bc8e538ac98b89b6", "R"],
+            ["63e16e37c9da2d8ccec3646cacd45babe99535a82d9504f9ea3a58006f250f85", "L"],
+            ["7f4e40aea1136c674eabafa15a37e63df602cd97e466bc11e4aa2d63156077ab", "R"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "7dadf0be2782799ea609237d98300425c42dcfbaf0471a9e24888a7a2fd313e3",
+            "kind": "verdict",
+            "payload": {
+              "decision": {
+                "act_first": true,
+                "alert": true,
+                "reason": "acted first; verifier did not confirm, so a person reviews it",
+                "route": "human_queue"
+              },
+              "event_id": "ev-f0f5b5b2888faeea71cb7f54"
+            },
+            "prev_hash": "180b90d7bdb726a517fd531d545aa915aa1fabd679d71ecb3dd9525185269867",
+            "seq": 12,
+            "site": "demo",
+            "ts": "2026-11-01T01:40:38.397295Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#13",
+          "proof": [
+            ["3ba545e05504dee8ef7735206b4f8e7eb2f4f0e589b7721be54aacc98f2c71e3", "R"],
+            ["92212e274dc6edf737bc435502eacddeee87d21baca7794fe218621b061c9c20", "R"],
+            ["443002d8e0ec36a13fc9cfd1e855b408058c63f2688eb4c633cbda3ba5fb2695", "L"],
+            ["63e16e37c9da2d8ccec3646cacd45babe99535a82d9504f9ea3a58006f250f85", "L"],
+            ["7f4e40aea1136c674eabafa15a37e63df602cd97e466bc11e4aa2d63156077ab", "R"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "859a1c711b003a6fd006afa94947e273990a5b9a2605cf82e8823b75f06b74de",
+            "kind": "action",
+            "payload": {
+              "approved_by_role": null,
+              "detail": "dry-run: would notify safety_officer (needs review)",
+              "event_id": "ev-f0f5b5b2888faeea71cb7f54",
+              "gate": "human",
+              "kind": "notify",
+              "ok": true,
+              "role": "safety_officer",
+              "ts": "2026-11-01T01:40:38.519339Z"
+            },
+            "prev_hash": "7dadf0be2782799ea609237d98300425c42dcfbaf0471a9e24888a7a2fd313e3",
+            "seq": 13,
+            "site": "demo",
+            "ts": "2026-11-01T01:40:38.519371Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#14",
+          "proof": [
+            ["859a1c711b003a6fd006afa94947e273990a5b9a2605cf82e8823b75f06b74de", "L"],
+            ["92212e274dc6edf737bc435502eacddeee87d21baca7794fe218621b061c9c20", "R"],
+            ["443002d8e0ec36a13fc9cfd1e855b408058c63f2688eb4c633cbda3ba5fb2695", "L"],
+            ["63e16e37c9da2d8ccec3646cacd45babe99535a82d9504f9ea3a58006f250f85", "L"],
+            ["7f4e40aea1136c674eabafa15a37e63df602cd97e466bc11e4aa2d63156077ab", "R"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "3ba545e05504dee8ef7735206b4f8e7eb2f4f0e589b7721be54aacc98f2c71e3",
+            "kind": "plan",
+            "payload": {
+              "plan_version_hash": "1784db28181d6855d13243ce810a115729fd04924559088a9b536b8eb5ba0d5d",
+              "rules": ["keep-people-2m-from-moving-forklift"]
+            },
+            "prev_hash": "859a1c711b003a6fd006afa94947e273990a5b9a2605cf82e8823b75f06b74de",
+            "seq": 14,
+            "site": "demo",
+            "ts": "2026-11-01T01:54:45.529746Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#15",
+          "proof": [
+            ["b73ee23469a04f5c80a68ada61f9f224ed6d35632d253087153be6f41f772cdb", "R"],
+            ["4d9765488d7e56e446c3f5066e27dc2aa7fed78c5828e997904e239f0244d1ff", "L"],
+            ["443002d8e0ec36a13fc9cfd1e855b408058c63f2688eb4c633cbda3ba5fb2695", "L"],
+            ["63e16e37c9da2d8ccec3646cacd45babe99535a82d9504f9ea3a58006f250f85", "L"],
+            ["7f4e40aea1136c674eabafa15a37e63df602cd97e466bc11e4aa2d63156077ab", "R"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "40fe17bcfa57c69a90a269e4d73206650b95837eb17c16112c552c5bb6a60856",
+            "kind": "plan",
+            "payload": {
+              "event": "plan_approved",
+              "gates": [
+                {
+                  "reasons": [],
+                  "rule_id": "keep-people-2m-from-moving-forklift",
+                  "status": "pass"
+                }
+              ],
+              "plan_id": "plan-5cdb5eed5405",
+              "plan_version_hash": "1784db28181d6855d13243ce810a115729fd04924559088a9b536b8eb5ba0d5d",
+              "rules": ["keep-people-2m-from-moving-forklift"],
+              "version": 1
+            },
+            "prev_hash": "3ba545e05504dee8ef7735206b4f8e7eb2f4f0e589b7721be54aacc98f2c71e3",
+            "seq": 15,
+            "site": "demo",
+            "ts": "2026-11-01T01:54:45.591377Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#16",
+          "proof": [
+            ["40fe17bcfa57c69a90a269e4d73206650b95837eb17c16112c552c5bb6a60856", "L"],
+            ["4d9765488d7e56e446c3f5066e27dc2aa7fed78c5828e997904e239f0244d1ff", "L"],
+            ["443002d8e0ec36a13fc9cfd1e855b408058c63f2688eb4c633cbda3ba5fb2695", "L"],
+            ["63e16e37c9da2d8ccec3646cacd45babe99535a82d9504f9ea3a58006f250f85", "L"],
+            ["7f4e40aea1136c674eabafa15a37e63df602cd97e466bc11e4aa2d63156077ab", "R"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "b73ee23469a04f5c80a68ada61f9f224ed6d35632d253087153be6f41f772cdb",
+            "kind": "candidate",
+            "payload": {
+              "candidate": {
+                "camera_id": "phone-25",
+                "event_id": "ev-86fe839b744f2f026c25404c",
+                "measurement": {
+                  "hi": null,
+                  "lo": null,
+                  "unit": "m",
+                  "value": 0.025025
+                },
+                "plan_version_hash": "1784db28181d6855d13243ce810a115729fd04924559088a9b536b8eb5ba0d5d",
+                "predicate_trace": {
+                  "all": true,
+                  "all.0.distance_m": true,
+                  "all.0.distance_m.value": 0.025025,
+                  "all.1.moving": true,
+                  "all.1.moving.value": 2.44471,
+                  "all.value": 0.025025,
+                  "episode_s": 1.1,
+                  "subject": "phone-25:person:409a2c97"
+                },
+                "rule_id": "keep-people-2m-from-moving-forklift",
+                "rule_ir_hash": "89676193996fe35291bd4952aed2e98aabe1033b9cf2ba7e7128eedb1e133b75",
+                "severity": "high",
+                "strip_paths": [],
+                "track_window_hash": "48e29541ce85ba5e23a89a8d7c06f5e393a575ee2c04b15e36b1ea72141c1b2e",
+                "ts_end": "2026-11-01T01:54:46.513867Z",
+                "ts_start": "2026-11-01T01:54:45.513867Z"
+              },
+              "context": {
+                "calibration": {
+                  "camera_id": "phone-25",
+                  "err_m": 0.0969269132375965,
+                  "homography": [
+                    [0.005486241729051363, 0.0004220185945424167, -4.175029955808087],
+                    [-3.102079079558648e-19, 0.05522316095296006, 5.908614624992072e-16],
+                    [-0.00037807183364839365, -0.00046691273871012545, 0.9999999999999999]
+                  ],
+                  "method": "reference_object",
+                  "reference": "pallet_48x40in"
+                },
+                "cooldown_s": 0,
+                "episode_gap_s": 2,
+                "hz": 10,
+                "operator_exclusion": true,
+                "plan_version_hash": "1784db28181d6855d13243ce810a115729fd04924559088a9b536b8eb5ba0d5d",
+                "rule": {
+                  "accept": [],
+                  "actions": [
+                    {
+                      "after_s": null,
+                      "kind": "notify",
+                      "lang": "en",
+                      "role": "supervisor"
+                    }
+                  ],
+                  "backtestable": "yes",
+                  "calibration": "ground-plane@phone-25",
+                  "concepts": {
+                    "forklift": {
+                      "prompt": "forklift",
+                      "static": false
+                    },
+                    "person": {
+                      "prompt": "person",
+                      "static": false
+                    }
+                  },
+                  "id": "keep-people-2m-from-moving-forklift",
+                  "predicate": {
+                    "of": [
+                      {
+                        "a": "person",
+                        "b": "forklift",
+                        "gt": null,
+                        "lt": 2,
+                        "op": "distance_m"
+                      },
+                      {
+                        "object": "forklift",
+                        "op": "moving",
+                        "speed_mps_gt": 0.2
+                      }
+                    ],
+                    "op": "all"
+                  },
+                  "schedule": null,
+                  "severity": "high",
+                  "source": {
+                    "kind": "text",
+                    "lang": "en",
+                    "plan_id": "plan-5cdb5eed5405",
+                    "standard": [],
+                    "text": "Keep people at least 2 metres away from a moving forklift."
+                  },
+                  "verify": {
+                    "calibrated_alpha": null,
+                    "min_confidence": 0.7,
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree"
+                  },
+                  "version": 1,
+                  "zones": {}
+                },
+                "t0": "2026-11-01T01:54:18.513867Z",
+                "t1": "2026-11-01T01:54:48.513867Z",
+                "zones": {}
+              }
+            },
+            "prev_hash": "40fe17bcfa57c69a90a269e4d73206650b95837eb17c16112c552c5bb6a60856",
+            "seq": 16,
+            "site": "demo",
+            "ts": "2026-11-01T01:54:52.572911Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#17",
+          "proof": [
+            ["784fddacc28decb0bcff5bf9fab7bdea46307e994b51f69e7fa1b8f07a71af17", "R"],
+            ["2e959dc6d6d78860f92ac2c7fd1f36310fa235517108914384eaf8dca04ec864", "R"],
+            ["c6f3151860ca2469f9f7cdc9e388375489a6731558d32a14b4203cace5a52e27", "R"],
+            ["d8c63363969d099ee309c1dd321c35b2954fa0b6dbfaf4fe953c1fb6a2441d7d", "R"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "af325c237e9412cfaecb9e36329c87675d227be4bfc4f7ecf9112a107dd2726b",
+            "kind": "action",
+            "payload": {
+              "approved_by_role": null,
+              "detail": "dry-run: would notify supervisor",
+              "event_id": "ev-86fe839b744f2f026c25404c",
+              "gate": "auto",
+              "kind": "notify",
+              "ok": true,
+              "role": "supervisor",
+              "ts": "2026-11-01T01:54:53.900791Z"
+            },
+            "prev_hash": "b73ee23469a04f5c80a68ada61f9f224ed6d35632d253087153be6f41f772cdb",
+            "seq": 17,
+            "site": "demo",
+            "ts": "2026-11-01T01:54:53.900852Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#18",
+          "proof": [
+            ["af325c237e9412cfaecb9e36329c87675d227be4bfc4f7ecf9112a107dd2726b", "L"],
+            ["2e959dc6d6d78860f92ac2c7fd1f36310fa235517108914384eaf8dca04ec864", "R"],
+            ["c6f3151860ca2469f9f7cdc9e388375489a6731558d32a14b4203cace5a52e27", "R"],
+            ["d8c63363969d099ee309c1dd321c35b2954fa0b6dbfaf4fe953c1fb6a2441d7d", "R"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "784fddacc28decb0bcff5bf9fab7bdea46307e994b51f69e7fa1b8f07a71af17",
+            "kind": "verdict",
+            "payload": {
+              "event_id": "ev-86fe839b744f2f026c25404c",
+              "latency_ms": 23068,
+              "model_version": "muse-glimmer-30b",
+              "reason": "The visible person is seated in the operator\u2019s seat of the forklift and is operating it; there is no separate person near a moving forklift in the frames.",
+              "reasoning": null,
+              "scene_text": "1/6 t-1.0s keep-people-2m-from-moving-forklift measured 0.03 m\n2/6 t-0.6s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n3/6 t-0.2s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n4/6 t+0.2s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n5/6 t+0.6s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n5.0 m\n6/6 t+1.0s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n4.9 m",
+              "score": 0.05,
+              "tamper": false,
+              "tier": "glimmer",
+              "verdict": "no_violation"
+            },
+            "prev_hash": "af325c237e9412cfaecb9e36329c87675d227be4bfc4f7ecf9112a107dd2726b",
+            "seq": 18,
+            "site": "demo",
+            "ts": "2026-11-01T01:55:17.288985Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#19",
+          "proof": [
+            ["0222a2576ce2fe123f3779b20b2cc487ffd799dfd9bdc2731fe66d0560e3d406", "R"],
+            ["27ebe516e0e6d2b25ee3a40fcb70326ab861566ff8ce5c80b1ee63c448386f14", "L"],
+            ["c6f3151860ca2469f9f7cdc9e388375489a6731558d32a14b4203cace5a52e27", "R"],
+            ["d8c63363969d099ee309c1dd321c35b2954fa0b6dbfaf4fe953c1fb6a2441d7d", "R"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "eb651023a778d973ab62865d3785f9c4a76c02eb9ad8fe76423a18045816cc8d",
+            "kind": "verdict",
+            "payload": {
+              "decision": {
+                "act_first": true,
+                "alert": true,
+                "reason": "acted first; verifier did not confirm, so a person reviews it",
+                "route": "human_queue"
+              },
+              "event_id": "ev-86fe839b744f2f026c25404c"
+            },
+            "prev_hash": "784fddacc28decb0bcff5bf9fab7bdea46307e994b51f69e7fa1b8f07a71af17",
+            "seq": 19,
+            "site": "demo",
+            "ts": "2026-11-01T01:55:17.379895Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#20",
+          "proof": [
+            ["eb651023a778d973ab62865d3785f9c4a76c02eb9ad8fe76423a18045816cc8d", "L"],
+            ["27ebe516e0e6d2b25ee3a40fcb70326ab861566ff8ce5c80b1ee63c448386f14", "L"],
+            ["c6f3151860ca2469f9f7cdc9e388375489a6731558d32a14b4203cace5a52e27", "R"],
+            ["d8c63363969d099ee309c1dd321c35b2954fa0b6dbfaf4fe953c1fb6a2441d7d", "R"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "0222a2576ce2fe123f3779b20b2cc487ffd799dfd9bdc2731fe66d0560e3d406",
+            "kind": "action",
+            "payload": {
+              "approved_by_role": null,
+              "detail": "dry-run: would notify supervisor (needs review)",
+              "event_id": "ev-86fe839b744f2f026c25404c",
+              "gate": "human",
+              "kind": "notify",
+              "ok": true,
+              "role": "supervisor",
+              "ts": "2026-11-01T01:55:17.533135Z"
+            },
+            "prev_hash": "eb651023a778d973ab62865d3785f9c4a76c02eb9ad8fe76423a18045816cc8d",
+            "seq": 20,
+            "site": "demo",
+            "ts": "2026-11-01T01:55:17.533179Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#21",
+          "proof": [
+            ["4b9e012fb16f9b2085ca7cfc3db83bef3bd9cc8ce4e95bd1b3e48746263befa1", "R"],
+            ["276a6cc2f8f834afbb7a24bd5bec9a34889a39600c468449d6d49e9a6c3d2310", "R"],
+            ["6a32082817533b1f82f58096a3dc09750c316103e0955526cb0193b77e66a309", "L"],
+            ["d8c63363969d099ee309c1dd321c35b2954fa0b6dbfaf4fe953c1fb6a2441d7d", "R"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "fb1ac9fc2542da105ba12491f8556b0ac28a715ae0739906be24d5dc33d8e84c",
+            "kind": "plan",
+            "payload": {
+              "plan_version_hash": "1784db28181d6855d13243ce810a115729fd04924559088a9b536b8eb5ba0d5d",
+              "rules": ["keep-people-2m-from-moving-forklift"]
+            },
+            "prev_hash": "0222a2576ce2fe123f3779b20b2cc487ffd799dfd9bdc2731fe66d0560e3d406",
+            "seq": 21,
+            "site": "demo",
+            "ts": "2026-11-01T01:57:14.929818Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#22",
+          "proof": [
+            ["fb1ac9fc2542da105ba12491f8556b0ac28a715ae0739906be24d5dc33d8e84c", "L"],
+            ["276a6cc2f8f834afbb7a24bd5bec9a34889a39600c468449d6d49e9a6c3d2310", "R"],
+            ["6a32082817533b1f82f58096a3dc09750c316103e0955526cb0193b77e66a309", "L"],
+            ["d8c63363969d099ee309c1dd321c35b2954fa0b6dbfaf4fe953c1fb6a2441d7d", "R"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "4b9e012fb16f9b2085ca7cfc3db83bef3bd9cc8ce4e95bd1b3e48746263befa1",
+            "kind": "plan",
+            "payload": {
+              "plan_version_hash": "1784db28181d6855d13243ce810a115729fd04924559088a9b536b8eb5ba0d5d",
+              "rules": ["keep-people-2m-from-moving-forklift"]
+            },
+            "prev_hash": "fb1ac9fc2542da105ba12491f8556b0ac28a715ae0739906be24d5dc33d8e84c",
+            "seq": 22,
+            "site": "demo",
+            "ts": "2026-11-01T02:23:04.754997Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#23",
+          "proof": [
+            ["1d8802b5620fe54ed5cf0d17d7d217b1182a8b03894741e2fb3de4db0fa9f72b", "R"],
+            ["6592779953f2f762fecb28fc1d296c4198cd70771fb89c2e2186869201faab1c", "L"],
+            ["6a32082817533b1f82f58096a3dc09750c316103e0955526cb0193b77e66a309", "L"],
+            ["d8c63363969d099ee309c1dd321c35b2954fa0b6dbfaf4fe953c1fb6a2441d7d", "R"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "e78dfaad911f9249b9152e8f1a6beb836620490b4d22a224ad05ffa49cb46b5d",
+            "kind": "plan",
+            "payload": {
+              "plan_version_hash": "1784db28181d6855d13243ce810a115729fd04924559088a9b536b8eb5ba0d5d",
+              "rules": ["keep-people-2m-from-moving-forklift"]
+            },
+            "prev_hash": "4b9e012fb16f9b2085ca7cfc3db83bef3bd9cc8ce4e95bd1b3e48746263befa1",
+            "seq": 23,
+            "site": "demo",
+            "ts": "2026-11-01T02:23:31.918770Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#24",
+          "proof": [
+            ["e78dfaad911f9249b9152e8f1a6beb836620490b4d22a224ad05ffa49cb46b5d", "L"],
+            ["6592779953f2f762fecb28fc1d296c4198cd70771fb89c2e2186869201faab1c", "L"],
+            ["6a32082817533b1f82f58096a3dc09750c316103e0955526cb0193b77e66a309", "L"],
+            ["d8c63363969d099ee309c1dd321c35b2954fa0b6dbfaf4fe953c1fb6a2441d7d", "R"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "1d8802b5620fe54ed5cf0d17d7d217b1182a8b03894741e2fb3de4db0fa9f72b",
+            "kind": "plan",
+            "payload": {
+              "plan_version_hash": "ad2b2d4a02c96b8194e4c1a75eb2973fb8d95ec9ebc316deb0edd3faf6d84eaa",
+              "rules": ["keep-people-2m-from-moving-forklift"]
+            },
+            "prev_hash": "e78dfaad911f9249b9152e8f1a6beb836620490b4d22a224ad05ffa49cb46b5d",
+            "seq": 24,
+            "site": "demo",
+            "ts": "2026-11-01T02:29:32.024741Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#25",
+          "proof": [
+            ["1992f634aa1a41d5926458a137979af1bf07c281bff374ee04f73a76bd31d207", "R"],
+            ["a168b5b6dcab995532677ca47a8af607bddf61804796bf44a1cb1d2645dac19d", "R"],
+            ["c136543e538e56ab1d74d0dfa0150999cf7e785b5a37a4cdca13e5d7767a477e", "R"],
+            ["79feb28e4d17fab86d7754193f04a722bcf542f66f2c3847b293266a96dfd39a", "L"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "2bee157d2fcad951657846b2b9b0a37c59e926fb6c4f59429a09eb92623cc3ea",
+            "kind": "plan",
+            "payload": {
+              "event": "plan_approved",
+              "gates": [
+                {
+                  "reasons": [],
+                  "rule_id": "keep-people-2m-from-moving-forklift",
+                  "status": "pass"
+                }
+              ],
+              "plan_id": "plan-098d7b6fb193",
+              "plan_version_hash": "ad2b2d4a02c96b8194e4c1a75eb2973fb8d95ec9ebc316deb0edd3faf6d84eaa",
+              "rules": ["keep-people-2m-from-moving-forklift"],
+              "version": 1
+            },
+            "prev_hash": "1d8802b5620fe54ed5cf0d17d7d217b1182a8b03894741e2fb3de4db0fa9f72b",
+            "seq": 25,
+            "site": "demo",
+            "ts": "2026-11-01T02:29:32.068646Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#26",
+          "proof": [
+            ["2bee157d2fcad951657846b2b9b0a37c59e926fb6c4f59429a09eb92623cc3ea", "L"],
+            ["a168b5b6dcab995532677ca47a8af607bddf61804796bf44a1cb1d2645dac19d", "R"],
+            ["c136543e538e56ab1d74d0dfa0150999cf7e785b5a37a4cdca13e5d7767a477e", "R"],
+            ["79feb28e4d17fab86d7754193f04a722bcf542f66f2c3847b293266a96dfd39a", "L"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "1992f634aa1a41d5926458a137979af1bf07c281bff374ee04f73a76bd31d207",
+            "kind": "candidate",
+            "payload": {
+              "candidate": {
+                "camera_id": "phone-26",
+                "event_id": "ev-725c63ca121b14653fc2f43e",
+                "measurement": {
+                  "hi": null,
+                  "lo": null,
+                  "unit": "m",
+                  "value": 0.026799
+                },
+                "plan_version_hash": "ad2b2d4a02c96b8194e4c1a75eb2973fb8d95ec9ebc316deb0edd3faf6d84eaa",
+                "predicate_trace": {
+                  "all": true,
+                  "all.0.distance_m": true,
+                  "all.0.distance_m.value": 0.026799,
+                  "all.1.moving": true,
+                  "all.1.moving.value": 2.44471,
+                  "all.value": 0.026799,
+                  "episode_s": 1,
+                  "subject": "phone-26:person:6eb3ec88"
+                },
+                "rule_id": "keep-people-2m-from-moving-forklift",
+                "rule_ir_hash": "ad4b59ab864a8037ecb285f5c353f0e4398080898be7c7d8cb944197facf43e5",
+                "severity": "high",
+                "strip_paths": [],
+                "track_window_hash": "b2a5143b75275b0858c864a9d8e2c6f97e6034318ba2a813550f654d153daa5c",
+                "ts_end": "2026-11-01T02:29:33.012767Z",
+                "ts_start": "2026-11-01T02:29:32.112767Z"
+              },
+              "context": {
+                "calibration": {
+                  "camera_id": "phone-26",
+                  "err_m": 0.09699897650936566,
+                  "homography": [
+                    [0.005486241729051363, 0.0004220185945424167, -4.175029955808087],
+                    [-3.102079079558648e-19, 0.05522316095296006, 5.908614624992072e-16],
+                    [-0.00037807183364839365, -0.00046691273871012545, 0.9999999999999999]
+                  ],
+                  "method": "reference_object",
+                  "reference": "pallet_48x40in"
+                },
+                "cooldown_s": 0,
+                "episode_gap_s": 2,
+                "hz": 10,
+                "operator_exclusion": true,
+                "plan_version_hash": "ad2b2d4a02c96b8194e4c1a75eb2973fb8d95ec9ebc316deb0edd3faf6d84eaa",
+                "rule": {
+                  "accept": [],
+                  "actions": [
+                    {
+                      "after_s": null,
+                      "kind": "speak",
+                      "lang": "en",
+                      "role": "operator"
+                    }
+                  ],
+                  "backtestable": "yes",
+                  "calibration": "ground-plane@phone-26",
+                  "concepts": {
+                    "forklift": {
+                      "prompt": "forklift",
+                      "static": false
+                    },
+                    "person": {
+                      "prompt": "person",
+                      "static": false
+                    }
+                  },
+                  "id": "keep-people-2m-from-moving-forklift",
+                  "predicate": {
+                    "of": [
+                      {
+                        "a": "person",
+                        "b": "forklift",
+                        "gt": null,
+                        "lt": 2,
+                        "op": "distance_m"
+                      },
+                      {
+                        "object": "forklift",
+                        "op": "moving",
+                        "speed_mps_gt": 0.2
+                      }
+                    ],
+                    "op": "all"
+                  },
+                  "schedule": null,
+                  "severity": "high",
+                  "source": {
+                    "kind": "text",
+                    "lang": "en",
+                    "plan_id": "plan-098d7b6fb193",
+                    "standard": [],
+                    "text": "Keep people at least 2 metres away from a moving forklift."
+                  },
+                  "verify": {
+                    "calibrated_alpha": null,
+                    "min_confidence": 0.7,
+                    "tier1": "glimmer",
+                    "tier2": "spark-open-on-disagree"
+                  },
+                  "version": 1,
+                  "zones": {}
+                },
+                "t0": "2026-11-01T02:29:05.012767Z",
+                "t1": "2026-11-01T02:29:35.012767Z",
+                "zones": {}
+              }
+            },
+            "prev_hash": "2bee157d2fcad951657846b2b9b0a37c59e926fb6c4f59429a09eb92623cc3ea",
+            "seq": 26,
+            "site": "demo",
+            "ts": "2026-11-01T02:29:39.098165Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#27",
+          "proof": [
+            ["15ad3332c0138d7a446164285fbd8e4a2898aebd9caefe0ddce86e33b66159ab", "R"],
+            ["fd5643d6edd8e5266a262e8599a62d2832a536937c8fe08ee4d92234b79565e4", "L"],
+            ["c136543e538e56ab1d74d0dfa0150999cf7e785b5a37a4cdca13e5d7767a477e", "R"],
+            ["79feb28e4d17fab86d7754193f04a722bcf542f66f2c3847b293266a96dfd39a", "L"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "e45baf4dde7ab90f4d12e026fbff1eec3cad9fe6f7993f67ff1dcada4be8b806",
+            "kind": "action",
+            "payload": {
+              "approved_by_role": null,
+              "detail": "dry-run: would play the warning (en)",
+              "event_id": "ev-725c63ca121b14653fc2f43e",
+              "gate": "auto",
+              "kind": "speak",
+              "ok": true,
+              "role": "operator",
+              "ts": "2026-11-01T02:29:40.275525Z"
+            },
+            "prev_hash": "1992f634aa1a41d5926458a137979af1bf07c281bff374ee04f73a76bd31d207",
+            "seq": 27,
+            "site": "demo",
+            "ts": "2026-11-01T02:29:40.275587Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#28",
+          "proof": [
+            ["e45baf4dde7ab90f4d12e026fbff1eec3cad9fe6f7993f67ff1dcada4be8b806", "L"],
+            ["fd5643d6edd8e5266a262e8599a62d2832a536937c8fe08ee4d92234b79565e4", "L"],
+            ["c136543e538e56ab1d74d0dfa0150999cf7e785b5a37a4cdca13e5d7767a477e", "R"],
+            ["79feb28e4d17fab86d7754193f04a722bcf542f66f2c3847b293266a96dfd39a", "L"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "15ad3332c0138d7a446164285fbd8e4a2898aebd9caefe0ddce86e33b66159ab",
+            "kind": "verdict",
+            "payload": {
+              "event_id": "ev-725c63ca121b14653fc2f43e",
+              "latency_ms": 21544,
+              "model_version": "muse-glimmer-30b",
+              "reason": "The visible person is seated in the operator\u2019s seat of the forklift and is operating it, so there is no separate person near a moving forklift; the measured proximity is the operator with the vehicle.",
+              "reasoning": null,
+              "scene_text": "1/6 t-1.2s keep-people-2m-from-moving-forklift measured 0.03 m\n2/6 t-0.8s keep-people-2m-from-moving-forklift measured 0.03 m\n3/6 t-0.4s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n4/6 t+0.0s keep-people-2m-from-moving-forklift measured 0.03 m\nsubject: person\nforklift\n14.1 m\n5/6 t+0.4s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n5.0 m\n6/6 t+0.8s keep-people-2m-from-moving-forklift measured 0.03 m\nforklift: person\nforklift\n4.9 m",
+              "score": 0.02,
+              "tamper": false,
+              "tier": "glimmer",
+              "verdict": "no_violation"
+            },
+            "prev_hash": "e45baf4dde7ab90f4d12e026fbff1eec3cad9fe6f7993f67ff1dcada4be8b806",
+            "seq": 28,
+            "site": "demo",
+            "ts": "2026-11-01T02:30:02.092685Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#29",
+          "proof": [
+            ["2ff34dae8cb65009e2ae4f44db0a68506983b54eeb83964a1dcc857679ee5509", "R"],
+            ["c5fb9e42ba436f98739b9138a6e123aa2073f18e3f9a085cc4c7793ef35b9dda", "R"],
+            ["19acaa584f991166621187aebd22643250222ec92f68306e5aaf52f9e61d1dcd", "L"],
+            ["79feb28e4d17fab86d7754193f04a722bcf542f66f2c3847b293266a96dfd39a", "L"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "6c9e87a1e31f8c62e882e7a5858f9b8a2d04cbfc7277ada902b07a67b6673dd6",
+            "kind": "verdict",
+            "payload": {
+              "decision": {
+                "act_first": true,
+                "alert": true,
+                "reason": "acted first; verifier did not confirm, so a person reviews it",
+                "route": "human_queue"
+              },
+              "event_id": "ev-725c63ca121b14653fc2f43e"
+            },
+            "prev_hash": "15ad3332c0138d7a446164285fbd8e4a2898aebd9caefe0ddce86e33b66159ab",
+            "seq": 29,
+            "site": "demo",
+            "ts": "2026-11-01T02:30:02.145222Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#30",
+          "proof": [
+            ["6c9e87a1e31f8c62e882e7a5858f9b8a2d04cbfc7277ada902b07a67b6673dd6", "L"],
+            ["c5fb9e42ba436f98739b9138a6e123aa2073f18e3f9a085cc4c7793ef35b9dda", "R"],
+            ["19acaa584f991166621187aebd22643250222ec92f68306e5aaf52f9e61d1dcd", "L"],
+            ["79feb28e4d17fab86d7754193f04a722bcf542f66f2c3847b293266a96dfd39a", "L"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "2ff34dae8cb65009e2ae4f44db0a68506983b54eeb83964a1dcc857679ee5509",
+            "kind": "action",
+            "payload": {
+              "approved_by_role": null,
+              "detail": "dry-run: would notify site_lead (needs review)",
+              "event_id": "ev-725c63ca121b14653fc2f43e",
+              "gate": "human",
+              "kind": "notify",
+              "ok": true,
+              "role": "site_lead",
+              "ts": "2026-11-01T02:30:02.267787Z"
+            },
+            "prev_hash": "6c9e87a1e31f8c62e882e7a5858f9b8a2d04cbfc7277ada902b07a67b6673dd6",
+            "seq": 30,
+            "site": "demo",
+            "ts": "2026-11-01T02:30:02.267815Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#31",
+          "proof": [
+            ["f6a851cdca94b6fac7e53968630a84f99480db9f1a1faa2c5d102d2718e1e4d4", "R"],
+            ["f2a03c56c7e7d08ff0215b5a8de4c02d74bcf0cdad4938f6c7fd358cf26cb93c", "L"],
+            ["19acaa584f991166621187aebd22643250222ec92f68306e5aaf52f9e61d1dcd", "L"],
+            ["79feb28e4d17fab86d7754193f04a722bcf542f66f2c3847b293266a96dfd39a", "L"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "1619e2751f553eacef55fb2f6b6da95d4d436ae89acea2a3cf73d8ed6be4a653",
+            "kind": "plan",
+            "payload": {
+              "plan_version_hash": "ad2b2d4a02c96b8194e4c1a75eb2973fb8d95ec9ebc316deb0edd3faf6d84eaa",
+              "rules": ["keep-people-2m-from-moving-forklift"]
+            },
+            "prev_hash": "2ff34dae8cb65009e2ae4f44db0a68506983b54eeb83964a1dcc857679ee5509",
+            "seq": 31,
+            "site": "demo",
+            "ts": "2026-11-01T02:30:27.190991Z"
+          }
+        },
+        {
+          "day": "2026-11-01",
+          "key": "2026-11-01#32",
+          "proof": [
+            ["1619e2751f553eacef55fb2f6b6da95d4d436ae89acea2a3cf73d8ed6be4a653", "L"],
+            ["f2a03c56c7e7d08ff0215b5a8de4c02d74bcf0cdad4938f6c7fd358cf26cb93c", "L"],
+            ["19acaa584f991166621187aebd22643250222ec92f68306e5aaf52f9e61d1dcd", "L"],
+            ["79feb28e4d17fab86d7754193f04a722bcf542f66f2c3847b293266a96dfd39a", "L"],
+            ["691a1c53a2cf2526334f50e9236458a8a072b6d12fe66e49388ae135ad166b22", "L"],
+            ["1751e1250bfb9a39cb753e2d3d6683b42a6eafc44217b3dbcac026cb08ed5753", "R"]
+          ],
+          "record": {
+            "hash": "f6a851cdca94b6fac7e53968630a84f99480db9f1a1faa2c5d102d2718e1e4d4",
+            "kind": "plan",
+            "payload": {
+              "plan_version_hash": "ad2b2d4a02c96b8194e4c1a75eb2973fb8d95ec9ebc316deb0edd3faf6d84eaa",
+              "rules": ["keep-people-2m-from-moving-forklift"]
+            },
+            "prev_hash": "1619e2751f553eacef55fb2f6b6da95d4d436ae89acea2a3cf73d8ed6be4a653",
+            "seq": 32,
+            "site": "demo",
+            "ts": "2026-11-01T02:31:04.891141Z"
+          }
+        }
+      ],
+      "rules": [
+        {
+          "active_s": 3055.701983,
+          "approvals": ["2026-11-01#8", "2026-11-01#15", "2026-11-01#25"],
+          "ci_detail": null,
+          "clause": null,
+          "clause_note": "",
+          "distance_rule": true,
+          "gate": "pass",
+          "gate_reasons": [],
+          "plan_ids": ["plan-9d3708fd3bba", "plan-5cdb5eed5405", "plan-098d7b6fb193"],
+          "rule_id": "keep-people-2m-from-moving-forklift",
+          "severity": "high",
+          "standards": [],
+          "text": "Keep people at least 2 metres away from a moving forklift."
+        }
+      ],
+      "site": "demo",
+      "stills": [],
+      "summaries": [],
+      "title": "Proof pack 2026-11-01 01:40 to 2026-11-01 02:31 UTC"
+    },
+    "pack_hash": "c9be2bfc81e60395ee18e1ffd6f2408ccc356c75e6118cfba4247e8d7c02d399"
+  },
+  "synthetic": {
+    "expires_at": "2026-11-05T00:00:00Z",
+    "pack": {
+      "audiences": ["inspector", "insurer", "hq", "worker_rep"],
+      "created_at": "2026-11-04T01:00:00Z",
+      "crew_lang": "en",
+      "days": [
+        {
+          "chain_ok": true,
+          "committed_n": null,
+          "committed_root": null,
+          "day": "2026-11-02",
+          "n": 18,
+          "reason": "",
+          "root": "6a2054b0b7f6b584a90d80210cf218059240212b527bcec58926272a6a7cc140",
+          "window_first": 1,
+          "window_last": 18
+        }
+      ],
+      "disclaimer": "Evidence for the period shown, computed from the site's tamper-evident log. It is not a certificate of legal compliance: an inspector, insurer or court decides what it proves.",
+      "format": "rulecam-proof-pack/1",
+      "incidents": [
+        {
+          "camera_id": "cam-a",
+          "event_id": "ev-1",
+          "key": "2026-11-02#3",
+          "route": null,
+          "rule_id": "spill",
+          "severity": "high",
+          "ts": "2026-11-02T07:01:00Z",
+          "verdict": "violation"
+        }
+      ],
+      "metrics": [
+        {
+          "id": "alerts_raised",
+          "label": "Alerts raised by the rules",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#10", "2026-11-02#3"],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 2
+        },
+        {
+          "id": "glimmer_verified",
+          "label": "Confirmed by Muse Glimmer",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#4"],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "violation"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "glimmer_rejected",
+          "label": "Rejected by Muse Glimmer",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#11"],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "no_violation"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "glimmer_unsure",
+          "label": "Muse Glimmer unsure",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "unsure"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "sent_to_person",
+          "label": "Sent to a person to review",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.decision.route": "human_queue"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "policy_alerted",
+          "label": "Passed on as alerts by the policy",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.decision.alert": true
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "tamper_attempts",
+          "label": "Tamper attempts logged",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "alerts",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "tamper_attempt"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "actions",
+          "label": "Actions taken",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#5"],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "action"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "actions_dry_run",
+          "label": "Of which dry-run (logged, not sent)",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {
+              "payload.detail": "dry-run"
+            },
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "action"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "acks",
+          "label": "Acknowledgements by a role",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#6"],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "ack"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "time_to_verdict_median",
+          "label": "Median time from alert to Glimmer's verdict",
+          "previous": null,
+          "previous_refs": [],
+          "refs": ["2026-11-02#10", "2026-11-02#11", "2026-11-02#3", "2026-11-02#4"],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "median_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "verdict",
+                "payload.tier": "glimmer"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 5.0
+        },
+        {
+          "id": "time_to_action_median",
+          "label": "Median time from alert to first action",
+          "previous": null,
+          "previous_refs": [],
+          "refs": ["2026-11-02#3", "2026-11-02#5"],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "median_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "action"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 30.0
+        },
+        {
+          "id": "time_to_action_p90",
+          "label": "90th percentile time from alert to first action",
+          "previous": null,
+          "previous_refs": [],
+          "refs": ["2026-11-02#3", "2026-11-02#5"],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "p90_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "action"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 30.0
+        },
+        {
+          "id": "time_to_ack_median",
+          "label": "Median time from alert to acknowledgement",
+          "previous": null,
+          "previous_refs": [],
+          "refs": ["2026-11-02#3", "2026-11-02#6"],
+          "section": "response",
+          "spec": {
+            "camera": null,
+            "op": "median_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "ack"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 60.0
+        },
+        {
+          "id": "disputes_filed",
+          "label": "Disputes filed by workers",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#12"],
+          "section": "disputes",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "dispute",
+              "payload.dispute.outcome": "pending"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "disputes_upheld",
+          "label": "Disputes upheld (false alarm)",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#13"],
+          "section": "disputes",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "dispute",
+              "payload.dispute.outcome": "upheld"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "disputes_rejected",
+          "label": "Disputes rejected",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "disputes",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "dispute",
+              "payload.dispute.outcome": "rejected"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "false_alarm_labels",
+          "label": "Alerts labelled false alarm",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "disputes",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "label",
+              "payload.label": "false_alarm"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "plan_approvals",
+          "label": "Plans approved (Rule CI gate at approval)",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#1"],
+          "section": "governance",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "plan",
+              "payload.event": "plan_approved"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "setting_proposals",
+          "label": "Protected privacy settings proposed",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#14"],
+          "section": "governance",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "rule_change",
+              "payload.action": "setting_proposal"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "settings_applied",
+          "label": "Protected settings changed (both keys)",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#17", "2026-11-02#18"],
+          "section": "governance",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "rule_change",
+              "payload.action": "setting_applied"
+            }
+          },
+          "unit": "count",
+          "value": 2
+        },
+        {
+          "id": "settings_rejected",
+          "label": "Protected setting changes refused",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "governance",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "rule_change",
+              "payload.action": "setting_rejected"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "settings_without_both_keys",
+          "label": "Protected settings changed without both keys",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#18"],
+          "section": "governance",
+          "spec": {
+            "camera": null,
+            "op": "two_key_unapproved",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {}
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "rule:dock:alerts_raised",
+          "label": "Alerts raised",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#10"],
+          "section": "rule",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": "dock",
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "rule:dock:glimmer_verified",
+          "label": "Confirmed by Muse Glimmer",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "rule",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": "dock",
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "violation"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "rule:dock:glimmer_rejected",
+          "label": "Rejected by Muse Glimmer",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#11"],
+          "section": "rule",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": "dock",
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "no_violation"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "rule:spill:alerts_raised",
+          "label": "Alerts raised",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#3"],
+          "section": "rule",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": "spill",
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "rule:spill:glimmer_verified",
+          "label": "Confirmed by Muse Glimmer",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#4"],
+          "section": "rule",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": "spill",
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "violation"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "rule:spill:glimmer_rejected",
+          "label": "Rejected by Muse Glimmer",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "rule",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": "spill",
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "no_violation"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "shift:early:alerts_raised",
+          "label": "Alerts raised, early shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#3"],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "early",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "shift:early:glimmer_verified",
+          "label": "Confirmed by Glimmer, early shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#4"],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "early",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "violation"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "shift:late:alerts_raised",
+          "label": "Alerts raised, late shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#10"],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "late",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "shift:late:glimmer_verified",
+          "label": "Confirmed by Glimmer, late shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "late",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "violation"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "shift:night:alerts_raised",
+          "label": "Alerts raised, night shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "night",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "shift:night:glimmer_verified",
+          "label": "Confirmed by Glimmer, night shift",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "shift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": "night",
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "verdict",
+              "payload.tier": "glimmer",
+              "payload.verdict": "violation"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "camera:cam-a:alerts_raised",
+          "label": "Alerts raised on cam-a",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#3"],
+          "section": "camera",
+          "spec": {
+            "camera": "cam-a",
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "camera:cam-b:alerts_raised",
+          "label": "Alerts raised on cam-b",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#10"],
+          "section": "camera",
+          "spec": {
+            "camera": "cam-b",
+            "op": "count",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "candidate"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "camera:cam-a:watched_s",
+          "label": "Time cam-a could see (coverage OK)",
+          "previous": 0.0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#2", "2026-11-02#8", "2026-11-02#9"],
+          "section": "camera",
+          "spec": {
+            "camera": "cam-a",
+            "op": "state_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": "ok",
+            "to": [],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 59400.0
+        },
+        {
+          "id": "camera:cam-a:blind_s",
+          "label": "Time cam-a was BLIND",
+          "previous": 0.0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#2", "2026-11-02#8", "2026-11-02#9"],
+          "section": "camera",
+          "spec": {
+            "camera": "cam-a",
+            "op": "state_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": "blind",
+            "to": [],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 1800.0
+        },
+        {
+          "id": "time_to_clear_median",
+          "label": "Median time from hazard seen to cleared",
+          "previous": null,
+          "previous_refs": [],
+          "refs": ["2026-11-02#3", "2026-11-02#7"],
+          "section": "hazard",
+          "spec": {
+            "camera": null,
+            "op": "median_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "label",
+                "payload.label": "hazard_cleared"
+              },
+              {
+                "kind": "action",
+                "payload.kind": "cleared"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 300.0
+        },
+        {
+          "id": "time_to_clear_max",
+          "label": "Longest time from hazard seen to cleared",
+          "previous": null,
+          "previous_refs": [],
+          "refs": ["2026-11-02#3", "2026-11-02#7"],
+          "section": "hazard",
+          "spec": {
+            "camera": null,
+            "op": "max_s",
+            "prefix": {},
+            "rule": null,
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "label",
+                "payload.label": "hazard_cleared"
+              },
+              {
+                "kind": "action",
+                "payload.kind": "cleared"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 300.0
+        }
+      ],
+      "notes": [
+        "Numbers are per rule, camera and shift (early, late, night, UTC); nothing is measured or grouped per person or per tracked individual."
+      ],
+      "pack_id": "pp-000000000001",
+      "period": {
+        "end": "2026-11-03T00:00:00Z",
+        "previous_end": "2026-11-02T00:00:00Z",
+        "previous_start": "2026-11-01T00:00:00Z",
+        "shifts": [
+          {
+            "name": "early",
+            "start_hour": 6
+          },
+          {
+            "name": "late",
+            "start_hour": 14
+          },
+          {
+            "name": "night",
+            "start_hour": 22
+          }
+        ],
+        "start": "2026-11-02T00:00:00Z",
+        "timezone": "UTC"
+      },
+      "privacy_mode": "strict",
+      "records": [
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#1",
+          "proof": [
+            ["61b65a7136d1bc5dc2bb52f168d5cc85b928d4c525fc654d7210082cd2a5c5e8", "R"],
+            ["6478167960f857208a81b2e57f8cc5e226861b69bb643f638197ea085b624d2c", "R"],
+            ["ff6a618c29a11b07afe12fa5b04c653b24b455381ac6ff0164d824176acab1ce", "R"],
+            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "74a648a8735cbea8f389ad7ab04ee6d67febb198a776a243472b063db9a7e6b1",
+            "kind": "plan",
+            "payload": {
+              "event": "plan_approved",
+              "gates": [
+                {
+                  "reasons": [],
+                  "rule_id": "spill",
+                  "status": "pass"
+                },
+                {
+                  "reasons": ["ci_green failed"],
+                  "rule_id": "dock",
+                  "status": "amber"
+                }
+              ],
+              "plan_id": "plan-000000000001",
+              "rules": ["spill", "dock"]
+            },
+            "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+            "seq": 1,
+            "site": "demo",
+            "ts": "2026-11-02T07:00:00Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#2",
+          "proof": [
+            ["74a648a8735cbea8f389ad7ab04ee6d67febb198a776a243472b063db9a7e6b1", "L"],
+            ["6478167960f857208a81b2e57f8cc5e226861b69bb643f638197ea085b624d2c", "R"],
+            ["ff6a618c29a11b07afe12fa5b04c653b24b455381ac6ff0164d824176acab1ce", "R"],
+            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "61b65a7136d1bc5dc2bb52f168d5cc85b928d4c525fc654d7210082cd2a5c5e8",
+            "kind": "coverage",
+            "payload": {
+              "camera_id": "cam-a",
+              "reason": null,
+              "state": "ok"
+            },
+            "prev_hash": "74a648a8735cbea8f389ad7ab04ee6d67febb198a776a243472b063db9a7e6b1",
+            "seq": 2,
+            "site": "demo",
+            "ts": "2026-11-02T07:00:00Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#3",
+          "proof": [
+            ["a9e31126700187b08235dcbbc69035459b75a0a6284e6ce6af4fb71780107684", "R"],
+            ["9fa03b1547d1fc07fc0b73f79d0f9e6515b3dc7aed16f8ed83bbcc96e1f55173", "L"],
+            ["ff6a618c29a11b07afe12fa5b04c653b24b455381ac6ff0164d824176acab1ce", "R"],
+            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "8cbd2aef86dd5d1798afa1a371c800e4eeb741218f1eefb6cbdd2e45645609fc",
+            "kind": "candidate",
+            "payload": {
+              "candidate": {
+                "camera_id": "cam-a",
+                "event_id": "ev-1",
+                "rule_id": "spill",
+                "severity": "high",
+                "strip_paths": []
+              },
+              "context": {
+                "rule": {
+                  "id": "spill",
+                  "source": {
+                    "standard": [],
+                    "text": "Rule spill"
+                  }
+                }
+              }
+            },
+            "prev_hash": "61b65a7136d1bc5dc2bb52f168d5cc85b928d4c525fc654d7210082cd2a5c5e8",
+            "seq": 3,
+            "site": "demo",
+            "ts": "2026-11-02T07:01:00Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#4",
+          "proof": [
+            ["8cbd2aef86dd5d1798afa1a371c800e4eeb741218f1eefb6cbdd2e45645609fc", "L"],
+            ["9fa03b1547d1fc07fc0b73f79d0f9e6515b3dc7aed16f8ed83bbcc96e1f55173", "L"],
+            ["ff6a618c29a11b07afe12fa5b04c653b24b455381ac6ff0164d824176acab1ce", "R"],
+            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "a9e31126700187b08235dcbbc69035459b75a0a6284e6ce6af4fb71780107684",
+            "kind": "verdict",
+            "payload": {
+              "event_id": "ev-1",
+              "score": 0.9,
+              "tier": "glimmer",
+              "verdict": "violation"
+            },
+            "prev_hash": "8cbd2aef86dd5d1798afa1a371c800e4eeb741218f1eefb6cbdd2e45645609fc",
+            "seq": 4,
+            "site": "demo",
+            "ts": "2026-11-02T07:01:20Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#5",
+          "proof": [
+            ["27627e35f029aa5b628c6b0d3fd695346cb59395450ba2ced681bb006b11199b", "R"],
+            ["023f769a149826d776d37ea2a76cfa748ab5d8f04453bd6706d45cf8b5feff4d", "R"],
+            ["6a1b3810b5b052033965d8b11ee051e0b0af19846d22e275e9b692ec4566f89f", "L"],
+            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "59170e06a2e60cd994257d79ea6bbd92ff9b9afb8e2cad1e3962039a55b9890d",
+            "kind": "action",
+            "payload": {
+              "detail": "sent to staff",
+              "event_id": "ev-1",
+              "kind": "notify"
+            },
+            "prev_hash": "a9e31126700187b08235dcbbc69035459b75a0a6284e6ce6af4fb71780107684",
+            "seq": 5,
+            "site": "demo",
+            "ts": "2026-11-02T07:01:30Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#6",
+          "proof": [
+            ["59170e06a2e60cd994257d79ea6bbd92ff9b9afb8e2cad1e3962039a55b9890d", "L"],
+            ["023f769a149826d776d37ea2a76cfa748ab5d8f04453bd6706d45cf8b5feff4d", "R"],
+            ["6a1b3810b5b052033965d8b11ee051e0b0af19846d22e275e9b692ec4566f89f", "L"],
+            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "27627e35f029aa5b628c6b0d3fd695346cb59395450ba2ced681bb006b11199b",
+            "kind": "ack",
+            "payload": {
+              "event_id": "ev-1",
+              "role": "staff"
+            },
+            "prev_hash": "59170e06a2e60cd994257d79ea6bbd92ff9b9afb8e2cad1e3962039a55b9890d",
+            "seq": 6,
+            "site": "demo",
+            "ts": "2026-11-02T07:02:00Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#7",
+          "proof": [
+            ["c245ab3a2f8970bc7c08a36293a4792c3246b8298b5301341db721fb3e0cd65c", "R"],
+            ["dd9e4c49de72b17780691b0d507df21bee3b449066aacdfdb42faa76d88581cf", "L"],
+            ["6a1b3810b5b052033965d8b11ee051e0b0af19846d22e275e9b692ec4566f89f", "L"],
+            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "6047228eb07fa818fe697caa6ec386b1b349e8b21d1c4d6cdae5e997e56f276b",
+            "kind": "label",
+            "payload": {
+              "event_id": "ev-1",
+              "label": "hazard_cleared"
+            },
+            "prev_hash": "27627e35f029aa5b628c6b0d3fd695346cb59395450ba2ced681bb006b11199b",
+            "seq": 7,
+            "site": "demo",
+            "ts": "2026-11-02T07:06:00Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#8",
+          "proof": [
+            ["6047228eb07fa818fe697caa6ec386b1b349e8b21d1c4d6cdae5e997e56f276b", "L"],
+            ["dd9e4c49de72b17780691b0d507df21bee3b449066aacdfdb42faa76d88581cf", "L"],
+            ["6a1b3810b5b052033965d8b11ee051e0b0af19846d22e275e9b692ec4566f89f", "L"],
+            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "c245ab3a2f8970bc7c08a36293a4792c3246b8298b5301341db721fb3e0cd65c",
+            "kind": "coverage",
+            "payload": {
+              "camera_id": "cam-a",
+              "reason": "dark",
+              "state": "blind"
+            },
+            "prev_hash": "6047228eb07fa818fe697caa6ec386b1b349e8b21d1c4d6cdae5e997e56f276b",
+            "seq": 8,
+            "site": "demo",
+            "ts": "2026-11-02T07:16:00Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#9",
+          "proof": [
+            ["3bb544c7eb410e621a24218afbaf7fc07d63646831205a7b33b50321c58f6ca0", "R"],
+            ["3ec03c0a3b6d7ee386691e90bb4cea9286df502df410abf843bf4137224bf2ee", "R"],
+            ["7aa27ef1e9bc65d6428266ac9ecb872899bc66868c66d4763008d2f6558b704d", "R"],
+            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "31132defa6373d3169d4c93f90ad2643352d53525f010280b81112439914534a",
+            "kind": "coverage",
+            "payload": {
+              "camera_id": "cam-a",
+              "reason": null,
+              "state": "ok"
+            },
+            "prev_hash": "c245ab3a2f8970bc7c08a36293a4792c3246b8298b5301341db721fb3e0cd65c",
+            "seq": 9,
+            "site": "demo",
+            "ts": "2026-11-02T07:46:00Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#10",
+          "proof": [
+            ["31132defa6373d3169d4c93f90ad2643352d53525f010280b81112439914534a", "L"],
+            ["3ec03c0a3b6d7ee386691e90bb4cea9286df502df410abf843bf4137224bf2ee", "R"],
+            ["7aa27ef1e9bc65d6428266ac9ecb872899bc66868c66d4763008d2f6558b704d", "R"],
+            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "3bb544c7eb410e621a24218afbaf7fc07d63646831205a7b33b50321c58f6ca0",
+            "kind": "candidate",
+            "payload": {
+              "candidate": {
+                "camera_id": "cam-b",
+                "event_id": "ev-2",
+                "rule_id": "dock",
+                "severity": "high",
+                "strip_paths": []
+              },
+              "context": {
+                "rule": {
+                  "id": "dock",
+                  "source": {
+                    "standard": [],
+                    "text": "Rule dock"
+                  }
+                }
+              }
+            },
+            "prev_hash": "31132defa6373d3169d4c93f90ad2643352d53525f010280b81112439914534a",
+            "seq": 10,
+            "site": "demo",
+            "ts": "2026-11-02T15:46:00Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#11",
+          "proof": [
+            ["8e2b03784caa69e15a37617f9806c8738e00e319f48dc2efe484e4cf535094af", "R"],
+            ["eb1bc772a209323b0d8f8c40c0a964a7f3b85425fae31bb3fd10f3bce50efc07", "L"],
+            ["7aa27ef1e9bc65d6428266ac9ecb872899bc66868c66d4763008d2f6558b704d", "R"],
+            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "3ef2e787f378b0777c56e856a68c69af6a0660f3064be74db281d6730b34d61d",
+            "kind": "verdict",
+            "payload": {
+              "event_id": "ev-2",
+              "score": 0.1,
+              "tier": "glimmer",
+              "verdict": "no_violation"
+            },
+            "prev_hash": "3bb544c7eb410e621a24218afbaf7fc07d63646831205a7b33b50321c58f6ca0",
+            "seq": 11,
+            "site": "demo",
+            "ts": "2026-11-02T15:46:05Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#12",
+          "proof": [
+            ["3ef2e787f378b0777c56e856a68c69af6a0660f3064be74db281d6730b34d61d", "L"],
+            ["eb1bc772a209323b0d8f8c40c0a964a7f3b85425fae31bb3fd10f3bce50efc07", "L"],
+            ["7aa27ef1e9bc65d6428266ac9ecb872899bc66868c66d4763008d2f6558b704d", "R"],
+            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "8e2b03784caa69e15a37617f9806c8738e00e319f48dc2efe484e4cf535094af",
+            "kind": "dispute",
+            "payload": {
+              "dispute": {
+                "channel": "tap",
+                "outcome": "pending",
+                "reason_text": "not me"
+              },
+              "dispute_id": "d1",
+              "event_id": "ev-2"
+            },
+            "prev_hash": "3ef2e787f378b0777c56e856a68c69af6a0660f3064be74db281d6730b34d61d",
+            "seq": 12,
+            "site": "demo",
+            "ts": "2026-11-02T15:46:10Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#13",
+          "proof": [
+            ["b34e9829647f2375a06a82f6127fb24d9c7a793f16449064d3b34529b41375ca", "R"],
+            ["4603fc58d2d9f428e7354d88bbaec1ef4eef2afc6d4f8245c21814610b1926fb", "R"],
+            ["b30b3035f00a9a31e5cbd43904e30213ce07294600582d588148d76b2c79e177", "L"],
+            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "854d170e9ce968b7b14e38c335341c7816c4039e831da9c997d4750120d167a8",
+            "kind": "dispute",
+            "payload": {
+              "dispute": {
+                "channel": "tap",
+                "outcome": "upheld",
+                "reason_text": "not me"
+              },
+              "dispute_id": "d1",
+              "event_id": "ev-2"
+            },
+            "prev_hash": "8e2b03784caa69e15a37617f9806c8738e00e319f48dc2efe484e4cf535094af",
+            "seq": 13,
+            "site": "demo",
+            "ts": "2026-11-02T15:46:15Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#14",
+          "proof": [
+            ["854d170e9ce968b7b14e38c335341c7816c4039e831da9c997d4750120d167a8", "L"],
+            ["4603fc58d2d9f428e7354d88bbaec1ef4eef2afc6d4f8245c21814610b1926fb", "R"],
+            ["b30b3035f00a9a31e5cbd43904e30213ce07294600582d588148d76b2c79e177", "L"],
+            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "b34e9829647f2375a06a82f6127fb24d9c7a793f16449064d3b34529b41375ca",
+            "kind": "rule_change",
+            "payload": {
+              "action": "setting_proposal",
+              "proposal_id": "p-1",
+              "setting_name": "retention_days"
+            },
+            "prev_hash": "854d170e9ce968b7b14e38c335341c7816c4039e831da9c997d4750120d167a8",
+            "seq": 14,
+            "site": "demo",
+            "ts": "2026-11-02T15:47:15Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#15",
+          "proof": [
+            ["d85506359076ff41d4bc6c0210249d6c07e673a1adf3c20c91b697513863ef20", "R"],
+            ["e664855dc64718e1c86c592cfe51240e0dd7d91f0cb39a4e4bfc7199da77aef1", "L"],
+            ["b30b3035f00a9a31e5cbd43904e30213ce07294600582d588148d76b2c79e177", "L"],
+            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "df1711a199d50f4016ce180022919278fc828f1e7770f72af95d7c75056c5f67",
+            "kind": "rule_change",
+            "payload": {
+              "action": "setting_approval",
+              "proposal_id": "p-1",
+              "role": "owner"
+            },
+            "prev_hash": "b34e9829647f2375a06a82f6127fb24d9c7a793f16449064d3b34529b41375ca",
+            "seq": 15,
+            "site": "demo",
+            "ts": "2026-11-02T15:48:15Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#16",
+          "proof": [
+            ["df1711a199d50f4016ce180022919278fc828f1e7770f72af95d7c75056c5f67", "L"],
+            ["e664855dc64718e1c86c592cfe51240e0dd7d91f0cb39a4e4bfc7199da77aef1", "L"],
+            ["b30b3035f00a9a31e5cbd43904e30213ce07294600582d588148d76b2c79e177", "L"],
+            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
+            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+          ],
+          "record": {
+            "hash": "d85506359076ff41d4bc6c0210249d6c07e673a1adf3c20c91b697513863ef20",
+            "kind": "rule_change",
+            "payload": {
+              "action": "setting_approval",
+              "proposal_id": "p-1",
+              "role": "crew_representative"
+            },
+            "prev_hash": "df1711a199d50f4016ce180022919278fc828f1e7770f72af95d7c75056c5f67",
+            "seq": 16,
+            "site": "demo",
+            "ts": "2026-11-02T15:49:15Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#17",
+          "proof": [
+            ["a145b89a68b3f961b6b162fa22f7699340fdad8aa3e5c4968a6afbf1042b783a", "R"],
+            ["d5010595f5fe46c9e46d7819c004d73b245e77d78cddb43e4a9bb7c9122b7f52", "R"],
+            ["f7eb3cb5a5b160d6ec83da97184e9170300e11affb6363a5b969b73f12e2c572", "R"],
+            ["580fb1cedcf0c1c4d31ae86324911325d561656fa9afa80ae4c185f1f69e91c9", "R"],
+            ["99711f1c130f7d1f58056fe63b947544b67ae96366087afbd35129a0802b39dd", "L"]
+          ],
+          "record": {
+            "hash": "e5acf8b3d225de55987b2a96d40edf28b6e60eaac9eac362e091b4a59e1a9117",
+            "kind": "rule_change",
+            "payload": {
+              "action": "setting_applied",
+              "proposal_id": "p-1",
+              "setting_name": "retention_days"
+            },
+            "prev_hash": "d85506359076ff41d4bc6c0210249d6c07e673a1adf3c20c91b697513863ef20",
+            "seq": 17,
+            "site": "demo",
+            "ts": "2026-11-02T15:50:15Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#18",
+          "proof": [
+            ["e5acf8b3d225de55987b2a96d40edf28b6e60eaac9eac362e091b4a59e1a9117", "L"],
+            ["d5010595f5fe46c9e46d7819c004d73b245e77d78cddb43e4a9bb7c9122b7f52", "R"],
+            ["f7eb3cb5a5b160d6ec83da97184e9170300e11affb6363a5b969b73f12e2c572", "R"],
+            ["580fb1cedcf0c1c4d31ae86324911325d561656fa9afa80ae4c185f1f69e91c9", "R"],
+            ["99711f1c130f7d1f58056fe63b947544b67ae96366087afbd35129a0802b39dd", "L"]
+          ],
+          "record": {
+            "hash": "a145b89a68b3f961b6b162fa22f7699340fdad8aa3e5c4968a6afbf1042b783a",
+            "kind": "rule_change",
+            "payload": {
+              "action": "setting_applied",
+              "proposal_id": "p-2"
+            },
+            "prev_hash": "e5acf8b3d225de55987b2a96d40edf28b6e60eaac9eac362e091b4a59e1a9117",
+            "seq": 18,
+            "site": "demo",
+            "ts": "2026-11-02T15:51:15Z"
+          }
+        }
+      ],
+      "rules": [
+        {
+          "active_s": 61200.0,
+          "approvals": ["2026-11-02#1"],
+          "ci_detail": null,
+          "clause": null,
+          "clause_note": "",
+          "distance_rule": false,
+          "gate": "pass",
+          "gate_reasons": [],
+          "plan_ids": ["plan-000000000001"],
+          "rule_id": "spill",
+          "severity": "",
+          "standards": [],
+          "text": "Rule spill"
+        },
+        {
+          "active_s": 61200.0,
+          "approvals": ["2026-11-02#1"],
+          "ci_detail": null,
+          "clause": null,
+          "clause_note": "",
+          "distance_rule": false,
+          "gate": "amber",
+          "gate_reasons": ["ci_green failed"],
+          "plan_ids": ["plan-000000000001"],
+          "rule_id": "dock",
+          "severity": "",
+          "standards": [],
+          "text": "Rule dock"
+        }
+      ],
+      "site": "demo",
+      "stills": [],
+      "summaries": [
+        {
+          "audience": "inspector",
+          "dropped": 0,
+          "lang": "en",
+          "model": "muse-spark-1.3",
+          "template": ["Rules raised {alerts_raised} alerts in this period."],
+          "text": ["Rules raised 2 alerts in this period."]
+        }
+      ],
+      "title": "Proof pack 2026-11-02 00:00 to 2026-11-03 00:00 UTC"
+    },
+    "pack_hash": "fdd0cc00ea89988efe52b95963f2e44ef7595351392068ef158a9c1e9cd8b860"
+  }
+}

@@ -107,6 +107,7 @@ def main() -> None:
     parser.add_argument("--seconds", type=float, default=8.0)
     parser.add_argument("--fps", type=float, default=5.0)
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--boxes", type=Path, help="Also write SAM's boxes per frame as JSON")
     args = parser.parse_args()
 
     settings = get_settings()
@@ -168,6 +169,9 @@ def main() -> None:
         "first_alert_whys": whys,
     }
     text = json.dumps(summary, indent=2)
+    if args.boxes is not None:
+        boxes = [{"frame": d.frame_idx, "box_xyxy_px": list(d.mask.box_xyxy)} for d in detections]
+        args.boxes.write_text(json.dumps(boxes) + "\n", encoding="utf-8")
     if args.out is not None:
         args.out.write_text(text + "\n", encoding="utf-8")
     print(text)

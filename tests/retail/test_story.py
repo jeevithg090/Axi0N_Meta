@@ -339,9 +339,12 @@ def test_shelf_gap_becomes_a_task_closed_by_a_photo(tmp_path: Path) -> None:
     assert done.minutes_to_fix == 12.0
     assert done.proof is not None
     assert rig.service.tasks_for("stock", open_only=True) == []
-    fixed = [r for r in rig.records() if r.payload.get("type") == "retail_fixed"]
+    fixed = [r for r in rig.records() if r.payload.get("type") == "gap_refilled"]
     assert fixed[0].seq == done.fixed_seq
     assert fixed[0].payload["minutes_to_fix"] == 12.0
+    detected = [r for r in rig.records() if r.payload.get("type") == "retail_finding"]
+    assert fixed[0].payload["detected_seq"] == detected[0].seq == finding.chain_seq
+    assert detected[0].payload["finding_id"] == finding.id
     assert rig.tasks.events.read_text().count(task.id) == 4  # opened, alerted, tried, fixed
 
 

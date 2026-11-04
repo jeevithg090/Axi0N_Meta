@@ -25,6 +25,8 @@ _log = get_logger(__name__)
 
 BUTTONS: Final = ("On my way", "False alarm")
 DEFAULT_ROLES: Final = {"queue": "tills", "hazard": "floor", "shelf": "stock"}
+DETECTED_LABEL: Final = "retail_finding"
+FIXED_LABELS: Final = {"hazard": "hazard_cleared", "shelf": "gap_refilled"}
 TITLES: Final = {
     "queue": "Checkout",
     "hazard": "Floor hazard",
@@ -88,14 +90,14 @@ class StaffDesk:
                 clip_path=str(picture) if picture else None,
                 buttons=BUTTONS,
             )
-        if task is not None:
-            self._tasks.put(task.model_copy(update={"alert_id": alert_id}))
         sent = finding.model_copy(
             update={"alert_id": alert_id, "task_id": task.id if task else None}
         )
-        self._record(sent, who)
+        seq = self._record(sent, who)
+        if task is not None:
+            self._tasks.put(task.model_copy(update={"alert_id": alert_id, "detected_seq": seq}))
         _log.info("retail_alert", kind=finding.kind, role=who, alert_id=alert_id)
-        return sent
+        return sent.model_copy(update={"chain_seq": seq})
 
     def answered(self, finding: Finding) -> str | None:
         """The status of the finding's alert (`open`, `acknowledged`, `false_alarm`)."""
@@ -124,6 +126,10 @@ class StaffDesk:
     ) -> int | None:
         """Write a fixed task to the chain: what, where, seen when, fixed when and how.
 
+        The record is an `advice` record whose `type` is `hazard_cleared` or `gap_refilled`
+        (stable labels: proof packs look for them) and whose `detected_seq` is the chain record
+        of the detection (`retail_finding`), so a pack can prove "seen at, cleared at".
+
         Returns:
             The chain record's seq (`None` without a chain).
         """
@@ -132,7 +138,8 @@ class StaffDesk:
         record = self._chain.append(
             "advice",
             {
-                "type": "retail_fixed",
+                "type": FIXED_LABELS[task.kind],
+                "detected_seq": task.detected_seq,
                 "task_id": task.id,
                 "kind": task.kind,
                 "finding_id": task.finding_id,
@@ -141,15 +148,16 @@ class StaffDesk:
                 "seen_at": (task.seen_at or task.created_at).isoformat(),
                 "fixed_at": at.isoformat(),
                 "minutes_to_fix": minutes_to_fix,
+                "seconds_to_fix": round(minutes_to_fix * 60),
                 "closed_by": how,
             },
         )
         return record.seq
 
-    def _record(self, finding: Finding, role: str) -> None:
+    def _record(self, finding: Finding, role: str) -> int | None:
         if self._chain is None:
-            return
-        self._chain.append(
+            return None
+        record = self._chain.append(
             "advice",
             {
                 "type": "retail_finding",
@@ -166,6 +174,7 @@ class StaffDesk:
                 "models": sorted({c.model for c in finding.calls}),
             },
         )
+        return record.seq
 
 
 def task_items(finding: Finding) -> list[str]:

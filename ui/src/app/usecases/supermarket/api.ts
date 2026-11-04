@@ -33,6 +33,8 @@ export interface Finding {
   alert_id: string | null;
   task_id: string | null;
   metric: number | null;
+  /** Evidence-chain record of the alert (`retail_finding`), when one was sent. */
+  chain_seq?: number | null;
   /** `open`, `acknowledged` or `false_alarm` once staff answered (overview only). */
   alert_status?: string | null;
 }
@@ -73,6 +75,8 @@ export interface StaffTask {
     glimmer?: { summary?: string } | null;
   } | null;
   fixed_seq: number | null;
+  /** Evidence-chain record of the detection (`retail_finding`). */
+  detected_seq?: number | null;
 }
 
 export interface CardNumber {

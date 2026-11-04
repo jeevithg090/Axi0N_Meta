@@ -71,16 +71,26 @@ not contain.
 
 `Finding`: `{id, kind, camera_id, camera_name, at, checked_at, watch_id, act, headline,
 staff_message, detail (the models' structured output), evidence {frames, marked}, calls [{model,
-role, seconds, error}], seconds, alert_id, task_id, metric}`. `metric` is what a switchback reads:
+role, seconds, error}], seconds, alert_id, task_id, metric, chain_seq}`. `metric` is what a switchback reads:
 customers waiting, confirmed hazards, shelf gaps.
 
 `StaffTask`: `{id, kind (shelf|hazard), finding_id, camera_id, where, items, marked, seen_at,
 created_at, status, done_at, closed_by, minutes_to_fix, alert_id, role, proof_image, proof,
-fixed_seq}`.
+fixed_seq, detected_seq}`.
 
-Evidence chain records (kind `advice`): `type: retail_finding` for every alert sent,
-`type: retail_fixed` for every fix (with `seen_at`, `fixed_at`, `minutes_to_fix`,
-`closed_by`), and `measurement_plan` for every accepted card. Staff alerts go through the site's
+Evidence chain records (all of kind `advice`; the `type` labels are stable, proof packs for
+inspectors and insurers look for them):
+
+| `type` | Written when | Fields |
+|---|---|---|
+| `retail_finding` | staff are alerted (a detection) | `finding_id, kind, camera_id, at, watch_id, headline, staff_message, role, alert_id, task_id, models` |
+| `hazard_cleared` | a hazard task closes | `detected_seq` (the seq of its `retail_finding` record), `task_id, kind, finding_id, camera_id, items, seen_at, fixed_at, minutes_to_fix, seconds_to_fix, closed_by` (`photo`, `camera` or `staff`) |
+| `gap_refilled` | a shelf task closes | the same fields as `hazard_cleared` |
+
+An accepted card writes a `measurement_plan` record (kind `measurement_plan`) before its watch
+starts. A finding carries its `retail_finding` seq as `chain_seq`; a task carries
+`detected_seq` and, once fixed, `fixed_seq`, so "seen at 10:02, cleared at 10:09 (7 min)" can be
+shown with a Merkle proof of both records. Staff alerts go through the site's
 outbound notifier: the alerts app (`/alerts`), plus Telegram or WhatsApp when configured.
 
 Stored under `<data>/retail/`: `findings.jsonl`, `tasks.json` and `tasks.events.jsonl` (every

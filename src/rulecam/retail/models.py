@@ -154,6 +154,7 @@ class Finding(Frozen):
         task_id: The restock task created, for a shelf finding with gaps.
         metric: The number this check measures for a pre-registered switchback (queue: people
             waiting), when there is one.
+        chain_seq: The evidence-chain record of the alert (`retail_finding`), when one was sent.
     """
 
     id: str
@@ -173,6 +174,7 @@ class Finding(Frozen):
     alert_id: str | None = None
     task_id: str | None = None
     metric: float | None = None
+    chain_seq: int | None = None
 
 
 class Watch(Frozen):
@@ -235,7 +237,8 @@ class StaffTask(Frozen):
         role: Who it is for.
         proof_image: The staff's photo, when one was sent.
         proof: The models' verdict on the photo or the re-check.
-        fixed_seq: The evidence-chain record of the fix.
+        fixed_seq: The evidence-chain record of the fix (`hazard_cleared` / `gap_refilled`).
+        detected_seq: The evidence-chain record of the detection (`retail_finding`).
     """
 
     id: str
@@ -256,6 +259,7 @@ class StaffTask(Frozen):
     proof_image: str | None = None
     proof: dict[str, object] | None = None
     fixed_seq: int | None = None
+    detected_seq: int | None = None
 
 
 class BriefStats(Frozen):

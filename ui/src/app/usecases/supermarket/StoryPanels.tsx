@@ -386,7 +386,9 @@ export function TasksPanel({ tasks, onChange }: { tasks: StaffTask[]; onChange: 
             Seen {age(t.seen_at)}
             {t.done_at &&
               ` · fixed in ${t.minutes_to_fix ?? "?"} min (checked by ${t.closed_by})${
-                t.fixed_seq !== null ? `, chain record #${t.fixed_seq}` : ""
+                t.fixed_seq !== null
+                  ? `, chain records #${t.detected_seq ?? "?"} seen → #${t.fixed_seq} fixed`
+                  : ""
               }`}
           </div>
           {t.proof?.spark?.summary && (

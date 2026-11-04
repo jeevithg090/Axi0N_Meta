@@ -191,8 +191,10 @@ keyframe (keyframes_per_s in the data stats); boxes in pixels of a {width}x{heig
 foot point is the bottom centre, foot_m_* in metres when the camera is calibrated. Each concept \
 is a separate SAM 3.1 prompt and concepts can overlap: a cashier can also be tracked as a \
 person. One real object can be split into several track_ids (occlusion, re-entering), so \
-distinct track_id counts over a period are an upper bound; the count present at one ts is \
-reliable. To ask about an area (a lane, a door, a shelf), find its box with count_objects or \
+distinct track_id counts over a period are an upper bound. The count present at one ts is \
+close on a sparse view, but on a busy view SAM can put two boxes on one person (a live test \
+read 22 `customer` tracks where about 12 people stood), so check busy instants with \
+cross_count. To ask about an area (a lane, a door, a shelf), find its box with count_objects or \
 look and filter on the foot point yourself.
 - track_spans(track_id, camera_id, concept, first_seen, last_seen, seconds, points): one row per \
 track.
@@ -249,8 +251,9 @@ named image polygons [[x, y], ...] in pixels to measure areas such as a gate or 
 times[0] (one instant): SAM 3.1's boxes, Muse Spark pointing at each one, Muse Glimmer's own \
 count, plus the tracker's count of every tracked concept at the nearest keyframe. Use it for \
 any "how many at that moment" on a busy view: the tracker can split one person into several \
-boxes. When the counts disagree, reconcile them yourself and say which you trust and why \
-(the marked frame shows Spark's points and SAM's boxes; look at it if unsure).
+boxes. When the counts disagree, reconcile them yourself and say which you trust and why. \
+The result also says how SAM's boxes and Spark's points line up (boxes with no point inside \
+may be duplicates or things Spark left out; points outside every box are people SAM missed).
 7. answer: the final reply in the owner's language, with the numbers, the time range they cover \
 and one short sentence on how you got them and how sure you are. Also list the numbers the \
 reply gives in `numbers`, in the order the question asks for them.

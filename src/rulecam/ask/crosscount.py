@@ -100,6 +100,9 @@ class CrossCount(Frozen):
     spark: Counted
     glimmer: Counted
     tracked: dict[str, int] = Field(default_factory=dict)
+    boxes_without_point: int | None = None
+    boxes_with_several_points: int | None = None
+    points_outside_boxes: int | None = None
     counts: dict[str, int] = Field(default_factory=dict)
     all_equal: bool
     low: int | None
@@ -165,6 +168,27 @@ def draw(
     target = out_dir / f"{frame.path.stem}-cross.jpg"
     cv2.imwrite(str(target), image)
     return target
+
+
+def line_up(
+    frame: Frame, boxes: list[tuple[float, float, float, float]], points: list[Point]
+) -> tuple[int, int, int] | None:
+    """How SAM's boxes and Spark's points line up, as plain counts for the asking model.
+
+    Returns:
+        (boxes with no point, boxes with two or more points, points inside no box); `None`
+        without a readable frame.
+    """
+    image = cv2.imread(str(frame.path))
+    if image is None:
+        return None
+    height, width = image.shape[:2]
+    xy = [(p.x * width / GRID, p.y * height / GRID) for p in points]
+    inside = [sum(1 for x, y in xy if x1 <= x <= x2 and y1 <= y <= y2) for x1, y1, x2, y2 in boxes]
+    outside = sum(
+        1 for x, y in xy if not any(x1 <= x <= x2 and y1 <= y <= y2 for x1, y1, x2, y2 in boxes)
+    )
+    return sum(1 for n in inside if n == 0), sum(1 for n in inside if n > 1), outside
 
 
 class CrossCounter:
@@ -251,6 +275,7 @@ class CrossCounter:
             sam, spark, glimmer = sam_f.result(), spark_f.result(), glimmer_f.result()
         counts = {c.model: c.count for c in (sam, spark, glimmer) if c.count is not None}
         marked = draw(frame, boxes, points, self._out)
+        lined_up = line_up(frame, boxes, points) if sam.count is not None and spark.count else None
         _log.info("ask_cross_count", concept=concept, counts=counts, tracked=tracked)
         return CrossCount(
             camera_id=frame.camera_id,
@@ -260,6 +285,9 @@ class CrossCounter:
             spark=spark,
             glimmer=glimmer,
             tracked=tracked,
+            boxes_without_point=lined_up[0] if lined_up else None,
+            boxes_with_several_points=lined_up[1] if lined_up else None,
+            points_outside_boxes=lined_up[2] if lined_up else None,
             counts=counts,
             all_equal=len(set(counts.values())) <= 1,
             low=min(counts.values()) if counts else None,

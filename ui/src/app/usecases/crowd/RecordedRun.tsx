@@ -57,8 +57,6 @@ function speakCrowd(text: string, lang: string) {
  */
 export function RecordedRun() {
   const peak = run.tallies.find((t) => t.camera_id === run.alert.camera_id) ?? null;
-  const gateZone = run.report.zones.find((z) => z.zone.startsWith("gate")) ?? run.report.zones[0];
-  const truth = run.report.truth?.[0];
   const audioList = (run.alert as { audio?: { lang: string; text: string; heard?: string }[] }).audio ?? [];
 
   return (

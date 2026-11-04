@@ -194,7 +194,7 @@ export function WarehouseRecordedRun({
           </div>
           <div className={styles.kpiCard} role="listitem">
             <span className={styles.kpiNum}>28.3 s</span>
-            <span className={styles.kpiSub}>A worker's dispute upheld, which exposed a ruler bug</span>
+            <span className={styles.kpiSub}>A worker&apos;s dispute upheld, which exposed a ruler bug</span>
           </div>
         </div>
 

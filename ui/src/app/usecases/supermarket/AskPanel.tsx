@@ -228,6 +228,7 @@ export function AskPanel({ onAnswer }: { onAnswer: (answer: AskAnswer) => void }
                 {turn.status === "thinking" ? "Muse Spark is choosing tools…" : turn.status}
                 {turn.seconds !== null ? ` · ${turn.seconds.toFixed(1)} s` : ""}
               </span>
+              {turn.reasoning && <div className={styles.muted}>💭 {turn.reasoning}</div>}
               {turn.actions.map((view, i) => (
                 <div key={i} className={styles.muted}>
                   · {toolLabel(view.action.action)}: {view.action.thought}

@@ -209,6 +209,11 @@ function TurnRow({ turn }: { turn: TurnView }) {
               }`}
         </span>
       </div>
+      {turn.reasoning && (
+        <p className="ask-reasoning muted" data-testid="ask-reasoning">
+          <em>Spark’s reasoning:</em> {turn.reasoning}
+        </p>
+      )}
       {tools.length > 0 && (
         <ul className="ask-actions">
           {turn.actions.map((view, k) => (

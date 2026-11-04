@@ -79,6 +79,7 @@ export interface AskAnswer {
 export type AskEventType =
   | "start"
   | "thinking"
+  | "reasoning"
   | "actions"
   | "step"
   | "reviewing"
@@ -116,6 +117,8 @@ export interface TurnView {
   status: "thinking" | "running" | "done";
   seconds: number | null;
   actions: ActionView[];
+  /** Spark's reasoning summary for the turn, when the API sends one. */
+  reasoning?: string;
 }
 
 /** One question and everything that happened while answering it. */
@@ -169,6 +172,8 @@ export function askReducer(exchange: Exchange, event: AskEvent): Exchange {
           { turn, status: "thinking", seconds: null, actions: [] },
         ],
       };
+    case "reasoning":
+      return updateTurn(exchange, turn, (t) => ({ ...t, reasoning: event.detail ?? "" }));
     case "actions": {
       const actions = (event.actions ?? []).map((action) => ({ action, step: null }));
       return updateTurn(exchange, turn, (t) => ({

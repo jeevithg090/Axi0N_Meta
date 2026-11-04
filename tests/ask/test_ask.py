@@ -11,7 +11,9 @@ from typing import Any
 import pytest
 
 from rulecam.ask import AskAgent, FrameGrabber, SqlError, TrackTables, open_tables
+from rulecam.ask.trace import AskEvent
 from rulecam.clients.errors import StructuredOutputError
+from rulecam.clients.meta_hosted.spark import reasoning_summary
 from rulecam.clients.transport import ModelTransportError
 from rulecam.contracts import Detection, Mask, Track, TrackPoint
 from rulecam.rules.store import ParquetTrackStore
@@ -294,3 +296,63 @@ def test_cross_count_gives_spark_three_counts_and_the_tracker(
     assert result["tracked"] == {"person": 2}
     assert result["spark"]["detail"] == "one is behind a pillar"
     assert reply.answer == "One person; SAM split them."
+
+
+class ReasonedSpark(FakeLLM):
+    """A Spark that also returns a reasoning summary each turn."""
+
+    def structured_reasoned(
+        self, *, model: str, messages: list[dict[str, object]], schema: type[Any]
+    ) -> tuple[Any, list[str]]:
+        turn = self.structured(model=model, messages=messages, schema=schema)
+        return turn, [f"Thinking about turn {len(self.calls)}."]
+
+
+def test_reasoning_summaries_stream_between_turns(tracks_root: Path, tmp_path: Path) -> None:
+    spark = ReasonedSpark(
+        [
+            turn({"thought": "q", "action": "sql", "sql": "SELECT 1"}),
+            turn({"thought": "a", "action": "answer", "answer": "One."}),
+        ]
+    )
+    events: list[AskEvent] = []
+    asker = AskAgent(
+        spark=spark,
+        segmenter=Sam(),
+        glimmer=FakeLLM(),
+        glimmer_model="muse-glimmer-30b",
+        tables=open_tables(tracks_root),
+        frames=FrameGrabber(Chunks(), tmp_path / "frames", extract=write_frame),  # type: ignore[arg-type]
+        clock=FakeClock(EPOCH + timedelta(minutes=5)),
+        timezone="UTC",
+        reasoning=True,
+    )
+    reply = asker.ask("q", emit=events.append)
+    said = [e.detail for e in events if e.type == "reasoning"]
+    assert said == ["Thinking about turn 1.", "Thinking about turn 2."]
+    kinds = [e.type for e in events]
+    assert kinds.index("reasoning") < kinds.index("actions")
+    assert [t.reasoning for t in reply.turns] == [[s] for s in said]
+    quiet = AskAgent(
+        spark=ReasonedSpark([turn({"thought": "a", "action": "answer", "answer": "x"})]),
+        segmenter=Sam(),
+        glimmer=FakeLLM(),
+        glimmer_model="m",
+        tables=open_tables(tracks_root),
+        frames=FrameGrabber(Chunks(), tmp_path / "frames", extract=write_frame),  # type: ignore[arg-type]
+        clock=FakeClock(EPOCH),
+        timezone="UTC",
+    )
+    assert quiet.ask("q").turns[0].reasoning == []
+
+
+def test_reasoning_summary_parts() -> None:
+    body = {
+        "output": [
+            {"type": "reasoning", "summary": [{"type": "summary_text", "text": "Plan."}]},
+            {"type": "message", "content": [{"type": "output_text", "text": "{}"}]},
+            {"type": "reasoning", "summary": [{"type": "summary_text", "text": "Check."}]},
+        ]
+    }
+    assert reasoning_summary(body) == ["Plan.", "Check."]
+    assert reasoning_summary({"output": "nope"}) == []

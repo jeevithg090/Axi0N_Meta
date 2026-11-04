@@ -50,7 +50,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, Protocol
+from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
 import yaml
 
@@ -109,6 +109,21 @@ _FRAME_NAME: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}\.jpg$")
 
 Emit = Callable[[AskEvent], None]
 """Receives each `AskEvent` as it happens (called from worker threads too)."""
+
+
+@runtime_checkable
+class Reasoned(Protocol):
+    """A Spark client that also returns its reasoning summary (`SparkClient`)."""
+
+    def structured_reasoned(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, object]],
+        schema: type[AskTurn],
+    ) -> tuple[AskTurn, list[str]]:
+        """The validated turn and Spark's reasoning summary."""
+        ...
 
 
 class CrowdMeasure(Protocol):
@@ -305,6 +320,7 @@ class AskAgent:
         files: FileAttacher | None = None,
         watch_model: str = WATCH_MODEL,
         crowd: CrowdMeasure | None = None,
+        reasoning: bool = False,
     ) -> None:
         """Create the agent.
 
@@ -331,6 +347,7 @@ class AskAgent:
             files: Uploads a clip for Spark (`SparkClient.attach`; `None`: watch unavailable).
             watch_model: The Spark model that takes video.
             crowd: Measures the crowd at an instant (`None`: crowd_scan unavailable).
+            reasoning: Ask Spark for its reasoning summary each turn and stream it.
         """
         self._spark = spark
         self._segmenter = segmenter
@@ -353,6 +370,7 @@ class AskAgent:
         self._files = files
         self._watch_model = watch_model
         self._crowd = crowd
+        self._reasoning = reasoning
         self._conversations: OrderedDict[str, list[AskAnswer]] = OrderedDict()
         self._lock = threading.Lock()
         self._glimmer_down: tuple[float, str] | None = None  # (monotonic until, why)
@@ -489,10 +507,18 @@ class AskAgent:
                 messages.append({"role": "user", "content": "Steps used up: answer now."})
             emit(AskEvent(type="thinking", turn=turn))
             started = time.perf_counter()
-            actions = self._next(messages)
+            actions, reasoning = self._next(messages)
             seconds = round(time.perf_counter() - started, 1)
+            if reasoning:
+                emit(AskEvent(type="reasoning", turn=turn, detail=" ".join(reasoning)))
             trace.turns.append(
-                AskTurnTiming(turn=turn, model=SPARK_MODEL, seconds=seconds, actions=len(actions))
+                AskTurnTiming(
+                    turn=turn,
+                    model=SPARK_MODEL,
+                    seconds=seconds,
+                    actions=len(actions),
+                    reasoning=reasoning,
+                )
             )
             emit(AskEvent(type="actions", turn=turn, actions=actions, seconds=seconds))
             final = _final(actions, last=last)
@@ -522,10 +548,16 @@ class AskAgent:
             while len(self._conversations) > MAX_CONVERSATIONS:
                 self._conversations.popitem(last=False)
 
-    def _next(self, messages: list[dict[str, object]]) -> list[AskAction]:
-        """Spark's next actions; a reply that is not a valid turn ends with an apology."""
+    def _next(self, messages: list[dict[str, object]]) -> tuple[list[AskAction], list[str]]:
+        """Spark's next actions and its reasoning summary; an invalid turn ends with an apology."""
+        reasoning: list[str] = []
         try:
-            turn = self._spark.structured(model=SPARK_MODEL, messages=messages, schema=AskTurn)
+            if self._reasoning and isinstance(self._spark, Reasoned):
+                turn, reasoning = self._spark.structured_reasoned(
+                    model=SPARK_MODEL, messages=messages, schema=AskTurn
+                )
+            else:
+                turn = self._spark.structured(model=SPARK_MODEL, messages=messages, schema=AskTurn)
         except RulecamError as exc:
             _log.warning("ask_spark_failed", error=str(exc)[:200])
             return [
@@ -534,8 +566,8 @@ class AskAgent:
                     action="answer",
                     answer=APOLOGY,
                 )
-            ]
-        return turn.actions
+            ], []
+        return turn.actions, reasoning
 
     def _run_all(
         self, turn: int, actions: Sequence[AskAction], tables: TrackTables, emit: Emit

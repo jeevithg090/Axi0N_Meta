@@ -100,6 +100,15 @@ describe("askReducer", () => {
     expect(exchange.answer?.answer).toBe("Two.");
   });
 
+  it("keeps Spark's reasoning summary on its turn", () => {
+    const events: AskEvent[] = [
+      { type: "thinking", turn: 0 },
+      { type: "reasoning", turn: 0, detail: "Counting the queue three ways." },
+    ];
+    const exchange = events.reduce(askReducer, newExchange("q"));
+    expect(exchange.turns[0]?.reasoning).toBe("Counting the queue three ways.");
+  });
+
   it("ends on an error", () => {
     const exchange = askReducer(newExchange("q"), { type: "error", detail: "boom" });
     expect(exchange.error).toBe("boom");

@@ -101,12 +101,14 @@ class AskTurnTiming(Frozen):
         model: The model that chose them.
         seconds: Spark's time for the turn.
         actions: How many actions it chose.
+        reasoning: Spark's reasoning summary for the turn (empty when not asked for).
     """
 
     turn: int
     model: str
     seconds: float
     actions: int
+    reasoning: list[str] = Field(default_factory=list)
 
 
 class AskReview(Frozen):
@@ -167,7 +169,7 @@ class AskAnswer(Frozen):
 
 
 EventType = Literal[
-    "start", "thinking", "actions", "step", "reviewing", "review", "answer", "error"
+    "start", "thinking", "reasoning", "actions", "step", "reviewing", "review", "answer", "error"
 ]
 
 
@@ -176,6 +178,7 @@ class AskEvent(Frozen):
 
     - `start`: the question was taken (`conversation_id`);
     - `thinking`: Spark is choosing turn `turn`'s actions;
+    - `reasoning`: Spark's reasoning summary for turn `turn` (`detail`), before its actions;
     - `actions`: it chose `actions` in `seconds`;
     - `step`: action `index` of turn `turn` finished (`step`); a turn's steps can finish in any
       order;

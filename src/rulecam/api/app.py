@@ -1179,6 +1179,7 @@ def build_ask(
         files=spark,
         watch_model=settings.rulecam_ask_watch_model,
         crowd=crowd[0],
+        reasoning=cache.mode != "replay",  # a reasoning summary changes the replayed request
     )
     return agent, tuple(m.tick for m in (memory, identity) if m is not None)
 

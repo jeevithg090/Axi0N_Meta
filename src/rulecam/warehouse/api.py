@@ -364,8 +364,11 @@ def _talk_routes(router: APIRouter, service: WarehouseService) -> None:
     """Spoken warning and toolbox talk of one incident."""
 
     @router.get("/incidents/{event_id}/warning")
-    def get_warning(event_id: EventId, lang: Lang = "es") -> SpokenWarning:
-        found = service.store.load("warnings", f"{event_id}.{lang}", SpokenWarning)
+    def get_warning(
+        event_id: EventId, lang: Lang = "es", also: Lang | None = None
+    ) -> SpokenWarning:
+        key = f"{event_id}.{lang}" + (f"+{also}" if also and also != lang else "")
+        found = service.store.load("warnings", key, SpokenWarning)
         if found is None:
             raise HTTPException(404, "no warning made yet")
         return found
@@ -376,7 +379,7 @@ def _talk_routes(router: APIRouter, service: WarehouseService) -> None:
         if maker is None:
             raise HTTPException(503, "Muse Spark is not configured")
         incident = service.incident(event_id)
-        return _model_call(lambda: maker.make(incident, body.lang))
+        return _model_call(lambda: maker.make(incident, body.lang, also=body.also))
 
     @router.get("/incidents/{event_id}/toolbox-talk")
     def get_talk(event_id: EventId, lang: Lang = "es") -> ToolboxTalk:

@@ -18,9 +18,11 @@ says so, and the answers are schema-validated. Each result is saved as JSON unde
 
 from __future__ import annotations
 
+import io
 import json
 import re
 import shutil
+import wave
 from collections.abc import Mapping, Sequence
 from datetime import date
 from pathlib import Path
@@ -38,6 +40,7 @@ from rulecam.warehouse.models import (
     ShiftCounts,
     ShiftDraft,
     ShiftReport,
+    SpokenPart,
     SpokenWarning,
     ToolboxDraft,
     ToolboxTalk,
@@ -63,6 +66,10 @@ WARNING_SYSTEM = (
     "is too close to a moving forklift. Write it in the language with code {lang}: short (under "
     "15 words), calm, imperative, polite, and specific to what happened. Put the warning in "
     "`text` and an English gloss in `english`. " + NO_PEOPLE + " " + DATA_NOT_INSTRUCTIONS
+)
+ALSO_TEXT = (
+    " Also write the same warning in the language with code {also} in `also_text`, for workers "
+    "who speak it; it is played right after the first."
 )
 TALK_SYSTEM = (
     "You are a warehouse safety coach. After a forklift incident, write a toolbox talk a "
@@ -290,51 +297,119 @@ class WarningMaker:
         self._tts = tuple(tts)
         self._checker = RoundTripChecker(transcriber) if transcriber is not None else None
 
-    def make(self, incident: Incident, lang: str) -> SpokenWarning:
-        """Write, speak and check the warning (saved; returned)."""
+    def make(self, incident: Incident, lang: str, *, also: str | None = None) -> SpokenWarning:
+        """Write, speak and check the warning (saved; returned).
+
+        Args:
+            incident: The incident's records.
+            lang: The crew's language, spoken first.
+            also: A second language spoken right after (a bilingual warning), if any.
+        """
+        system = WARNING_SYSTEM.format(lang=lang)
+        if also and also != lang:
+            system += ALSO_TEXT.format(also=also)
         draft = self._spark.structured(
             model=SPARK_MODEL,
             messages=[
-                {"role": "system", "content": WARNING_SYSTEM.format(lang=lang)},
+                {"role": "system", "content": system},
                 _user("Incident records (data): " + incident_text(incident), (), None),
             ],
             schema=WarningDraft,
         )
+        texts = [(lang, draft.text)]
+        if also and also != lang and draft.also_text:
+            texts.append((also, draft.also_text))
+        parts, audio, errors = self._speak_all(texts)
+        first = parts[0]
+        langs = "+".join(code for code, _ in texts)
+        key = f"{incident.event_id}.{langs}"
+        file_name = f"warning-{incident.event_id}-{langs.replace('+', '_')}.wav"
+        name = self._store.put_file(file_name, audio) if audio else None
         warning = SpokenWarning(
             event_id=incident.event_id,
             lang=lang,
             text=draft.text,
             english=draft.english,
+            audio=name,
+            tts=first.tts,
+            heard=first.heard,
+            wer=first.wer,
+            roundtrip_ok=first.roundtrip_ok,
+            error="; ".join(errors) or None,
             model=SPARK_MODEL,
             created_at=self._clock.now(),
+            parts=tuple(parts),
         )
-        warning = self._speak(warning)
-        self._store.save("warnings", f"{incident.event_id}.{lang}", warning)
+        self._store.save("warnings", key, warning)
         return warning
 
-    def _speak(self, warning: SpokenWarning) -> SpokenWarning:
+    def _speak_all(
+        self, texts: Sequence[tuple[str, str]]
+    ) -> tuple[list[SpokenPart], bytes | None, list[str]]:
+        """Speak and check each language; return the parts, the joined WAV and any errors."""
+        parts: list[SpokenPart] = []
+        clips: list[bytes] = []
         errors: list[str] = []
+        for lang, text in texts:
+            part, audio, error = self._speak(lang, text)
+            parts.append(part)
+            if audio is not None:
+                clips.append(audio)
+            if error:
+                errors.append(error)
+        return parts, join_wavs(clips) if clips else None, errors
+
+    def _speak(self, lang: str, text: str) -> tuple[SpokenPart, bytes | None, str | None]:
+        failed: list[str] = []
         for label, engine in self._tts:
             try:
-                audio = engine.synth(warning.text, warning.lang)
+                audio = engine.synth(text, lang)
             except (VoiceOutError, OSError) as exc:
-                errors.append(f"{label}: {type(exc).__name__}")
+                failed.append(f"{label}: {type(exc).__name__}")
                 continue
-            name = self._store.put_file(f"warning-{warning.event_id}-{warning.lang}.wav", audio)
-            return self._check(warning.model_copy(update={"audio": name, "tts": label}), audio)
-        return warning.model_copy(update={"error": "; ".join(errors) or "no speech engine"})
+            part, error = self._check(SpokenPart(lang=lang, text=text, tts=label), audio)
+            return part, audio, error
+        return SpokenPart(lang=lang, text=text), None, "; ".join(failed) or "no speech engine"
 
-    def _check(self, warning: SpokenWarning, audio: bytes) -> SpokenWarning:
+    def _check(self, part: SpokenPart, audio: bytes) -> tuple[SpokenPart, str | None]:
         if self._checker is None:
-            return warning
+            return part, None
         try:
-            result = self._checker.check(audio, warning.text, warning.lang)
+            result = self._checker.check(audio, part.text, part.lang)
         except Exception as exc:  # a model or transport failure must not lose the warning
             _log.warning("warning_roundtrip_failed", error=type(exc).__name__)
-            return warning.model_copy(update={"error": f"round trip: {type(exc).__name__}"})
-        return warning.model_copy(
+            return part, f"round trip ({part.lang}): {type(exc).__name__}"
+        checked = part.model_copy(
             update={"heard": result.transcript, "wer": result.wer, "roundtrip_ok": result.passed}
         )
+        return checked, None
+
+
+def join_wavs(clips: Sequence[bytes], gap_s: float = 0.4) -> bytes:
+    """One WAV playing `clips` in order with a short silence between (they share a format)."""
+    if len(clips) == 1:
+        return clips[0]
+    frames: list[bytes] = []
+    params = None
+    for clip in clips:
+        with wave.open(io.BytesIO(clip), "rb") as wav:
+            current = wav.getparams()
+            if params is not None and current[:3] != params[:3]:
+                msg = "warning clips differ in channels, width or rate"
+                raise ValueError(msg)
+            params = current
+            if frames:
+                silence = int(current.framerate * gap_s) * current.nchannels * current.sampwidth
+                frames.append(b"\x00" * silence)
+            frames.append(wav.readframes(current.nframes))
+    assert params is not None  # noqa: S101 - clips is not empty here
+    out = io.BytesIO()
+    with wave.open(out, "wb") as wav:
+        wav.setnchannels(params.nchannels)
+        wav.setsampwidth(params.sampwidth)
+        wav.setframerate(params.framerate)
+        wav.writeframes(b"".join(frames))
+    return out.getvalue()
 
 
 class ToolboxTalkWriter:

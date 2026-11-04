@@ -233,6 +233,27 @@ class WarningDraft(BaseModel):
 
     text: str = Field(min_length=2, max_length=200)
     english: str = Field(max_length=200)
+    also_text: str | None = Field(default=None, max_length=200)
+
+
+class SpokenPart(Frozen):
+    """One language of a spoken warning, spoken and checked on its own.
+
+    Attributes:
+        lang: Its language.
+        text: What is said in it.
+        tts: The engine that spoke it.
+        heard: What Muse Voice Transcribe heard.
+        wer: Word error rate of `heard` against `text`.
+        roundtrip_ok: Whether the round trip passed.
+    """
+
+    lang: str
+    text: str
+    tts: str | None = None
+    heard: str | None = None
+    wer: float | None = None
+    roundtrip_ok: bool | None = None
 
 
 class SpokenWarning(Frozen):
@@ -251,6 +272,8 @@ class SpokenWarning(Frozen):
         error: Why a part is missing.
         model: The model that wrote the text.
         created_at: When it was made.
+        parts: Every language spoken, in order (the crew's first, then `also`), each checked; the
+            WAV plays them one after the other. The fields above describe the first.
     """
 
     event_id: str
@@ -265,6 +288,7 @@ class SpokenWarning(Frozen):
     error: str | None = None
     model: str
     created_at: datetime
+    parts: tuple[SpokenPart, ...] = ()
 
 
 class ShiftCounts(Frozen):
@@ -335,6 +359,7 @@ class TalkRequest(BaseModel):
 
     lang: str = Field(default="es", pattern=r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
     illustrate: bool = True
+    also: str | None = Field(default=None, pattern=r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
 
 
 class ShiftRequest(BaseModel):

@@ -49,6 +49,8 @@ function useAction<T>(run: () => Promise<T>, done: (value: T) => void) {
 
 export function IncidentPanel({ near, planId }: { near: NearMiss; planId: string | null }) {
   const [lang, setLang] = useState(near.lang === "en" ? "es" : near.lang);
+  // A second language spoken right after the crew's, e.g. "¡Montacargas acercándose! Forklift coming".
+  const [also, setAlso] = useState<string | null>(null);
   const [warning, setWarning] = useState<SpokenWarning | null>(null);
   const [talk, setTalk] = useState<ToolboxTalk | null>(null);
   const [duty, setDuty] = useState<RefresherDuty | null>(null);
@@ -57,7 +59,7 @@ export function IncidentPanel({ near, planId }: { near: NearMiss; planId: string
 
   const loadSaved = useCallback(async () => {
     const [w, t, d, a] = await Promise.allSettled([
-      warehouse.savedWarning(event, lang),
+      warehouse.savedWarning(event, lang, also),
       warehouse.savedTalk(event, lang),
       warehouse.duty(event),
       api.alerts(),
@@ -66,7 +68,7 @@ export function IncidentPanel({ near, planId }: { near: NearMiss; planId: string
     setTalk(t.status === "fulfilled" ? t.value : null);
     setDuty(d.status === "fulfilled" ? d.value : null);
     setAlerts(a.status === "fulfilled" ? a.value.filter((x) => x.event_id === event) : []);
-  }, [event, lang]);
+  }, [event, lang, also]);
 
   useEffect(() => {
     void loadSaved();
@@ -75,8 +77,8 @@ export function IncidentPanel({ near, planId }: { near: NearMiss; planId: string
   const speak = useAction(
     () =>
       withRecovery(
-        () => warehouse.warning(event, lang),
-        fresh(() => warehouse.savedWarning(event, lang)),
+        () => warehouse.warning(event, lang, also),
+        fresh(() => warehouse.savedWarning(event, lang, also)),
       ),
     setWarning,
   );
@@ -177,6 +179,14 @@ export function IncidentPanel({ near, planId }: { near: NearMiss; planId: string
             </option>
           ))}
         </select>
+        <label>
+          <input
+            type="checkbox"
+            checked={also !== null}
+            onChange={(e) => setAlso(e.target.checked ? (lang === "en" ? "es" : "en") : null)}
+          />{" "}
+          and {lang === "en" ? "Español" : "English"} (no tags, no app: the loudspeaker says both)
+        </label>
       </div>
 
       <div className={styles.row}>
@@ -198,10 +208,18 @@ export function IncidentPanel({ near, planId }: { near: NearMiss; planId: string
 
       {warning && (
         <div>
-          <h3>Spoken warning ({warning.lang})</h3>
+          <h3>
+            Spoken warning ({(warning.parts ?? []).map((p) => p.lang).join(" + ") || warning.lang})
+          </h3>
           <blockquote className={styles.quote}>
             “{warning.text}” <span className={styles.muted}>({warning.english})</span>
           </blockquote>
+          {(warning.parts ?? []).slice(1).map((part) => (
+            <blockquote key={part.lang} className={styles.quote}>
+              then ({part.lang}) “{part.text}”
+              {part.heard !== null ? ` · heard “${part.heard}” (WER ${part.wer?.toFixed(2)})` : ""}
+            </blockquote>
+          ))}
           {warning.audio && (
             <audio controls src={warehouse.fileUrl(warning.audio)}>
               <track kind="captions" />

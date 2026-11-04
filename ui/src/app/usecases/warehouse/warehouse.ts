@@ -83,7 +83,17 @@ export interface Heatmap {
   background: string | null;
 }
 
+export interface SpokenPart {
+  lang: string;
+  text: string;
+  tts: string | null;
+  heard: string | null;
+  wer: number | null;
+  roundtrip_ok: boolean | null;
+}
+
 export interface SpokenWarning {
+  parts?: SpokenPart[];
   event_id: string;
   lang: string;
   text: string;
@@ -266,14 +276,17 @@ export const warehouse = {
     call<NearMiss[]>(`/near-misses${query({ plan_id: planId })}`),
   heatmap: (cameraId?: string | null, planId?: string | null) =>
     call<Heatmap>(`/heatmap${query({ camera_id: cameraId, plan_id: planId })}`),
-  warning: (eventId: string, lang: string) =>
-    call<SpokenWarning>(`/incidents/${enc(eventId)}/warning`, post({ lang })),
+  warning: (eventId: string, lang: string, also?: string | null) =>
+    call<SpokenWarning>(
+      `/incidents/${enc(eventId)}/warning`,
+      post(also ? { lang, also } : { lang }),
+    ),
   talk: (eventId: string, lang: string) =>
     call<ToolboxTalk>(`/incidents/${enc(eventId)}/toolbox-talk`, post({ lang, illustrate: true })),
   savedTalk: (eventId: string, lang: string) =>
     call<ToolboxTalk>(`/incidents/${enc(eventId)}/toolbox-talk${query({ lang })}`),
-  savedWarning: (eventId: string, lang: string) =>
-    call<SpokenWarning>(`/incidents/${enc(eventId)}/warning${query({ lang })}`),
+  savedWarning: (eventId: string, lang: string, also?: string | null) =>
+    call<SpokenWarning>(`/incidents/${enc(eventId)}/warning${query({ lang, also })}`),
   duty: (eventId: string) => call<RefresherDuty>(`/incidents/${enc(eventId)}/duty`),
   raiseDuty: (eventId: string) =>
     call<RefresherDuty>(`/incidents/${enc(eventId)}/duty`, { method: "POST" }),

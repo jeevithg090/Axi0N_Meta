@@ -22,6 +22,7 @@ import asyncio
 import contextlib
 import importlib.util
 import shutil
+import threading
 import uuid
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable, Sequence
@@ -56,7 +57,7 @@ from rulecam.wearables.assist import (
     Voice,
     WearablesError,
 )
-from rulecam.wearables.schemas import Mode, PovAnswer, Stage, Walk, WalkReport
+from rulecam.wearables.schemas import Line, Mode, PovAnswer, Stage, Walk, WalkReport
 from rulecam.wearables.walks import WalkError, WalkReporter, WalkStore
 
 _log = get_logger(__name__)
@@ -100,6 +101,7 @@ class Job(Frozen):
     report: WalkReport | None = None
     error: str | None = None
     stages: list[Stage] = Field(default_factory=list, description="Stages done so far.")
+    first: Line | None = Field(default=None, description="The first line, once spoken.")
 
 
 class Jobs:
@@ -109,15 +111,18 @@ class Jobs:
         """Create an empty job list."""
         self._tasks: OrderedDict[str, asyncio.Task[PovAnswer | WalkReport]] = OrderedDict()
         self._stages: dict[str, list[Stage]] = {}
+        self._firsts: dict[str, list[Line]] = {}
 
     def start(
         self,
         work: Callable[[], Awaitable[PovAnswer | WalkReport]],
         stages: list[Stage] | None = None,
+        firsts: list[Line] | None = None,
     ) -> Job:
         """Run `work` in the background and return its job; `stages` fills in as it runs."""
         job_id = uuid.uuid4().hex[:16]
         self._stages[job_id] = stages if stages is not None else []
+        self._firsts[job_id] = firsts if firsts is not None else []
 
         async def run() -> PovAnswer | WalkReport:
             return await work()
@@ -126,6 +131,7 @@ class Jobs:
         while len(self._tasks) > MAX_JOBS:
             dropped, _ = self._tasks.popitem(last=False)
             self._stages.pop(dropped, None)
+            self._firsts.pop(dropped, None)
         return Job(job_id=job_id, status="running")
 
     def get(self, job_id: str) -> Job:
@@ -138,7 +144,11 @@ class Jobs:
         if task is None:
             raise HTTPException(HTTP_NOT_FOUND, "no such job")
         if not task.done():
-            return Job(job_id=job_id, status="running", stages=list(self._stages.get(job_id, [])))
+            firsts = self._firsts.get(job_id) or []
+            stages = list(self._stages.get(job_id, []))
+            return Job(
+                job_id=job_id, status="running", stages=stages, first=firsts[0] if firsts else None
+            )
         error = task.exception()
         if error is not None:
             detail = error.detail if isinstance(error, HTTPException) else repr(error)
@@ -161,6 +171,9 @@ class WearablesStatus(Frozen):
     voice: str | None = Field(description="Server-side speech; None leaves it to the browser.")
     modes: list[str]
     glimmer_timeout_s: float
+    phrases: dict[str, str] = Field(
+        default_factory=dict, description="Fixed phrases ready as WAVs, e.g. `looking`."
+    )
 
 
 def wearables_voice(bus: Bus) -> Voice | None:
@@ -220,6 +233,7 @@ def wearables_router(  # noqa: C901 - one closure per route
             count=SAM_MODEL,
             transcribe=VOICE_MODEL if assistant is not None and assistant.can_hear else None,
             voice=voice.label if voice is not None else None,
+            phrases=assistant.phrases if assistant is not None else {},
             modes=list(MODES),
             glimmer_timeout_s=glimmer_timeout_s,
         )
@@ -242,6 +256,7 @@ def wearables_router(  # noqa: C901 - one closure per route
             raise HTTPException(HTTP_CONFLICT, f"walk {walk_id} is finished")
         history = walks.answers(walk_id) if walk_id else []
         stages: list[Stage] = []
+        firsts: list[Line] = []
         ask = Ask(
             image=await _read(image, MAX_IMAGE_BYTES, "frames"),
             content_type=image.content_type or "",
@@ -253,6 +268,7 @@ def wearables_router(  # noqa: C901 - one closure per route
             source=source if source in SOURCES else "phone-camera",
             walk_id=walk_id or None,
             progress=None if wait else stages.append,
+            on_first=None if wait else firsts.append,
         )
 
         async def work() -> PovAnswer:
@@ -266,7 +282,7 @@ def wearables_router(  # noqa: C901 - one closure per route
                     walks.add(walk_id, answer)
             return answer
 
-        return await work() if wait else jobs.start(work, stages)
+        return await work() if wait else jobs.start(work, stages, firsts)
 
     @router.post("/walks")
     def start_walk(body: WalkStart) -> Walk:
@@ -369,6 +385,9 @@ def build_wearables(
         glimmer_timeout_s=timeout,
         site_profile=settings.rulecam_site_profile,
     )
+    # Speak the fixed phrases once, off the startup path: it also loads the voice model, so the
+    # first answer does not wait for it.
+    threading.Thread(target=assistant.prepare_phrases, name="wearables-voice", daemon=True).start()
     reporter = WalkReporter(
         spark=spark,
         files=spark,

@@ -23,7 +23,8 @@ import {
   modelName,
   progressLabel,
   scaledSize,
-  shouldSpeak,
+  linesToSay,
+  LOOKING_TEXT,
   SOURCE_LABELS,
   stageLine,
   unspokenAlerts,
@@ -50,10 +51,16 @@ function silentWavUrl(): string {
   return URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
 }
 
-function browserSay(text: string): boolean {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return false;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+/** Speak with the browser's voice; `onEnd` runs when it is done (or at once without one). */
+function browserSay(text: string, onEnd: () => void = () => undefined): boolean {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+    onEnd();
+    return false;
+  }
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.onend = onEnd;
+  utterance.onerror = onEnd;
+  window.speechSynthesis.speak(utterance);
   return true;
 }
 
@@ -82,6 +89,9 @@ export function GlassesMode() {
   const chunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const busyRef = useRef(false);
+  // Lines wait their turn: "Looking.", then the first answer, then the checked line.
+  const queueRef = useRef<{ text: string; audio: string | null }[]>([]);
+  const playingRef = useRef(false);
   const spokenAlertsRef = useRef<Set<string> | null>(null);
   const wakeRef = useRef<{ release: () => Promise<void> } | null>(null);
 
@@ -128,20 +138,43 @@ export function GlassesMode() {
     [],
   );
 
+  const playNext = useCallback((): void => {
+    const next = queueRef.current.shift();
+    if (!next) {
+      playingRef.current = false;
+      return;
+    }
+    playingRef.current = true;
+    const player = audioRef.current;
+    const fallback = (): void => {
+      if (browserSay(next.text, playNext)) setLastVoice("browser voice (not a Meta model)");
+    };
+    if (next.audio && player) {
+      player.onended = playNext;
+      player.src = audioUrl(next.audio);
+      setLastVoice(status?.voice ?? "server voice");
+      player.play().catch(fallback);
+      return;
+    }
+    fallback();
+  }, [status]);
+
+  /** Queue a line for the ear (`interrupt`: drop what is queued or playing, for a new question). */
   const say = useCallback(
-    (text: string, audio: string | null): void => {
-      const player = audioRef.current;
-      if (audio && player) {
-        player.src = audioUrl(audio);
-        setLastVoice(status?.voice ?? "server voice");
-        player.play().catch(() => {
-          if (browserSay(text)) setLastVoice("browser voice (not a Meta model)");
-        });
-        return;
+    (text: string, audio: string | null, interrupt = false): void => {
+      if (interrupt) {
+        queueRef.current = [];
+        audioRef.current?.pause();
+        if (typeof window !== "undefined" && "speechSynthesis" in window) {
+          window.speechSynthesis.cancel();
+        }
+        playingRef.current = false;
       }
-      if (browserSay(text)) setLastVoice("browser voice (not a Meta model)");
+      if (!text.trim()) return;
+      queueRef.current.push({ text, audio });
+      if (!playingRef.current) playNext();
     },
-    [status],
+    [playNext],
   );
 
   const unlockAudio = (): void => {
@@ -218,6 +251,10 @@ export function GlassesMode() {
       busyRef.current = true;
       setBusy(opts.label);
       setError(null);
+      const asking = Boolean(opts.question || opts.audio);
+      // Say "Looking." at once (spoken once on the server at startup), then each line as it comes.
+      if (asking) say(LOOKING_TEXT, status?.phrases.looking ?? null, true);
+      let firstSaid = false;
       try {
         const answer = await wearables.look(
           {
@@ -232,10 +269,14 @@ export function GlassesMode() {
           (job) => {
             const done = progressLabel(job);
             if (done) setBusy(`${opts.label} ${done}`);
+            if (job.first && !firstSaid) {
+              firstSaid = true;
+              say(job.first.text, job.first.audio);
+            }
           },
         );
         setAnswers((prev) => [answer, ...prev].slice(0, KEEP_ANSWERS));
-        if (shouldSpeak(answer)) say(answer.spoken, answer.audio);
+        for (const line of linesToSay(answer, firstSaid)) say(line.text, line.audio);
         // The walk may have been finished while this frame was in flight: leave it finished.
         setWalk((w) => (w && w.walk_id === answer.walk_id ? { ...w, frames: w.frames + 1 } : w));
         return answer;
@@ -247,7 +288,7 @@ export function GlassesMode() {
         setBusy(null);
       }
     },
-    [grabFrame, mode, source, walk, say],
+    [grabFrame, mode, source, walk, say, status],
   );
 
   // Patrol: one frame every few seconds while nothing else is in flight.
@@ -268,8 +309,8 @@ export function GlassesMode() {
     }
     const fresh = unspokenAlerts(alerts, spokenAlertsRef.current);
     fresh.forEach((a) => spokenAlertsRef.current?.add(a.alert_id));
-    if (speakSite && fresh.length > 0) browserSay(fresh.map(alertLine).join(" "));
-  }, [alerts, speakSite]);
+    if (speakSite && fresh.length > 0) say(fresh.map(alertLine).join(" "), null);
+  }, [alerts, speakSite, say]);
 
   const startTalking = (): void => {
     unlockAudio();
@@ -321,7 +362,7 @@ export function GlassesMode() {
         setReport(done);
         setWalk(null);
         setPatrol(false);
-        browserSay(done.summary.spoken);
+        say(done.summary.spoken, null);
       } else {
         setReport(null);
         setWalk(await wearables.startWalk(mode));
@@ -536,6 +577,14 @@ function AnswerCard({ answer, voice }: { answer: PovAnswer; voice: string | null
       {answer.question && answer.heard === null && (
         <p className={styles.muted}>Asked: “{answer.question}”</p>
       )}
+      {answer.first && (
+        <p className={styles.spoken}>
+          {answer.first.text}{" "}
+          <span className={styles.mono}>
+            first line, {modelName(answer.first.by)}, {(answer.first.at_ms / 1000).toFixed(1)} s
+          </span>
+        </p>
+      )}
       <p className={styles.spoken}>
         {answer.spoken || (answer.kind === "patrol" ? "Nothing to warn about." : "")}
       </p>
@@ -557,6 +606,9 @@ function AnswerCard({ answer, voice }: { answer: PovAnswer; voice: string | null
             </li>
           ))}
         </ul>
+      )}
+      {answer.rejected.length > 0 && (
+        <p className={styles.muted}>Spark rejected SAM 3.1 labels: {answer.rejected.join("; ")}</p>
       )}
       {answer.counts.length > 0 && (
         <p className={styles.muted}>

@@ -38,6 +38,14 @@ export interface Gap {
   facings: number;
 }
 
+/** A sentence for the ear: which model's words, and when it was ready (ms after the frame). */
+export interface Line {
+  text: string;
+  audio: string | null;
+  by: string;
+  at_ms: number;
+}
+
 /** `POST /wearables/look`. */
 export interface PovAnswer {
   answer_id: string;
@@ -46,6 +54,7 @@ export interface PovAnswer {
   kind: "question" | "patrol";
   question: string | null;
   heard: string | null;
+  first: Line | null;
   spoken: string;
   detail: string;
   alert: boolean;
@@ -56,13 +65,10 @@ export interface PovAnswer {
   hazards: Hazard[];
   counts: Count[];
   gaps: Gap[];
-  look: {
-    scene: string;
-    answer: string;
-    hazards: string[];
-    alert: boolean;
-    count: string[];
-  } | null;
+  look: { scene: string; answer: string; hazards: string[]; alert: boolean } | null;
+  spark_look: { spoken: string; alert: boolean; count: string[] } | null;
+  rejected: string[];
+  privacy_edits: number;
   looked_by: string;
   frame: string;
   marked: string | null;
@@ -112,6 +118,7 @@ export interface WearablesStatus {
   modes: Mode[];
   glimmer_timeout_s: number;
   glimmer: GlimmerState;
+  phrases: Record<string, string>;
 }
 
 export type GlimmerState = "unknown" | "checking" | "up" | "down" | "none";
@@ -201,6 +208,7 @@ export interface Job {
   report: WalkReport | null;
   error: string | null;
   stages?: Stage[];
+  first?: Line | null;
 }
 
 export const POLL_MS = 800;
@@ -281,6 +289,21 @@ export function verdictLabel(answer: PovAnswer): string {
   if (!answer.alert) return answer.severity === "none" ? "No hazard confirmed" : "Noted, no alert";
   if (answer.verified) return `Verified alert · ${answer.verified_by.map(modelName).join(" + ")}`;
   return "Unverified alert · only one model looked";
+}
+
+/** Said by the page the moment a question is sent (the server keeps it spoken as a WAV). */
+export const LOOKING_TEXT = "Looking.";
+
+/** What to say when an answer arrives: its first line unless already said, then the checked line. */
+export function linesToSay(
+  answer: PovAnswer,
+  firstSaid: boolean,
+): { text: string; audio: string | null }[] {
+  const lines: { text: string; audio: string | null }[] = [];
+  if (answer.first && !firstSaid)
+    lines.push({ text: answer.first.text, audio: answer.first.audio });
+  if (answer.spoken.trim()) lines.push({ text: answer.spoken, audio: answer.audio });
+  return lines;
 }
 
 /** Whether the page should say this answer out loud (the server already decided what to say). */

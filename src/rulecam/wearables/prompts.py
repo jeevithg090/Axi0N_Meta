@@ -51,33 +51,31 @@ PRIVACY: Final = (
 )
 
 LOOK_PROMPT: Final = (
-    "You see one frame from the point-of-view camera of smart glasses worn by {role}.{site} "
-    "Describe the scene in one sentence. If the wearer asked a question, answer it directly "
-    "from what is visible. List the safety hazards you can see now, each with where it is "
-    "relative to the wearer (ahead, left, right, near, far). Set `alert` only if the wearer "
-    "should be warned right now. In `count`, give up to 3 short noun phrases for SAM 3.1 (an "
-    "open-vocabulary segmenter) to find and count in this frame so your answer can be checked: "
-    "the things the question is about, or the objects that make up a hazard. Give plain noun "
-    "phrases without positions ('person', not 'person ahead'): SAM 3.1 finds things, not "
-    "places or empty space, so never ask it for gaps or empty shelf. " + PRIVACY
+    "One frame from the smart glasses of {role}.{site} In `scene`, one short sentence. In "
+    "`answer`, answer the wearer for the ear in at most 15 words, directions relative to them "
+    "(ahead, left, right). List hazards briefly with where. `alert` only if they must act now. "
+    + PRIVACY
 )
 
-COMPOSE_PROMPT: Final = (
-    "You are Rulecam's voice in the ear of {role}, who wears smart glasses.{site} You get the "
-    "glasses' current frame, Muse Glimmer's first look at it, SAM 3.1's counts of objects "
-    "(boxes in pixels on this frame), any shelf gaps Muse Spark found that SAM 3.1 confirmed "
-    "empty, and what earlier frames of this walk showed. Check every claim against the frame "
-    "yourself; trust SAM 3.1 on how many objects, and say so when the models disagree. SAM 3.1 "
-    "cannot find empty space, so a zero count of an empty-space phrase means nothing. Shelf "
-    "gaps come from a separate check (Muse Spark drew each box, SAM 3.1 found no product "
-    "package inside it); when a second image shows them numbered, look at each and drop any "
-    "that is clearly stocked. Write `spoken` "
-    "for the ear: at most two short sentences, the most important thing first, directions "
-    "relative to the wearer (ahead, left, right), no lists, no markdown. Put the evidence in "
-    "`detail`, in at most three sentences. Set `alert` only for a hazard you can confirm in "
-    "this frame that the wearer "
-    "must act on now; severity `danger` when someone could be hurt within seconds. When the "
-    "wearer asked nothing and nothing needs saying, leave `spoken` empty. " + PRIVACY
+SPARK_LOOK_PROMPT: Final = (
+    "You are the voice in the ear of {role}, looking through their smart glasses.{site} Answer "
+    "in `spoken`: one sentence, at most 15 words, the most important thing first, directions "
+    "relative to them. On a patrol frame with nothing to say, leave it empty. `alert` only if "
+    "they must act now; severity `danger` if someone could be hurt within seconds. Hazards "
+    "briefly. Fill `count` only when the answer needs an exact number (how many, are all...): "
+    "up to 3 plain noun phrases SAM 3.1 should count ('person', 'forklift'), never places or "
+    "empty space; otherwise leave it empty. " + PRIVACY
+)
+
+CHECK_PROMPT: Final = (
+    "Check an answer for the ear of {role}, from their smart glasses.{site} You get the frame "
+    "with SAM 3.1's numbered boxes, Muse Glimmer's and your own first looks, SAM 3.1's counts "
+    "and any shelf gaps (Muse Spark drew each, SAM 3.1 found no product in it; numbered on a "
+    "second image). SAM 3.1 labels can be wrong, e.g. a warning light boxed as a hard hat: drop "
+    "any box whose label does not fit what you see or what Glimmer saw, list it in `rejected`, "
+    "and do not count it. Drop any gap that is clearly stocked. `spoken`: one sentence, at most "
+    "20 words, with the checked numbers. `detail`: at most two sentences. `alert` only for a "
+    "hazard you confirm that they must act on now. " + PRIVACY
 )
 
 WALK_PROMPT: Final = (
@@ -102,9 +100,14 @@ def look_prompt(mode: Mode, site_profile: str = "") -> str:
     return LOOK_PROMPT.format(role=ROLES[mode], site=site_line(site_profile))
 
 
-def compose_prompt(mode: Mode, site_profile: str = "") -> str:
-    """Spark's instructions for `mode`."""
-    return COMPOSE_PROMPT.format(role=ROLES[mode], site=site_line(site_profile))
+def spark_look_prompt(mode: Mode, site_profile: str = "") -> str:
+    """Spark's instructions for its own look in `mode`."""
+    return SPARK_LOOK_PROMPT.format(role=ROLES[mode], site=site_line(site_profile))
+
+
+def check_prompt(mode: Mode, site_profile: str = "") -> str:
+    """Spark's instructions for checking counts and gaps in `mode`."""
+    return CHECK_PROMPT.format(role=ROLES[mode], site=site_line(site_profile))
 
 
 def walk_prompt(mode: Mode, site_profile: str = "") -> str:

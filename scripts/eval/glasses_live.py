@@ -46,6 +46,12 @@ CASES = (
     Case("crowd-spoken", "store-crowd.jpg", "crowd", audio="q-crowd.wav"),
     Case("crowd-patrol", "store-checkout.jpg", "crowd"),
     Case("general-typed", "store-checkout.jpg", "general", "How many people are queueing here?"),
+    Case(
+        "warehouse-count",
+        "warehouse-forklift-side.jpg",
+        "warehouse",
+        "How many people are at the forklift, and is anyone wearing a hard hat?",
+    ),
 )
 WALK = ("warehouse-walk.jpg", "warehouse-forklift-ahead.jpg", "warehouse-forklift-side.jpg")
 
@@ -69,9 +75,12 @@ def summary_line(row: dict[str, Any]) -> str:
     """One line per answer for the console."""
     answer = row["answer"]
     stages = " ".join(f"{s['name']}={s['ms']}{'' if s['ok'] else '!'}" for s in answer["stages"])
+    first = answer.get("first") or {}
+    first_s = f"{first['at_ms'] / 1000:5.1f}s" if first else "    -"
     return (
-        f"{row['case']:<18} {answer['total_ms'] / 1000:6.1f}s verified={answer['verified']!s:<5} "
-        f"by={answer['looked_by'][:28]:<28} {stages} | {answer['spoken'][:90]}"
+        f"{row['case']:<18} first={first_s} total={answer['total_ms'] / 1000:5.1f}s "
+        f"verified={answer['verified']!s:<5} {stages} | {first.get('text', '')[:60]} | "
+        f"{answer['spoken'][:60]}"
     )
 
 

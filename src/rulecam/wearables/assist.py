@@ -1,23 +1,22 @@
 """The glasses assistant: a point-of-view frame and maybe a question in, words for the ear out.
 
-For each frame:
+Built for a first spoken sentence in under ten seconds:
 
-1. **Hear** (push-to-talk only): Muse Voice Transcribe turns the recorded question into text.
-   Nothing is transcribed unless the wearer pressed to talk.
-2. **Look**: Muse Glimmer looks at the frame with the question and the wearer's role, lists the
-   hazards it sees and names up to three things SAM 3.1 should count. Meanwhile a question's
-   frame is uploaded for Muse Spark and, in an aisle, `rulecam.shelf` finds the shelf gaps
-   (Muse Spark proposes, SAM 3.1 confirms each is empty). When Glimmer does not answer in time,
-   Muse Spark takes the look, and the answer says so.
-3. **Count**: SAM 3.1 segments each thing Glimmer named, in parallel.
-4. **Compose**: Muse Spark sees the frame and all of that evidence, checks it, and writes what to
-   say in the wearer's ear.
-5. **Speak**: the spoken line becomes a WAV with the repo's voice (Meta MMS-TTS, or the
-   labelled system voice); without one the page speaks it with the browser's voice.
+1. **At once, in parallel**: the frame is uploaded for Muse Spark while Muse Voice Transcribe
+   hears the push-to-talk question (nothing is transcribed unless the wearer pressed to talk), and
+   in an aisle `rulecam.shelf` looks for shelf gaps (Muse Spark proposes, SAM 3.1 confirms).
+2. **Two looks, in parallel**: Muse Glimmer and Muse Spark each look at the frame with the
+   question and answer in one short sentence. Whichever answers first is spoken straight away
+   (the **first line**), with the voice kept warm; the page has already said "Looking."
+3. **Count only when needed**: SAM 3.1 runs only when Spark says the answer needs an exact
+   number. Then Spark checks the counts against the frame (with SAM's boxes drawn) and Glimmer's
+   look, and rejects SAM labels that do not fit, e.g. a warning light boxed as a hard hat.
+4. **The checked line**: an alert is **verified** only when Glimmer and Spark both flag it. The
+   second line says the models agree, says what the second look saw when they disagree, or gives
+   the checked numbers. A patrol frame (no question) is silent unless its alert is verified.
 
-A patrol frame (no question) stops after the look when Glimmer sees nothing worth a warning, so
-walking costs one Glimmer call per frame. An alert counts as **verified** only when Glimmer and
-Spark both flagged it from the same frame; only verified patrol alerts are spoken.
+Every model text passes through `rulecam.wearables.privacy.scrub`: no clothing, hair, age or other
+looks reach the ear or the screen, whatever the prompt managed.
 """
 
 from __future__ import annotations
@@ -33,8 +32,6 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Final, Literal
 
-import cv2
-
 from rulecam.ask.vision import Frame, marked
 from rulecam.ask.watch import FileAttacher
 from rulecam.clients.open_weights.glimmer import user_message
@@ -42,14 +39,17 @@ from rulecam.contracts import TTS, Clock, Frozen, StructuredLLM, Transcriber
 from rulecam.log import get_logger
 from rulecam.planner.steps.survey import ImageSegmenter
 from rulecam.shelf.gaps import ShelfReport, ShelfScanner
-from rulecam.wearables.prompts import VOCABULARY, compose_prompt, look_prompt
+from rulecam.wearables.privacy import scrub, scrub_model
+from rulecam.wearables.prompts import VOCABULARY, check_prompt, look_prompt, spark_look_prompt
 from rulecam.wearables.schemas import (
     Composed,
     Count,
     Gap,
     GlimmerLook,
+    Line,
     Mode,
     PovAnswer,
+    SparkLook,
     Stage,
 )
 
@@ -60,15 +60,20 @@ SAM_MODEL: Final = "sam-3.1"
 VOICE_MODEL: Final = "muse-voice-transcribe-1.0"
 CAMERA_ID: Final = "glasses"
 MAX_CONCEPTS: Final = 3
-HISTORY: Final = 6  # earlier answers of the walk shown to Spark
+HISTORY: Final = 4  # earlier answers of the walk shown to Spark
 DEFAULT_GLIMMER_TIMEOUT_S: Final = 25.0
-GLIMMER_RETRY_S: Final = 120.0  # after a failed look, Spark looks at once for this long
+GLIMMER_RETRY_S: Final = 120.0  # after a failed look, Glimmer is not waited for this long
 PROBE_EVERY_S: Final = 60.0
-GLIMMER_GRACE_S: Final = 6.0  # how long a racing Spark look waits for Glimmer's
+GLIMMER_GRACE_S: Final = 6.0  # how long the checked line waits for a Glimmer that is not up
 SUFFIXES: Final = {"image/jpeg": ".jpg", "image/png": ".png"}
 NOT_HEARD: Final = "Sorry, I didn't catch that. Hold the button and ask again."
-GAPS_CAPTION: Final = "The same frame with the shelf gaps numbered:"
 NOT_CHECKED: Final = "Sorry, I couldn't check that right now. Please try again."
+LOOKING: Final = "Looking."
+AGREE: Final = "Both models agree."
+SECOND: Final = "Second look: {line}"
+PHRASES: Final = {"looking": LOOKING, "agree": AGREE, "not_heard": NOT_HEARD}
+GAPS_CAPTION: Final = "The same frame with the shelf gaps numbered:"
+BOXES_CAPTION: Final = "The frame with SAM 3.1's numbered boxes:"
 
 Kind = Literal["question", "patrol"]
 GlimmerState = Literal["unknown", "checking", "up", "down", "none"]
@@ -107,6 +112,7 @@ class Ask:
     source: str = "phone-camera"
     walk_id: str | None = None
     progress: Callable[[Stage], None] | None = None  # told of each stage as it ends
+    on_first: Callable[[Line], None] | None = None  # told of the first spoken line
 
 
 class Timer:
@@ -160,6 +166,7 @@ class _Run:
     timer: Timer
     kind: Kind = "patrol"
     heard: str | None = None
+    privacy_edits: int = 0
     upload: asyncio.Task[tuple[Part | None, str]] | None = field(default=None)
 
     def uploaded(self, files: FileAttacher) -> asyncio.Task[tuple[Part | None, str]]:
@@ -169,21 +176,30 @@ class _Run:
             self.upload = asyncio.create_task(timed(lambda: files.attach(frame)))
         return self.upload
 
+    def clean[M: Frozen](self, model: M | None) -> M | None:
+        """The model's text without appearance descriptions (edits counted)."""
+        if model is None:
+            return None
+        cleaned, edits = scrub_model(model)
+        self.privacy_edits += edits
+        return cleaned
+
 
 @dataclass(frozen=True)
 class _Findings:
     """What the models found for one frame."""
 
-    look: GlimmerLook | None = None
-    looked_by: str = ""
+    glimmer: GlimmerLook | None = None
+    spark: SparkLook | None = None
     counts: Sequence[Count] = ()
     gaps: Sequence[Gap] = ()
     composed: Composed | None = None
     marked: str | None = None
+    first: Line | None = None
 
 
-def concepts(look: GlimmerLook | None) -> list[str]:
-    """The distinct, non-empty noun phrases Glimmer asked SAM 3.1 to count (at most 3)."""
+def concepts(look: SparkLook | None) -> list[str]:
+    """The distinct, non-empty noun phrases Spark asked SAM 3.1 to count (at most 3)."""
     seen: list[str] = []
     for raw in look.count if look is not None else []:
         phrase = " ".join(raw.split()).strip(" .").lower()[:60]
@@ -206,58 +222,61 @@ def history_lines(history: Sequence[PovAnswer]) -> list[str]:
     """Earlier answers of the walk as short lines for Spark."""
     lines = []
     for past in history[-HISTORY:]:
-        said = past.spoken or (past.look.scene if past.look else "")
-        hazards = "; ".join(f"{h.what} ({h.where}, {h.severity})" for h in past.hazards)
+        said = (past.first.text if past.first else "") or past.spoken
+        hazards = "; ".join(f"{h.what} ({h.where})" for h in past.hazards)
         tail = f" Hazards: {hazards}" if hazards else ""
-        lines.append(f"{past.at.isoformat()} [{past.kind}] {said}{tail}")
+        lines.append(f"[{past.kind}] {said}{tail}")
     return lines
 
 
-def evidence_text(
-    ask: Ask, found: _Findings, history: Sequence[PovAnswer], size: tuple[int, int]
-) -> str:
-    """Everything Spark gets besides the frame, as JSON."""
-    look = found.look
-    return json.dumps(
-        {
-            "question": ask.question or None,
-            "frame_size_px": {"width": size[0], "height": size[1]},
-            "first_look": {"by": found.looked_by, **look.model_dump()} if look else None,
-            "sam_3_1_counts": [c.model_dump() for c in found.counts],
-            "shelf_gaps_confirmed_by_sam": [g.model_dump() for g in found.gaps],
-            "earlier_in_this_walk": history_lines(history),
-        },
-        ensure_ascii=False,
+def verdict(found: _Findings, glimmer_model: str) -> tuple[bool, list[str]]:
+    """Whether the alert is verified (Glimmer and Spark both flag it) and who backs it."""
+    spark_alert = (
+        found.composed.alert if found.composed else bool(found.spark and found.spark.alert)
     )
-
-
-def verifiers(found: _Findings, glimmer_model: str) -> list[str]:
-    """The models that back an alert: Spark (composed it), Glimmer (flagged it), SAM (saw it)."""
-    composed, look = found.composed, found.look
-    if composed is None or not composed.alert:
-        return []
-    backing = [SPARK_MODEL]
-    if look is not None and found.looked_by == glimmer_model and (look.alert or look.hazards):
-        backing.append(glimmer_model)
+    if not (spark_alert and found.glimmer is not None and found.glimmer.alert):
+        return False, []
+    backing = [SPARK_MODEL, glimmer_model]
     if any(c.count > 0 for c in found.counts):
         backing.append(SAM_MODEL)
-    return backing
+    return True, backing
 
 
-def fallback_spoken(look: GlimmerLook | None) -> str:
-    """What to say when Spark could not compose: the first look's own answer, or an apology."""
-    if look is not None and (look.answer or look.scene):
-        return f"{look.answer or look.scene} (first look only, not checked)"
-    return NOT_CHECKED
+def second_line(found: _Findings, kind: Kind, verified: bool) -> str:
+    """The checked line after the first, or '' when there is nothing to add."""
+    spark, glimmer, composed = found.spark, found.glimmer, found.composed
+    if kind == "patrol":
+        said = composed.spoken if composed else (spark.spoken if spark else "")
+        return said if verified else ""
+    if composed is not None:
+        return composed.spoken
+    if found.first is None:
+        return (spark.spoken if spark else "") or (glimmer.answer if glimmer else "") or NOT_CHECKED
+    return _agreement(found.first, spark, glimmer, verified)
 
 
-def image_size(frame: Path) -> tuple[int, int]:
-    """The frame's width and height (0, 0 when it cannot be read)."""
-    pixels = cv2.imread(str(frame))
-    if pixels is None:
-        return (0, 0)
-    height, width = pixels.shape[:2]
-    return (width, height)
+def _agreement(
+    first: Line, spark: SparkLook | None, glimmer: GlimmerLook | None, verified: bool
+) -> str:
+    """After the first line: whether both models agree on an alert, or what the other saw."""
+    if spark is None or glimmer is None or (not verified and spark.alert == glimmer.alert):
+        return ""
+    if verified:
+        return AGREE
+    other = glimmer.answer if first.by == SPARK_MODEL else spark.spoken
+    return SECOND.format(line=other) if other else ""
+
+
+def detail_of(found: _Findings) -> str:
+    """The screen text: the check, or what each model said."""
+    if found.composed is not None:
+        return found.composed.detail
+    parts = []
+    if found.glimmer is not None:
+        parts.append(f"Glimmer: {found.glimmer.scene} {found.glimmer.answer}".strip())
+    if found.spark is not None and found.spark.spoken:
+        parts.append(f"Spark: {found.spark.spoken}")
+    return " | ".join(parts)
 
 
 class PovAssistant:
@@ -277,23 +296,25 @@ class PovAssistant:
         transcriber: Transcriber | None = None,
         voice: Voice | None = None,
         glimmer_timeout_s: float = DEFAULT_GLIMMER_TIMEOUT_S,
+        glimmer_grace_s: float = GLIMMER_GRACE_S,
         site_profile: str = "",
         monotonic: Callable[[], float] = time.perf_counter,
     ) -> None:
         """Create the assistant.
 
         Args:
-            spark: Muse Spark 1.3 (composes every answer; looks when Glimmer cannot).
+            spark: Muse Spark 1.3 (looks in parallel with Glimmer; checks counts and gaps).
             files: Uploads the frame for Spark (`SparkClient`).
             sam: SAM 3.1 on one image.
             out_dir: Where frames, marked frames and spoken WAVs are written.
             clock: Time source.
-            glimmer: Muse Glimmer (the first look); `None` lets Spark look.
+            glimmer: Muse Glimmer; `None` leaves every look to Spark (nothing is then verified).
             glimmer_model: Glimmer's model name.
             shelf: The shelf-gap scanner used in aisle mode.
             transcriber: Muse Voice Transcribe for push-to-talk questions.
             voice: Speech for answers; `None` leaves speaking to the browser.
-            glimmer_timeout_s: How long a look waits for Glimmer before Spark looks instead.
+            glimmer_timeout_s: How long a look waits for Glimmer at most.
+            glimmer_grace_s: How long the checked line waits for a Glimmer not known to be up.
             site_profile: One line about the site for the prompts.
             monotonic: Timer (injected in tests).
         """
@@ -308,12 +329,14 @@ class PovAssistant:
         self._transcriber = transcriber
         self._voice = voice
         self._glimmer_timeout_s = glimmer_timeout_s
+        self._glimmer_grace_s = glimmer_grace_s
         self._site = site_profile
         self._monotonic = monotonic
         self._glimmer_down_until = 0.0
         self._glimmer_state: GlimmerState = "unknown"
         self._probed_at: float | None = None
-        self._background: set[asyncio.Task[object]] = set()
+        self._background: set[asyncio.Task[Any]] = set()
+        self._phrases: dict[str, str] = {}  # phrase text -> WAV name, in English
 
     @property
     def frames_dir(self) -> Path:
@@ -342,8 +365,33 @@ class PovAssistant:
 
     @property
     def glimmer_state(self) -> GlimmerState:
-        """Glimmer as last seen: `up`, `down` (Spark looks), `checking`, `unknown` or `none`."""
+        """Glimmer as last seen: `up`, `down`, `checking`, `unknown` or `none`."""
         return self._glimmer_state if self._glimmer is not None else "none"
+
+    @property
+    def phrases(self) -> dict[str, str]:
+        """Fixed phrases already spoken into WAVs: key -> file name (e.g. `looking`)."""
+        by_text = self._phrases
+        return {key: by_text[text] for key, text in PHRASES.items() if text in by_text}
+
+    def prepare_phrases(self) -> None:
+        """Speak the fixed phrases once (this also loads the voice model, so it stays warm).
+
+        Blocking: run it in a thread at startup.
+        """
+        if self._voice is None:
+            return
+        self.audio_dir.mkdir(parents=True, exist_ok=True)
+        for key, text in PHRASES.items():
+            try:
+                wav = self._voice.tts.synth(text, "en")
+            except Exception as exc:  # a phrase that cannot be spoken is synthesised on demand
+                _log.warning("wearables_phrase_failed", key=key, error=repr(exc)[:200])
+                continue
+            name = f"phrase-{key}.wav"
+            (self.audio_dir / name).write_bytes(wav)
+            self._phrases[text] = name
+        _log.info("wearables_phrases_ready", phrases=sorted(self.phrases))
 
     def warm(self) -> GlimmerState:
         """Ping Glimmer in the background (at most once a minute) and return its last state.
@@ -377,7 +425,7 @@ class PovAssistant:
         _log.info("wearables_glimmer_probe", up=reply is not None, error=error)
 
     def mark_glimmer(self, *, up: bool) -> None:
-        """Record whether Glimmer just answered; when down, Spark looks at once for a while."""
+        """Record whether Glimmer just answered; when down, the checked line does not wait."""
         self._glimmer_state = "up" if up else "down"
         self._glimmer_down_until = 0.0 if up else self._monotonic() + GLIMMER_RETRY_S
 
@@ -394,15 +442,15 @@ class PovAssistant:
             history: Earlier answers of the same walk, oldest first.
 
         Returns:
-            The answer, with every stage timed.
+            The answer, with its first line, the checked line and every stage timed.
 
         Raises:
             WearablesError: When the image is not a JPEG or PNG.
         """
         answer_id = f"{self._clock.now():%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
-        run = _Run(
-            ask, answer_id, self._save_frame(answer_id, ask), Timer(self._monotonic, ask.progress)
-        )
+        frame = self._save_frame(answer_id, ask)
+        run = _Run(ask, answer_id, frame, Timer(self._monotonic, ask.progress))
+        run.uploaded(self._files)  # in parallel with hearing the question
         if ask.audio is not None:
             run.kind, run.heard = "question", await self._hear(run)
             if not run.heard:
@@ -410,23 +458,22 @@ class PovAssistant:
             run.ask = replace(ask, question=run.heard, audio=None)
         if run.ask.question:
             run.kind = "question"
-            run.uploaded(self._files)
         shelf = asyncio.create_task(self._scan_shelf(run)) if self._wants_shelf(run) else None
-        look, looked_by = await self._look(run)
-        if run.kind == "patrol" and look is not None and not look.alert and not look.hazards:
-            marked_name, gaps = await shelf if shelf is not None else (None, [])
-            quiet = _Findings(look=look, looked_by=looked_by, gaps=gaps, marked=marked_name)
-            return await self._finish(run, quiet)
-        counts = await self._count(run, concepts(look))
-        marked_name, gaps = await shelf if shelf is not None else (None, [])
+        glimmer = (
+            asyncio.create_task(self._glimmer_look(run)) if self._glimmer is not None else None
+        )
+        spark = asyncio.create_task(self._spark_look(run, history))
+        first = await self._first_line(run, glimmer, spark) if run.kind == "question" else None
         found = _Findings(
-            look=look, looked_by=looked_by, counts=counts, gaps=gaps, marked=marked_name
+            spark=await spark, glimmer=await self._settle(glimmer, spark), first=first
         )
-        composed = await self._compose(run, found, history)
-        return await self._finish(
-            run,
-            replace(found, composed=composed, marked=marked_name or self._mark(run.frame, counts)),
-        )
+        counts = await self._count(run, concepts(found.spark))
+        marked_name, gaps = await shelf if shelf is not None else (None, [])
+        boxes = self._mark(run.frame, counts)
+        found = replace(found, counts=counts, gaps=gaps, marked=marked_name or boxes)
+        if counts or gaps:
+            found = replace(found, composed=await self._check(run, found, boxes, history))
+        return await self._finish(run, found)
 
     # --- stages -----------------------------------------------------------------------------
 
@@ -463,45 +510,17 @@ class PovAssistant:
         run.timer.add("hear", VOICE_MODEL, since, ok=not error, note=error or text)
         return text
 
-    async def _look(self, run: _Run) -> tuple[GlimmerLook | None, str]:
-        """Glimmer looks first; Spark looks too when Glimmer may be slow, or when it fails.
+    def _question_text(self, run: _Run) -> str:
+        if run.ask.question:
+            return f"The wearer asks: {run.ask.question}"
+        return "The wearer asked nothing; this is a patrol frame."
 
-        Glimmer known up (or a patrol frame while it is not known down): wait for Glimmer, and
-        let Spark look only if it fails. Otherwise (a question while Glimmer is cold or being
-        checked, or any frame while it is down): both look at once, and Glimmer's look is used
-        if it comes within `GLIMMER_GRACE_S` of Spark's. Glimmer always gets the frame, so a
-        cold worker keeps warming up.
-        """
-        prompt = look_prompt(run.ask.mode, self._site)
-        question = (
-            f"The wearer asks: {run.ask.question}"
-            if run.ask.question
-            else "The wearer asked nothing; this is a patrol frame."
-        )
-        if self._glimmer is None:
-            return await self._spark_look(run, prompt, question, "no Glimmer configured")
-        glimmer = asyncio.create_task(self._glimmer_look(run, f"{prompt}\n{question}"))
-        down = self._monotonic() < self._glimmer_down_until
-        if not down and (self._glimmer_state == "up" or run.kind == "patrol"):
-            look = await glimmer
-            if look is not None:
-                return look, self._glimmer_model
-            reason = run.timer.stages[-1].note if run.timer.stages else ""
-            return await self._spark_look(run, prompt, question, reason)
-        state = "down lately" if down else f"not known to be up ({self._glimmer_state})"
-        looked = await self._spark_look(run, prompt, question, state)
-        if not glimmer.done():
-            await asyncio.wait({glimmer}, timeout=GLIMMER_GRACE_S)
-        if glimmer.done() and glimmer.result() is not None:
-            return glimmer.result(), self._glimmer_model
-        self._keep(glimmer)
-        return looked
-
-    async def _glimmer_look(self, run: _Run, text: str) -> GlimmerLook | None:
-        """Glimmer's look, or `None`; a failure makes the next looks start Spark at once."""
+    async def _glimmer_look(self, run: _Run) -> GlimmerLook | None:
+        """Glimmer's look, or `None`; a failure marks Glimmer down for a while."""
         if self._glimmer is None:
             return None
         glimmer, frame, model = self._glimmer, run.frame, self._glimmer_model
+        text = f"{look_prompt(run.ask.mode, self._site)}\n{self._question_text(run)}"
         since = run.timer.now()
         look, reason = await timed(
             lambda: glimmer.structured(
@@ -513,29 +532,74 @@ class PovAssistant:
         if look is None:
             _log.warning("wearables_glimmer_failed", error=reason)
         self.mark_glimmer(up=look is not None)
-        return look
+        return run.clean(look)
 
-    async def _spark_look(
-        self, run: _Run, prompt: str, question: str, reason: str
-    ) -> tuple[GlimmerLook | None, str]:
+    async def _spark_look(self, run: _Run, history: Sequence[PovAnswer]) -> SparkLook | None:
         part, error = await run.uploaded(self._files)
         since = run.timer.now()
         look = None
         if part is not None:
-            content: list[Part] = [{"type": "input_text", "text": question}, part]
+            lines = history_lines(history)
+            earlier = f" Earlier in this walk: {' / '.join(lines)}" if lines else ""
+            content: list[Part] = [
+                {"type": "input_text", "text": self._question_text(run) + earlier},
+                part,
+            ]
+            system = spark_look_prompt(run.ask.mode, self._site)
             look, error = await timed(
                 lambda: self._spark.structured(
                     model=SPARK_MODEL,
                     messages=[
-                        {"role": "system", "content": prompt},
+                        {"role": "system", "content": system},
                         {"role": "user", "content": content},
                     ],
-                    schema=GlimmerLook,
+                    schema=SparkLook,
                 )
             )
-        note = f"Muse Spark looked: Glimmer {reason}"
-        run.timer.add("look", SPARK_MODEL, since, ok=look is not None, note=f"{note} {error}")
-        return look, (f"{SPARK_MODEL} (Glimmer unavailable)" if look is not None else "")
+        run.timer.add("look", SPARK_MODEL, since, ok=look is not None, note=error)
+        return run.clean(look)
+
+    async def _first_line(
+        self,
+        run: _Run,
+        glimmer: asyncio.Task[GlimmerLook | None] | None,
+        spark: asyncio.Task[SparkLook | None],
+    ) -> Line | None:
+        """Speak whichever look answers first."""
+        pending: set[asyncio.Task[Any]] = {spark} if glimmer is None else {spark, glimmer}
+        while pending:
+            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+            for task in done:
+                look = task.result()
+                if isinstance(look, GlimmerLook) and look.answer:
+                    return await self._say_first(run, look.answer, self._glimmer_model)
+                if isinstance(look, SparkLook) and look.spoken:
+                    return await self._say_first(run, look.spoken, SPARK_MODEL)
+        return None
+
+    async def _say_first(self, run: _Run, text: str, by: str) -> Line:
+        audio = await self._speak(run, text, "speak first")
+        line = Line(text=text, audio=audio, by=by, at_ms=run.timer.total_ms())
+        if run.ask.on_first is not None:
+            run.ask.on_first(line)
+        return line
+
+    async def _settle(
+        self,
+        glimmer: asyncio.Task[GlimmerLook | None] | None,
+        spark: asyncio.Task[SparkLook | None],
+    ) -> GlimmerLook | None:
+        """Glimmer's look for the checked line; not waited for long while Glimmer is not up."""
+        if glimmer is None:
+            return None
+        if self._glimmer_state != "up" or self._monotonic() < self._glimmer_down_until:
+            await spark
+            if not glimmer.done():
+                await asyncio.wait({glimmer}, timeout=self._glimmer_grace_s)
+            if not glimmer.done():
+                self._keep(glimmer)  # it still warms Glimmer up
+                return None
+        return await glimmer
 
     async def _scan_shelf(self, run: _Run) -> tuple[str | None, list[Gap]]:
         if self._shelf is None:
@@ -573,22 +637,28 @@ class PovAssistant:
         run.timer.add("count", SAM_MODEL, since, ok=not errors, note=note)
         return counts
 
-    async def _compose(
-        self, run: _Run, found: _Findings, history: Sequence[PovAnswer]
+    async def _check(
+        self, run: _Run, found: _Findings, boxes: str | None, history: Sequence[PovAnswer]
     ) -> Composed | None:
-        part, error = await run.uploaded(self._files)
+        """Spark checks SAM's counts (rejecting labels that do not fit) and the shelf gaps."""
+        images: list[tuple[str | None, str | None]] = (
+            [(BOXES_CAPTION, boxes)] if boxes else [(None, None)]
+        )
+        if found.gaps and found.marked and found.marked != boxes:
+            images.append((GAPS_CAPTION, found.marked))
+        content: list[Part] = [{"type": "input_text", "text": self._evidence(run, found, history)}]
+        for caption, name in images:
+            part, _ = await (
+                timed(partial(self._files.attach, self.frames_dir / name))
+                if name
+                else run.uploaded(self._files)
+            )
+            if part is not None:
+                if caption:
+                    content.append({"type": "input_text", "text": caption})
+                content.append(part)
         since = run.timer.now()
-        if part is None:
-            run.timer.add("compose", SPARK_MODEL, since, ok=False, note=f"upload failed: {error}")
-            return None
-        text = evidence_text(run.ask, found, history, image_size(run.frame))
-        content: list[Part] = [{"type": "input_text", "text": text}, part]
-        if found.gaps and found.marked:
-            gaps_image = self.frames_dir / found.marked
-            shown, _ = await timed(lambda: self._files.attach(gaps_image))
-            if shown is not None:
-                content += [{"type": "input_text", "text": GAPS_CAPTION}, shown]
-        system = compose_prompt(run.ask.mode, self._site)
+        system = check_prompt(run.ask.mode, self._site)
         composed, error = await timed(
             lambda: self._spark.structured(
                 model=SPARK_MODEL,
@@ -599,8 +669,24 @@ class PovAssistant:
                 schema=Composed,
             )
         )
-        run.timer.add("compose", SPARK_MODEL, since, ok=composed is not None, note=error)
-        return composed
+        run.timer.add("check", SPARK_MODEL, since, ok=composed is not None, note=error)
+        return run.clean(composed)
+
+    def _evidence(self, run: _Run, found: _Findings, history: Sequence[PovAnswer]) -> str:
+        return json.dumps(
+            {
+                "question": run.ask.question or None,
+                "glimmer_look": found.glimmer.model_dump() if found.glimmer else None,
+                "spark_first_look": found.spark.model_dump() if found.spark else None,
+                "sam_3_1_counts": [
+                    {"concept": c.concept, "count": c.count, "numbered_boxes": c.boxes[:12]}
+                    for c in found.counts
+                ],
+                "shelf_gaps": [g.model_dump() for g in found.gaps],
+                "earlier_in_this_walk": history_lines(history),
+            },
+            ensure_ascii=False,
+        )
 
     def _mark(self, frame: Path, counts: Sequence[Count]) -> str | None:
         marks = [
@@ -613,32 +699,34 @@ class PovAssistant:
         shot = Frame(camera_id=CAMERA_ID, at=datetime.min, path=frame)
         return marked(shot, marks, self.frames_dir).path.name
 
-    async def _speak(self, run: _Run, text: str) -> str | None:
+    async def _speak(self, run: _Run, text: str, stage: str = "speak") -> str | None:
         if self._voice is None or not text or not run.ask.speak:
             return None
-        tts, lang = self._voice.tts, run.ask.lang or "en"
+        lang = run.ask.lang or "en"
+        ready = self._phrases.get(text) if lang == "en" else None
+        if ready is not None:
+            return ready  # spoken once at startup
+        tts = self._voice.tts
         since = run.timer.now()
         wav, error = await timed(lambda: tts.synth(text, lang))
-        run.timer.add("speak", self._voice.label, since, ok=wav is not None, note=error)
+        run.timer.add(stage, self._voice.label, since, ok=wav is not None, note=error)
         if wav is None:
             return None
         self.audio_dir.mkdir(parents=True, exist_ok=True)
-        name = f"{run.answer_id}.wav"
+        name = f"{run.answer_id}-{len(run.timer.stages)}.wav"
         (self.audio_dir / name).write_bytes(wav)
         return name
 
-    def _spoken(self, run: _Run, found: _Findings, verified: bool) -> str:
-        """A question is always answered; a patrol frame speaks only a verified alert."""
-        if found.composed is not None:
-            return found.composed.spoken if run.kind == "question" or verified else ""
-        return fallback_spoken(found.look) if run.kind == "question" else ""
-
     async def _finish(self, run: _Run, found: _Findings, *, spoken: str = "") -> PovAnswer:
-        verified_by = verifiers(found, self._glimmer_model)
-        verified = self._glimmer_model in verified_by
-        spoken = spoken or self._spoken(run, found, verified)
+        verified, verified_by = verdict(found, self._glimmer_model)
+        spoken = scrub(spoken or second_line(found, run.kind, verified))[0]
         audio = await self._speak(run, spoken)
-        composed, look = found.composed, found.look
+        spark, composed = found.spark, found.composed
+        source = composed or spark
+        rejected = list(composed.rejected) if composed else []
+        looked = [
+            m for m, look in ((self._glimmer_model, found.glimmer), (SPARK_MODEL, spark)) if look
+        ]
         answer = PovAnswer(
             answer_id=run.answer_id,
             at=self._clock.now(),
@@ -646,22 +734,26 @@ class PovAssistant:
             kind=run.kind,
             question=run.ask.question,
             heard=run.heard,
+            first=found.first,
             spoken=spoken,
-            detail=composed.detail if composed is not None else (look.scene if look else ""),
-            alert=composed.alert if composed is not None else False,
+            detail=detail_of(found),
+            alert=source.alert if source else False,
             verified=verified,
             verified_by=verified_by,
-            severity=composed.severity if composed is not None else "none",
-            confidence=composed.confidence if composed is not None else 0.0,
-            hazards=list(composed.hazards) if composed is not None else [],
+            severity=source.severity if source else "none",
+            confidence=source.confidence if source else 0.0,
+            hazards=list(source.hazards) if source else [],
             counts=list(found.counts),
             gaps=list(found.gaps),
-            look=look,
-            looked_by=found.looked_by,
+            look=found.glimmer,
+            spark_look=spark,
+            rejected=rejected,
+            privacy_edits=run.privacy_edits,
+            looked_by=" + ".join(looked),
             frame=run.frame.name,
             marked=found.marked,
             audio=audio,
-            voice=self._voice.label if audio and self._voice else None,
+            voice=self._voice.label if (audio or found.first) and self._voice else None,
             stages=run.timer.stages,
             total_ms=run.timer.total_ms(),
             walk_id=run.ask.walk_id,
@@ -673,6 +765,7 @@ class PovAssistant:
             mode=run.ask.mode,
             alert=answer.alert,
             verified=verified,
+            first_ms=found.first.at_ms if found.first else None,
             ms=answer.total_ms,
         )
         return answer

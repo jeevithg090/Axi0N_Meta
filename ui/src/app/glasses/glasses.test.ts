@@ -7,6 +7,7 @@ import {
   audioUrl,
   frameUrl,
   glimmerLabel,
+  linesToSay,
   lookForm,
   progressLabel,
   modelName,
@@ -28,6 +29,7 @@ function answer(over: Partial<PovAnswer> = {}): PovAnswer {
     kind: "question",
     question: "Safe?",
     heard: null,
+    first: null,
     spoken: "Stop, forklift ahead.",
     detail: "",
     alert: true,
@@ -39,6 +41,9 @@ function answer(over: Partial<PovAnswer> = {}): PovAnswer {
     counts: [],
     gaps: [],
     look: null,
+    spark_look: null,
+    rejected: [],
+    privacy_edits: 0,
     looked_by: "muse-glimmer-30b",
     frame: "a1.jpg",
     marked: null,
@@ -110,6 +115,19 @@ describe("glasses helpers", () => {
     expect(glimmerLabel("checking")).toBe("Waking Glimmer…");
     expect(glimmerLabel("none")).toBe("No Glimmer · Spark looks");
     expect(glimmerLabel("unknown")).toBe("Glimmer ?");
+  });
+
+  it("says the first line once, then the checked line", () => {
+    const first = { text: "Forklift ahead.", audio: "a1-1.wav", by: "muse-spark-1.3", at_ms: 6200 };
+    const both = answer({ first, spoken: "Both models agree.", audio: "phrase-agree.wav" });
+    expect(linesToSay(both, false)).toEqual([
+      { text: "Forklift ahead.", audio: "a1-1.wav" },
+      { text: "Both models agree.", audio: "phrase-agree.wav" },
+    ]);
+    expect(linesToSay(both, true)).toEqual([
+      { text: "Both models agree.", audio: "phrase-agree.wav" },
+    ]);
+    expect(linesToSay(answer({ first, spoken: "" }), true)).toEqual([]);
   });
 
   it("speaks only what the server wrote", () => {

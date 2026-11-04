@@ -1,7 +1,8 @@
 """What the glasses assistant sends and gets back (`POST /wearables/look`, safety walks).
 
-The model-facing schemas (`GlimmerLook`, `Composed`, `WalkSummary`) stay small and flat: they go
-to Muse Glimmer as strict JSON schemas and to Muse Spark as structured outputs.
+The model-facing schemas (`GlimmerLook`, `SparkLook`, `Composed`, `WalkSummary`) stay small and
+flat, with short fields, so the models answer fast: they go to Muse Glimmer as strict JSON schemas
+and to Muse Spark as structured outputs.
 """
 
 from __future__ import annotations
@@ -22,14 +23,9 @@ class GlimmerLook(Frozen):
     """Muse Glimmer's first look at the wearer's view."""
 
     scene: str = Field(description="One short sentence: what is in front of the wearer.")
-    answer: str = Field(description="A direct answer to the wearer's question; empty if none.")
-    hazards: list[str] = Field(
-        description="Safety hazards visible now, a few words each, with where it is."
-    )
-    alert: bool = Field(description="True if the wearer should be warned right now.")
-    count: list[str] = Field(
-        description="Up to 3 short noun phrases SAM 3.1 should count to check the answer."
-    )
+    answer: str = Field(description="For the ear: one sentence, at most 15 words.")
+    hazards: list[str] = Field(description="Hazards visible now, a few words each, with where.")
+    alert: bool = Field(description="True if the wearer must be warned right now.")
 
 
 class Hazard(Frozen):
@@ -40,15 +36,42 @@ class Hazard(Frozen):
     severity: HazardSeverity
 
 
-class Composed(Frozen):
-    """Muse Spark's answer for the wearer's ear, after checking the other models' evidence."""
+class SparkLook(Frozen):
+    """Muse Spark's own look, in parallel with Glimmer's: a short answer for the ear."""
 
-    spoken: str = Field(description="What to say in the wearer's ear: 1-2 short sentences.")
-    detail: str = Field(description="At most three sentences for the screen: the evidence used.")
+    spoken: str = Field(description="For the ear: one sentence, at most 15 words.")
+    alert: bool = Field(description="True if the wearer must be warned right now.")
+    severity: Severity
+    hazards: list[Hazard] = Field(default_factory=list)
+    count: list[str] = Field(
+        default_factory=list,
+        description="Only if the answer needs an exact number: up to 3 noun phrases to count.",
+    )
+    confidence: float = Field(ge=0.0, le=1.0)
+
+
+class Composed(Frozen):
+    """Muse Spark's checked answer when SAM 3.1 counted or the shelf check found gaps."""
+
+    spoken: str = Field(description="For the ear: one sentence, at most 20 words.")
+    detail: str = Field(description="At most two sentences for the screen: the evidence used.")
     alert: bool = Field(description="True only if a hazard the wearer must act on is confirmed.")
     severity: Severity
     hazards: list[Hazard] = Field(default_factory=list)
+    rejected: list[str] = Field(
+        default_factory=list,
+        description="SAM 3.1 labels that do not fit the frame, e.g. '1 hard hat: a warning light'.",
+    )
     confidence: float = Field(ge=0.0, le=1.0)
+
+
+class Line(Frozen):
+    """A sentence spoken in the wearer's ear."""
+
+    text: str
+    audio: str | None = None
+    by: str = Field(description="The model whose words these are.")
+    at_ms: int = Field(description="Milliseconds after the frame arrived when it was ready.")
 
 
 class Count(Frozen):
@@ -87,7 +110,10 @@ class PovAnswer(Frozen):
     kind: Literal["question", "patrol"]
     question: str | None = None
     heard: str | None = Field(default=None, description="Voice Transcribe's text of the audio.")
-    spoken: str = Field(description="What the wearer hears; empty when there is nothing to say.")
+    first: Line | None = Field(
+        default=None, description="The first sentence, from whichever model answered first."
+    )
+    spoken: str = Field(description="The checked line after it; empty when nothing to add.")
     detail: str = ""
     alert: bool = False
     verified: bool = Field(
@@ -100,6 +126,9 @@ class PovAnswer(Frozen):
     counts: list[Count] = Field(default_factory=list)
     gaps: list[Gap] = Field(default_factory=list)
     look: GlimmerLook | None = None
+    spark_look: SparkLook | None = None
+    rejected: list[str] = Field(default_factory=list, description="SAM labels Spark rejected.")
+    privacy_edits: int = Field(default=0, description="Appearance phrases cut from model text.")
     looked_by: str = ""
     frame: str
     marked: str | None = None

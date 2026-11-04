@@ -14,7 +14,7 @@ from rulecam.evidence.chain import EventChain
 from rulecam.wearables.assist import PovAssistant, Voice
 from rulecam.wearables.walks import WalkReporter, WalkStore
 from tests.fakes import FakeClock, FakeLLM, FakeTTS
-from tests.wearables.test_assist import Files, Sam, composed, jpeg, look
+from tests.wearables.test_assist import Files, Sam, composed, jpeg, look, spark_look
 
 
 def client(tmp_path: Path, *, ready: bool = True) -> tuple[TestClient, FakeLLM, FakeLLM]:
@@ -82,8 +82,9 @@ def test_without_spark_looks_answer_503(tmp_path: Path) -> None:
 
 def test_look_and_files(tmp_path: Path) -> None:
     api, glimmer, spark = client(tmp_path)
-    glimmer.queue(look(alert=True, hazards=["forklift"], count=["forklift"]))
-    spark.queue(composed())
+    glimmer.queue(look(alert=True, hazards=["forklift"]))
+    spark.queue(spark_look(alert=True, count=["forklift"]))
+    spark.queue({**composed(spoken="Stop: one forklift ahead."), "alert": True})
     reply = api.post(
         "/wearables/look",
         files={"image": ("f.jpg", jpeg(), "image/jpeg")},
@@ -92,7 +93,11 @@ def test_look_and_files(tmp_path: Path) -> None:
     assert reply.status_code == 200
     body = reply.json()
     assert body["verified"] is True
+    assert body["verified_by"] == ["muse-spark-1.3", "muse-glimmer-30b", "sam-3.1"]
+    assert body["spoken"] == "Stop: one forklift ahead."
+    assert body["first"]["text"] in {"Stop, forklift ahead.", "A forklift is ahead."}
     assert body["source"] == "mock-device"
+    assert api.get(f"/wearables/audio/{body['first']['audio']}").status_code == 200
     assert api.get(f"/wearables/frames/{body['frame']}").status_code == 200
     assert api.get(f"/wearables/frames/{body['marked']}").status_code == 200
     audio = api.get(f"/wearables/audio/{body['audio']}")
@@ -148,8 +153,8 @@ def poll(api: TestClient, job: dict[str, Any]) -> dict[str, Any]:
 
 def test_background_jobs(tmp_path: Path) -> None:
     api, glimmer, spark = client(tmp_path)
-    glimmer.queue(look())
-    spark.queue(composed(alert=False, spoken="All clear."))
+    glimmer.queue(look(answer="All clear ahead."))
+    spark.queue(spark_look(spoken="All clear."))
     with api:
         started = api.post(
             "/wearables/look",
@@ -159,7 +164,8 @@ def test_background_jobs(tmp_path: Path) -> None:
         assert started["status"] == "running"
         done = poll(api, started)
         assert done["status"] == "done"
-        assert done["answer"]["spoken"] == "All clear."
+        assert done["answer"]["first"]["text"] in {"All clear.", "All clear ahead."}
+        assert done["answer"]["spoken"] == ""  # both looks agree there is nothing to warn about
         bad = api.post(
             "/wearables/look",
             files={"image": ("f.gif", b"GIF89a", "image/gif")},

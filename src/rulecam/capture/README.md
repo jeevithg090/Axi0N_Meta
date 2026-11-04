@@ -23,6 +23,13 @@ uv run rulecam capture cam2 rtsp://camera.local/stream
 uv run rulecam capture cam4 data/recordings/uc4.mp4 --realtime
 ```
 
+## Existing CCTV, streams and clips (`rulecam.connectors`)
+
+Long-running cameras (RTSP/ONVIF NVRs, HLS, MJPEG, YouTube live, looped clips) are connected from
+the web app's **Connect Cameras** page, not this CLI: `rulecam.connectors` runs one ffmpeg per
+camera with the same `encoder_args` and chunk naming, plus reconnects, health and a first look by
+Muse Spark and SAM 3.1. See `docs/usecases/cameras.md`.
+
 ## Pair-a-Phone (`rulecam.capture.pair_phone`, task P1-09)
 
 Any phone becomes a camera: the owner UI shows a QR code, the phone opens an HTTPS page, records

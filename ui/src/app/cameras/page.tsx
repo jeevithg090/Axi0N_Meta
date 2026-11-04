@@ -177,7 +177,7 @@ function DeviceRow({
     setBusy(true);
     setError(null);
     try {
-      await cameras.add({ url, name: device.name ?? "", username, password });
+      await cameras.add({ url, username, password }); // Muse Spark names it from what it sees
       onAdded();
     } catch (err) {
       setError(errorText(err, "Could not add the camera."));

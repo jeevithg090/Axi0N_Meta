@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import socket
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -199,3 +200,26 @@ def test_ffmpeg_failure_is_reported_scrubbed(
     assert health.last_error.startswith("ffmpeg exited")
     assert "s3cret-name" not in health.last_error
     assert health.state in ("reconnecting", "stopped")
+
+
+def test_silent_camera_is_killed_and_reported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(stream, "BACKOFF_S", (5.0,))
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen()
+    port = server.getsockname()[1]
+    worker = StreamWorker(
+        config(tmp_path, connect_timeout_s=1.0),
+        lambda: ResolvedInput(args=input_args(SourceKind.RTSP, f"rtsp://127.0.0.1:{port}/x")),
+        bus=RecordingBus(),
+        clock=SystemClock(),
+    )
+    try:
+        worker.start()
+        wait_for(lambda: worker.health().errors >= 1)
+        assert worker.health().last_error == "no video after 1 s"
+    finally:
+        worker.stop()
+        server.close()

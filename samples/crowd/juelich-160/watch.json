@@ -1,0 +1,18 @@
+{
+ "camera_id": "CAMERA",
+ "instruction": "This camera looks down on the queue in front of side door B, which also leads into the hall. Tell us if the queue here becomes dangerous, and whether it still has room before anyone sends more people this way. Announce calmly in English.",
+ "languages": ["en"],
+ "role": "stewards",
+ "escalate_to": ["safety_officer"],
+ "ack_within_s": 45,
+ "floor": {
+  "image_px": [[667.7, 616.5], [665.4, 78.4], [245.4, 166.7], [260.5, 538.7]],
+  "ground_m": [[-2, 0], [2, 0], [2, 4], [-2, 4]]
+ },
+ "zones": [
+  {"name": "side door approach (2 x 2 m)", "polygon_px": [[667.2, 486.7], [666.0, 217.8], [419.3, 243.9], [424.9, 463.8]]},
+  {"name": "side queue", "polygon_px": [[668.1, 718.2], [665.0, -35.5], [81.3, 136.8], [104.8, 567.9]]}
+ ],
+ "concept": "head",
+ "grid": 1
+}

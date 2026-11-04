@@ -120,6 +120,7 @@ from rulecam.config import Settings, get_settings
 from rulecam.contracts import TTS, Calibration, Chunk, Clock, PrivacyMode, SitePlan
 from rulecam.crowd.memory import Calibrations, CrowdMemory, ModelCalibration
 from rulecam.crowd.scan import CrowdScanner
+from rulecam.crowd.tally import Tallier
 from rulecam.crowd.warden import CrowdWarden
 from rulecam.crowd.zones import CrowdZone
 from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
@@ -968,6 +969,9 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         perception=perception,
         response=response,
         runtime=runtime,
+        glimmer_warm=lambda: any(
+            p.health().state == "warm" for p in probes if p.service == "glimmer"
+        ),
     )
     ask_agent, ask_tickers = build_ask(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, crowd=(crowd, warden)
@@ -1186,6 +1190,7 @@ def build_crowd(
     perception: Perception,
     response: Response,
     runtime: RuntimeLoop | None,
+    glimmer_warm: Callable[[], bool] | None = None,
 ) -> tuple[CrowdMemory | None, CrowdWarden | None, tuple[Callable[[], object], ...]]:
     """Crowd early warning: readings every few seconds and the warden that judges them.
 
@@ -1204,6 +1209,7 @@ def build_crowd(
         return None, None, ()
     try:
         spark = SparkClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
+        voice = VoiceTranscribeClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
     except ClientConfigError as exc:
         _log.warning("crowd_disabled", error=str(exc))
         return None, None, ()
@@ -1264,6 +1270,19 @@ def build_crowd(
         check_timeout_s=settings.rulecam_crowd_check_timeout_s,
         site_profile=settings.rulecam_site_profile,
         camera_names=names,
+        escalation=response.escalation,
+        alert_store=response.notifier,
+        verifier_warm=glimmer_warm,
+        transcriber=voice,
+        tallier=Tallier(
+            spark=spark,
+            files=spark,
+            glimmer=glimmer,
+            glimmer_model=glimmer.model,
+            frames_dir=frames.out_dir,
+            out_dir=settings.rulecam_data_dir / "strips" / "crowd",
+            glimmer_warm=glimmer_warm,
+        ),
     )
     languages = [x for x in settings.rulecam_crowd_languages.split(",") if x.strip()]
     if settings.rulecam_crowd_instruction:

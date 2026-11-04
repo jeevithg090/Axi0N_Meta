@@ -1,7 +1,8 @@
-"""`/crowd`: watch a camera, read its status, fetch heatmaps and announcements, the live page."""
+"""`/crowd`: set up and watch a camera, its status and stream, acks, venue, truth and report."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -65,7 +66,11 @@ def test_watch_then_status_shows_the_camera(parts: tuple[CrowdMemory, CrowdWarde
     assert camera["watched"]["instruction"] == "Warn me early."
     assert camera["latest"]["people"] == 1
     assert camera["series"]["people"] == [1]
+    assert camera["zone_series"]["view"]["people"] == [1]
+    assert camera["forecast"][0]["zone"] == "view"
+    assert camera["latest"]["cells"]
     assert status["alerts"] == []
+    assert status["acks"] == {}
     assert api.get("/crowd/alerts").json() == []
     assert api.delete("/crowd/watch/gate").json() == {"stopped": True}
 
@@ -87,10 +92,35 @@ def test_files_are_served_by_safe_names_only(parts: tuple[CrowdMemory, CrowdWard
     assert api.get("/crowd/files/missing.jpg").status_code == 404
 
 
-def test_the_live_page_is_served(parts: tuple[CrowdMemory, CrowdWarden]) -> None:
-    page = client(*parts).get("/crowd/live")
-    assert page.status_code == 200
-    assert "Crowd Early Warning" in page.text
+def test_the_stream_sends_the_status_as_server_sent_events(
+    parts: tuple[CrowdMemory, CrowdWarden],
+) -> None:
+    answer = client(*parts).get("/crowd/stream?limit=1")
+    assert answer.headers["content-type"].startswith("text/event-stream")
+    event, data = answer.text.strip().split("\n", 1)
+    assert event == "event: status"
+    assert json.loads(data.removeprefix("data: "))["cameras"][0]["camera_id"] == "gate"
+
+
+def test_venue_truth_report_ack_and_setup_routes(parts: tuple[CrowdMemory, CrowdWarden]) -> None:
+    api = client(*parts)
+    venue = {"description": "SAMPLE", "places": [{"name": "Gate A", "camera_id": "gate"}]}
+    assert api.put("/crowd/venue", json=venue).json()["places"][0]["name"] == "Gate A"
+    assert api.get("/crowd/venue").json()["description"] == "SAMPLE"
+    places = api.get("/crowd/status").json()["places"]
+    assert places[0]["now"]["people"] == 1
+    truth = {"source": "SAMPLE", "zones": {"view": {"t": [0, 1], "people": [1, 1]}}}
+    assert api.put("/crowd/truth/gate", json=truth).json()["zones"] == ["view"]
+    assert api.get("/crowd/truth/gate").json()["source"] == "SAMPLE"
+    assert api.get("/crowd/truth/other").status_code == 404
+    assert api.put("/crowd/truth/gate", json={"zones": 1}).status_code == 422
+    report = api.get("/crowd/report", params={"camera_id": "gate"}).json()
+    assert report["readings"] == 1
+    assert report["truth_source"] == "SAMPLE"
+    assert api.post("/crowd/alerts/nope/ack", json={"role": "stewards"}).status_code == 404
+    setup = api.post("/crowd/setup", json={"camera_id": "gate", "instruction": "Watch the gate"})
+    assert setup.status_code == 422
+    assert "images" in setup.text
 
 
 def test_off_answers_503() -> None:

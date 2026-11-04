@@ -1,0 +1,209 @@
+/* Local, plain styles for the crowd page; the design system will restyle it. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  max-width: 1400px;
+  margin: 0 auto;
+  font-size: 14px;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 22px;
+}
+
+.muted {
+  opacity: 0.7;
+}
+
+.small {
+  font-size: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.card {
+  border: 1px solid rgba(128, 128, 128, 0.35);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.card h2,
+.card h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tab {
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  background: transparent;
+  color: inherit;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.tabActive {
+  composes: tab;
+  border-color: currentColor;
+  font-weight: 600;
+}
+
+.button {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.frame {
+  position: relative;
+  width: 100%;
+  line-height: 0;
+}
+
+.frame img {
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.zones {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.big {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+  padding: 3px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 80px;
+  font-family: inherit;
+  font-size: 13px;
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  border-radius: 6px;
+  padding: 6px;
+}
+
+.code {
+  composes: textarea;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  min-height: 160px;
+}
+
+.input {
+  background: transparent;
+  color: inherit;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+  border-radius: 6px;
+  padding: 3px 6px;
+}
+
+.alert {
+  border-left: 4px solid;
+  padding-left: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.error {
+  color: #c62828;
+}
+
+.sample {
+  border: 1px dashed currentColor;
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+}

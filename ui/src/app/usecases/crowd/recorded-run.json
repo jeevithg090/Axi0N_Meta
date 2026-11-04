@@ -1,0 +1,1180 @@
+{
+  "label": "RECORDED LIVE RUN · 4 Nov 2026, 01:35 UTC · not live now",
+  "about": "Two runs of the Jülich bottleneck experiment played at once as two phone cameras: the main gate (run 030, played twice) and side door B (run 160). The venue layout is a SAMPLE; the measurements, Muse Spark's decisions, Glimmer's checks, the counts, the acks and the evidence chain are what the live system recorded.",
+  "report": {
+    "camera_id": "phone-10",
+    "name": "phone-10",
+    "since": null,
+    "until": null,
+    "clip_start": "2026-11-04T01:35:21.143524Z",
+    "instruction": "यह कैमरा मुख्य गेट को ऊपर से देखता है। गेट के सामने भीड़ खतरनाक होने से पहले हमें चेतावनी दें। हमारी योजना: मुख्य गेट भरने लगे तो प्रवेश गलियारे की भीड़ को साइड डोर B की ओर मोड़ें। स्टीवर्ड्स को बताएं क्या करना है और हिंदी और अंग्रेज़ी में शांति से घोषणा करें।",
+    "readings": 22,
+    "reference_ppm2": [2.0, 4.0, 5.0, 6.0],
+    "zones": [
+      {
+        "zone": "view",
+        "readings": 22,
+        "peak_density_ppm2": 0.971,
+        "peak_at": "2026-11-04T01:35:22.143524Z",
+        "peak_people": 77,
+        "peak_heatmap": null,
+        "mean_density_ppm2": 0.594,
+        "above_s": {
+          "2": 0.0,
+          "4": 0.0,
+          "5": 0.0,
+          "6": 0.0
+        },
+        "max_pressure": 0.0337,
+        "max_counterflow_share": 1.0
+      },
+      {
+        "zone": "gate approach (2 x 2 m)",
+        "readings": 22,
+        "peak_density_ppm2": 8.249,
+        "peak_at": "2026-11-04T01:35:28.213597Z",
+        "peak_people": 33,
+        "peak_heatmap": null,
+        "mean_density_ppm2": 5.249,
+        "above_s": {
+          "2": 108.9,
+          "4": 96.9,
+          "5": 72.8,
+          "6": 60.8
+        },
+        "max_pressure": 0.1373,
+        "max_counterflow_share": 0.0
+      },
+      {
+        "zone": "entry corridor",
+        "readings": 22,
+        "peak_density_ppm2": 1.972,
+        "peak_at": "2026-11-04T01:35:22.143524Z",
+        "peak_people": 74,
+        "peak_heatmap": null,
+        "mean_density_ppm2": 0.955,
+        "above_s": {
+          "2": 0.0,
+          "4": 0.0,
+          "5": 0.0,
+          "6": 0.0
+        },
+        "max_pressure": 0.0684,
+        "max_counterflow_share": 1.0
+      }
+    ],
+    "timeline": [
+      {
+        "at": "2026-11-04T01:35:22.143524Z",
+        "kind": "peak",
+        "level": null,
+        "text": "view: peak 0.971 people/m² (77 people)",
+        "ref": null,
+        "alert_id": null,
+        "role": null,
+        "seq": null,
+        "hash": null
+      },
+      {
+        "at": "2026-11-04T01:35:22.143524Z",
+        "kind": "peak",
+        "level": null,
+        "text": "entry corridor: peak 1.972 people/m² (74 people)",
+        "ref": null,
+        "alert_id": null,
+        "role": null,
+        "seq": null,
+        "hash": null
+      },
+      {
+        "at": "2026-11-04T01:35:28.213597Z",
+        "kind": "peak",
+        "level": null,
+        "text": "gate approach (2 x 2 m): peak 8.249 people/m² (33 people)",
+        "ref": null,
+        "alert_id": null,
+        "role": null,
+        "seq": null,
+        "hash": null
+      },
+      {
+        "at": "2026-11-04T01:35:54.005689Z",
+        "kind": "assessment",
+        "level": "critical",
+        "text": "Gate approach is 8.2 ppm2 with 33 people in 4 sqm and pressure 0.094, well into crush range. Side door B at 3.75 ppm2 and filling at +2.75 per min cannot take redirected flow, so inflow must be held instead.",
+        "ref": null,
+        "alert_id": null,
+        "role": null,
+        "seq": null,
+        "hash": null
+      },
+      {
+        "at": "2026-11-04T01:36:03.652930Z",
+        "kind": "notified",
+        "level": null,
+        "text": "notified stewards",
+        "ref": null,
+        "alert_id": "crowd-9960776a5934",
+        "role": "stewards",
+        "seq": 57,
+        "hash": "e5406c62395564b6f49acc87d8d11b6f421f76d5295e45820cf0f58d1d10f373"
+      },
+      {
+        "at": "2026-11-04T01:36:09.284623Z",
+        "kind": "alert",
+        "level": "critical",
+        "text": "Sent (Glimmer confirmed: The overhead view shows a very dense cluster of people wearing orange hats tightly packed in front of the gate turnstiles. The crowd occupies the gate approach zone and is essentially stationary / very slow moving. Individuals are shoulder-to-shoulder with little visible free space between bodies; the group forms a compact mass with heads almost touching. Motion arrows inside the yellow gate approach box are short and mostly upward/ inward, indicating minimal forward progress and essentially no outflow through the gate. Staff in blue vests are present at the gate and to the side of the cluster. The surrounding entry corridor is much less occupied. No clear falling bodies are individually discernible at this resolution, but the packing density is extreme and movement is effectively arrested, consistent with a crush-range condition at the Main gate approach. Side door B is not visible in this camera view.)",
+        "ref": null,
+        "alert_id": "crowd-9960776a5934",
+        "role": null,
+        "seq": 58,
+        "hash": "b4893f2db6287c57fc6637c7675978570497611a44218fce0cb229b9ce0e84ee"
+      },
+      {
+        "at": "2026-11-04T01:36:09.284623Z",
+        "kind": "announcement",
+        "level": null,
+        "text": "[hi] Kripya dhyaan dein, apni jagah par rukein, aage dhakka na dein aur stewards ke nirdesh ka intezar karein.",
+        "ref": null,
+        "alert_id": "crowd-9960776a5934",
+        "role": null,
+        "seq": 61,
+        "hash": "843d2cc358db0bff6bcd817debad324b2340ccf33eb0b7a65ef91d95db4f8f80"
+      },
+      {
+        "at": "2026-11-04T01:36:09.284623Z",
+        "kind": "announcement",
+        "level": null,
+        "text": "[en] Please wait where you are, do not push forward and follow stewards instructions. · heard back: same meaning (same meaning)",
+        "ref": null,
+        "alert_id": "crowd-9960776a5934",
+        "role": null,
+        "seq": 62,
+        "hash": "1b40c255380421eb8303cc9d633ff874464bb1a5e0dfcf6556030cc27e18def3"
+      },
+      {
+        "at": "2026-11-04T01:36:27.811680Z",
+        "kind": "assessment",
+        "level": "warning",
+        "text": "Gate approach is still 5.5 ppm2 with 22 people in 4 sqm and pressure 0.083, above the 5 ppm2 moving-crowd risk level; count check 33-37 shows ~11% uncertainty. Entry corridor is thinning from 1.97 to 0.77 ppm2 with 29 people and gate outflow 180 vs 0 inflow per min, and no acknowledgement of the prior critical hold is recorded.",
+        "ref": null,
+        "alert_id": null,
+        "role": null,
+        "seq": null,
+        "hash": null
+      },
+      {
+        "at": "2026-11-04T01:36:49.093160Z",
+        "kind": "notified",
+        "level": null,
+        "text": "notified safety_officer",
+        "ref": null,
+        "alert_id": "crowd-9960776a5934",
+        "role": "safety_officer",
+        "seq": 64,
+        "hash": "ae4ba06338d3dbb766dd221be523cd07de1390fa383aa3c30366b04fc0a8be8d"
+      },
+      {
+        "at": "2026-11-04T01:36:52.037155Z",
+        "kind": "tap",
+        "level": null,
+        "text": "safety_officer: On my way",
+        "ref": null,
+        "alert_id": "crowd-9960776a5934",
+        "role": "safety_officer",
+        "seq": 65,
+        "hash": "98bca2e1adb00dc71dc51abcc13854769b711b6cac8ede1a0efd6eb507216ba0"
+      },
+      {
+        "at": "2026-11-04T01:36:57.993649Z",
+        "kind": "arrival",
+        "level": null,
+        "text": "2 x 'blue vest' seen in gate staff side by SAM 3.1",
+        "ref": null,
+        "alert_id": "crowd-9960776a5934",
+        "role": "stewards",
+        "seq": 66,
+        "hash": "7b07c901126b07cac70c3bce728ff1084735d28b752e31e24b9ca15b24009009"
+      },
+      {
+        "at": "2026-11-04T01:37:04.200507Z",
+        "kind": "assessment",
+        "level": "critical",
+        "text": "Gate approach is 8.25 ppm2 with 33 people in 4 sqm and pressure 0.086, far above 5 risk and 0.02 turbulence onset. Prior critical 36s ago is still open with no steward seen, and Side door B at 2.5 ppm2 rising cannot take redirect so inflow must be held.",
+        "ref": null,
+        "alert_id": null,
+        "role": null,
+        "seq": null,
+        "hash": null
+      },
+      {
+        "at": "2026-11-04T01:37:38.115512Z",
+        "kind": "assessment",
+        "level": "warning",
+        "text": "Gate approach is 3.5 ppm2 with pressure 0.0315 above 0.02 onset and 9 speed swings, rising toward 4 in 38s. Prior critical alert was acknowledged with steward seen, counts agreed 29-31, but pinch persists while corridor at 0.4 ppm2 and Side door B at 0 ppm2 has room for redirect.",
+        "ref": null,
+        "alert_id": null,
+        "role": null,
+        "seq": null,
+        "hash": null
+      },
+      {
+        "at": "2026-11-04T01:37:58.561323Z",
+        "kind": "assessment",
+        "level": "normal",
+        "text": "Gate approach is now 0.5 ppm2 with 2 people and pressure 0.0031 well below 0.02, down from 8.2 ppm2 minutes ago. Entry corridor is 0.05 ppm2 and Side door B approach is 0.0 ppm2 with outflow exceeding inflow; prior critical alert was acknowledged with steward seen and count check 6-7 agrees.",
+        "ref": null,
+        "alert_id": null,
+        "role": null,
+        "seq": null,
+        "hash": null
+      }
+    ],
+    "unknowns": [
+      "Densities rest on the owner (±0.00 m) floor calibration; a zone that reaches past the calibrated floor is extrapolated.",
+      "SAM 3.1 counts what the camera sees: people hidden behind others are missed."
+    ],
+    "latency": [
+      {
+        "alert_id": "crowd-9960776a5934",
+        "level": "critical",
+        "sent": true,
+        "reading_at": "2026-11-04T01:35:28.213597Z",
+        "assess_s": 25.8,
+        "alert_s": 41.1,
+        "checked": "confirmed"
+      }
+    ],
+    "evidence": {
+      "chain_ok": true,
+      "chain_files": ["2026-11-04.jsonl"],
+      "problem": null,
+      "records": [
+        {
+          "seq": 57,
+          "kind": "action",
+          "ts": "2026-11-04T01:36:03.652973+00:00",
+          "hash": "e5406c62395564b6f49acc87d8d11b6f421f76d5295e45820cf0f58d1d10f373",
+          "event_id": "crowd-9960776a5934",
+          "role": "stewards",
+          "detail": "step 1/2",
+          "action": "notify"
+        },
+        {
+          "seq": 58,
+          "kind": "candidate",
+          "ts": "2026-11-04T01:36:09.284796+00:00",
+          "hash": "b4893f2db6287c57fc6637c7675978570497611a44218fce0cb229b9ce0e84ee",
+          "event_id": "crowd-9960776a5934",
+          "severity": "critical"
+        },
+        {
+          "seq": 59,
+          "kind": "verdict",
+          "ts": "2026-11-04T01:36:09.287097+00:00",
+          "hash": "d36aa094ba5e963c1f134ebc0fe00b1d6136dc076dec9de3cdafe55bab16b26d",
+          "event_id": "crowd-9960776a5934",
+          "verdict": "confirmed",
+          "reason": "The overhead view shows a very dense cluster of people wearing orange hats tightly packed in front of the gate turnstiles. The crowd occupies the gate approach zone and is essentially stationary / very slow moving. Individuals are shoulder-to-shoulder with little visible free space between bodies; the group forms a compact mass with heads almost touching. Motion arrows inside the yellow gate approach box are short and mostly upward/ inward, indicating minimal forward progress and essentially no outflow through the gate. Staff in blue vests are present at the gate and to the side of the cluster. The surrounding entry corridor is much less occupied. No clear falling bodies are individually discernible at this resolution, but the packing density is extreme and movement is effectively arrested, consistent with a crush-range condition at the Main gate approach. Side door B is not visible in this camera view.",
+          "tier": "muse-glimmer-30b"
+        },
+        {
+          "seq": 60,
+          "kind": "action",
+          "ts": "2026-11-04T01:36:09.292526+00:00",
+          "hash": "e8a4c1522d823a9d7d7c10a1d34225dbea199ce2ecd2fe81a70fa59734a86404",
+          "event_id": "crowd-9960776a5934",
+          "role": "stewards",
+          "detail": "alert critical: hold inflow at Outer queue barrier; hold Entry corridor in place; send stewards to Main gate",
+          "action": "notify"
+        },
+        {
+          "seq": 61,
+          "kind": "action",
+          "ts": "2026-11-04T01:36:09.294448+00:00",
+          "hash": "843d2cc358db0bff6bcd817debad324b2340ccf33eb0b7a65ef91d95db4f8f80",
+          "event_id": "crowd-9960776a5934",
+          "role": "stewards",
+          "detail": "announcement (hi): Kripya dhyaan dein, apni jagah par rukein, aage dhakka na dein aur stewards ke nirdesh ka intezar karein.",
+          "action": "speak"
+        },
+        {
+          "seq": 62,
+          "kind": "action",
+          "ts": "2026-11-04T01:36:09.295374+00:00",
+          "hash": "1b40c255380421eb8303cc9d633ff874464bb1a5e0dfcf6556030cc27e18def3",
+          "event_id": "crowd-9960776a5934",
+          "role": "stewards",
+          "detail": "announcement (en): Please wait where you are, do not push forward and follow stewards instructions. [heard back: same meaning]",
+          "action": "speak"
+        },
+        {
+          "seq": 64,
+          "kind": "action",
+          "ts": "2026-11-04T01:36:49.093587+00:00",
+          "hash": "ae4ba06338d3dbb766dd221be523cd07de1390fa383aa3c30366b04fc0a8be8d",
+          "event_id": "crowd-9960776a5934",
+          "role": "safety_officer",
+          "detail": "step 2/2",
+          "action": "escalate"
+        },
+        {
+          "seq": 65,
+          "kind": "ack",
+          "ts": "2026-11-04T01:36:52.035936+00:00",
+          "hash": "98bca2e1adb00dc71dc51abcc13854769b711b6cac8ede1a0efd6eb507216ba0",
+          "event_id": "crowd-9960776a5934",
+          "role": "safety_officer"
+        },
+        {
+          "seq": 66,
+          "kind": "action",
+          "ts": "2026-11-04T01:36:57.993649+00:00",
+          "hash": "7b07c901126b07cac70c3bce728ff1084735d28b752e31e24b9ca15b24009009",
+          "event_id": "crowd-9960776a5934",
+          "role": "stewards",
+          "detail": "2 x 'blue vest' seen in gate staff side by SAM 3.1",
+          "action": "arrival"
+        }
+      ]
+    },
+    "truth": [
+      {
+        "zone": "gate approach (2 x 2 m)",
+        "readings": 11,
+        "count_ratio": 0.996,
+        "count_mae": 1.0,
+        "density_ratio_median": 1.0,
+        "sys_peak_ppm2": 8.249,
+        "true_peak_ppm2": 9.52,
+        "true_peak_clip_s": 7.4,
+        "clip_s": [1.0, 7.07, 13.07, 19.07, 25.07, 31.15, 37.15, 43.15, 49.15, 55.15, 61.15],
+        "sys_people": [16, 33, 33, 29, 29, 27, 22, 19, 14, 7, 2],
+        "true_people": [15, 36, 32, 30, 31, 27, 22, 18, 13, 6, 2],
+        "sys_density": [4.0, 8.249, 8.249, 7.249, 7.249, 6.749, 5.499, 4.749, 3.5, 1.75, 0.5],
+        "true_density": [
+          3.759, 9.023, 8.02, 7.519, 7.769, 6.767, 5.514, 4.511, 3.258, 1.504, 0.501
+        ],
+        "truth_curve_s": [
+          0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4,
+          3.6, 3.8, 4.0, 4.2, 4.4, 4.6, 4.8, 5.0, 5.2, 5.4, 5.6, 5.8, 6.0, 6.2, 6.4, 6.6, 6.8, 7.0,
+          7.2, 7.4, 7.6, 7.8, 8.0, 8.2, 8.4, 8.6, 8.8, 9.0, 9.2, 9.4, 9.6, 9.8, 10.0, 10.2, 10.4,
+          10.6, 10.8, 11.0, 11.2, 11.4, 11.6, 11.8, 12.0, 12.2, 12.4, 12.6, 12.8, 13.0, 13.2, 13.4,
+          13.6, 13.8, 14.0, 14.2, 14.4, 14.6, 14.8, 15.0, 15.2, 15.4, 15.6, 15.8, 16.0, 16.2, 16.4,
+          16.6, 16.8, 17.0, 17.2, 17.4, 17.6, 17.8, 18.0, 18.2, 18.4, 18.6, 18.8, 19.0, 19.2, 19.4,
+          19.6, 19.8, 20.0, 20.2, 20.4, 20.6, 20.8, 21.0, 21.2, 21.4, 21.6, 21.8, 22.0, 22.2, 22.4,
+          22.6, 22.8, 23.0, 23.2, 23.4, 23.6, 23.8, 24.0, 24.2, 24.4, 24.6, 24.8, 25.0, 25.2, 25.4,
+          25.6, 25.8, 26.0, 26.2, 26.4, 26.6, 26.8, 27.0, 27.2, 27.4, 27.6, 27.8, 28.0, 28.2, 28.4,
+          28.6, 28.8, 29.0, 29.2, 29.4, 29.6, 29.8, 30.0, 30.2, 30.4, 30.6, 30.8, 31.0, 31.2, 31.4,
+          31.6, 31.8, 32.0, 32.2, 32.4, 32.6, 32.8, 33.0, 33.2, 33.4, 33.6, 33.8, 34.0, 34.2, 34.4,
+          34.6, 34.8, 35.0, 35.2, 35.4, 35.6, 35.8, 36.0, 36.2, 36.4, 36.6, 36.8, 37.0, 37.2, 37.4,
+          37.6, 37.8, 38.0, 38.2, 38.4, 38.6, 38.8, 39.0, 39.2, 39.4, 39.6, 39.8, 40.0, 40.2, 40.4,
+          40.6, 40.8, 41.0, 41.2, 41.4, 41.6, 41.8, 42.0, 42.2, 42.4, 42.6, 42.8, 43.0, 43.2, 43.4,
+          43.6, 43.8, 44.0, 44.2, 44.4, 44.6, 44.8, 45.0, 45.2, 45.4, 45.6, 45.8, 46.0, 46.2, 46.4,
+          46.6, 46.8, 47.0, 47.2, 47.4, 47.6, 47.8, 48.0, 48.2, 48.4, 48.6, 48.8, 49.0, 49.2, 49.4,
+          49.6, 49.8, 50.0, 50.2, 50.4, 50.6, 50.8, 51.0, 51.2, 51.4, 51.6, 51.8, 52.0, 52.2, 52.4,
+          52.6, 52.8, 53.0, 53.2, 53.4, 53.6, 53.8, 54.0, 54.2, 54.4, 54.6, 54.8, 55.0, 55.2, 55.4,
+          55.6, 55.8, 56.0, 56.2, 56.4, 56.6, 56.8, 57.0, 57.2, 57.4, 57.6, 57.8, 58.0, 58.2, 58.4,
+          58.6, 58.8, 59.0, 59.2, 59.4, 59.6, 59.8, 60.0, 60.2, 60.4, 60.6, 60.8, 61.0, 61.2, 61.4,
+          61.6, 61.8, 62.0, 62.2, 62.4, 62.6, 62.8, 63.0, 63.2, 63.4, 63.6, 63.8, 64.0, 64.2, 64.4,
+          64.6
+        ],
+        "truth_curve_density": [
+          4.01, 4.01, 4.01, 4.01, 3.759, 3.759, 3.759, 4.511, 6.015, 6.516, 7.018, 7.018, 7.268,
+          7.769, 8.02, 8.271, 8.271, 8.772, 9.273, 9.023, 9.273, 9.023, 8.772, 8.521, 8.02, 8.772,
+          8.521, 8.271, 8.271, 8.521, 8.521, 8.772, 8.772, 8.521, 9.023, 9.023, 9.023, 9.524, 9.524,
+          9.023, 9.273, 9.273, 9.273, 9.023, 8.772, 9.023, 8.772, 8.772, 8.772, 8.772, 8.521, 8.521,
+          8.271, 8.521, 8.521, 8.521, 8.271, 8.271, 8.271, 8.271, 9.023, 8.772, 8.521, 8.521, 8.521,
+          8.02, 7.769, 7.769, 8.02, 7.769, 7.519, 8.02, 8.02, 8.02, 8.02, 7.769, 7.769, 8.271,
+          8.271, 8.271, 8.271, 8.271, 8.271, 8.271, 8.521, 8.521, 8.271, 8.271, 7.769, 7.769, 8.02,
+          8.271, 8.02, 8.02, 8.02, 7.519, 7.268, 7.018, 7.268, 7.769, 7.769, 8.02, 8.02, 8.271,
+          8.271, 8.02, 7.769, 8.02, 8.02, 8.02, 7.769, 7.769, 7.769, 7.769, 8.02, 7.519, 7.519,
+          7.769, 7.769, 7.769, 7.769, 7.519, 7.519, 8.02, 7.769, 7.769, 7.519, 7.519, 7.519, 7.519,
+          7.519, 7.268, 7.268, 7.769, 7.769, 7.769, 7.769, 7.268, 7.519, 7.769, 7.519, 7.268, 7.268,
+          7.268, 7.519, 7.268, 7.268, 7.519, 7.519, 7.519, 7.268, 7.268, 7.268, 7.268, 7.018, 6.767,
+          6.767, 6.767, 7.018, 6.767, 6.767, 6.767, 6.767, 6.767, 6.767, 6.516, 6.516, 6.266, 6.516,
+          6.516, 6.266, 6.015, 6.015, 5.764, 5.764, 5.764, 5.764, 5.764, 6.015, 6.015, 5.764, 5.764,
+          5.514, 5.764, 5.514, 5.514, 5.514, 5.514, 5.764, 5.764, 5.514, 5.514, 5.514, 5.263, 5.263,
+          5.263, 4.762, 4.762, 4.511, 4.762, 4.762, 4.762, 4.511, 4.762, 4.762, 4.762, 4.511, 4.511,
+          4.261, 4.511, 4.511, 4.511, 4.511, 4.261, 4.261, 4.511, 4.511, 4.511, 4.511, 4.261, 4.01,
+          4.01, 4.01, 4.01, 4.01, 4.01, 4.01, 3.759, 3.759, 3.759, 3.759, 3.759, 3.759, 3.759,
+          3.759, 3.759, 3.509, 3.509, 3.509, 3.258, 3.258, 3.509, 3.509, 3.258, 3.258, 3.258, 3.258,
+          3.258, 3.008, 3.008, 3.008, 2.757, 2.757, 2.757, 2.757, 2.757, 2.506, 2.506, 2.506, 2.256,
+          2.256, 2.005, 2.005, 2.005, 2.005, 2.005, 2.005, 2.005, 2.005, 2.005, 2.005, 2.005, 2.005,
+          1.754, 1.754, 1.504, 1.504, 1.504, 1.504, 1.504, 1.504, 1.504, 1.504, 1.504, 1.504, 1.504,
+          1.504, 1.504, 1.504, 1.253, 1.253, 1.253, 1.253, 1.253, 1.003, 1.003, 1.003, 0.752, 0.752,
+          0.752, 0.752, 0.752, 0.752, 0.501, 0.501, 0.501, 0.501, 0.501, 0.501, 0.501, 0.501, 0.251,
+          0.251, 0.251, 0.251, 0.251, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        ]
+      },
+      {
+        "zone": "entry corridor",
+        "readings": 11,
+        "count_ratio": 0.997,
+        "count_mae": 1.0,
+        "density_ratio_median": 0.78,
+        "sys_peak_ppm2": 1.972,
+        "true_peak_ppm2": 2.47,
+        "true_peak_clip_s": 2.0,
+        "clip_s": [1.0, 7.07, 13.07, 19.07, 25.07, 31.15, 37.15, 43.15, 49.15, 55.15, 61.15],
+        "sys_people": [74, 62, 56, 49, 43, 35, 29, 22, 15, 7, 2],
+        "true_people": [69, 65, 59, 49, 43, 35, 29, 22, 15, 7, 2],
+        "sys_density": [1.972, 1.652, 1.492, 1.306, 1.146, 0.933, 0.773, 0.586, 0.4, 0.187, 0.053],
+        "true_density": [
+          2.368, 2.231, 2.025, 1.682, 1.476, 1.201, 0.995, 0.755, 0.515, 0.24, 0.069
+        ],
+        "truth_curve_s": [
+          0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4, 2.6, 2.8, 3.0, 3.2, 3.4,
+          3.6, 3.8, 4.0, 4.2, 4.4, 4.6, 4.8, 5.0, 5.2, 5.4, 5.6, 5.8, 6.0, 6.2, 6.4, 6.6, 6.8, 7.0,
+          7.2, 7.4, 7.6, 7.8, 8.0, 8.2, 8.4, 8.6, 8.8, 9.0, 9.2, 9.4, 9.6, 9.8, 10.0, 10.2, 10.4,
+          10.6, 10.8, 11.0, 11.2, 11.4, 11.6, 11.8, 12.0, 12.2, 12.4, 12.6, 12.8, 13.0, 13.2, 13.4,
+          13.6, 13.8, 14.0, 14.2, 14.4, 14.6, 14.8, 15.0, 15.2, 15.4, 15.6, 15.8, 16.0, 16.2, 16.4,
+          16.6, 16.8, 17.0, 17.2, 17.4, 17.6, 17.8, 18.0, 18.2, 18.4, 18.6, 18.8, 19.0, 19.2, 19.4,
+          19.6, 19.8, 20.0, 20.2, 20.4, 20.6, 20.8, 21.0, 21.2, 21.4, 21.6, 21.8, 22.0, 22.2, 22.4,
+          22.6, 22.8, 23.0, 23.2, 23.4, 23.6, 23.8, 24.0, 24.2, 24.4, 24.6, 24.8, 25.0, 25.2, 25.4,
+          25.6, 25.8, 26.0, 26.2, 26.4, 26.6, 26.8, 27.0, 27.2, 27.4, 27.6, 27.8, 28.0, 28.2, 28.4,
+          28.6, 28.8, 29.0, 29.2, 29.4, 29.6, 29.8, 30.0, 30.2, 30.4, 30.6, 30.8, 31.0, 31.2, 31.4,
+          31.6, 31.8, 32.0, 32.2, 32.4, 32.6, 32.8, 33.0, 33.2, 33.4, 33.6, 33.8, 34.0, 34.2, 34.4,
+          34.6, 34.8, 35.0, 35.2, 35.4, 35.6, 35.8, 36.0, 36.2, 36.4, 36.6, 36.8, 37.0, 37.2, 37.4,
+          37.6, 37.8, 38.0, 38.2, 38.4, 38.6, 38.8, 39.0, 39.2, 39.4, 39.6, 39.8, 40.0, 40.2, 40.4,
+          40.6, 40.8, 41.0, 41.2, 41.4, 41.6, 41.8, 42.0, 42.2, 42.4, 42.6, 42.8, 43.0, 43.2, 43.4,
+          43.6, 43.8, 44.0, 44.2, 44.4, 44.6, 44.8, 45.0, 45.2, 45.4, 45.6, 45.8, 46.0, 46.2, 46.4,
+          46.6, 46.8, 47.0, 47.2, 47.4, 47.6, 47.8, 48.0, 48.2, 48.4, 48.6, 48.8, 49.0, 49.2, 49.4,
+          49.6, 49.8, 50.0, 50.2, 50.4, 50.6, 50.8, 51.0, 51.2, 51.4, 51.6, 51.8, 52.0, 52.2, 52.4,
+          52.6, 52.8, 53.0, 53.2, 53.4, 53.6, 53.8, 54.0, 54.2, 54.4, 54.6, 54.8, 55.0, 55.2, 55.4,
+          55.6, 55.8, 56.0, 56.2, 56.4, 56.6, 56.8, 57.0, 57.2, 57.4, 57.6, 57.8, 58.0, 58.2, 58.4,
+          58.6, 58.8, 59.0, 59.2, 59.4, 59.6, 59.8, 60.0, 60.2, 60.4, 60.6, 60.8, 61.0, 61.2, 61.4,
+          61.6, 61.8, 62.0, 62.2, 62.4, 62.6, 62.8, 63.0, 63.2, 63.4, 63.6, 63.8, 64.0, 64.2, 64.4,
+          64.6
+        ],
+        "truth_curve_density": [
+          2.368, 2.368, 2.402, 2.402, 2.368, 2.368, 2.368, 2.437, 2.437, 2.437, 2.471, 2.437, 2.437,
+          2.437, 2.402, 2.402, 2.402, 2.402, 2.402, 2.368, 2.368, 2.368, 2.368, 2.368, 2.368, 2.368,
+          2.334, 2.299, 2.299, 2.299, 2.299, 2.299, 2.299, 2.299, 2.265, 2.231, 2.231, 2.231, 2.231,
+          2.231, 2.231, 2.196, 2.196, 2.162, 2.128, 2.162, 2.162, 2.162, 2.162, 2.162, 2.128, 2.128,
+          2.093, 2.093, 2.093, 2.093, 2.059, 2.059, 2.059, 2.025, 2.059, 2.025, 2.025, 2.025, 2.025,
+          2.025, 1.956, 1.956, 1.956, 1.956, 1.922, 1.922, 1.922, 1.922, 1.922, 1.887, 1.887, 1.853,
+          1.853, 1.853, 1.853, 1.853, 1.819, 1.819, 1.819, 1.819, 1.819, 1.819, 1.784, 1.784, 1.784,
+          1.784, 1.75, 1.75, 1.75, 1.682, 1.682, 1.647, 1.647, 1.647, 1.647, 1.613, 1.613, 1.613,
+          1.613, 1.613, 1.579, 1.579, 1.579, 1.579, 1.544, 1.544, 1.544, 1.544, 1.544, 1.51, 1.51,
+          1.51, 1.51, 1.51, 1.51, 1.476, 1.476, 1.476, 1.476, 1.476, 1.476, 1.476, 1.476, 1.476,
+          1.476, 1.441, 1.441, 1.441, 1.441, 1.441, 1.407, 1.373, 1.373, 1.373, 1.338, 1.304, 1.304,
+          1.304, 1.304, 1.304, 1.304, 1.304, 1.304, 1.304, 1.304, 1.304, 1.27, 1.27, 1.235, 1.201,
+          1.201, 1.201, 1.201, 1.201, 1.201, 1.167, 1.167, 1.167, 1.167, 1.167, 1.167, 1.132, 1.132,
+          1.132, 1.132, 1.132, 1.132, 1.098, 1.098, 1.064, 1.064, 1.064, 1.064, 1.064, 1.064, 1.064,
+          1.03, 1.03, 0.995, 0.995, 0.995, 0.995, 0.995, 0.995, 0.961, 0.961, 0.961, 0.927, 0.927,
+          0.927, 0.927, 0.927, 0.892, 0.892, 0.892, 0.892, 0.858, 0.858, 0.858, 0.858, 0.824, 0.789,
+          0.789, 0.789, 0.789, 0.789, 0.789, 0.755, 0.755, 0.755, 0.755, 0.721, 0.721, 0.686, 0.686,
+          0.686, 0.686, 0.652, 0.652, 0.652, 0.652, 0.618, 0.618, 0.618, 0.618, 0.618, 0.618, 0.618,
+          0.618, 0.618, 0.583, 0.583, 0.583, 0.549, 0.549, 0.549, 0.549, 0.515, 0.515, 0.515, 0.515,
+          0.515, 0.48, 0.48, 0.48, 0.446, 0.446, 0.446, 0.446, 0.446, 0.412, 0.412, 0.412, 0.377,
+          0.377, 0.343, 0.343, 0.343, 0.343, 0.343, 0.343, 0.343, 0.343, 0.309, 0.309, 0.275, 0.275,
+          0.24, 0.24, 0.24, 0.24, 0.24, 0.24, 0.24, 0.206, 0.206, 0.206, 0.206, 0.206, 0.206, 0.206,
+          0.206, 0.206, 0.172, 0.172, 0.172, 0.172, 0.172, 0.137, 0.137, 0.137, 0.103, 0.103, 0.103,
+          0.103, 0.103, 0.103, 0.069, 0.069, 0.069, 0.069, 0.069, 0.069, 0.069, 0.069, 0.034, 0.034,
+          0.034, 0.034, 0.034, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+        ]
+      }
+    ],
+    "truth_source": "Jülich bottleneck experiment, run 030_c_56_h0: tracked head positions (doi 10.34735/ped.2018.1), zones mapped with a homography fitted to SAM cap detections (median residual 2.3 cm)",
+    "after_action": {
+      "headline": "Crush-range crowding at the Main gate approach peaked at 8.249 people/m² and cleared by 01:37:58Z after a confirmed-critical alert, bilingual hold announcements, and steward/safety-officer response.",
+      "narrative": "From clip start 01:35:21.143524Z phone-10 overhead of the Main gate, the gate approach (2 x 2 m) peaked at 8.249 people/m² (33 people) at 01:35:28.213597Z, while entry corridor peaked at 1.972 people/m² (74 people) and view at 0.971 people/m² (77 people) at 01:35:22.143524Z. Gate approach averaged 5.249 people/m² with 108.9 s above 2, 96.9 s above 4, 72.8 s above 5 and 60.8 s above 6, max pressure 0.1373, then eased to 0.5 people/m² (2 people, pressure 0.0031) by 01:37:58.561323Z after still being 8.25 people/m² at 01:37:04.200507Z and 3.5 people/m² at 01:37:38.115512Z. For critical alert crowd-9960776a5934 the peak reading at 01:35:28.213597Z was assessed in 25.8 s and sent confirmed-critical in 41.1 s at 01:36:09.284623Z, with stewards notified at 01:36:03.652930Z, safety_officer escalated at 01:36:49.093160Z, safety_officer ack 'On my way' at 01:36:52.035936Z, and 2 x blue-vest arrival at 01:36:57.993649Z. At 01:36:09.284623Z calm Hindi and English announcements asked crowds to stay in place, not push, and follow stewards — '[hi] Kripya dhyaan dein...' and '[en] Please wait where you are...' (heard back same meaning) — while stewards were told to hold inflow at Outer queue barrier, hold Entry corridor, and send stewards to Main gate; the planned redirect of entry-corridor flow to Side door B was not used because it was assessed as too full to take flow. Ground truth (Jülich bottleneck run 030_c_56_h0, 11 readings) shows counts were close (gate approach count_ratio 0.996 MAE 1.0, entry corridor 0.997 MAE 1.0) but density was low: gate-approach true peak 9.52 vs system 8.249 and entry-corridor true peak 2.47 vs system 1.972 (median density ratios 1.0 and 0.78); unknowns remain that densities rest on owner (±0.00 m) floor calibration with extrapolation past calibrated floor, and SAM 3.1 misses people hidden behind others.",
+      "cited": [
+        {
+          "text": "From clip start 01:35:21.143524Z phone-10 overhead of the Main gate, the gate approach (2 x 2 m) peaked at 8.249 people/m² (33 people) at 01:35:28.213597Z, while entry corridor peaked at 1.972 people/m² (74 people) and view at 0.971 people/m² (77 people) at 01:35:22.143524Z.",
+          "records": []
+        },
+        {
+          "text": "Gate approach averaged 5.249 people/m² with 108.9 s above 2, 96.9 s above 4, 72.8 s above 5 and 60.8 s above 6, max pressure 0.1373, then eased to 0.5 people/m² (2 people, pressure 0.0031) by 01:37:58.561323Z after still being 8.25 people/m² at 01:37:04.200507Z and 3.5 people/m² at 01:37:38.115512Z.",
+          "records": []
+        },
+        {
+          "text": "For critical alert crowd-9960776a5934 the peak reading at 01:35:28.213597Z was assessed in 25.8 s and sent confirmed-critical in 41.1 s at 01:36:09.284623Z, with stewards notified at 01:36:03.652930Z, safety_officer escalated at 01:36:49.093160Z, safety_officer ack 'On my way' at 01:36:52.035936Z, and 2 x blue-vest arrival at 01:36:57.993649Z.",
+          "records": [57, 58, 59, 60, 64, 65, 66]
+        },
+        {
+          "text": "At 01:36:09.284623Z calm Hindi and English announcements asked crowds to stay in place, not push, and follow stewards — '[hi] Kripya dhyaan dein...' and '[en] Please wait where you are...' (heard back same meaning) — while stewards were told to hold inflow at Outer queue barrier, hold Entry corridor, and send stewards to Main gate; the planned redirect of entry-corridor flow to Side door B was not used because it was assessed as too full to take flow.",
+          "records": [60, 61, 62]
+        },
+        {
+          "text": "Ground truth (Jülich bottleneck run 030_c_56_h0, 11 readings) shows counts were close (gate approach count_ratio 0.996 MAE 1.0, entry corridor 0.997 MAE 1.0) but density was low: gate-approach true peak 9.52 vs system 8.249 and entry-corridor true peak 2.47 vs system 1.972 (median density ratios 1.0 and 0.78); unknowns remain that densities rest on owner (±0.00 m) floor calibration with extrapolation past calibrated floor, and SAM 3.1 misses people hidden behind others.",
+          "records": []
+        }
+      ],
+      "worked": [
+        "Confirmed-critical alert with visual Glimmer check in 41.1 s",
+        "Calm Hindi + English hold announcements with hearback check",
+        "Escalation to safety_officer with ack and on-camera blue-vest arrival"
+      ],
+      "change": [
+        "Hold inflow at barriers when Side door B is too full to take redirect flow",
+        "Recheck floor calibration and occlusion undercounts at crush densities"
+      ]
+    }
+  },
+  "alert": {
+    "alert_id": "crowd-9960776a5934",
+    "camera_id": "phone-10",
+    "at": "2026-11-04T01:35:28.213597Z",
+    "level": "critical",
+    "assessment": {
+      "level": "critical",
+      "zones": ["gate approach (2 x 2 m)", "entry corridor"],
+      "why": "Gate approach is 8.2 ppm2 with 33 people in 4 sqm and pressure 0.094, well into crush range. Side door B at 3.75 ppm2 and filling at +2.75 per min cannot take redirected flow, so inflow must be held instead.",
+      "forecast": "Main gate already dangerous at 8.2 ppm2 and Side door B approach at 3.75 ppm2 and filling cannot take overflow; both routes blocked in next minute without holding inflow.",
+      "minutes_to_danger": null,
+      "alert": true,
+      "staff_actions": [
+        "hold inflow at Outer queue barrier",
+        "hold Entry corridor in place",
+        "send stewards to Main gate"
+      ],
+      "actions": [
+        {
+          "do": "hold",
+          "target": "Outer queue barrier",
+          "role": "stewards",
+          "why": "stop inflow: gate at 8.2 ppm2 with 300 in vs 60 out per min",
+          "to": ""
+        },
+        {
+          "do": "hold",
+          "target": "Entry corridor",
+          "role": "stewards",
+          "why": "stop push to gate: gate already 8.2 ppm2 pressure 0.094",
+          "to": ""
+        },
+        {
+          "do": "send",
+          "target": "Main gate",
+          "role": "stewards",
+          "why": "manage pinch: 33 people in 4 sqm speed 0.16 mps",
+          "to": ""
+        }
+      ],
+      "phase": "turbulence",
+      "announce": [
+        {
+          "lang": "hi",
+          "text": "Kripya dhyaan dein, apni jagah par rukein, aage dhakka na dein aur stewards ke nirdesh ka intezar karein."
+        },
+        {
+          "lang": "en",
+          "text": "Please wait where you are, do not push forward and follow stewards instructions."
+        }
+      ],
+      "check": "Confirm extreme crowding and pushing at Main gate approach with no outflow?"
+    },
+    "check": {
+      "agrees": true,
+      "seen": "The overhead view shows a very dense cluster of people wearing orange hats tightly packed in front of the gate turnstiles. The crowd occupies the gate approach zone and is essentially stationary / very slow moving. Individuals are shoulder-to-shoulder with little visible free space between bodies; the group forms a compact mass with heads almost touching. Motion arrows inside the yellow gate approach box are short and mostly upward/ inward, indicating minimal forward progress and essentially no outflow through the gate. Staff in blue vests are present at the gate and to the side of the cluster. The surrounding entry corridor is much less occupied. No clear falling bodies are individually discernible at this resolution, but the packing density is extreme and movement is effectively arrested, consistent with a crush-range condition at the Main gate approach. Side door B is not visible in this camera view.",
+      "confidence": 0.78
+    },
+    "sent": true,
+    "held_reason": null,
+    "check_note": null,
+    "heatmap": null,
+    "audio": [
+      {
+        "lang": "hi",
+        "text": "Kripya dhyaan dein, apni jagah par rukein, aage dhakka na dein aur stewards ke nirdesh ka intezar karein."
+      },
+      {
+        "lang": "en",
+        "text": "Please wait where you are, do not push forward and follow stewards instructions.",
+        "heard": "Please wait where you are do not push forward and forward and follow stewards instructions.",
+        "wer": "0.15",
+        "meaning": "same",
+        "meaning_note": "same meaning"
+      }
+    ],
+    "chain_hash": "b4893f2db6287c57fc6637c7675978570497611a44218fce0cb229b9ce0e84ee",
+    "notified": "escalation to stewards then safety_officer",
+    "assessed_at": "2026-11-04T01:35:54.006342Z",
+    "sent_at": "2026-11-04T01:36:09.284623Z",
+    "notified_at": "2026-11-04T01:36:03.653845Z",
+    "roles": ["stewards", "safety_officer"],
+    "route_checks": [
+      {
+        "action": "redirect Entry corridor",
+        "to": "Side door B",
+        "measured": true,
+        "camera_id": "phone-9",
+        "zone": "side door approach (2 x 2 m)",
+        "density_ppm2": 3.75,
+        "per_min": 2.755,
+        "in_per_min": 50.0,
+        "source_density_ppm2": 8.249,
+        "filling": true,
+        "note": "getting denser",
+        "replaced": true
+      }
+    ]
+  },
+  "ack": {
+    "alert_id": "crowd-9960776a5934",
+    "status": "acknowledged",
+    "escalating": false,
+    "notified": [
+      {
+        "role": "stewards",
+        "at": "2026-11-04T01:36:03.652930Z",
+        "status": "acknowledged"
+      },
+      {
+        "role": "safety_officer",
+        "at": "2026-11-04T01:36:49.093160Z",
+        "status": "acknowledged"
+      }
+    ],
+    "taps": [
+      {
+        "role": "safety_officer",
+        "button": "On my way",
+        "action": "acknowledged",
+        "at": "2026-11-04T01:36:52.037155+00:00"
+      }
+    ],
+    "arrival": {
+      "concept": "blue vest",
+      "zone": "gate staff side",
+      "since": "2026-11-04T01:36:52.132350Z",
+      "checks": 1,
+      "seen_at": "2026-11-04T01:36:52.316517Z",
+      "people": 2,
+      "gave_up": false
+    }
+  },
+  "assessment": {
+    "level": "critical",
+    "zones": ["gate approach (2 x 2 m)", "entry corridor"],
+    "why": "Gate approach is 8.2 ppm2 with 33 people in 4 sqm and pressure 0.094, well into crush range. Side door B at 3.75 ppm2 and filling at +2.75 per min cannot take redirected flow, so inflow must be held instead.",
+    "forecast": "Main gate already dangerous at 8.2 ppm2 and Side door B approach at 3.75 ppm2 and filling cannot take overflow; both routes blocked in next minute without holding inflow.",
+    "minutes_to_danger": null,
+    "alert": true,
+    "staff_actions": [
+      "hold inflow at Outer queue barrier",
+      "hold Entry corridor in place",
+      "send stewards to Main gate"
+    ],
+    "actions": [
+      {
+        "do": "hold",
+        "target": "Outer queue barrier",
+        "role": "stewards",
+        "why": "stop inflow: gate at 8.2 ppm2 with 300 in vs 60 out per min",
+        "to": ""
+      },
+      {
+        "do": "hold",
+        "target": "Entry corridor",
+        "role": "stewards",
+        "why": "stop push to gate: gate already 8.2 ppm2 pressure 0.094",
+        "to": ""
+      },
+      {
+        "do": "send",
+        "target": "Main gate",
+        "role": "stewards",
+        "why": "manage pinch: 33 people in 4 sqm speed 0.16 mps",
+        "to": ""
+      }
+    ],
+    "phase": "turbulence",
+    "announce": [
+      {
+        "lang": "hi",
+        "text": "Kripya dhyaan dein, apni jagah par rukein, aage dhakka na dein aur stewards ke nirdesh ka intezar karein."
+      },
+      {
+        "lang": "en",
+        "text": "Please wait where you are, do not push forward and follow stewards instructions."
+      }
+    ],
+    "check": "Confirm extreme crowding and pushing at Main gate approach with no outflow?"
+  },
+  "side_alerts": [
+    {
+      "alert_id": "crowd-babaece18f96",
+      "camera_id": "phone-9",
+      "at": "2026-11-04T01:36:17.983460Z",
+      "level": "warning",
+      "assessment": {
+        "level": "warning",
+        "zones": ["side door approach (2 x 2 m)", "side queue"],
+        "why": "Side door approach is back at 4.0/m2 (16 people) with pressure 0.057 above the 0.02 turbulence onset and count range 6-9 showing uncertainty. Watch from 26s ago is still open with no steward seen, so do not send more people this way while side queue at 1.31/m2 still moves at 0.18 m/s with coherence 0.80.",
+        "forecast": "Measured 1-min line is thinning at -2.6/m2 per min with no ETA to 5-6/m2, so the pinch should ease if 30/min out vs 0/min in holds; with the loop restarting, it can rebuild to 5/m2 within 1-2 min if more people are sent this way, while Main gate at 0.5/m2 and Entry corridor at 0.05/m2 have room.",
+        "minutes_to_danger": null,
+        "alert": true,
+        "staff_actions": [
+          "hold inflow at Outer queue barrier",
+          "keep Side door B open to Hall",
+          "send stewards to side door approach (2 x 2 m)"
+        ],
+        "actions": [
+          {
+            "do": "hold",
+            "target": "Outer queue barrier",
+            "role": "stewards",
+            "why": "door at 4.0/m2 has no room for more inflow",
+            "to": ""
+          },
+          {
+            "do": "open",
+            "target": "Side door B",
+            "role": "gate staff",
+            "why": "keep 30/min out to drain 16 people at 4.0/m2",
+            "to": "Hall"
+          },
+          {
+            "do": "send",
+            "target": "side door approach (2 x 2 m)",
+            "role": "stewards",
+            "why": "pressure 0.057 with prior peak 0.077, manage pinch",
+            "to": ""
+          }
+        ],
+        "phase": "dense flow",
+        "announce": [
+          {
+            "lang": "en",
+            "text": "Please stay in the side queue behind the marked line and keep moving forward slowly toward side door B. Thank you."
+          }
+        ],
+        "check": "Is the side door approach still at 4 per m2 or higher with forward movement toward the Hall?"
+      },
+      "check": null,
+      "sent": true,
+      "held_reason": null,
+      "check_note": "Glimmer did not answer within 20 s; sent unchecked",
+      "heatmap": "crowd-phone-9-20261104T013617983460.jpg",
+      "audio": [
+        {
+          "lang": "en",
+          "text": "Please stay in the side queue behind the marked line and keep moving forward slowly toward side door B. Thank you.",
+          "audio": "crowd-babaece18f96-0-en.wav",
+          "heard": "Please stay in the side crib behind the marked line and keep moving forward forward slowly towards side door thank you.",
+          "wer": "0.19",
+          "meaning": "different",
+          "meaning_note": "Missing door identifier B changes the destination."
+        }
+      ],
+      "chain_hash": "c9fc8490db740192014f727472e23cb6a5b3272b5feffa638373e7ec092f3de4",
+      "notified": "escalation to stewards then safety_officer",
+      "assessed_at": "2026-11-04T01:36:44.435269Z",
+      "sent_at": "2026-11-04T01:37:13.751891Z",
+      "notified_at": "2026-11-04T01:37:04.446214Z",
+      "roles": ["stewards", "safety_officer"],
+      "route_checks": [
+        {
+          "action": "open Side door B",
+          "to": "Hall",
+          "measured": false,
+          "camera_id": null,
+          "zone": null,
+          "density_ppm2": null,
+          "per_min": null,
+          "in_per_min": null,
+          "source_density_ppm2": null,
+          "filling": false,
+          "note": "no camera sees it",
+          "replaced": false
+        }
+      ]
+    },
+    {
+      "alert_id": "crowd-b5a85277ff5b",
+      "camera_id": "phone-9",
+      "at": "2026-11-04T01:35:14.980236Z",
+      "level": "watch",
+      "assessment": {
+        "level": "watch",
+        "zones": ["side door approach (2 x 2 m)", "side queue"],
+        "why": "Side door approach is 2.25/m2 with peak cell 2.97/m2 and pressure 0.032 with 30/min in and 0/min out. Side queue at 1.49/m2 still has room but will have no room if inflow continues without opening Side door B.",
+        "forecast": "Side door approach (2x2m) fills to 4/m2 in ~14s, 5/m2 in ~22s and 6/m2 in ~30s if 30/min inflow continues with no outflow.",
+        "minutes_to_danger": 0.23,
+        "alert": true,
+        "staff_actions": ["hold inflow at Outer queue barrier", "open Side door B to Hall"],
+        "actions": [
+          {
+            "do": "hold",
+            "target": "Outer queue barrier",
+            "role": "stewards",
+            "why": "inflow 30/min with 0 outflow will fill door to 4/m2 in ~14s",
+            "to": ""
+          },
+          {
+            "do": "open",
+            "target": "Side door B",
+            "role": "gate staff",
+            "why": "give side queue outflow into Hall which has room",
+            "to": "Hall"
+          }
+        ],
+        "phase": "dense flow",
+        "announce": [
+          {
+            "lang": "en",
+            "text": "Please wait where you are for a moment, we will open Side door B shortly to let you in."
+          }
+        ],
+        "check": "Confirm people stacking at Side door B and that the door is still closed with no outflow?"
+      },
+      "check": {
+        "agrees": true,
+        "seen": "The crowd is stacked up against the Side door B / side door approach area. The yellow outlined side door approach (2x2 m) is densely filled with people in orange hats standing shoulder-to-shoulder in the queue funnel formed by the barriers. The people are packed tightly in the approach zone and the adjacent side queue, with the densest clustering immediately in front of the door structure on the right side of the image. Motion is very limited; the group is essentially static and compressed against the barriers and the door threshold. No people are visible moving out through the door and the door/doorway structure itself remains closed / unoccupied on the egress side. No clear pushing, swaying, falls or a visibly blocked exit beyond the normal queue compression is discernible in the two frames provided, but the packing is high and the crowd is essentially at a standstill with little free space for movement in the approach zone. The annotated overlay on the newest frame shows side door approach (2x2 m): 9 people, 2.2/m2 and side queue: 56, 1.5/m2, with a 3.0/m2 peak cell in the approach, consistent with stacking at Side door B with no outflow visible.",
+        "confidence": 0.7
+      },
+      "sent": true,
+      "held_reason": null,
+      "check_note": null,
+      "heatmap": "crowd-phone-9-20261104T013514980236.jpg",
+      "audio": [
+        {
+          "lang": "en",
+          "text": "Please wait where you are for a moment, we will open Side door B shortly to let you in.",
+          "audio": "crowd-b5a85277ff5b-0-en.wav",
+          "heard": "Please wait where you are for a moment. We will open side door shortly to let you in.",
+          "wer": "0.05",
+          "meaning": "different",
+          "meaning_note": "Door identifier B was omitted, so which door is unclear."
+        }
+      ],
+      "chain_hash": "e09f81736e31db8da1deb40868de18971d2f6bde34dfa41d92c385937ea6939f",
+      "notified": "escalation to stewards then safety_officer",
+      "assessed_at": "2026-11-04T01:35:33.959145Z",
+      "sent_at": "2026-11-04T01:36:01.673519Z",
+      "notified_at": "2026-11-04T01:35:51.753702Z",
+      "roles": ["stewards", "safety_officer"],
+      "route_checks": [
+        {
+          "action": "open Side door B",
+          "to": "Hall",
+          "measured": false,
+          "camera_id": null,
+          "zone": null,
+          "density_ppm2": null,
+          "per_min": null,
+          "in_per_min": null,
+          "source_density_ppm2": null,
+          "filling": false,
+          "note": "no camera sees it",
+          "replaced": false
+        }
+      ]
+    }
+  ],
+  "tallies": [
+    {
+      "camera_id": "phone-9",
+      "zone": "side door approach (2 x 2 m)",
+      "sam": 9,
+      "spark": 9,
+      "spark_said": 10,
+      "glimmer": 9,
+      "glimmer_note": ":[",
+      "low": 9,
+      "high": 9,
+      "spread": 0.0,
+      "disagree": false,
+      "crop": null,
+      "crop_box": [407, 206, 272, 293],
+      "seconds": 18.0,
+      "notes": [],
+      "points_px": [],
+      "at": "2026-11-04T01:35:14.980236Z"
+    },
+    {
+      "camera_id": "phone-10",
+      "zone": "gate approach (2 x 2 m)",
+      "sam": 33,
+      "spark": 37,
+      "spark_said": 43,
+      "glimmer": 33,
+      "glimmer_note": "The un-greyed photographic area shows a dense overhead crowd wearing orange/red hats. Roughly three dozen orange-hatted heads are visible in the non-grey portion of the frame, with a number of heads only partly visible / overlapped by neighbours. The exact number is hard to pin down because of overlap and the tilted crop, but the visible orange heads in the un-greyed region are on the order of ~32-35, about 33 can be reliably distinguished.",
+      "low": 33,
+      "high": 37,
+      "spread": 0.108,
+      "disagree": false,
+      "crop": null,
+      "crop_box": [407, 206, 272, 293],
+      "seconds": 23.2,
+      "notes": [],
+      "points_px": [],
+      "at": "2026-11-04T01:35:34.213597Z"
+    },
+    {
+      "camera_id": "phone-9",
+      "zone": "side door approach (2 x 2 m)",
+      "sam": 7,
+      "spark": 9,
+      "spark_said": 9,
+      "glimmer": 6,
+      "glimmer_note": ":[",
+      "low": 6,
+      "high": 9,
+      "spread": 0.333,
+      "disagree": true,
+      "crop": null,
+      "crop_box": [407, 206, 272, 293],
+      "seconds": 17.9,
+      "notes": [],
+      "points_px": [],
+      "at": "2026-11-04T01:35:57.184053Z"
+    },
+    {
+      "camera_id": "phone-10",
+      "zone": "gate approach (2 x 2 m)",
+      "sam": 7,
+      "spark": 6,
+      "spark_said": 6,
+      "glimmer": 6,
+      "glimmer_note": "The un-greyed / image area is a top-down view of a small group. Six heads are unambiguously in the image area – five of them wearing the bright orange hats that dominate the view and one further head/upper-torso that is partly visible at the top-right of the frame. A seventh head/upper-torso is only very partially clipped at the extreme right edge of the un-greyed area, so the clearly countable heads in the non-greyed region are six, with a seventh very partial one at the edge.",
+      "low": 6,
+      "high": 7,
+      "spread": 0.143,
+      "disagree": false,
+      "crop": null,
+      "crop_box": [407, 206, 272, 293],
+      "seconds": 16.0,
+      "notes": [],
+      "points_px": [],
+      "at": "2026-11-04T01:36:16.295567Z"
+    },
+    {
+      "camera_id": "phone-9",
+      "zone": "side door approach (2 x 2 m)",
+      "sam": 15,
+      "spark": 15,
+      "spark_said": 16,
+      "glimmer": 15,
+      "glimmer_note": ":[",
+      "low": 15,
+      "high": 15,
+      "spread": 0.0,
+      "disagree": false,
+      "crop": null,
+      "crop_box": [407, 206, 272, 293],
+      "seconds": 24.4,
+      "notes": [],
+      "points_px": [],
+      "at": "2026-11-04T01:36:30.041066Z"
+    },
+    {
+      "camera_id": "phone-10",
+      "zone": "gate approach (2 x 2 m)",
+      "sam": 29,
+      "spark": 31,
+      "spark_said": 35,
+      "glimmer": 31,
+      "glimmer_note": "The un-greyed, tilted crop shows a dense crowd seen from above, most wearing bright orange hats/caps. Counting the orange heads that fall inside the non-grey image area, including those that are partially occluded by neighbours, gives roughly three dozen heads. A careful manual tally of the visible orange caps in the crop is about 31 heads.",
+      "low": 29,
+      "high": 31,
+      "spread": 0.065,
+      "disagree": false,
+      "crop": null,
+      "crop_box": [407, 206, 272, 293],
+      "seconds": 13.9,
+      "notes": [],
+      "points_px": [],
+      "at": "2026-11-04T01:36:52.316517Z"
+    },
+    {
+      "camera_id": "phone-9",
+      "zone": "side door approach (2 x 2 m)",
+      "sam": 0,
+      "spark": 0,
+      "spark_said": 0,
+      "glimmer": 3,
+      "glimmer_note": ":[",
+      "low": 0,
+      "high": 3,
+      "spread": 1.0,
+      "disagree": true,
+      "crop": null,
+      "crop_box": [407, 206, 272, 293],
+      "seconds": 9.4,
+      "notes": [],
+      "points_px": [],
+      "at": "2026-11-04T01:37:07.075161Z"
+    },
+    {
+      "camera_id": "phone-10",
+      "zone": "gate approach (2 x 2 m)",
+      "sam": 7,
+      "spark": 6,
+      "spark_said": 6,
+      "glimmer": 7,
+      "glimmer_note": "The un-greyed / image area shows a top-down view of a small group. Seven heads are discernible in the visible portion of the frame: five with bright orange hats/beanies and two additional heads – one in a white/light cap between the two upper orange hats and one partially visible at the top-right edge of the image – all of which lie within the non-greyed image area. People that are only partly hidden by others are included in this tally.",
+      "low": 6,
+      "high": 7,
+      "spread": 0.143,
+      "disagree": false,
+      "crop": null,
+      "crop_box": [407, 206, 272, 293],
+      "seconds": 15.5,
+      "notes": [],
+      "points_px": [],
+      "at": "2026-11-04T01:37:22.991842Z"
+    }
+  ],
+  "places": [
+    {
+      "name": "Outer queue barrier",
+      "kind": "holding point",
+      "leads_to": ["Entry corridor", "Side queue"],
+      "note": "stewards can stop the inflow here"
+    },
+    {
+      "name": "Entry corridor",
+      "kind": "corridor",
+      "leads_to": ["Main gate"],
+      "camera_id": "phone-10",
+      "zone": "entry corridor",
+      "note": "5.6 m wide",
+      "now": {
+        "at": "2026-11-04T01:37:28.991842+00:00",
+        "people": 2,
+        "density_ppm2": 0.053,
+        "speed_mps": 0.139,
+        "coherence": 0.882,
+        "counterflow_share": 0.0
+      }
+    },
+    {
+      "name": "Main gate",
+      "kind": "gate",
+      "leads_to": ["Hall"],
+      "camera_id": "phone-10",
+      "zone": "gate approach (2 x 2 m)",
+      "note": "narrow, one person at a time",
+      "now": {
+        "at": "2026-11-04T01:37:28.991842+00:00",
+        "people": 2,
+        "density_ppm2": 0.5,
+        "speed_mps": 0.139,
+        "coherence": 0.882,
+        "counterflow_share": 0.0
+      }
+    },
+    {
+      "name": "Side queue",
+      "kind": "queue",
+      "leads_to": ["Side door B"],
+      "camera_id": "phone-9",
+      "zone": "side queue",
+      "now": {
+        "at": "2026-11-04T01:37:07.075161+00:00",
+        "people": 0,
+        "density_ppm2": 0.0,
+        "speed_mps": null,
+        "coherence": null,
+        "counterflow_share": null
+      }
+    },
+    {
+      "name": "Side door B",
+      "kind": "gate",
+      "leads_to": ["Hall"],
+      "camera_id": "phone-9",
+      "zone": "side door approach (2 x 2 m)",
+      "note": "the planned overflow route from the main gate; narrow",
+      "now": {
+        "at": "2026-11-04T01:37:07.075161+00:00",
+        "people": 0,
+        "density_ppm2": 0.0,
+        "speed_mps": null,
+        "coherence": null,
+        "counterflow_share": null
+      }
+    },
+    {
+      "name": "Hall",
+      "kind": "hall",
+      "note": "has room"
+    }
+  ],
+  "venue": {
+    "description": "SAMPLE layout for the demo, drawn over two runs of the Jülich bottleneck experiment played at once (not a real venue): an entry corridor 5.6 m wide narrows to the main gate into the hall; a second queue waits at side door B, which also leads into the hall. The outer queue can be held at the barrier before both.",
+    "places": [
+      {
+        "name": "Outer queue barrier",
+        "kind": "holding point",
+        "leads_to": ["Entry corridor", "Side queue"],
+        "camera_id": null,
+        "zone": null,
+        "note": "stewards can stop the inflow here"
+      },
+      {
+        "name": "Entry corridor",
+        "kind": "corridor",
+        "leads_to": ["Main gate"],
+        "camera_id": "phone-10",
+        "zone": "entry corridor",
+        "note": "5.6 m wide"
+      },
+      {
+        "name": "Main gate",
+        "kind": "gate",
+        "leads_to": ["Hall"],
+        "camera_id": "phone-10",
+        "zone": "gate approach (2 x 2 m)",
+        "note": "narrow, one person at a time"
+      },
+      {
+        "name": "Side queue",
+        "kind": "queue",
+        "leads_to": ["Side door B"],
+        "camera_id": "phone-9",
+        "zone": "side queue",
+        "note": ""
+      },
+      {
+        "name": "Side door B",
+        "kind": "gate",
+        "leads_to": ["Hall"],
+        "camera_id": "phone-9",
+        "zone": "side door approach (2 x 2 m)",
+        "note": "the planned overflow route from the main gate; narrow"
+      },
+      {
+        "name": "Hall",
+        "kind": "hall",
+        "leads_to": [],
+        "camera_id": null,
+        "zone": null,
+        "note": "has room"
+      }
+    ],
+    "sample": true
+  },
+  "phase": {
+    "main": {
+      "window_s": 126.8,
+      "speeds": [
+        0.215, 0.158, 0.113, 0.105, 0.064, 0.149, 0.168, 0.086, 0.103, 0.09, 0.139, 0.215, 0.158,
+        0.113, 0.105, 0.064, 0.149, 0.168, 0.086, 0.103, 0.09, 0.139
+      ],
+      "speed_mps": 0.139,
+      "speed_per_min": -0.014,
+      "swings": 11,
+      "swing_share": 1.195,
+      "pressure": 0.0031,
+      "pressure_peak": 0.1373
+    },
+    "side": {
+      "window_s": 105.6,
+      "speeds": [
+        0.127, 0.152, 0.165, 0.133, 0.143, 0.142, 0.179, 0.212, 0.328, 0.152, 0.165, 0.133, 0.143,
+        0.142, 0.179, 0.212, 0.328
+      ],
+      "speed_mps": 0.328,
+      "speed_per_min": 0.04,
+      "swings": 10,
+      "swing_share": 1.126,
+      "pressure": null,
+      "pressure_peak": 0.0774
+    }
+  }
+}

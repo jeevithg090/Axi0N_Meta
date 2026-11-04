@@ -59,12 +59,11 @@ def test_status(tmp_path: Path) -> None:
     glimmer.queue({"ok": True})
     with api:
         body = api.get("/wearables/status").json()
-        assert body["glimmer"] == "checking"
+        assert body["glimmer"] == "up"  # an up Glimmer stays up while it is pinged again
         for _ in range(100):
-            if api.get("/wearables/status").json()["glimmer"] != "checking":
-                break
-            time.sleep(0.02)
-        assert api.get("/wearables/status").json()["glimmer"] == "up"
+            if not glimmer.calls:
+                time.sleep(0.02)
+        assert [c["schema"] for c in glimmer.calls] == ["GlimmerPing"]
     assert body["ready"] is True
     assert body["look"] == "muse-glimmer-30b"
     assert body["voice"] == "test voice"
@@ -174,3 +173,44 @@ def test_background_jobs(tmp_path: Path) -> None:
         report = poll(api, finish)["report"]
         assert report["summary"]["summary"] == "No frames were sent during this walk."
         assert api.get("/wearables/jobs/nope").status_code == 404
+
+
+class FinishingGlimmer:
+    """Glimmer that finishes the walk while it looks (the wearer tapped Finish meanwhile)."""
+
+    def __init__(self, walks: WalkStore) -> None:
+        self.walks = walks
+        self.walk_id = ""
+
+    def structured(
+        self, *, model: str, messages: list[dict[str, object]], schema: Any, **_: object
+    ) -> Any:
+        self.walks.finish(self.walk_id)
+        return schema.model_validate(look())
+
+
+def test_a_walk_finished_mid_look_keeps_the_answer(tmp_path: Path) -> None:
+    clock = FakeClock()
+    walks = WalkStore(tmp_path / "walks", clock=clock)
+    glimmer = FinishingGlimmer(walks)
+    assistant = PovAssistant(
+        spark=FakeLLM(),
+        files=Files(),
+        sam=Sam({}),
+        out_dir=tmp_path / "wearables",
+        clock=clock,
+        glimmer=glimmer,
+    )
+    app = FastAPI()
+    app.include_router(wearables_router(assistant, walks, None, glimmer_timeout_s=25.0))
+    api = TestClient(app)
+    walk = api.post("/wearables/walks", json={"mode": "warehouse"}).json()
+    glimmer.walk_id = walk["walk_id"]
+    reply = api.post(
+        "/wearables/look",
+        files={"image": ("f.jpg", jpeg(), "image/jpeg")},
+        data={"walk_id": walk["walk_id"], "mode": "warehouse"},
+    )
+    assert reply.status_code == 200
+    assert reply.json()["kind"] == "patrol"
+    assert api.get(f"/wearables/walks/{walk['walk_id']}").json()["walk"]["frames"] == 0

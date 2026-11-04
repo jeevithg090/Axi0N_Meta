@@ -356,7 +356,8 @@ class PovAssistant:
         if self._glimmer is None or recent or self._glimmer_state == "checking":
             return self.glimmer_state
         self._probed_at = now
-        self._glimmer_state = "checking"
+        if self._glimmer_state != "up":  # an up Glimmer stays up while it is pinged again
+            self._glimmer_state = "checking"
         self._keep(asyncio.create_task(self._probe()))
         return self._glimmer_state
 

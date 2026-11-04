@@ -236,7 +236,8 @@ export function GlassesMode() {
         );
         setAnswers((prev) => [answer, ...prev].slice(0, KEEP_ANSWERS));
         if (shouldSpeak(answer)) say(answer.spoken, answer.audio);
-        if (walk) setWalk({ ...walk, frames: walk.frames + 1 });
+        // The walk may have been finished while this frame was in flight: leave it finished.
+        setWalk((w) => (w && w.walk_id === answer.walk_id ? { ...w, frames: w.frames + 1 } : w));
         return answer;
       } catch (e) {
         setError(errorText(e, "The glasses assistant did not answer."));

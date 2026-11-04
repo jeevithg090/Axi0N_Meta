@@ -19,6 +19,7 @@ Without a Muse Spark key `/wearables/look` and walk reports answer 503.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import importlib.util
 import shutil
 import uuid
@@ -260,7 +261,9 @@ def wearables_router(  # noqa: C901 - one closure per route
             except WearablesError as exc:
                 raise HTTPException(HTTP_UNPROCESSABLE, str(exc)) from exc
             if walk_id:
-                walks.add(walk_id, answer)
+                # The walk may have been finished while this frame was answered: keep the answer.
+                with contextlib.suppress(WalkError):
+                    walks.add(walk_id, answer)
             return answer
 
         return await work() if wait else jobs.start(work, stages)

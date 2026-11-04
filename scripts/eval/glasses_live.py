@@ -111,7 +111,8 @@ def main() -> None:
                 "walk": {"answers": walk_rows, "report": report, "report_wall_ms": report_ms},
             },
             indent=2,
-        ),
+        )
+        + "\n",
         encoding="utf-8",
     )
 

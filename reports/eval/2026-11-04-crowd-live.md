@@ -135,13 +135,68 @@ Both clips played at once, the venue layout naming *Side door B* as the queue ca
   the entry corridor to *Side door B*. The route guard read side door B's camera before anything
   went out: 0.0 per m², falling 3.4 per minute, "has room and is not filling" (the side queue
   had emptied by then), so the action stood. *Hall* was marked unmeasured on every alert.
-- The case where a destination is filling and Spark has to choose again did not come up live
-  (Spark saw both cameras' numbers in its first prompt and never chose a full destination); it
-  is covered by `tests/crowd/test_flow.py`.
+- In runs 3 and 5 Spark never chose a full destination (it saw both cameras' numbers in its
+  first prompt). Run 7 below made it happen live.
 - Run 3 found starvation: one assessment runs at a time and the side door camera kept the slot,
   so the main gate's first assessment came 47 s after its first reading. Fixed in `41ad757`
   (the camera waiting longest goes first); in run 5 the two cameras alternated, 16–22 s from a
   reading to its assessment.
+
+## Second session: route guard, three-way count, phase meter, steward on camera (runs 7–8)
+
+Build `dfd9aa2`, 01:35–01:43 UTC, Glimmer warm. Run 7 played the side door clip (Jülich 160) and
+the main gate clip (Jülich 030) at once, both twice back to back; the main gate's Hindi
+instruction said the plan is to divert the corridor to side door B when the gate fills.
+
+**Route guard, live.** At the main gate's first assessment (reading 01:35:28, clip second 1)
+Spark followed the operator's plan: *redirect Entry corridor → Side door B*. Before anything went
+out, the guard read side door B's camera: 3.75 per m², +2.75 per m² per minute, 50 people a
+minute crossing in, "getting denser". Spark was asked again with those numbers and changed its
+plan to *hold Outer queue barrier*, *hold Entry corridor*, *send stewards to Main gate*, saying
+"Side door B at 3.75 ppm2 and filling at +2.75 per min cannot take redirected flow, so inflow
+must be held instead." The same happened at the start of the second pass (01:36:55). The alert
+carries the replaced route check. Reading to Spark's final answer: 26 s (two Spark calls);
+Glimmer confirmed (0.78); stewards told 35 s after the reading.
+
+**Three-way count of the hottest zone** (SAM 3.1 from the reading; Muse Spark pointing on a
+0–1000 grid over the zone cut out of the frame; Muse Glimmer counting the same cut-out; 14–24 s
+per count, on its own thread), against the trajectories, first pass only:
+
+| Camera, zone | Clip s | True | SAM 3.1 | Spark points (Spark's own total) | Glimmer |
+|---|---|---|---|---|---|
+| main gate, gate approach | 13.1 | 32 | 33 | 37 (43) | 33 |
+| main gate, gate approach | 55.2 | 6 | 7 | 6 (6) | 6 |
+| side door, approach | 1.0 | 10 | 9 | 9 (10) | 9 |
+| side door, approach | 43.2 | 7 | 7 | 9 (9) | 6 |
+
+Mean error: SAM 0.8, Glimmer 0.8, Spark 2.0 people (count ratio 1.02, 0.98, 1.11). At the dense
+gate Spark's points overshot (37 inside the zone, and it wrote 43); SAM and Glimmer were within
+one. The spread (11% at the gate, 33% at the side door at 43 s) goes into Spark's next
+assessment as the count's uncertainty, and the page shows Spark's points on the cut-out. Four
+scored counts are too few for more than a first impression.
+
+**Phase meter.** Speed over the last three minutes, its stop-and-go swings and the pressure go
+to Spark, which named the phase: `turbulence` for the main gate at the critical alert (8.2 per
+m², pressure 0.094, nearly stationary), `dense flow` for the side door, `free flow` once the gate
+cleared. With readings 6 s apart the swing count is noisy (10 swings in 127 s on the whole view
+at the end); it is a context number for Spark, not a measurement of stop-and-go waves.
+
+**Steward on camera.** The Jülich staff wear blue vests: on a frame SAM 3.1 found three "blue
+vest" and no "high-visibility vest", so the sample watch looks for `blue vest` in a "gate staff
+side" area beside the gate. The main gate alert escalated after 45 s to the safety officer, who
+tapped *On my way* at 01:36:52 (scripted through the API); the first look, on the next reading
+of the second pass, found 2 blue vests there and chained it. These staff stand at the gate
+throughout the experiment, so this shows the camera check working, not a steward arriving.
+
+**Send-or-hold second look: still not seen live.** Glimmer confirmed every alert it checked in
+time in runs 6–7. In run 8 (the side door with a deliberately cautious instruction) Spark sent a
+`warning`; Glimmer, busy with the three-way counts, answered after 22 s, past the 20 s budget,
+so the alert had already gone out unchecked and its late *not confirmed* was chained. Fixed in
+the next commit: three-way counts wait while an alert's frame check is in flight. The second
+look itself is covered by `tests/crowd/test_warden.py`.
+
+**Spark hearing the crowd** (audio) was not attempted: no clip with a real crowd soundtrack was
+available, and fetching one from a stock site needs the user's go-ahead.
 
 ## Setup from plain words
 
@@ -170,8 +225,8 @@ falls back to polling `GET /crowd/status` when no event arrives for 8 s.
 
 ## What is not verified
 
-- Steward arrival on camera (the clip ends right after the tap; the Jülich staff stand outside
-  the gate zone).
-- The route guard's "choose again" path (unit-tested only).
+- A steward arriving on camera: run 7 saw staff who were there all along.
+- Spark's send-or-hold second look after Glimmer disagrees in time (unit-tested only).
+- Spark hearing the crowd's audio.
 - The live API pod: this branch was not deployed.
 - The fill clock in a crowd that fills slowly: the Jülich gate run starts dense.

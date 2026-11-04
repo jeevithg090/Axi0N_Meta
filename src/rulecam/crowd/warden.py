@@ -1345,6 +1345,8 @@ class CrowdWarden:
         if self._tallier is None or (self._tallying is not None and not self._tallying.done()):
             return
         with self._lock:
+            if any(self._pending.values()):  # an alert's frame check goes first on Glimmer
+                return
             watches = list(self._watches.values())
             done = {k: v.at for k, v in self._tallies.items()}
         for watch in sorted(

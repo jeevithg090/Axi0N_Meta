@@ -238,6 +238,8 @@ class Settings(BaseSettings):
     # Without Tier 2 (Spark Open), Muse Spark 1.3 reviews worker disputes with the evidence
     # frames instead of leaving every one pending for a person (`worker.spark_review`).
     rulecam_dispute_spark_fallback: bool = True
+    # Chain a `coverage` record when a camera goes BLIND or recovers (`runtime.coverage_log`).
+    rulecam_coverage_log: bool = True
 
     @property
     def replay_dir(self) -> Path:

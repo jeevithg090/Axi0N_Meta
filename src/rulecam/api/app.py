@@ -152,6 +152,7 @@ from rulecam.rule_ci import prove_plan_hook
 from rulecam.rule_ci.hard_negatives import HardNegatives
 from rulecam.runtime.activate import Activation, PlanActivator, restore_activation
 from rulecam.runtime.cost import CostMeter, CostReport, CostSettings, CostWatch
+from rulecam.runtime.coverage_log import CoverageLog
 from rulecam.runtime.factory import (
     ChainEventSource,
     ChunkIndex,
@@ -1011,7 +1012,14 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             *ask_tickers,
             *crowd_tickers,
         ),
-        pollers=response.pollers(false_alarm),
+        pollers=(
+            *response.pollers(false_alarm),
+            *(
+                (CoverageLog(perception.chunks, chain).poll,)
+                if settings.rulecam_coverage_log
+                else ()
+            ),
+        ),
         response=response.status,
         cost=watch.report if watch is not None else None,
         routers=(
@@ -1292,6 +1300,11 @@ def crowd_tts(bus: Bus) -> TTS | None:
         _log.info("crowd_tts_off", reason="the ml extra (transformers) is not installed")
         return None
     return MmsTts(bus)
+
+
+def coverage(settings: Settings, perception: Perception, chain: EventChain) -> CoverageLog | None:
+    """The coverage log that chains BLIND / OK changes, unless turned off."""
+    return CoverageLog(perception.chunks, chain) if settings.rulecam_coverage_log else None
 
 
 def cost_watch(

@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
-import { errorText } from "@/lib/api";
+import { ApiError, errorText } from "@/lib/api";
 import type { AskAnswer } from "@/lib/ask";
 
 import { AskPanel } from "./AskPanel";
@@ -21,6 +21,21 @@ import {
 import styles from "./supermarket.module.css";
 
 const POLL_MS = 5000;
+
+/** Why the page has no live data, in words a visitor understands. */
+function overviewProblem(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.status === 401 || e.status === 403) return OWNER_ONLY;
+    if (e.status === 404)
+      return "This Rulecam API has no supermarket routes yet (it runs an older version).";
+    if (e.status === 503) return `The supermarket tools are off on this API: ${e.message}`;
+    return `The Rulecam API answered ${e.status}: ${e.message}`;
+  }
+  return errorText(e, "The Rulecam API is unreachable, so nothing live can be shown.");
+}
+
+const OWNER_ONLY =
+  "Owner login required: this page shows the store's cameras and staff alerts, so it is for the site owner.";
 const MAX_CAMERAS = 6;
 
 /** Cameras with the newest video first, at most `MAX_CAMERAS` (old pairings drop off). */
@@ -91,7 +106,7 @@ export default function SupermarketPage() {
       setOverview(await retail.overview());
       setError("");
     } catch (e) {
-      setError(errorText(e, "The Rulecam API did not answer."));
+      setError(overviewProblem(e));
     }
   }, []);
 
@@ -129,7 +144,12 @@ export default function SupermarketPage() {
           checks the fix twice and keeps a receipt. Everything below is live on this store’s
           cameras.
         </p>
-        {error && <p className={styles.error}>{error}</p>}
+        {error && (
+          <p className={styles.card} role="status">
+            {error} {error === OWNER_ONLY && <a href="/login">Log in as the owner</a>}
+          </p>
+        )}
+        {!overview && !error && <p className={styles.muted}>Connecting to the store’s cameras…</p>}
         {checkReceipt && <ReceiptCheck sha={checkReceipt} />}
       </header>
       <div className={styles.steps}>

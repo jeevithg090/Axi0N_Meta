@@ -1,8 +1,44 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { age, receiptHolds, sha256Hex, speechLang, type RetailCard } from "./api";
+import SupermarketPage from "./page";
 import { AdviceCard, FindingCard } from "./StoryPanels";
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+function answering(status: number, detail: string) {
+  return vi.fn().mockResolvedValue(
+    new Response(JSON.stringify({ detail }), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+describe("page states", () => {
+  it("tells a visitor the page is for the owner", async () => {
+    vi.stubGlobal("fetch", answering(403, "owner only"));
+    render(<SupermarketPage />);
+    await waitFor(() => expect(screen.getByText(/Owner login required/)).toBeTruthy());
+    expect(screen.getByText("Log in as the owner").getAttribute("href")).toBe("/login");
+  });
+
+  it("says when the API has no supermarket routes", async () => {
+    vi.stubGlobal("fetch", answering(404, "Not Found"));
+    render(<SupermarketPage />);
+    await waitFor(() => expect(screen.getByText(/no supermarket routes yet/)).toBeTruthy());
+  });
+
+  it("says when the API is unreachable", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    render(<SupermarketPage />);
+    await waitFor(() => expect(screen.getByText(/Failed to fetch|unreachable/)).toBeTruthy());
+  });
+});
 
 describe("receipts", () => {
   it("re-hashes the logged text in the browser", async () => {

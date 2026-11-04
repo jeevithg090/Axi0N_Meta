@@ -285,6 +285,16 @@ export function FindingCard({ finding }: { finding: Finding }) {
       {typeof finding.detail.summary === "string" && (
         <div className={styles.muted}>{finding.detail.summary}</div>
       )}
+      {typeof finding.detail.announcement === "string" && finding.detail.announcement && (
+        <div>
+          📢 <em>{finding.detail.announcement}</em>
+        </div>
+      )}
+      {finding.chain_seq != null && (
+        <div className={styles.muted}>
+          Alert on the evidence chain at record #{finding.chain_seq}
+        </div>
+      )}
       {lanes !== null && <div className={styles.muted}>{lanes} lanes read</div>}
       {img && (
         // eslint-disable-next-line @next/next/no-img-element -- API image

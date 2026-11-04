@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, type FormEvent } from "react";
+import { SampleDataTag } from "@/components/SampleDataTag";
 import { errorText } from "@/lib/api";
 import {
   markedUrl,
@@ -185,8 +186,7 @@ const SEEDED_CONTEXTS: Record<Vertical, SiteContext> = {
         when: "Active HSE Guidance",
         source_url: "https://www.hse.gov.uk/workplacetransport/segregation.htm",
         source_title: "HSE — Safe Segregation of Vehicles and Pedestrians",
-        watch:
-          "Keep Rule IR `keep-people-2m-from-moving-forklift` active on CAM-02 and CAM-04.",
+        watch: "Keep Rule IR `keep-people-2m-from-moving-forklift` active on CAM-02 and CAM-04.",
         cited: true,
         relinked: false,
       },
@@ -249,12 +249,14 @@ const SEEDED_SHELF_REPORT: ShelfReport = {
     {
       box_xyxy: [88, 220, 280, 390],
       section: "Top Shelf · Left Cereal Row",
-      reason: "SAM 3.1 detected `product package` masks covering 89.2% of proposed box (threshold ≤ 25%)",
+      reason:
+        "SAM 3.1 detected `product package` masks covering 89.2% of proposed box (threshold ≤ 25%)",
     },
     {
       box_xyxy: [920, 440, 1140, 615],
       section: "Upper-Middle Shelf · Right Pasta Sauce Row",
-      reason: "SAM 3.1 detected `grocery product` masks covering 54.4% of proposed box (threshold ≤ 25%)",
+      reason:
+        "SAM 3.1 detected `grocery product` masks covering 54.4% of proposed box (threshold ≤ 25%)",
     },
   ],
 };
@@ -332,7 +334,9 @@ const SEEDED_CROWD_REPORT: CrowdReport = {
       moments: [],
       escalate: false,
       disputed: true,
-      reasons: ["SAM track density reached 2.3/m² but video check observed steady single-direction flow"],
+      reasons: [
+        "SAM track density reached 2.3/m² but video check observed steady single-direction flow",
+      ],
     },
   ],
   notes: [
@@ -343,6 +347,20 @@ const SEEDED_CROWD_REPORT: CrowdReport = {
 
 const minutesAgo = (n: number): string => new Date(Date.now() - n * 60_000).toISOString();
 
+/** What each panel shows before a live result replaces it: never today's live data. */
+export const RECORDED_NOTES = {
+  context: (asked: string) =>
+    `Recorded run of ${new Date(asked).toUTCString()} (reports/eval/2026-11-03-site-tools-live.md), not today's search. Press Refresh for a live one.`,
+  shelf:
+    "Recorded run of 3 Nov 2026 on a shelf picture generated with Muse Image (reports/eval/2026-11-03-site-tools-live.md). Upload a photo for a live scan.",
+  crowd:
+    "Smoke test of 3 Nov 2026 on synthetic tracks and Muse Image frames. Run a scan for live results.",
+};
+
+function RecordedTag({ what }: { what: string }) {
+  return <SampleDataTag what={what} />;
+}
+
 export function SiteSignage() {
   // 1. Site Context state
   const [vertical, setVertical] = useState<Vertical>("supermarket");
@@ -350,11 +368,13 @@ export function SiteSignage() {
   const [context, setContext] = useState<SiteContext>(SEEDED_CONTEXTS.supermarket);
   const [ctxBusy, setCtxBusy] = useState(false);
   const [ctxBanner, setCtxBanner] = useState<string | null>(null);
+  const [ctxRecorded, setCtxRecorded] = useState(true);
 
   // 2. Shelf Gaps state
   const [shelfReport, setShelfReport] = useState<ShelfReport>(SEEDED_SHELF_REPORT);
   const [shelfBusy, setShelfBusy] = useState(false);
   const [shelfBanner, setShelfBanner] = useState<string | null>(null);
+  const [shelfRecorded, setShelfRecorded] = useState(true);
 
   // 3. Crowd Density state
   const [camera, setCamera] = useState("CAM-03");
@@ -362,6 +382,7 @@ export function SiteSignage() {
   const [crowdReport, setCrowdReport] = useState<CrowdReport>(SEEDED_CROWD_REPORT);
   const [crowdBusy, setCrowdBusy] = useState(false);
   const [crowdBanner, setCrowdBanner] = useState<string | null>(null);
+  const [crowdRecorded, setCrowdRecorded] = useState(true);
 
   useEffect(() => {
     let live = true;
@@ -373,13 +394,17 @@ export function SiteSignage() {
           : "North Logistics Hub, Manchester";
     setNotes(defaultNotes);
     setContext(SEEDED_CONTEXTS[vertical]);
+    setCtxRecorded(true);
     site
       .latestContext(vertical)
       .then((found) => {
-        if (live && found) setContext(found);
+        if (live && found) {
+          setContext(found);
+          setCtxRecorded(false);
+        }
       })
       .catch(() => {
-        // Keep seeded live eval result
+        // Nothing saved on the API: the recorded run stays, labelled as recorded.
       });
     return () => {
       live = false;
@@ -393,18 +418,12 @@ export function SiteSignage() {
     try {
       const fresh = await site.refreshContext(vertical, notes.trim());
       setContext(fresh);
+      setCtxRecorded(false);
       setCtxBanner(
         `✓ Live Muse Spark 1.3 web_search completed: ${fresh.searches} searches, ${fresh.pages_seen} pages verified.`,
       );
     } catch (err) {
-      const seeded = {
-        ...SEEDED_CONTEXTS[vertical],
-        asked_at: new Date().toISOString(),
-      };
-      setContext(seeded);
-      setCtxBanner(
-        `✓ Loaded verified Muse Spark 1.3 web_search snapshot (${seeded.searches} searches, ${seeded.pages_seen} pages read; ${seeded.items.length} citation-verified items kept, ${seeded.dropped.length} un-retrieved URLs dropped). (${errorText(err, "cached eval snapshot")})`,
-      );
+      setCtxBanner(`✗ The live search failed: ${errorText(err, "the API did not answer")}.`);
     } finally {
       setCtxBusy(false);
     }
@@ -417,17 +436,13 @@ export function SiteSignage() {
     try {
       const rep = await site.scanShelfImage(file);
       setShelfReport(rep);
+      setShelfRecorded(false);
       setShelfBanner(
         `✓ Scanned ${file.name}: ${rep.gaps.length} empty shelf bays confirmed by SAM 3.1 (≤25% product cover), ${rep.rejected.length} false proposals rejected.`,
       );
     } catch (err) {
-      setShelfReport({
-        ...SEEDED_SHELF_REPORT,
-        camera_id: `Uploaded Photo · ${file.name}`,
-        at: new Date().toISOString(),
-      });
       setShelfBanner(
-        `✓ Evaluated ${file.name} on 0–1000 normalized grid: 5 confirmed shelf gaps (≤25% SAM 3.1 product cover), 2 occupied boxes rejected. (${errorText(err, "recorded eval fallback")})`,
+        `✗ ${file.name} was not scanned: ${errorText(err, "the API did not answer")}.`,
       );
     } finally {
       setShelfBusy(false);
@@ -441,37 +456,23 @@ export function SiteSignage() {
     setCrowdBanner(null);
     try {
       const rep = await site.scanCrowd(camera.trim(), minutesAgo(minutes), minutesAgo(0));
-      if (rep.episodes.length > 0) {
-        setCrowdReport(rep);
-        setCrowdBanner(
-          `✓ Scanned ${rep.keyframes} keyframes on ${camera.trim()}: ${rep.episodes.length} crowded episode(s), worst level ${worstLevel(rep).toUpperCase()}.`,
-        );
-      } else {
-        setCrowdReport({
-          ...SEEDED_CROWD_REPORT,
-          camera_id: camera.trim(),
-        });
-        setCrowdBanner(
-          `✓ Scanned ${camera.trim()} (${minutes}m window): loaded verified 4.8 people/m² barrier-surge episode with Muse Spark 1.3 video check.`,
-        );
-      }
-    } catch (err) {
-      setCrowdReport({
-        ...SEEDED_CROWD_REPORT,
-        camera_id: camera.trim(),
-      });
+      setCrowdReport(rep);
+      setCrowdRecorded(false);
       setCrowdBanner(
-        `✓ Loaded verified ${camera.trim()} crowd-density & Muse Spark 1.3 video check report (peak 4.8 people/m², person_down + pushing_at_barrier @ 4.0s). (${errorText(err, "recorded eval snapshot")})`,
+        rep.episodes.length > 0
+          ? `✓ Scanned ${rep.keyframes} keyframes on ${camera.trim()}: ${rep.episodes.length} crowded episode(s), worst level ${worstLevel(rep).toUpperCase()}.`
+          : `Scanned ${rep.keyframes} keyframes on ${camera.trim()} (${minutes} min): no crowded spell.`,
       );
+    } catch (err) {
+      setCrowdBanner(`✗ The crowd scan failed: ${errorText(err, "the API did not answer")}.`);
     } finally {
       setCrowdBusy(false);
     }
   };
 
-  const shelfImgUrl =
-    shelfReport.marked_image?.startsWith("/media/")
-      ? shelfReport.marked_image
-      : markedUrl(shelfReport) ?? "/media/strips/cam05.jpg";
+  const shelfImgUrl = shelfReport.marked_image?.startsWith("/media/")
+    ? shelfReport.marked_image
+    : (markedUrl(shelfReport) ?? "/media/strips/cam05.jpg");
 
   return (
     <div style={{ paddingBottom: "var(--s6)" }}>
@@ -494,7 +495,10 @@ export function SiteSignage() {
               foot-point density with Muse Spark 1.3 video surge inspection.
             </p>
           </div>
-          <div className="s4" style={{ borderLeft: "4px solid var(--ink)", paddingLeft: "var(--s3)" }}>
+          <div
+            className="s4"
+            style={{ borderLeft: "4px solid var(--ink)", paddingLeft: "var(--s3)" }}
+          >
             <div className="small">Cross-Modal Verification Gates</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
               3 GATES
@@ -515,7 +519,9 @@ export function SiteSignage() {
       <section className="wrap sec" aria-label="Site context">
         <div className="sec-head">
           <div>
-            <div className="num">01 / SEARCH-GROUNDED SITE CONTEXT (`GET/POST /context/&#123;vertical&#125;`)</div>
+            <div className="num">
+              01 / SEARCH-GROUNDED SITE CONTEXT (`GET/POST /context/&#123;vertical&#125;`)
+            </div>
             <h2 className="h2">Around the Site Today — Retrieved-Page Citation Gate</h2>
           </div>
           <div className="meta">
@@ -553,7 +559,9 @@ export function SiteSignage() {
               }}
             >
               <option value="supermarket">Supermarket (Food Recalls &amp; Local Footfall)</option>
-              <option value="festival">Festival (Met Office Wind/Warnings &amp; Stage Order)</option>
+              <option value="festival">
+                Festival (Met Office Wind/Warnings &amp; Stage Order)
+              </option>
               <option value="general">Logistics / Industrial Yard (Highways &amp; HSE)</option>
             </select>
           </label>
@@ -593,6 +601,7 @@ export function SiteSignage() {
             {ctxBanner}
           </div>
         )}
+        {ctxRecorded && <RecordedTag what={RECORDED_NOTES.context(context.asked_at)} />}
 
         <div className="grid">
           <div className="s8">
@@ -615,7 +624,10 @@ export function SiteSignage() {
                       flexWrap: "wrap",
                     }}
                   >
-                    <span className="state" style={{ background: "var(--yellow)", color: "#141414" }}>
+                    <span
+                      className="state"
+                      style={{ background: "var(--yellow)", color: "#141414" }}
+                    >
                       {item.kind.toUpperCase()}
                     </span>
                     <span className="mono">{item.when}</span>
@@ -678,9 +690,9 @@ export function SiteSignage() {
               </div>
               <p className="small" style={{ marginTop: "8px" }}>
                 Muse Spark 1.3 runs <code>web_search</code> with{" "}
-                <code>include: [&quot;web_search_call.results&quot;]</code>. Every item must cite a URL
-                that was actually returned by the search; if Spark names a generic homepage, a single
-                relink pass maps it to the numbered retrieved pages or drops it.
+                <code>include: [&quot;web_search_call.results&quot;]</code>. Every item must cite a
+                URL that was actually returned by the search; if Spark names a generic homepage, a
+                single relink pass maps it to the numbered retrieved pages or drops it.
               </p>
 
               {context.dropped.length > 0 && (
@@ -721,7 +733,8 @@ export function SiteSignage() {
           </div>
           <div className="meta">
             Confirmed Gaps: <b>{shelfReport.gaps.length}</b> · Rejected Over-Product Boxes:{" "}
-            <b>{shelfReport.rejected.length}</b> · SAM Products Seen: <b>{shelfReport.products_seen}</b>
+            <b>{shelfReport.rejected.length}</b> · SAM Products Seen:{" "}
+            <b>{shelfReport.products_seen}</b>
           </div>
         </div>
 
@@ -739,6 +752,7 @@ export function SiteSignage() {
             {shelfBanner}
           </div>
         )}
+        {shelfRecorded && <RecordedTag what={RECORDED_NOTES.shelf} />}
 
         <div className="grid">
           <div className="s6">
@@ -754,7 +768,13 @@ export function SiteSignage() {
               <img
                 src={shelfImgUrl}
                 alt="Shelf with confirmed empty bays numbered"
-                style={{ width: "100%", height: "340px", objectFit: "cover", display: "block", opacity: 0.88 }}
+                style={{
+                  width: "100%",
+                  height: "340px",
+                  objectFit: "cover",
+                  display: "block",
+                  opacity: 0.88,
+                }}
               />
               {/* Interactive SVG Overlay of Confirmed Gaps vs Rejected Boxes */}
               <svg
@@ -925,12 +945,15 @@ export function SiteSignage() {
       <section className="wrap sec sec-last" aria-label="Crowd density">
         <div className="sec-head">
           <div>
-            <div className="num">03 / FESTIVAL CROWD DENSITY &amp; SURGE WATCH (`POST /crowd/scan`)</div>
+            <div className="num">
+              03 / FESTIVAL CROWD DENSITY &amp; SURGE WATCH (`POST /crowd/scan`)
+            </div>
             <h2 className="h2">Metric Track Density (people/m²) + Muse Spark Video Verification</h2>
           </div>
           <div className="meta">
-            Keyframes: <b>{crowdReport.keyframes}</b> · Episodes: <b>{crowdReport.episodes.length}</b> ·
-            Worst Level: <b>{worstLevel(crowdReport).toUpperCase()}</b>
+            Keyframes: <b>{crowdReport.keyframes}</b> · Episodes:{" "}
+            <b>{crowdReport.episodes.length}</b> · Worst Level:{" "}
+            <b>{worstLevel(crowdReport).toUpperCase()}</b>
           </div>
         </div>
 
@@ -1002,6 +1025,7 @@ export function SiteSignage() {
             {crowdBanner}
           </div>
         )}
+        {crowdRecorded && <RecordedTag what={RECORDED_NOTES.crowd} />}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {crowdReport.episodes.map((ep) => (
@@ -1025,11 +1049,15 @@ export function SiteSignage() {
               >
                 <div>
                   <span className={`state ${ep.escalate ? "bad" : ""}`}>
-                    {ep.escalate ? "⚠ ESCALATE IMMEDIATELY" : ep.disputed ? "CHECK BY EYE" : "WATCH"}
+                    {ep.escalate
+                      ? "⚠ ESCALATE IMMEDIATELY"
+                      : ep.disputed
+                        ? "CHECK BY EYE"
+                        : "WATCH"}
                   </span>
                   <strong style={{ fontSize: "20px", marginLeft: "12px" }}>
-                    Peak {ep.episode.peak_density.toFixed(1)} people/m² ({ep.episode.level.toUpperCase()}) ·{" "}
-                    {ep.episode.peak_people} tracked persons
+                    Peak {ep.episode.peak_density.toFixed(1)} people/m² (
+                    {ep.episode.level.toUpperCase()}) · {ep.episode.peak_people} tracked persons
                   </strong>
                 </div>
                 <span className="mono">
@@ -1060,7 +1088,9 @@ export function SiteSignage() {
                   </div>
                   <p style={{ marginTop: "6px" }}>{ep.check.summary}</p>
                   {ep.check.signs.length > 0 && (
-                    <div style={{ marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    <div
+                      style={{ marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap" }}
+                    >
                       {ep.check.signs.map((s, idx) => (
                         <span key={idx} className="state bad">
                           @{s.at_s.toFixed(1)}s · {s.sign.toUpperCase()}: {s.what}

@@ -476,7 +476,7 @@ export function IncidentsSignage() {
                           }}
                         />
                         <div style={{ minWidth: 0 }}>
-                          <div className="dm" style={{ fontSize: "11px", color: "var(--color-accent)" }}>
+                          <div className="dm" style={{ fontSize: "11px", color: "var(--color-scene-accent)" }}>
                             SAMPLE STILL #{idx + 1}
                           </div>
                           <div className="dm" style={{ fontSize: "11px", color: "var(--color-on-scene-2)" }}>

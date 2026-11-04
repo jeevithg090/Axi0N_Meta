@@ -233,8 +233,8 @@ export function SystemSignage() {
             style={{
               marginTop: "var(--s2)",
               padding: "10px 14px",
-              background: "var(--alert)",
-              color: "#fff",
+              background: "var(--color-bad-soft)",
+              color: "var(--color-bad)",
               fontWeight: 600,
             }}
           >
@@ -248,7 +248,7 @@ export function SystemSignage() {
       {/* Top KPI Strip */}
       <section className="wrap sec">
         <div className="grid">
-          <div className="s3" style={{ borderTop: "3px solid var(--ink)", paddingTop: "var(--s2)" }}>
+          <div className="s3" style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}>
             <div className="small">Runtime Orchestrator</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
               {health?.runtime ? "ACTIVE" : "STANDBY"}
@@ -258,7 +258,7 @@ export function SystemSignage() {
             </div>
           </div>
 
-          <div className="s3" style={{ borderTop: "3px solid var(--ink)", paddingTop: "var(--s2)" }}>
+          <div className="s3" style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}>
             <div className="small">Tier-1 Verifier Circuit Breaker</div>
             <div
               className="num-l"
@@ -274,7 +274,7 @@ export function SystemSignage() {
             </div>
           </div>
 
-          <div className="s3" style={{ borderTop: "3px solid var(--ink)", paddingTop: "var(--s2)" }}>
+          <div className="s3" style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}>
             <div className="small">Compute Spend &amp; Budget</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
               ${(cost?.usd_per_camera_hour ?? 0.14).toFixed(2)}
@@ -286,7 +286,7 @@ export function SystemSignage() {
             </div>
           </div>
 
-          <div className="s3" style={{ borderTop: "3px solid var(--ink)", paddingTop: "var(--s2)" }}>
+          <div className="s3" style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}>
             <div className="small">Safety Response Gate</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
               {responseCfg?.actions_dry_run === false ? "ARMED" : "DRY-RUN"}
@@ -328,7 +328,8 @@ export function SystemSignage() {
                 key={service}
                 className="s6"
                 style={{
-                  border: "2px solid var(--ink)",
+                  border: "1px solid var(--color-rule)",
+                  borderRadius: "var(--radius-card)",
                   background: "var(--paper-2)",
                   padding: "var(--s3)",
                 }}
@@ -342,7 +343,7 @@ export function SystemSignage() {
                   }}
                 >
                   <div>
-                    <div className="mono" style={{ fontSize: "11px", textTransform: "uppercase" }}>
+                    <div className="mono" style={{ fontSize: "11px" }}>
                       Endpoint · {service}
                     </div>
                     <h3 className="h3" style={{ marginTop: "2px" }}>
@@ -375,7 +376,7 @@ export function SystemSignage() {
                       gap: "8px",
                       marginTop: "var(--s2)",
                       paddingTop: "var(--s2)",
-                      borderTop: "1px solid var(--ink)",
+                      borderTop: "1px solid var(--color-rule)",
                       textAlign: "center",
                     }}
                   >
@@ -422,7 +423,7 @@ export function SystemSignage() {
             <h2 className="h3" style={{ marginBottom: "var(--s2)" }}>
               Runtime Loop &amp; Verification Counters
             </h2>
-            <div style={{ borderTop: "2px solid var(--ink)" }}>
+            <div style={{ borderTop: "1px solid var(--color-rule)" }}>
               <div className="kv">
                 <span>Perception Backend</span>
                 <b className="dm">{perception?.runtime_backend ?? "self_hosted (SAM 3.1 HTTP + Hosted Fallback)"}</b>
@@ -458,7 +459,7 @@ export function SystemSignage() {
             <h2 className="h3" style={{ marginBottom: "var(--s2)" }}>
               Safety-Asymmetric Response &amp; Firewall Policy
             </h2>
-            <div style={{ borderTop: "2px solid var(--ink)" }}>
+            <div style={{ borderTop: "1px solid var(--color-rule)" }}>
               <div className="kv">
                 <span>HIGH Severity Policy</span>
                 <b className="dm">Act-First (0.0s) · Verify in Parallel</b>
@@ -541,7 +542,7 @@ export function SystemSignage() {
             {rawProm || "# No metrics scraped yet"}
           </pre>
         ) : (
-          <div className="scroll-x" style={{ maxHeight: "380px", overflowY: "auto", border: "1px solid var(--ink)" }}>
+          <div className="scroll-x" style={{ maxHeight: "380px", overflowY: "auto", border: "1px solid var(--color-rule)" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ background: "var(--ink)", color: "var(--paper)", textAlign: "left" }}>

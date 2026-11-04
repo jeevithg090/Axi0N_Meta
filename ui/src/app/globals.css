@@ -1259,3 +1259,4 @@ button.primary:not(.btn):disabled { opacity: 0.55; cursor: not-allowed; }
 .diff-add { background: var(--color-ok-soft); }
 .diff-remove { background: var(--color-bad-soft); text-decoration: line-through; }
 .diff-change { background: var(--color-accent-soft); }
+.badge[aria-label="Connecting"] { border-style: dashed; min-width: 2.75rem; justify-content: center; }

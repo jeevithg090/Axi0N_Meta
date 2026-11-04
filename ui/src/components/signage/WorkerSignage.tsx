@@ -217,7 +217,7 @@ export function WorkerSignage() {
             <span className="dm" style={{ fontSize: "13px", fontWeight: 700 }}>
               {cameraId} · {page?.site_name?.toUpperCase() ?? "DEMO"}
             </span>
-            <span className="dm" style={{ fontSize: "12px", color: "var(--color-accent)" }}>
+            <span className="dm" style={{ fontSize: "12px", color: "var(--color-accent-text)" }}>
               {isEn ? "ZERO IDENTITY LOGGED" : "CERO IDENTIDAD REGISTRADA"}
             </span>
           </div>

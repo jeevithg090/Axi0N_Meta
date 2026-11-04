@@ -127,6 +127,8 @@ def dotenv_secrets(path: Path = Path(".env")) -> dict[str, str]:
     found = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         name, sep, value = line.partition("=")
+        value = value.strip()
+        value = "" if value.startswith("#") else value.split(" #", 1)[0]  # an inline comment
         name, value = name.strip(), value.strip().strip("'\"")
         suffixes = ("KEY", "TOKEN", "SECRET", "HASH", "PASSPHRASE", "WEBHOOKS")
         if sep and not name.startswith("#") and name.endswith(suffixes) and len(value) >= 12:

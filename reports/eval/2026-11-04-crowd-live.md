@@ -192,8 +192,9 @@ throughout the experiment, so this shows the camera check working, not a steward
 time in runs 6–7. In run 8 (the side door with a deliberately cautious instruction) Spark sent a
 `warning`; Glimmer, busy with the three-way counts, answered after 22 s, past the 20 s budget,
 so the alert had already gone out unchecked and its late *not confirmed* was chained. Fixed in
-the next commit: three-way counts wait while an alert's frame check is in flight. The second
-look itself is covered by `tests/crowd/test_warden.py`.
+`4d1f8ab`: three-way counts wait while an alert's frame check is in flight. Run 9 repeated it
+with the fix: Glimmer answered in about 4 s and confirmed (0.85, "tight bunching at the side
+door approach"), so the second look did not come up. It is covered by `tests/crowd/test_warden.py`.
 
 **Spark hearing the crowd** (audio) was not attempted: no clip with a real crowd soundtrack was
 available, and fetching one from a stock site needs the user's go-ahead.

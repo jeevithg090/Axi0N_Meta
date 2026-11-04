@@ -51,6 +51,8 @@ from rulecam.errors import RulecamError
 from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
 from rulecam.evidence.merkle import chain_root
 from rulecam.log import get_logger
+from rulecam.planner.errors import PipelineError
+from rulecam.planner.pipeline import PlanStore
 from rulecam.replay.cache import ReplayCache
 from rulecam.rule_ci.lookalikes import load_regressions
 from rulecam.runtime.factory import Perception
@@ -71,13 +73,14 @@ from rulecam.warehouse.models import (
     WarehouseStory,
 )
 from rulecam.warehouse.near_misses import heatmap, measures_distance, near_misses
+from rulecam.warehouse.planning import Planning, planning_timeline
 from rulecam.warehouse.report import (
     MAX_AUDIO_BYTES,
     NearMissReporter,
     NearMissWindow,
     ReportError,
 )
-from rulecam.warehouse.story import build_story, followed_incident
+from rulecam.warehouse.story import build_story, followed_incident, planning_story
 from rulecam.warehouse.talks import (
     Attacher,
     ImageMaker,
@@ -167,6 +170,7 @@ class WarehouseService:
     reports: NearMissReporter | None = None
     planner: PlannerSubmit | None = None
     voice_notes: VoiceNoteSender | None = None
+    plan_store: PlanStore | None = None
 
     def days(self) -> list[date]:
         """Days with a chain, oldest first."""
@@ -226,7 +230,7 @@ class WarehouseService:
         picked = self.plans.pick(plan_id)
         if picked is None:
             if plan_id is not None:
-                raise HTTPException(404, f"no plan {plan_id!r}")
+                return self._planning_story(plan_id)
             return build_story(None, approved=False, active=False, near=[], chain=None)
         plan, approved = picked
         near = self.near(chosen_day, plan_id=plan.plan_id)
@@ -251,7 +255,27 @@ class WarehouseService:
             warning=warning,
             duty=duty,
             regressions=regressions,
+            planning=self.planning(plan.plan_id),
         )
+
+    def planning(self, plan_id: str) -> Planning | None:
+        """The plan's step timings from its saved run (`None` without a plan store or run)."""
+        if self.plan_store is None:
+            return None
+        return planning_timeline(self.plan_store, plan_id, datetime.now(UTC))
+
+    def _planning_story(self, plan_id: str) -> WarehouseStory:
+        """The story of a plan still being planned, or 404 when there is no such run."""
+        timeline = self.planning(plan_id)
+        if timeline is None or self.plan_store is None:
+            raise HTTPException(404, f"no plan {plan_id!r}")
+        try:
+            items = self.plan_store.load_input(plan_id).request
+        except PipelineError:
+            items = ()
+        first = next((i for i in items if i.text or i.extracted), None)
+        text = (first.text or " ".join(first.extracted)) if first is not None else ""
+        return planning_story(plan_id, text, first.lang if first else None, timeline)
 
     def _latest[M: ToolboxTalk | SpokenWarning](
         self, model: type[M], kind: str, event_id: str
@@ -598,6 +622,7 @@ def build_warehouse(
     perception: Perception,
     planner: PlannerSubmit | None = None,
     whatsapp: VoiceChannel | None = None,
+    plans_dir: Path = Path("plans"),
     dependencies: Sequence[Any] = (),
 ) -> APIRouter:
     """The `/warehouse` router, wired to the app's chain, plans, runtime and perception.
@@ -613,6 +638,7 @@ def build_warehouse(
         perception: The track store and recorded chunks.
         planner: The Site Planner (a worker's proposed rule is planned and Rule CI-tested).
         whatsapp: WhatsApp, for spoken warnings sent as voice notes (when configured).
+        plans_dir: The planner's store (step timings of each run).
         dependencies: Route dependencies (owner login).
 
     Returns:
@@ -661,5 +687,6 @@ def build_warehouse(
             clock=clock,
             dry_run=settings.rulecam_actions_dry_run,
         ),
+        plan_store=PlanStore(plans_dir),
     )
     return warehouse_router(service, dependencies=dependencies)

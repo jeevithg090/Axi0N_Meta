@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from statistics import median
 from typing import Final
@@ -53,6 +54,8 @@ from rulecam.stats.intervals import wilson_interval
 _log = get_logger(__name__)
 
 DEFAULT_PROBE_FRAMES: Final = 24
+MAX_PARALLEL_FRAMES: Final = 24  # one probe's frames are segmented at once
+MAX_PARALLEL_PROBES: Final = 2  # probes run at once (so up to 48 SAM calls in flight)
 NEEDS_MODEL: Final = "muse-spark-1.3"
 MAX_CONCEPTS_PER_CONCERN: Final = 4
 ZOOM_PERSON_CONCEPT: Final = "person"
@@ -272,16 +275,22 @@ def probe_concept_on_camera(
         The probe. With no frames it has `n_frames=0` and a zero rate and bound.
     """
     sampled = sample_frames(frames, n_samples, seed=seed)
-    hits = zoom_hits = 0
-    heights: list[float] = []
-    for frame in sampled:
+
+    def look(frame: Path) -> tuple[list[BoxXYXY], bool]:
         detections = segmenter.segment_image(frame, concept, camera_id=camera_id)
         boxes = [d.mask.box_xyxy for d in detections]
         if not boxes and zoom is not None and region is not None:
             boxes = [h.box_xyxy for h in zoom.find(frame, concept, region, camera_id=camera_id)]
-            zoom_hits += bool(boxes)
-        hits += bool(boxes)
-        heights.extend(h for box in boxes if (h := box[3] - box[1]) > 0)
+            return boxes, bool(boxes)
+        return boxes, False
+
+    # Every frame at once (each is an independent SAM call); `map` keeps the frame order, so
+    # the probe is the same as frame by frame.
+    with ThreadPoolExecutor(max_workers=max(1, min(MAX_PARALLEL_FRAMES, len(sampled)))) as pool:
+        looked = list(pool.map(look, sampled))
+    hits = sum(bool(boxes) for boxes, _ in looked)
+    zoom_hits = sum(zoomed for _, zoomed in looked)
+    heights = [h for boxes, _ in looked for box in boxes if (h := box[3] - box[1]) > 0]
     n_frames = len(sampled)
     lower, _ = wilson_interval(hits, n_frames)
     probe = Probe(
@@ -323,8 +332,15 @@ def probe_concepts(
         One probe per (concept, camera), concepts in first-seen order and cameras in id order.
     """
     regions = worn or {}
-    return tuple(
-        probe_concept_on_camera(
+    jobs = [
+        (concept, cam_id, frames)
+        for concept in clean_concepts(concepts)
+        for cam_id, frames in sorted(camera_frames.items())
+    ]
+
+    def run(job: tuple[str, str, Sequence[Path]]) -> Probe:
+        concept, cam_id, frames = job
+        return probe_concept_on_camera(
             concept,
             cam_id,
             frames,
@@ -334,6 +350,7 @@ def probe_concepts(
             zoom=zoom,
             region=regions.get(concept),
         )
-        for concept in clean_concepts(concepts)
-        for cam_id, frames in sorted(camera_frames.items())
-    )
+
+    # Probes are independent: all of them at once, results in (concept, camera) order.
+    with ThreadPoolExecutor(max_workers=max(1, min(MAX_PARALLEL_PROBES, len(jobs)))) as pool:
+        return tuple(pool.map(run, jobs))

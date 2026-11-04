@@ -278,6 +278,9 @@ class Settings(BaseSettings):
     # Chain a `coverage` record when a camera goes BLIND or recovers (`runtime.coverage_log`).
     # Off by default: moving-camera stock clips flap `moved`; turn it on for fixed site cameras.
     rulecam_coverage_log: bool = False
+    # Reuse a camera's survey (inventory, calibration) for this long when its scene is unchanged
+    # (`planner.survey_cache`); 0 surveys every time. The probe and Rule CI always run.
+    planner_survey_reuse_s: float = Field(default=1800.0, ge=0)
     # Proof portal (`compliance/`): signs share links; default a random key in <data>/compliance.
     rulecam_share_secret: SecretStr | None = None
     # Camera connectors (`rulecam.connectors`, `/connectors`): chunk rate, the widest frame

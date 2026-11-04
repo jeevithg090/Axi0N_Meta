@@ -152,6 +152,7 @@ from rulecam.planner.runner import ChunkFrames, PlannerService
 from rulecam.planner.site_config import SiteConfigError, load_site_config
 from rulecam.planner.standards import StandardsLibrary
 from rulecam.planner.steps.audit import audit_hook
+from rulecam.planner.survey_cache import SurveyCache
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
 from rulecam.rule_ci import prove_plan_hook
 from rulecam.rule_ci.hard_negatives import HardNegatives
@@ -775,6 +776,7 @@ def build_planner(
         prove=prove_plan_hook(bus, calibrations=run_calibrations(PlanStore(PLANS_DIR))),
         zoom=crop_segmenter(settings, perception),
         geometry=geometry_estimator(settings, perception),
+        survey_cache=SurveyCache(clock=clock, max_age_s=settings.planner_survey_reuse_s),
     )
     frames = ChunkFrames(
         perception.chunks,

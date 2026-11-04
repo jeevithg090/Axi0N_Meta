@@ -163,9 +163,14 @@ class RecordingSegmenter:
 
     @property
     def sightings(self) -> tuple[Sighting, ...]:
-        """Every recorded call, in call order."""
+        """Every recorded call, by camera, frame and concept.
+
+        Calls run in parallel, so their order is not stable; this one is.
+        """
         with self._lock:
-            return tuple(self._sightings)
+            return tuple(
+                sorted(self._sightings, key=lambda s: (s.camera_id, str(s.frame), s.concept))
+            )
 
 
 # --- concepts -----------------------------------------------------------------------------------

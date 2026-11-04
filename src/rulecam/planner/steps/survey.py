@@ -5,7 +5,8 @@ For each camera, 8 frames are sampled (seeded, spread across the camera's chunks
 frames per chunk). The survey's cost does not grow with the number of frames passed in: SAM
 runs on the 8 sampled frames per camera and Spark sees at most 4 frames in all. Muse Spark 1.3
 looks at a few of them and proposes up to 30 noun phrases. SAM 3.1 `segment_image` then runs
-every concept on every sampled frame, concepts in parallel, and the concepts it finds become
+every concept on every sampled frame, all calls in parallel (`MAX_PARALLEL_CALLS`), and the
+concepts it finds become
 `InventoryItem`s.
 
 SAM is reached only through an `ImageSegmenter` (in production `HostedSam31`, which sits on the
@@ -38,7 +39,7 @@ DEFAULT_SURVEY_FRAMES: Final = 8
 MAX_SURVEY_CONCEPTS: Final = 30
 MAX_CONCEPT_CHARS: Final = 60
 MAX_SPARK_FRAMES: Final = 4
-MAX_PARALLEL_CONCEPTS: Final = 8
+MAX_PARALLEL_CALLS: Final = 32  # SAM calls in flight at once (hosted limit: 2,500 a minute)
 _CHUNK_FRAME_STEM: Final = re.compile(r"^(?P<chunk>.+)-f\d+$")
 
 SURVEY_SYSTEM_PROMPT = (
@@ -200,13 +201,25 @@ def _survey_camera(
     concepts: Sequence[str],
     segmenter: ImageSegmenter,
 ) -> list[InventoryItem]:
-    def run(concept: str) -> InventoryItem | None:
-        per_frame = [segmenter.segment_image(f, concept, camera_id=camera_id) for f in frames]
-        return _inventory_item(concept, camera_id, per_frame)
+    """Every concept on every frame, all (concept, frame) calls at once under one pool.
 
-    workers = max(1, min(MAX_PARALLEL_CONCEPTS, len(concepts)))
+    The hosted SAM allows 2,500 requests a minute; one call takes seconds, so the survey's time
+    is set by how many calls run at once, not by how many there are. The result is the same as
+    running them one by one: `map` keeps the order.
+    """
+    pairs = [(concept, frame) for concept in concepts for frame in frames]
+
+    def run(pair: tuple[str, Path]) -> list[Detection]:
+        return segmenter.segment_image(pair[1], pair[0], camera_id=camera_id)
+
+    workers = max(1, min(MAX_PARALLEL_CALLS, len(pairs)))
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        items = list(pool.map(run, concepts))
+        found = list(pool.map(run, pairs))
+    n = len(frames)
+    items = [
+        _inventory_item(concept, camera_id, found[i * n : (i + 1) * n])
+        for i, concept in enumerate(concepts)
+    ]
     return [item for item in items if item is not None]
 
 

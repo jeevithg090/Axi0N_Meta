@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
-# Ship the web UI (ui/) to the fallback UI pod on RunPod and serve it with `next start` on :3000,
-# reachable at https://<pod-id>-3000.proxy.runpod.net. Used while Vercel cannot deploy.
+# Ship the web UI (ui/) to the fallback UI pod on RunPod and serve its production build on :3000
+# (scripts/ops/ui_server.mjs: `next start` with no-store on pages, because the RunPod proxy caches
+# them), reachable at https://<pod-id>-3000.proxy.runpod.net. Used while Vercel cannot deploy.
 #
 #   RULECAM_UI_SSH_HOST=<ip> RULECAM_UI_SSH_PORT=<port> scripts/ops/ship_ui_runpod.sh [ref]
 #
-# 1. `git archive <ref> ui` is unpacked into /root/rulecam-ui/releases/<sha12> on the pod.
+# 1. `git archive <ref> ui scripts/ops/ui_server.mjs` is unpacked into
+#    /root/rulecam-ui/releases/<sha12> on the pod.
 # 2. On the pod (detached, so a dropped SSH session cannot stop it halfway): Node.js is installed
 #    from nodejs.org if missing (checked against its SHASUMS256), then `npm ci` and
-#    `npm run build` with NEXT_PUBLIC_RULECAM_API baked in, then the running `next start` is
-#    replaced by the new build and the script waits until http://127.0.0.1:3000/ answers.
+#    `npm run build` with NEXT_PUBLIC_RULECAM_API baked in. Earlier builds' hashed files are
+#    copied in (pages a proxy still holds keep loading), the running server is replaced and the
+#    script waits until the new build answers on http://127.0.0.1:3000/.
 # 3. This script polls the result file and prints the remote log. Exit 0 live, 1 failed.
 #
 # Environment: RULECAM_UI_SSH_HOST and RULECAM_UI_SSH_PORT (required; `runpodctl pod get
@@ -58,7 +61,7 @@ remote() {
 }
 
 log "uploading ui/ at $SHORT to root@$HOST:$REL"
-git -C "$root" archive --format=tar "$SHA" ui | "${SSH[@]}" "set -e
+git -C "$root" archive --format=tar "$SHA" ui scripts/ops/ui_server.mjs | "${SSH[@]}" "set -e
   mkdir -p $ROOT_DIR/releases
   if [ -f $REL/REVISION ]; then cat > /dev/null; exit 0; fi
   rm -rf $REL.incoming && mkdir -p $REL.incoming
@@ -86,18 +89,34 @@ echo "node $(node --version), npm $(npm --version)"
 cd "$REL/ui"
 npm ci --no-audit --no-fund
 NEXT_PUBLIC_RULECAM_API=$API_URL NEXT_TELEMETRY_DISABLED=1 npm run build
-pkill -f "next start" || true
-for _ in $(seq 1 20); do pgrep -f "next start" > /dev/null || break; sleep 1; done
+for old in "$ROOT_DIR"/releases/*/ui/.next/static; do
+  [ "$old" = "$REL/ui/.next/static" ] || cp -rn "$old/." "$REL/ui/.next/static/" || true
+done
+cp "$REL/scripts/ops/ui_server.mjs" "$REL/ui/ui_server.mjs"
+# Stop the running server (`next start` renames itself `next-server`), wait for :3000 to be free.
+SERVERS="ui_server.mjs|next-server|next start"
+pkill -f "$SERVERS" || true
+for _ in $(seq 1 30); do
+  pgrep -f "$SERVERS" > /dev/null || break
+  sleep 1
+done
+pkill -9 -f "$SERVERS" || true
 ln -sfn "$REL" "$ROOT_DIR/current"
 cd "$ROOT_DIR/current/ui"
 set -a
 # shellcheck disable=SC1091
 [ -f "$ROOT_DIR/ui.env" ] && . "$ROOT_DIR/ui.env"
 set +a
-NEXT_TELEMETRY_DISABLED=1 setsid nohup npx next start -H 0.0.0.0 -p 3000 \
-  >> "$ROOT_DIR/next.log" 2>&1 < /dev/null &
+NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 \
+  setsid nohup node ui_server.mjs >> "$ROOT_DIR/next.log" 2>&1 < /dev/null &
+want=$(cd "$ROOT_DIR/current/ui" && pwd -P)
 for _ in $(seq 1 60); do
-  if curl -fsS -o /dev/null -m 5 http://127.0.0.1:3000/; then echo ok > "$STATUS"; exit 0; fi
+  if curl -fsS -o /dev/null -m 5 http://127.0.0.1:3000/; then
+    # Live only when the server answering is the new build (its working directory).
+    for pid in $(pgrep -f "ui_server.mjs" || true); do
+      if [ "$(readlink "/proc/$pid/cwd")" = "$want" ]; then echo ok > "$STATUS"; exit 0; fi
+    done
+  fi
   sleep 2
 done
 echo failed > "$STATUS"
@@ -124,7 +143,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 done
 remote "tail -n 25 $REL/ship.log" >&2 || true
 if [ "$state" = ok ]; then
-  log "live: $SHA (next start on :3000)"
+  log "live: $SHA (ui_server.mjs on :3000)"
   exit 0
 fi
 log "not live (state: ${state:-none}); see $REL/ship.log on the pod"

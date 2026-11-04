@@ -122,6 +122,9 @@ rule and dispute any alert. A false alarm becomes a permanent test."
 | Cost | **$0.0039** GPU cost per alert check, 20 at once | [load test, 2 Nov](../../reports/eval/2026-11-02-serverless-load.json) |
 | Weak, and shown | Ask counts within tolerance on hand-labelled CCTV: **7 of 36** | [Ask benchmark](../../reports/eval/ask/2026-11-02T230520Z-corridor.json) |
 
+Beside the table: the crowd chart ([`media/crowd-density-vs-truth.png`](media/crowd-density-vs-truth.png)),
+Rulecam's gate density against the truth, reading by reading.
+
 **Speaker notes (35 s)**
 
 "Every number here links to the run, the date and the commit that produced it. In the

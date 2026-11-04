@@ -6,7 +6,17 @@ model doing a job you can see, and what surprised us), **Demo** (it works, on sc
 **Technical depth** (Rule CI, verified alerts, evidence you can check).
 
 **Length:** 3:00 exactly. **Voiceover:** 391 words, about 130 words a minute, with room to
-breathe. The lines alone are in [`voiceover.txt`](voiceover.txt).
+breathe. The lines alone are in [`voiceover.txt`](voiceover.txt), timed captions in
+[`captions.srt`](captions.srt).
+
+**Rough cut (timing reference).** `docs/video/rough-cut.mp4` is a 3:00 animatic: every shot at
+its time, the real T02 and T04 strip frames for shots 9 and 10, the crowd chart
+([`../pitch/media/crowd-density-vs-truth.png`](../pitch/media/crowd-density-vs-truth.png),
+drawn from the 3 Nov report) for shot 14, the old verify-page captures for 22 and 23, and a
+labelled "TO RECORD" card for every shot still to capture. Under it is a scratch voiceover made
+with macOS text-to-speech (`docs/video/voiceover-scratch.m4a`). Both files are git-ignored
+(over the 500 KB pre-commit limit); they sit in the `p1/pitch` worktree and are rebuilt from the
+script, not edited by hand. Replace the scratch voice with a human take before submitting.
 
 ## Honesty rules for the edit (read before cutting)
 
@@ -59,7 +69,7 @@ zoom 125%, cursor highlight on.
 |---|---|---|---|---|---|---|
 | 12 | 0:55 | Slow, quiet shot of the Jülich clip at the gate, no UI. | `RESEARCH FOOTAGE` | "In a crowd crush, nobody does anything wrong. People are packed too tightly to move. From the ground, no one sees it building." | — | Still |
 | 13 | 1:05 | The crowd watch setup: the Hindi instruction in the watch form, the four floor points and the two zones on the frame. | LIVE (`/rulecam-api/crowd/live`) or the 3 Nov run's screenshots; tag accordingly | "This is real footage from a crowd experiment, played live into Rulecam, with an instruction in Hindi." | "Instruction in Hindi. Zones: gate approach, entry corridor." | Screenshot from the 3 Nov run; tag `REPLAY (recorded live run, 3 Nov)` |
-| 14 | 1:12 | Heatmap over the frame; the gate-zone counter climbs; the density chart rises past 7 people per m². | Same | "SAM 3.1 counts heads in each zone: ninety-five to ninety-nine percent of the true count. At the gate, eight people per square metre. The truth: eight." | "SAM 3.1: 95–99% of true heads. Gate: 8.0 per m² (truth 8.0)". Source: [crowd report](../../reports/eval/2026-11-03-crowd-live.md) | Chart rebuilt from the report's table |
+| 14 | 1:12 | Heatmap over the frame; the gate-zone counter climbs; the density chart rises past 7 people per m². | Same | "SAM 3.1 counts heads in each zone: ninety-five to ninety-nine percent of the true count. At the gate, eight people per square metre. The truth: eight." | "SAM 3.1: 95–99% of true heads. Gate: 8.0 per m² (truth 8.0)". Source: [crowd report](../../reports/eval/2026-11-03-crowd-live.md) | [`crowd-density-vs-truth.png`](../pitch/media/crowd-density-vs-truth.png), drawn from the report's table |
 | 15 | 1:23 | Spark's assessment card turns red: **critical**. Its staff actions appear: stop the inflow, close the gate. The Hindi and English announcement texts appear, and the Hindi WAV plays for 3 seconds. | Same | "Muse Spark calls it critical, tells stewards to stop the inflow, and writes a calm announcement in Hindi and English." | "Spark: critical. Announcements spoken by Meta's MMS-TTS." | The WAV from `/crowd/files/<name>.wav` over the still |
 | 16 | 1:32 | Alert row with its timestamps: reading, assessment, alert sent. | Same | "Reading to alert: about forty seconds. A slow check never holds a warning back." | "Reading to alert: about 40 s. Glimmer gets 20 s to check; past that the warning goes anyway." | Still |
 

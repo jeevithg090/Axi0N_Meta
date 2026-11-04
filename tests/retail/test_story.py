@@ -41,6 +41,7 @@ from rulecam.retail.staff import StaffDesk
 from rulecam.retail.store import FindingLog, TaskBoard, WatchBook
 from rulecam.runtime.strip_draw import NoFaceDetector
 from rulecam.shelf import ShelfScanner
+from rulecam.staff.api import retail_proof
 from rulecam.voice_out.wav import encode_wav
 from tests.fakes import FakeClock, FakeLLM
 from tests.retail.conftest import AT, FakeFrames, FakeNotifier, FakeSam, Files, image
@@ -657,3 +658,27 @@ def test_incident_report_from_the_chain(tmp_path: Path) -> None:
     reply = TestClient(app).get(f"/retail/tasks/{task_id}/incident", params={"format": "html"})
     assert reply.status_code == 200
     assert "attachment" in reply.headers["content-disposition"]
+
+
+async def test_the_staff_app_proof_call_matches_the_route(tmp_path: Path) -> None:
+    """The staff app's in-process *Done* photo call (`staff.api.retail_proof`) on the real route."""
+    agree = {"gaps": [], "all_filled": True, "summary": "agree"}
+    filled = {
+        "gaps": [{"number": 1, "filled": True, "note": "ok"}],
+        "all_filled": True,
+        "summary": "filled",
+    }
+    rig = Rig(tmp_path, FakeLLM([gap_draft(), filled]), glimmer=FakeLLM([agree]))
+    finding = rig.service.run_image("shelf", rig.frame)
+    detected = [r for r in rig.records() if r.payload.get("type") == "retail_finding"]
+    assert detected[0].payload["task_id"] == finding.task_id  # what the staff feed reads
+    rig.clock.advance(4 * 60)
+    app = FastAPI()
+    app.include_router(
+        retail_router(rig.service, uploads_dir=tmp_path / "up", files=image_resolver([tmp_path]))
+    )
+    checked = await retail_proof(app, str(finding.task_id), image(tmp_path / "done.jpg", 90))
+    assert checked.http_status == 200
+    assert checked.status == "done"
+    assert checked.closed_by == "photo"
+    assert checked.minutes_to_fix == 4.0

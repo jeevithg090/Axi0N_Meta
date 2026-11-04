@@ -21,13 +21,17 @@ recorded live runs ([T02 and T04 goldens](scenarios/README.md); the same verdict
 
 ## Try it now
 
+`{{LIVE_UI_URL}}` is the live site's address (see [`SUBMISSION.md`](SUBMISSION.md) for the
+current one).
+
 | What | Link | What you will see |
 |---|---|---|
 | The 3-minute video | **TODO: link at submission** | The three worlds below, live and recorded, each labelled |
-| Replay, no login, no keys | [rulecam.vercel.app/demo?demo=1](https://rulecam.vercel.app/demo?demo=1) | A recorded live run, step by step: request, plan, Rule CI, runtime, evidence. The header says **REPLAY**. It works with every GPU switched off |
-| Check the evidence yourself | [Verify the recorded run's evidence](https://rulecam.vercel.app/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35) (or **Verify it in your browser** on the replay page) | Your browser recomputes every SHA-256 of the 35-record evidence log and checks it against the day's Merkle root. Nothing is trusted from us |
-| The live app | [rulecam.vercel.app](https://rulecam.vercel.app) | The cockpit on the deployed stack. The header says **LIVE**. GPUs scale to zero when idle, so the first check can take a few minutes |
-| Run it on your laptop | `cd ui && npm ci && npm run dev`, then open `localhost:3000/demo?demo=1` | The same replay, offline |
+| Replay, no login, no keys | `{{LIVE_UI_URL}}/demo?demo=1` | A recorded live run, step by step: request, plan, Rule CI, runtime, evidence. The header says **REPLAY**. It works with every GPU switched off |
+| Check the evidence yourself | `{{LIVE_UI_URL}}/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35` | Your browser recomputes every SHA-256 of the 35-record evidence log and checks it against the day's Merkle root. Nothing is trusted from us |
+| The three worlds | `{{LIVE_UI_URL}}/usecases/warehouse`, `/usecases/crowd`, `/usecases/supermarket` | Each world's story, step by step, read from what Rulecam recorded |
+| Staff phone app, glasses mode | `{{LIVE_UI_URL}}/staff`, `{{LIVE_UI_URL}}/glasses` | Open them on a phone |
+| Run it on your laptop | `cd ui && npm ci && npm run dev`, then `localhost:3000/demo?demo=1` | The same replay, offline |
 
 ![The Rulecam landing page: the recorded T02 run's verified alert, with the measured distance, Glimmer's verdict and the live state of the GPUs.](docs/pitch/media/app-landing.jpg)
 
@@ -36,18 +40,29 @@ state of the deployed stack underneath.*
 
 ## One engine, three worlds
 
-One set of parts serves all three: **SAM 3.1** sees, **Muse Spark** plans and reasons, **Muse
-Glimmer** checks, and a **hash-chained log** keeps the proof. Each world starts from a sentence
-the owner says or types.
+One set of parts serves all three: **SAM 3.1** sees and counts, **Muse Spark** plans and
+reasons, **Muse Glimmer** checks, and a **hash-chained log** keeps the proof. Each world starts
+from a sentence the owner says or types, in their own language.
 
-| World | The owner says | What Rulecam does | One proof number |
+| World | The owner says | What Rulecam does | Proof (live runs) |
 |---|---|---|---|
-| **Warehouse** | "Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento." | Plans the rule, measures real distances, attacks the rule in Rule CI, has Glimmer check each alert, queues the warning in Spanish, chains the evidence. A worker can dispute an alert, and a false alarm becomes a permanent test. Muse Code can write a new rule type, and a Z3 solver proves four properties of it | Glimmer **0.98** on the Spanish rule and **0.99** on the worker **2.90 m** from a moving forklift; **0.05** on the seated driver, so no alert; **19.0 s** from event to verified decision ([report](reports/eval/2026-11-01-live-test-campaign.md)) |
-| **Crowd crush early warning** | A Hindi instruction: warn us before the crowd at the gate becomes dangerous, tell stewards what to do, announce calmly in Hindi and English | SAM 3.1 counts heads in each zone and turns them into people per m². Muse Spark judges the level and writes staff actions and calm announcements, which are turned into speech in both languages. Glimmer gets 20 s to check, and a slow check never holds back a safety warning | On real footage of the Jülich bottleneck experiment (75 people, published trajectories), SAM 3.1 found **95–99%** of the true heads; gate density was within about **10%** (the reading that escalated to critical: 8.0 people/m², truth 8.0); reading to alert about **40 s** ([report](reports/eval/2026-11-03-crowd-live.md), [chart](docs/pitch/media/crowd-density-vs-truth.png)) |
-| **Supermarket** | "Which checkout lane was busier?" | Muse Spark picks its own tools: SQL over SAM 3.1 tracks, SAM 3.1 counts, Glimmer looking at frames, Spark watching the clip. It answers in the owner's language and says which time it covered. Also: shelf gaps, local food-recall context with checked sources, advice cards, and Chain Mode for many stores | **13 of 13** owner questions answered live on real checkout video; **10** fully right, 3 partly right, checked by eye against the video ([report](reports/eval/2026-11-01-supermarket-ask.md)) |
+| **Warehouse** | "Mantener a las personas a al menos 4 metros de una carretilla elevadora en movimiento." | Plans the rule and says what it can't check. Rule CI attacks it. Glimmer checks each near miss. Spark writes the warning in Spanish, Meta's MMS-TTS speaks it, and Voice Transcribe listens back to check it was said right. It flags the OSHA refresher training a near miss triggers. A worker can dispute an alert, or report a near miss by voice | Glimmer confirmed **6 of 6** near misses at **0.98–0.99** on our GPU; the Spanish warning was heard back with word error **0.09–0.18**, all passed; with the camera already surveyed, a plan took **42–45 s** (**123 s** on a new camera) ([4 Nov](reports/eval/2026-11-04-warehouse-live.md)). The seated driver was rejected at **0.05** ([1 Nov](reports/eval/2026-11-01-live-test-campaign.md)) |
+| **Crowd crush early warning** | In Hindi: warn us before the crowd at the main gate turns dangerous; if it fills, send the corridor to side door B | SAM 3.1 counts heads in each zone and turns them into people per m². Spark judges the level, names the crowd's phase and writes steward actions and calm announcements in Hindi and English. Before sending people anywhere, a route guard checks that place is not filling too. Glimmer checks the frames. A late check never holds back a warning | On real footage of the Jülich bottleneck experiment, counts were within **0–4%** of the published truth in every zone, up to 8–9 people per m². With Glimmer warm: confirmed at **0.95** in **6.2 s**, stewards told **26 s** after the reading. Listening back caught a Hindi announcement that came out as "crowd" instead of "gate", so the page did not play it ([report](reports/eval/2026-11-04-crowd-live.md), [chart](docs/pitch/media/crowd-density-vs-truth.png)) |
+| **Supermarket** | "When was the checkout queue longest, how many tills were open, … do we need another till?" | Spark picks its own tools: SQL over SAM 3.1 tracks, counts, Glimmer looking at frames, Spark watching the clip. It finds shelf gaps and spills, opens a task for staff, and closes it only when a photo proves the fix. It answers spoken questions in the asker's language | On a busy frame, the tracker said **22** people. Counting the same frame three ways (SAM 3.1, Spark pointing, Glimmer) gave **10**, against about **12** counted by hand. A spill was seen and cleared in **1.9 min**, checked by photo (the spill image is a generated SAMPLE). A spoken Spanish question was heard word for word and answered in Spanish in **45 s** ([report](reports/eval/2026-11-04-supermarket-live.md)) |
 
 Each number is the one we measured, including the weak ones. The limits are
 [below](#honest-limits).
+
+## The platform around them
+
+| Piece | What it does | Measured (live) |
+|---|---|---|
+| **Connect any camera** | RTSP (H.264, H.265, with a password), HLS, MJPEG, public live streams, uploaded clips and ONVIF discovery. Spark names each camera and says which world it fits | From pressing Connect to a named, surveyed camera: **23–33 s** in every case. No real CCTV device was available: tested against streaming servers and a simulated ONVIF recorder ([report](reports/eval/2026-11-04-connectors.md)) |
+| **Staff app** | One feed per role, never per name, in English, Spanish or Hindi. Acknowledge, On my way, Done with a photo, or False alarm. Every tap goes into the chain | A Glimmer-verified alert (0.95) reached Google's push service **8.9 s** after the camera chunk, with the app closed (tested in Chromium, not on a real phone) ([report](reports/eval/2026-11-04-staff-app.md)) |
+| **Proof portal** | An inspector or insurer gets a share link to a proof pack. Their browser re-checks every record and every number | **395** records and **97** numbers re-checked in the browser in **0.3–0.4 s**. One edited number turned the page red ([report](reports/eval/2026-11-04-proof-portal.md)) |
+| **Glasses mode** | Ask out loud what you are looking at. Glimmer looks, SAM 3.1 counts, Spark answers, MMS-TTS speaks | First spoken sentence ready in a median **8.6 s**. Stand-in stills and a phone page: not yet run on real glasses ([report](reports/eval/2026-11-04-glasses.md)) |
+| **Muse Code rule types** | For a rule the engine can't express, Muse Code writes the check. Rulecam tests it and the Z3 solver proves it | "Alert if a pallet is stacked above the yellow line": Z3 proved **4 of 4** properties, mutation testing caught **25 of 26** broken copies, the owner approved it on the live API, and it ran on a real clip ([report](reports/eval/2026-11-04-muse-code-live.md)) |
+| **Chain Mode** | One rule pack for many stores, proved at every allowed setting, with a store-level scorecard (never per worker) | The pack's Rule CI is real; the store scorecard is **SIMULATED** and labelled so ([report](reports/eval/2026-11-04-chain-mode-demo.md)) |
 
 ## Why trust it
 
@@ -59,46 +74,56 @@ Spot AI, Brivo, Conntour). Rulecam's difference is **proof**:
    camera, it said "I can't see the forklift reliably (lower bound 0.00)"
    ([T08](reports/eval/2026-11-01-live-test-campaign.md)).
 2. **Rule CI proves each rule first.** Like tests for code: it attacks the rule with edge
-   cases and broken copies of itself (mutants). The golden forklift run passed **16 of 16** edge
-   cases and caught **6 of 6** mutants ([scenarios](scenarios/warehouse_driver.expected.json)).
-3. **Every alert is checked.** Muse Glimmer looks at a strip of frames before anyone is told,
-   and it can say no.
-4. **Evidence anyone can verify.** Every event, verdict and action goes into a hash-chained log
-   with a daily Merkle root (one fingerprint for the whole day). Your browser can recompute it.
-5. **Workers have a voice.** Every rule is on a QR poster page. Anyone can dispute an alert. A
-   false alarm becomes a permanent Rule CI test, so the same mistake cannot come back unnoticed.
-6. **Privacy.** No face recognition, ever. Faces are blurred in evidence by default. The model
-   that looks at alert frames runs on our own GPU. Our hosted Meta API key is set to the
+   cases and broken copies of itself (mutants). Every forklift plan on 4 Nov passed **16 of 16**
+   edge cases and caught **6 of 6** mutants.
+3. **Every alert is checked, and checks are checked.** Muse Glimmer looks at the frames before
+   anyone is told, and it can say no. Muse Spark Open can give a second opinion. Counts are made
+   three ways when it matters. Spoken warnings are heard back before they play.
+4. **Evidence anyone can verify.** Every event, verdict, action and staff tap goes into a
+   hash-chained log with a daily Merkle root (one fingerprint for the whole day). Your browser
+   can recompute it, and an inspector gets the same check through the proof portal.
+5. **Workers have a voice.** Every rule is on a QR poster page. Anyone can dispute an alert or
+   report a near miss by voice. On 4 Nov a worker's dispute was upheld, and it became a
+   permanent Rule CI test (it also exposed a bug in how the evidence ruler was drawn, now fixed).
+6. **Privacy.** No face recognition, ever. Alerts go to roles, never to names. Llama Guard 4
+   refuses rules about who people are. Faces are blurred in evidence by default. Glimmer and Spark
+   Open, which check alerts, run on open weights on our own GPUs (a hosted Glimmer is the last
+   fallback when our GPUs are down). Our hosted Meta API key is set to the
    Standard tier, never the Contributor tier, under which Meta may train on inputs
-   ([`.env.example`](.env.example)). Every measured run here used public stock or research video.
-7. **Cameras you already own.** A phone pairs with a QR code; CCTV comes in over RTSP.
-8. **Any language.** A Spanish rule, a Hindi instruction, a Spanish question answered in
-   Spanish.
+   ([`.env.example`](.env.example)). Every measured run used public footage or labelled SAMPLE
+   images, never a real site's CCTV.
+7. **Cameras you already own.** RTSP, HLS, MJPEG, ONVIF, a phone paired by QR code, or a public
+   stream.
+8. **Any language.** A Spanish rule, a Hindi instruction, spoken questions answered in the
+   asker's language, and staff feeds in English, Spanish or Hindi.
 
-## Meta models: what each one does, and whether it is live
+## Meta models: what each one does
 
-**Live** means the deployed app calls it today. **Built** means the code is written and tested,
-but the deployed app does not call it yet.
+**Live** means it ran against the real model in a recorded run linked on this page. Several of
+the 4 Nov runs used a laptop running the API against the live models rather than the deployed
+pod; each report says where it ran.
 
 | Model | Its job in Rulecam | Status |
 |---|---|---|
-| **Muse Spark 1.3** (1.2 for video) | Plans and compiles rules; runs the Ask agent's tool loop; judges crowd levels and writes announcements; finds shelf gaps; web search where every kept item must cite a page the search really returned | **Live** in the planner and Ask. Crowd watch ran live on the API pod on 3 Nov. Shelf gaps and web context ran live from a laptop on 3 Nov |
-| **SAM 3.1** | Surveys the scene, probes what the camera can detect, tracks people and objects, counts heads, confirms shelf gaps hold no product | **Live**, hosted by Meta and self-hosted on our RunPod serverless GPU |
-| **Muse Glimmer 30B** (open weights) | Checks every alert; translates each rule back into plain words; Ask's eyes | **Live**, in llama-server on our own RunPod serverless GPU |
-| **Muse Voice Transcribe** | Spoken requests | **Live** |
-| **Muse Code** | Writes the code for new rule types; a Z3 solver then proves four safety properties or returns a counterexample | **Built** and merged (add-on 7) |
-| **Muse Spark Open** (open weights) | Second check on alerts (Tier 2), plan audit, dispute review | **Built**; not live, because the deployment has no working Baseten key |
-| **Llama Prompt Guard 2** | Firewall for text found in the scene (a sign saying "ignore the rules") | **Built**; degraded until our account gets the gated model |
-| **Muse Image** | Rule CI test scenes; test images for the site tools | **Built**; switched off in the app. Its test images are always labelled as generated |
-| **MMS-TTS** (Meta FAIR) | Spoken warnings in the listener's language | **Live** in crowd watch (Hindi and English audio on 3 Nov); warehouse warnings are dry-run |
+| **Muse Spark 1.3** (1.2 for video) | Plans and compiles rules; runs the Ask agent's tool loop; judges crowd levels and plans routes; finds shelf gaps and spills; reviews worker disputes; web search where every kept item must cite a page the search returned | **Live** |
+| **SAM 3.1** | Surveys the scene, probes what the camera can detect, tracks people and objects, counts heads, confirms gaps and spills | **Live**, hosted by Meta and self-hosted on our RunPod serverless GPUs |
+| **Muse Glimmer 30B** (open weights) | Checks every alert; counts for the three-way count; translates each rule back into plain words; looks for Ask and glasses mode | **Live**, in llama-server on our own serverless GPUs, with a standby endpoint in a second region and a hosted fallback |
+| **Muse Spark Open** (open weights) | Second check on alerts (Tier 2), plan audit, review of Ask answers | **Live**, self-hosted on our own 8 x H100 serverless endpoint ([runbook](docs/demo-day.md)). It costs $43.12 an hour and takes about 18 minutes to start, so it is warmed for demos; when it is cold, Glimmer decides alone and anything unsure goes to a person |
+| **Muse Code** | Writes the code for new rule types; the Z3 solver then proves four properties or returns a counterexample | **Live** from a laptop with the Muse Code CLI. The API pod has no CLI, so there Spark 1.3 writes the check, labelled as such |
+| **Muse Voice Transcribe** | Spoken rules, questions, disputes and near-miss reports; hears every spoken warning back | **Live** |
+| **Llama Guard 4** | Screens each request before planning and refuses rules about who people are | **Live**, on our own serverless GPU (vLLM) |
+| **Llama Prompt Guard 2** | Firewall for text found in the scene (a sign saying "ignore the rules") | **Live**, on the API pod's CPU |
+| **MMS-TTS** (Meta FAIR) | Speaks warnings and announcements in the listener's language | **Live** |
+| **Muse Image** | Test images when no real footage exists (the spill, the restocked shelf, the blocked exit), toolbox-talk drawings | **Live**; every generated image is labelled SAMPLE. The Rule CI scenes step is still skipped |
 | **DINOv2** (Meta FAIR) | Joins an object's track pieces into one identity for Ask | **Live** in prototype mode only |
 
 The full map, with where each model runs, is in [Model map](#model-map).
 
 ## How it works
 
-1. **Describe.** The owner types or says a concern. Muse Spark turns it into a plan: what to
-   watch, on which camera, and what a camera cannot check.
+1. **Describe.** The owner types or says a concern, in any language. Llama Guard 4 screens it.
+   Muse Spark turns it into a plan: what to watch, on which camera, and what a camera cannot
+   check.
 2. **Plan.** SAM 3.1 surveys the scene and probes how often it can see what the rule needs.
    The planner measures metres on the floor, then writes the rule in a typed rule language
    (Rule IR) that a rule engine runs. Glimmer reads the rule back in plain words.
@@ -106,11 +131,32 @@ The full map, with where each model runs, is in [Model map](#model-map).
 4. **Watch.** The camera sends 3-second video chunks. SAM 3.1 finds people and objects on our
    GPU, a tracker follows them, and the rule engine checks the rule on every keyframe.
 5. **Check.** When the rule fires, Glimmer looks at a strip of frames and says yes, no or
-   unsure. Safety-first policy decides what happens next.
-6. **Act and record.** Alerts go to Telegram, WhatsApp, a webhook or a speaker (dry-run by
-   default). Everything goes into the hash-chained log.
+   unsure. A safety-first policy decides what happens next.
+6. **Act and record.** The alert goes to a role on the staff app, Telegram, WhatsApp or a
+   webhook; a warning is spoken and heard back. Every step, and every staff tap, goes into the
+   hash-chained log.
 
 ## Results
+
+Headline numbers from the 4 Nov live runs (each from the report it links):
+
+| Measured | Value | Source |
+|---|---|---|
+| Glimmer on live forklift near misses (our GPU, runs 5–7) | 6 of 6 confirmed, 0.98–0.99 | [warehouse](reports/eval/2026-11-04-warehouse-live.md) |
+| Spanish warning heard back by Voice Transcribe | word error 0.09, 0.15, 0.18: all passed | [warehouse](reports/eval/2026-11-04-warehouse-live.md) |
+| Request to plan, camera already surveyed / new camera | 41.8 s and 45.1 s / 122.8 s | [warehouse](reports/eval/2026-11-04-warehouse-live.md) |
+| Crowd counts against the Jülich truth, every zone and run | within 0–4% (mean error 0.6–1.6 people) | [crowd](reports/eval/2026-11-04-crowd-live.md) |
+| Crowd reading to stewards told, Glimmer warm (run 6) | 26 s (Glimmer confirmed 0.95 in 6.2 s) | [crowd](reports/eval/2026-11-04-crowd-live.md) |
+| Three-way count of the hottest zone, mean error | SAM 3.1 0.8, Glimmer 0.8, Spark 2.0 people | [crowd](reports/eval/2026-11-04-crowd-live.md) |
+| Ask's count on a busy checkout frame, before / after the three-way count / by hand | 22 / 10 / about 12 | [supermarket](reports/eval/2026-11-04-supermarket-live.md) |
+| Spill (generated SAMPLE image) seen to cleared, checked by photo | 1.9 min | [supermarket](reports/eval/2026-11-04-supermarket-live.md) |
+| Camera connected to named and surveyed | 23–33 s | [connectors](reports/eval/2026-11-04-connectors.md) |
+| Verified alert to Google's push service, app closed | 8.9 s from the camera chunk | [staff app](reports/eval/2026-11-04-staff-app.md) |
+| Proof pack re-checked in the browser | 395 records, 97 numbers, 0.3–0.4 s | [proof portal](reports/eval/2026-11-04-proof-portal.md) |
+| Glasses mode, first spoken sentence | median 8.6 s | [glasses](reports/eval/2026-11-04-glasses.md) |
+| Muse Code rule type: Z3 proof, mutants caught | 4 of 4, 25 of 26 | [Muse Code](reports/eval/2026-11-04-muse-code-live.md) |
+
+The table below is generated from the result files of the 1–3 Nov runs:
 
 <!-- BEGIN RESULTS (generated by `uv run rulecam eval results`; do not edit) -->
 
@@ -156,28 +202,28 @@ Measured on the deployed stack and on public hand-labelled footage. Each row is 
 
 <!-- END RESULTS -->
 
-The crowd and supermarket numbers above come from the
-[crowd](reports/eval/2026-11-03-crowd-live.md) and
-[supermarket](reports/eval/2026-11-01-supermarket-ask.md) reports, which are not in this
-generated table yet. An earlier E3 figure came from a simulated harness and was withdrawn on
-Oct 31 (see [`eval/RESULTS.md`](eval/RESULTS.md)).
+An earlier E3 figure came from a simulated harness and was withdrawn on Oct 31 (see
+[`eval/RESULTS.md`](eval/RESULTS.md)).
 
 ## Honest limits
 
-- **Ask's counts are not accurate yet.** On hand-labelled CCTV, 7 of 36 graded numbers were
-  within tolerance. Asked "how many went into a shop?" (truth: 24), three runs said 14, 11
-  and 32.
+- **Many 4 Nov runs were on a laptop**, running the API against the live models, not on the
+  deployed pod. Each report says where it ran.
+- **GPU capacity decides the speed.** When the serverless SAM pool was throttled, a camera chunk
+  took about 123 s to become a candidate; warm, about 2 s. Spark Open needs about 18 minutes to
+  start.
+- **Glimmer once held a true crowd alert.** In crowd run 5 it described a crush-level crowd but
+  answered "not confirmed" (0.68). Now Spark decides to send or hold when Glimmer disagrees; that
+  path is unit-tested but has not come up live yet.
+- **Counts from tracks are high on busy views**, and Ask's counts were weak on hand-labelled
+  CCTV (7 of 36 within tolerance, 2 Nov). The three-way count fixes the busy-frame case it was
+  tested on, not every case.
+- **Some footage is generated.** The spill, the restocked shelf and the blocked fire exit are
+  Muse Image edits, labelled SAMPLE. Chain Mode's scorecard is SIMULATED.
+- **Not tested on real hardware:** a real CCTV camera or NVR, real glasses, a real phone for
+  push notifications, a real speaker.
 - **Low-resolution overhead footage beats some rules.** On CAVIAR clips (384x288) shop entries,
-  fights, falls and left bags were all missed. There were no false alerts either.
-- **Tracking is weak in crowds.** HOTA 0.239 against CAVIAR labels, with 19.6 ID switches a
-  minute. Crowd watch counts heads in each reading instead of following people.
-- **Crowd watch: Glimmer was not checked live.** On 3 Nov no GPU was free, so the alerts went
-  out unchecked after 20 s, as designed. The warning came at the first reading, but the corridor
-  zone's density read 22% low because it reached past the marked floor points.
-- **Cold starts are slow.** After SAM scaled to zero, 0 of 1 and 4 of 5 checks finished within
-  300 s.
-- **Not live yet:** Spark Open as Tier 2, Prompt Guard 2, Muse Image scenes in Rule CI, spoken
-  warehouse warnings. Chain Mode's demo numbers are simulated and labelled SIMULATED.
+  fights, falls and left bags were all missed, with no false alerts.
 - **Prototype mode is on in the hackathon deployment.** See
   [What we claim, and what we don't](#what-we-claim-and-what-we-dont).
 - **Rulecam is not a safety system of record.** It helps people watch. It does not replace a
@@ -229,7 +275,7 @@ Oct 31 (see [`eval/RESULTS.md`](eval/RESULTS.md)).
 
 | Time | Open | What to look for |
 |---|---|---|
-| 0:00 | [`/demo?demo=1`](https://rulecam.vercel.app/demo?demo=1) | The owner's plain-language request, the planner's steps, the compiled rule and its acceptance trace |
+| 0:00 | `{{LIVE_UI_URL}}/demo?demo=1` | The owner's plain-language request, the planner's steps, the compiled rule and its acceptance trace |
 | 0:30 | the Rule CI section of the same page | The rule was attacked with boundary scenes and mutants before anyone could approve it, re-run offline in CI |
 | 0:50 | **Verify it in your browser** | Your browser recomputes every SHA-256 of the evidence chain and its Merkle root |
 | 1:20 | [Results](#results), then [`reports/eval/`](reports/eval/) | Live runs on real video and on hand-labelled CCTV, every number tied to its run, date and commit |
@@ -252,15 +298,29 @@ Oct 31 (see [`eval/RESULTS.md`](eval/RESULTS.md)).
   returned ([site tools report](reports/eval/2026-11-03-site-tools-live.md)).
 - **Muse Spark and SAM 3.1 check each other.** On shelves, Spark proposes empty facings and SAM
   3.1 confirms no product package is inside each one. In crowds, SAM counts and Spark judges.
-- **Muse Glimmer, open weights, on our own GPU.** The Tier 1 verifier runs in llama-server on a
-  RunPod serverless RTX 4090 behind a load balancer we built. It also translates each rule back
-  into plain words, so the owner can check it says what they meant.
+- **Three models count the same frame.** SAM 3.1 boxes, Spark pointing at each person on a
+  0–1000 grid, and Glimmer's own count, none seeing the others; Spark reconciles them and says
+  why. On a busy checkout frame this moved Ask's answer from 22 to 10 (about 12 by hand).
+- **Speech is checked by listening.** Spark writes a warning or announcement, MMS-TTS speaks it,
+  Voice Transcribe hears it back, and Spark judges whether the meaning survived. It caught a
+  Hindi announcement that came out as "crowd" instead of "gate".
+- **Spark plans routes and a guard checks them.** Before Spark sends a crowd anywhere, the
+  route guard reads that place's camera; when side door B was already filling, Spark changed
+  its plan to hold the inflow instead.
+- **Muse Glimmer, open weights, on our own GPUs.** The Tier 1 verifier runs in llama-server on
+  RunPod serverless GPUs behind a load balancer we built, with a standby in a second region. It
+  also translates each rule back into plain words, so the owner can check it says what they
+  meant.
+- **Muse Spark Open, open weights, on our own 8 x H100.** A second, larger open model for the
+  Tier 2 check, the plan audit and the review of Ask's answers.
+- **Llama Guard 4 screens rules before planning** and refuses rules about who people are.
 - **Muse Code writes code, and a solver proves it.** For a rule type the engine does not have,
   Muse Code writes a check. Rulecam runs it in a sandbox, tests it on generated scenes and
-  broken copies, and has the Z3 solver prove four properties for every valid scene with up to
-  three objects: no alert without the target object, never crashes, moving the whole image
-  changes nothing, and a declared move never turns an alert off. Anything it cannot prove
-  exactly is marked unsupported, never proved.
+  broken copies, and has the Z3 solver prove four properties for every valid scene up to a set
+  number of objects (2 in the 4 Nov run): no alert without the target object, never crashes,
+  moving the whole image changes nothing, and a declared move never turns an alert off. Anything
+  it cannot prove exactly is marked unsupported, never proved. On 4 Nov Z3 found a real bug
+  in one version (a vertical line divided by zero), and the repair round fixed it.
 
 ### What it does, step by step
 
@@ -313,14 +373,15 @@ call it yet. **Planned** means it is not built.
 | Meta model | Job | Runs where | Status |
 |---|---|---|---|
 | Muse Spark 1.3 (+1.2 for narrated video) | Planner, compiler, standards grounding, Ask agent, crowd warden | Hosted API | Live in the Planner (P2-01, P2-06) and in `POST /ask`, where Spark 1.2 can also watch a joined clip of the window it picks (`watch`, add-on 2.8). Crowd watch (`crowd/warden.py`) ran live on the API pod on 3 Nov. Site tools (run live from a laptop on 3 Nov, not yet on the deployed stack): `/context` uses its **web search** with the raw results returned, and keeps an item only if its source is a page the search returned; `/crowd` has it **watch the clip** of each crowded spell; `/shelf` uses its **image understanding** to find shelf gaps |
-| Muse Voice Transcribe | Spoken requests, disputes, voice round-trip check | Hosted API | Live for spoken requests (P2-02); voice disputes are library (P2-S2), not yet passed to the worker router |
+| Muse Voice Transcribe | Spoken requests, questions, disputes and near-miss reports; hears every spoken warning back | Hosted API | Live (warehouse, crowd, supermarket and glasses runs of 4 Nov) |
 | SAM 3.1 | Survey, probes, tracking, coverage, masks, head counts | Hosted API; self-hosted on a RunPod serverless GPU (RTX 4090) | Live: hosted client (P1-02) for survey, probes and Rule CI; the runtime sends keyframes to our self-hosted SAM 3.1 (`SAM_BASE_URL`, a RunPod serverless load balancer since 2 Nov) and falls back to hosted (P1-03). Crop-zoom (add-on 3.3) re-runs it on enlarged head and hand crops for worn items. Crowd watch counts heads per zone with it |
-| Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute, Ask's eyes, crowd check | llama-server on a RunPod serverless GPU (RTX 4090) | Live as Tier 1 (P3-03). By default it sees 6 face-blurred keyframes at 640 px (P4-05); the deployed **prototype mode** sends 8 raw frames at 960 px |
-| Muse Code | Writes new rule-type checks (`extensions/`), proved with Z3 (add-on 7) | Hosted, headless | Library: merged, owner-only `/extensions` routes and page |
-| Muse Spark Open (open weights) | Tier 2 verifier, dispute review, plan audit, devil's advocate | Baseten | Wired for plan audit, dispute review (P2-07, P2-11) and the review of each Ask answer (add-on 2.7); Tier 2 in the runtime is library (P3-04). The hackathon deployment has no working Baseten key yet, so these calls are skipped and logged (`plan_audit_skipped`) |
-| Muse Image | Rule CI scenes, lookalikes, boundary pairs, Z3 counterexample drawings | Hosted API | Library: Rule CI part 2 (P2-09, #71) is built but switched off in the app |
-| MMS-TTS (FAIR) | Spoken warnings | CPU | Live in crowd watch (Hindi and English WAVs on 3 Nov). Warehouse actions are dry-run and record "would play the warning (es)" |
-| Llama Prompt Guard 2 (86M) | Scene-text firewall | CPU (transformers, `ml` extra) | Wired into the runtime's verification (P3-05, #105); it needs `HF_TOKEN` and the `ml` extra, and without them the runtime reports the firewall as degraded, which it is in the hackathon deployment |
+| Muse Glimmer 30B (open weights) | Tier 1 verifier, back-translation, recompute, Ask's eyes, crowd check, three-way counts, glasses mode | llama-server on RunPod serverless GPUs in three US data centers, a standby endpoint in two EU data centers, and a hosted fallback (Routeway) as the last resort | Live as Tier 1 (P3-03). By default it sees 6 face-blurred keyframes at 640 px (P4-05); the deployed **prototype mode** sends 8 raw frames at 960 px. If every endpoint fails, unverified candidates go to the human queue |
+| Muse Code | Writes new rule-type checks (`extensions/`), proved with Z3 (add-on 7) | Muse Code CLI (Meta Model API) | Live from a laptop with the CLI on 4 Nov: Z3 4/4, mutation 25/26, approved on the live API, run on a real clip. The API pod has no CLI, so `POST /extensions` there uses Spark 1.3 as the writer, labelled `spark-fallback` |
+| Muse Spark Open 816B-A42B (open weights) | Tier 2 verifier, plan audit, Ask answer review, dispute review | llama.cpp on our own RunPod serverless 8 x H100 endpoint (Baseten stays an option) | Live (`docs/demo-day.md`): $43.12 an hour warm and about 18 minutes to start, so it is warmed for demos. Cold or failing, Tier 2, plan audit and Ask review are skipped and logged; Glimmer decides alone and anything unsure goes to a person. Muse Spark 1.3 reviews disputes when no Tier 2 answers |
+| Muse Image | Generated test images when no footage exists (spill, restocked shelf, blocked exit), toolbox-talk drawings, Z3 counterexample drawings; Rule CI scenes | Hosted API | Live for test images, every one labelled SAMPLE. The Rule CI scenes step (P2-09, #71) is built but skipped |
+| MMS-TTS (FAIR) | Spoken warnings and announcements | CPU | Live: Spanish forklift warnings, Hindi and English crowd announcements and glasses answers on 4 Nov, each heard back by Voice Transcribe where the report says so |
+| Llama Prompt Guard 2 (86M) | Scene-text firewall | CPU, inside the API process | Live on the API pod (`docs/demo-day.md`). If it is not loaded, `/runtime/metrics` shows `firewall: degraded` and candidates with scene text go to a person |
+| Llama Guard 4 12B (FP8) | Screens each request before planning; refuses rules about who people are (S7 privacy, S10 hate) | vLLM on our own RunPod serverless GPU | Live (`docs/demo-day.md`). If it is down the screen is skipped and the planner's own guardrails still decline identity rules |
 | DINOv2 (FAIR) | Joins an object's track fragments into one identity for Ask | `/embed` on the SAM serverless GPU | Live in prototype mode only (`ask/identity.py`) |
 | Sapiens (FAIR) | Pose and skeletons | GPU | Planned. Meanwhile RTMPose-l body7 (OpenMMLab, ONNX on the API pod's CPU) draws each person's pose into the evidence strips (add-on 3.4) |
 | V-JEPA 2 (FAIR) | Surprise Lens world model | GPU | Planned (gated) |
@@ -341,6 +402,8 @@ on the SAM GPU) gives the planner a metric ground calibration from one frame (ad
 | [`docs/pitch/deck.md`](docs/pitch/deck.md) | The 10-slide finals deck with speaker notes |
 | [`docs/pitch/launch.md`](docs/pitch/launch.md) | Launch posts and the 30-second vertical cut |
 | [`docs/DEMO.md`](docs/DEMO.md) | The live demo script and the golden REPLAY |
+| [`docs/demo-day.md`](docs/demo-day.md) | Demo-day runbook: what runs where, warm-up, failures and fallbacks |
+| [`docs/usecases/`](docs/usecases/) | Each world and platform piece in detail |
 | [`docs/TASKS.md`](docs/TASKS.md) | Full team task book: rules, contracts, gates, every task |
 | [`docs/master-plan.md`](docs/master-plan.md) | Product plan (v3): proof stack, use cases, evaluation |
 | [`docs/v2-design.md`](docs/v2-design.md) | Engine internals: Rule IR, perception, Rule CI, verifier, privacy |
@@ -409,14 +472,17 @@ green; see `docs/TASKS.md` §0 and §3.4, and `CLAUDE.md`.
   person's track between keyframes (BoT-SORT). It never uses faces and never names anyone.
   Prototype mode is off by default and in CI.
 - **Hosted models and your footage.** The hosted Meta Model API key is configured for the
-  Standard tier, never Contributor (`.env.example`). The verifier that sees alert frames runs on
-  open weights on our own GPU. Every measured run in this repository used public stock or
-  research footage (Pexels, Mixkit, CAVIAR, MOT17, Jülich), never a real site's CCTV.
+  Standard tier, never Contributor (`.env.example`). Glimmer and Spark Open, which check alerts,
+  run on open weights on our own GPUs; a hosted Glimmer (Routeway) is only the last fallback when
+  every one of our endpoints fails. Every measured run in this repository used public footage
+  (Pexels and Mixkit stock video, CAVIAR, MOT17, the Jülich experiments, Wikimedia Commons
+  photos, a public live webcam) or images generated by Muse Image and labelled SAMPLE, never a
+  real site's CCTV.
 
 ### Licences
 
 The code in this repository was written during the hackathon and is MIT-licensed. Third-party
 components are used as dependencies under their own licences; see
-[`WHAT-WE-BUILT.md`](WHAT-WE-BUILT.md). Llama Prompt Guard 2 is used under the Llama 4 Community
-License: **Built with Llama**. **Built with Muse Spark Open** (wired; not live in the hackathon
-deployment, see the model map).
+[`WHAT-WE-BUILT.md`](WHAT-WE-BUILT.md). Llama Prompt Guard 2 and Llama Guard 4 are used under the
+Llama 4 Community License: **Built with Llama**. **Built with Muse Spark Open**, self-hosted on our
+own GPUs.

@@ -11,7 +11,7 @@ emoji walls.
 
 **Before posting, confirm:** the hackathon's official handle and hashtag on the Cerebral Valley
 event page (the drafts below use `@AIatMeta` as a placeholder), the video link, and the live
-site address that replaces `{{LIVE_UI_URL}}`.
+site address below still answers.
 
 ---
 
@@ -70,7 +70,7 @@ reply, not in post 1, so the post itself travels.
 
 **First reply (links)**
 
-> Try the recorded run (no login) and press "Verify it in your browser": {{LIVE_UI_URL}}/demo?demo=1
+> Try the recorded run (no login) and press "Verify it in your browser": https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1
 >
 > Code and every measured number: https://github.com/jeevithg090/Axi0N_Meta
 >
@@ -117,7 +117,7 @@ the part they built, in their own words. No numbers that are not in the thread.
 >
 > What we care about most is trust. Every alert is checked by a second model. An inspector's own browser re-checks every record and number in a proof pack. Staff get alerts by role, never by name. Workers can dispute any alert. No face recognition, ever.
 >
-> Try the recorded run, no login: {{LIVE_UI_URL}}/demo?demo=1
+> Try the recorded run, no login: https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1
 > Code and every measured number: https://github.com/jeevithg090/Axi0N_Meta
 >
 > Built with Muse Spark, SAM 3.1, Muse Glimmer, Muse Spark Open, Muse Code, Voice Transcribe, Llama Guard 4, Prompt Guard 2 and MMS-TTS.
@@ -145,7 +145,7 @@ of every shot.
 | 5 | 0:15–0:20 | The "22 → 10 people" card | **The tracker said 22. Three models said 10. By hand: 12.** | REPLAY | Supermarket, 4 Nov |
 | 6 | 0:20–0:24 | Staff phone: the verified alert card | **Alerts go to roles, never names** | LIVE screen | Staff app, 4 Nov |
 | 7 | 0:24–0:27 | Proof portal green, then red after one number changes | **Edit one number. It turns red.** | REPLAY | Proof portal, 4 Nov |
-| 8 | 0:27–0:30 | Logo, URL | **Rulecam. Plain words in. Verified alerts out.** `{{LIVE_UI_URL}}/demo` | — | End card |
+| 8 | 0:27–0:30 | Logo, URL | **Rulecam. Plain words in. Verified alerts out.** `https://preferred-florist-labeled-trace.trycloudflare.com/demo` | — | End card |
 
 Export: H.264 MP4, 1080x1920, 30 fps, under 30 s, captions burned in, safe margins of 150 px at
 the top and bottom for app UI.

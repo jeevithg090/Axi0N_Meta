@@ -7,11 +7,10 @@ number is copied from a committed report and linked. Nothing replayed is called 
 
 ## Only the team can fill these (do them before pressing submit)
 
-- [ ] **`{{LIVE_UI_URL}}`**: replace it everywhere with the live site's address (Vercel or the
-      RunPod URL, whichever serves the final build). It appears in this file, `README.md`,
-      `docs/pitch/deck.md`, `docs/pitch/launch.md` and `docs/video/script.md`
-      (`grep -rn "{{LIVE_UI_URL}}" README.md SUBMISSION.md docs/`). Check the replay, the verify
-      link, `/usecases/*`, `/staff` and `/glasses` open for someone not logged in.
+- [x] **Live site:** `https://preferred-florist-labeled-trace.trycloudflare.com` (4 Nov 2026), a Cloudflare tunnel from the team's Mac; models on
+      the Meta API. The replay, the verify link, `/usecases/*`, `/staff` and `/glasses` open for
+      someone not logged in (checked 4 Nov). If cloudflared restarts, the address changes: replace
+      it everywhere with `git grep -l <old> | xargs sed -i '' 's#<old>#<new>#g'`.
 - [ ] **Video link** (3:00, public, plays for someone not logged in). Paste it in "Demo video"
       below, in the README "Try it now" table, and in the X post.
 - [ ] **X post link** for Most Viral (one post, linked in the form). Draft in
@@ -160,14 +159,14 @@ the live models rather than the deployed pod; each report says where it ran.
 
 ### Demo (25%)
 
-- **Replay, no login:** `{{LIVE_UI_URL}}/demo?demo=1`. A recorded live run, step by step. The
+- **Replay, no login:** `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1`. A recorded live run, step by step. The
   header says REPLAY, and it works with every GPU off.
 - **Verify it yourself:**
-  `{{LIVE_UI_URL}}/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35`.
+  `https://preferred-florist-labeled-trace.trycloudflare.com/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35`.
   The browser recomputes every SHA-256 of the evidence log and checks it against the day's
   Merkle root.
-- **The three worlds:** `{{LIVE_UI_URL}}/usecases/warehouse`, `/usecases/crowd`,
-  `/usecases/supermarket`. **On a phone:** `{{LIVE_UI_URL}}/staff`, `{{LIVE_UI_URL}}/glasses`.
+- **The three worlds:** `https://preferred-florist-labeled-trace.trycloudflare.com/usecases/warehouse`, `/usecases/crowd`,
+  `/usecases/supermarket`. **On a phone:** `https://preferred-florist-labeled-trace.trycloudflare.com/staff`, `https://preferred-florist-labeled-trace.trycloudflare.com/glasses`.
 - **Video:** TODO. It shows the three worlds with each shot labelled LIVE, REPLAY, RESEARCH
   FOOTAGE or SAMPLE.
 
@@ -257,8 +256,8 @@ owner to approve.
 ## Links
 
 - Repository: https://github.com/jeevithg090/Axi0N_Meta
-- Replay, no login, no keys: `{{LIVE_UI_URL}}/demo?demo=1` (the header says REPLAY)
-- Live app: `{{LIVE_UI_URL}}` (the header says LIVE)
+- Replay, no login, no keys: `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1` (the header says REPLAY)
+- Live app: `https://preferred-florist-labeled-trace.trycloudflare.com` (the header says LIVE)
 - Video: **TODO**
 - Results: [`README.md#results`](README.md#results), [`eval/RESULTS.md`](eval/RESULTS.md) and
   [`reports/eval/`](reports/eval/)

@@ -74,7 +74,7 @@ recorded run" and switch to the recorded page (REPLAY). Warm everything at T-60 
 ([`docs/demo-day.md`](../demo-day.md)), and plan once on the stage camera beforehand so the
 survey is reused.
 
-1. `{{LIVE_UI_URL}}/usecases/warehouse`: say or type the forklift rule in Spanish, press "Plan
+1. `https://preferred-florist-labeled-trace.trycloudflare.com/usecases/warehouse`: say or type the forklift rule in Spanish, press "Plan
    this rule". "Any language. Llama Guard screens it, Spark plans it, and it tells me what the
    camera can't see." On a surveyed camera this took 42–45 s on 4 Nov; talk over it.
 2. Rule CI turns green: "Before I can approve it, it attacks the rule. Sixteen edge cases, six
@@ -262,7 +262,7 @@ is listed in the repo, with the licence of everything we reused."
 - **Pilots:** one warehouse, one supermarket, one venue or station, on cameras they already own.
 - **Meta:** help putting glasses mode on Ray-Ban Meta glasses (the Wearables Device Access
   Toolkit), so a supervisor can walk the floor with it.
-- **You:** open `{{LIVE_UI_URL}}/demo?demo=1` and press **Verify it in your browser**.
+- **You:** open `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1` and press **Verify it in your browser**.
 
 **Speaker notes (20 s)**
 

@@ -21,16 +21,17 @@ recorded live runs ([T02 and T04 goldens](scenarios/README.md); the same verdict
 
 ## Try it now
 
-`{{LIVE_UI_URL}}` stands for the live site's address, filled in at submission (the UI may move
-from Vercel to RunPod).
+Live site: **https://preferred-florist-labeled-trace.trycloudflare.com**. It is served from the team's Mac through a Cloudflare tunnel, and every
+model call goes to the Meta API. If the tunnel restarts the address changes; the repo then gets
+the new one.
 
 | What | Link | What you will see |
 |---|---|---|
 | The 3-minute video | **TODO: link at submission** | The three worlds below, live and recorded, each labelled |
-| Replay, no login, no keys | `{{LIVE_UI_URL}}/demo?demo=1` | A recorded live run, step by step: request, plan, Rule CI, runtime, evidence. The header says **REPLAY**. It works with every GPU switched off |
-| Check the evidence yourself | `{{LIVE_UI_URL}}/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35` | Your browser recomputes every SHA-256 of the 35-record evidence log and checks it against the day's Merkle root. Nothing is trusted from us |
-| The three worlds | `{{LIVE_UI_URL}}/usecases/warehouse`, `/usecases/crowd`, `/usecases/supermarket` | Each world's story, step by step, read from what Rulecam recorded |
-| Staff phone app, glasses mode | `{{LIVE_UI_URL}}/staff`, `{{LIVE_UI_URL}}/glasses` | Open them on a phone |
+| Replay, no login, no keys | `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1` | A recorded live run, step by step: request, plan, Rule CI, runtime, evidence. The header says **REPLAY**. It works with every GPU switched off |
+| Check the evidence yourself | `https://preferred-florist-labeled-trace.trycloudflare.com/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35` | Your browser recomputes every SHA-256 of the 35-record evidence log and checks it against the day's Merkle root. Nothing is trusted from us |
+| The three worlds | `https://preferred-florist-labeled-trace.trycloudflare.com/usecases/warehouse`, `/usecases/crowd`, `/usecases/supermarket` | Each world's story, step by step, read from what Rulecam recorded |
+| Staff phone app, glasses mode | `https://preferred-florist-labeled-trace.trycloudflare.com/staff`, `https://preferred-florist-labeled-trace.trycloudflare.com/glasses` | Open them on a phone |
 | Run it on your laptop | `cd ui && npm ci && npm run dev`, then `localhost:3000/demo?demo=1` | The same replay, offline |
 
 ![The Rulecam landing page: the recorded T02 run's verified alert, with the measured distance, Glimmer's verdict and the live state of the GPUs.](docs/pitch/media/app-landing.jpg)
@@ -275,7 +276,7 @@ An earlier E3 figure came from a simulated harness and was withdrawn on Oct 31 (
 
 | Time | Open | What to look for |
 |---|---|---|
-| 0:00 | `{{LIVE_UI_URL}}/demo?demo=1` | The owner's plain-language request, the planner's steps, the compiled rule and its acceptance trace |
+| 0:00 | `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1` | The owner's plain-language request, the planner's steps, the compiled rule and its acceptance trace |
 | 0:30 | the Rule CI section of the same page | The rule was attacked with boundary scenes and mutants before anyone could approve it, re-run offline in CI |
 | 0:50 | **Verify it in your browser** | Your browser recomputes every SHA-256 of the evidence chain and its Merkle root |
 | 1:20 | [Results](#results), then [`reports/eval/`](reports/eval/) | Live runs on real video and on hand-labelled CCTV, every number tied to its run, date and commit |

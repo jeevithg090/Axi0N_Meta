@@ -14,18 +14,19 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Final, Protocol
+from typing import Final, Protocol, TypeVar
 
 import cv2
 from pydantic import BaseModel, Field, SecretStr
 
 from rulecam.bus import Bus
 from rulecam.connectors.errors import SourceError, UnknownCameraError
+from rulecam.connectors.process import reap_stale
 from rulecam.connectors.sources import (
     ResolvedInput,
     SourceKind,
@@ -48,6 +49,7 @@ _log = get_logger(__name__)
 SURVEY_WORKERS: Final = 2
 FIRST_CHUNK_WAIT_S: Final = 90.0
 WAIT_POLL_S: Final = 0.5
+R = TypeVar("R", bound=BaseModel)
 PROVENANCE: Final = {
     SourceKind.PUBLIC: Provenance.PUBLIC,
     SourceKind.FILE: Provenance.UPLOAD,
@@ -235,6 +237,9 @@ class ConnectorManager:
         if worker is not None:
             worker.stop()
         self._store.remove(camera_id)
+        with self._lock:
+            self._surveys.pop(camera_id, None)
+        (self.root / "surveys" / f"{camera_id}.json").unlink(missing_ok=True)
         _log.info("camera_removed", camera_id=camera_id)
 
     def restart(self, camera_id: str) -> CameraView:
@@ -256,9 +261,12 @@ class ConnectorManager:
         """Start saved cameras on the first call; restart any worker whose thread died."""
         if not self._restored:
             self._restored = True
+            self._reap_stale()
             for saved in self._store.records():
                 if saved.blocked is None:
                     self._start(saved)
+                    if self.survey(saved.camera_id) is None:  # cut short by a crash
+                        self.start_survey(saved.camera_id)
             return
         with self._lock:
             dead = [cid for cid, w in self._workers.items() if not w.running]
@@ -268,6 +276,46 @@ class ConnectorManager:
             ended = worker is not None and worker.health().state == "ended"
             if record is not None and record.blocked is None and not ended:
                 self._start(record)
+
+    def label(self, rows: Sequence[R], make: Callable[..., R]) -> list[R]:
+        """`GET /cameras` rows with connector names and each first look's description.
+
+        A connector camera's row gets the name the owner or Muse Spark gave it and the source
+        `connector-<kind>`; any camera with a first look (a paired phone too) gets Spark's
+        description of it. Connector cameras with no chunk yet are added as rows of their own.
+
+        Args:
+            rows: The rows built from paired phones and the chunk index (`api.app.CameraInfo`).
+            make: Builds a new row (the row model itself).
+
+        Returns:
+            The rows, labelled, then the connector cameras that had none.
+        """
+        records = {r.camera_id: r for r in self._store.records()}
+        out: list[R] = []
+        for row in rows:
+            camera_id = str(row.camera_id)  # type: ignore[attr-defined]
+            out.append(row.model_copy(update=self._labels(camera_id, records.pop(camera_id, None))))
+        for camera_id, record in records.items():
+            out.append(
+                make(camera_id=camera_id, last_chunk_at=None, **self._labels(camera_id, record))
+            )
+        return out
+
+    def _labels(self, camera_id: str, record: CameraRecord | None) -> dict[str, object]:
+        update: dict[str, object] = {}
+        if record is not None:
+            update = {"label": record.name, "source": f"connector-{record.kind.value}"}
+        survey = self.survey(camera_id)
+        if survey is not None and survey.look is not None:
+            update["description"] = survey.look.description
+        return update
+
+    def _reap_stale(self) -> None:
+        folder = self.root / "chunks"
+        for camera_dir in sorted(folder.iterdir()) if folder.is_dir() else []:
+            if camera_dir.is_dir():
+                reap_stale(camera_dir)
 
     def close(self) -> None:
         """Stop every worker."""

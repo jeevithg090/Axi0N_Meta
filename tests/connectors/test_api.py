@@ -17,7 +17,7 @@ from rulecam.connectors import api as connectors_api
 from rulecam.connectors.discovery import OnvifDevice, OnvifProfile
 from rulecam.connectors.errors import DiscoveryError
 from rulecam.connectors.manager import ConnectorManager, ConnectorSettings
-from rulecam.connectors.sources import ResolvedInput, SourceKind, input_args
+from rulecam.connectors.sources import ResolvedInput, SourceKind, classify, input_args
 from rulecam.connectors.survey import CameraSurveyor
 from tests.connectors.test_survey import FIT, LOOK, Attacher, ImageSam
 from tests.fakes import FakeLLM
@@ -92,6 +92,7 @@ def test_add_a_clip_by_path_runs_and_is_surveyed(
     assert client.delete("/connectors/cameras/cam-1").status_code == 204
     assert client.get("/connectors/cameras").json() == []
     assert client.get("/connectors/cameras/cam-1").status_code == 404
+    assert client.get("/connectors/survey/cam-1").status_code == 404  # forgotten with it
 
 
 def test_credentials_stay_server_side(
@@ -203,6 +204,12 @@ def test_discovery_routes(
     assert refused.status_code == 502
     brands = client.get("/connectors/brands").json()
     assert any(b["brand"] == "Hikvision" for b in brands)
+    presets = client.get("/connectors/presets").json()
+    assert len(presets) >= 2
+    for preset in presets:
+        assert preset["label"] == "public live webcam"
+        assert preset["source"]
+        assert classify(preset["url"]) is SourceKind.PUBLIC
 
 
 def test_damaged_store_does_not_stop_the_api(tmp_path: Path) -> None:

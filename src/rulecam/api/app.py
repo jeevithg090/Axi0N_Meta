@@ -119,7 +119,7 @@ from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
 from rulecam.compliance.api import build_proof_router
 from rulecam.config import Settings, get_settings
-from rulecam.connectors import build_connectors, connectors_router
+from rulecam.connectors import ConnectorManager, build_connectors, connectors_router
 from rulecam.contracts import TTS, Calibration, Chunk, Clock, PrivacyMode, SitePlan
 from rulecam.crowd.memory import Calibrations, CrowdMemory, ModelCalibration
 from rulecam.crowd.scan import CrowdScanner
@@ -227,6 +227,7 @@ class AppServices:
         verify_base: The verify page's public URL in incident reports' QR codes (e.g.
             `<PUBLIC_UI_URL>/rulecam-api/verify/`); default the API's own `/verify/`.
         pdf_printer: Prints a report to PDF (`evidence.packs.render_pdf`).
+        connectors: Camera connectors; their names and first looks label `GET /cameras`.
     """
 
     bus: Bus
@@ -261,6 +262,7 @@ class AppServices:
     stills_root: Path | None = None
     verify_base: str | None = None
     pdf_printer: PdfPrinter = render_pdf
+    connectors: ConnectorManager | None = None  # names and first looks in `GET /cameras`
 
 
 class RuntimeReport(LoopMetrics):
@@ -351,6 +353,7 @@ class CameraInfo(BaseModel):
     label: str
     source: str
     last_chunk_at: datetime | None = None
+    description: str | None = None  # Muse Spark's first look (`rulecam.connectors`)
 
 
 class Health(BaseModel):
@@ -448,7 +451,8 @@ def _cameras(services: AppServices) -> list[CameraInfo]:
             camera_id,
             CameraInfo(camera_id=camera_id, label=camera_id, source="capture", last_chunk_at=last),
         )
-    return list(rows.values())
+    found = list(rows.values())
+    return services.connectors.label(found, CameraInfo) if services.connectors else found
 
 
 def _chain_days(folder: Path) -> list[date]:
@@ -1032,6 +1036,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             else None
         ),
         auth=auth,
+        connectors=connectors,
         health_probes=probes,
         tickers=(
             *response.tickers,

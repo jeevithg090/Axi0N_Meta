@@ -120,6 +120,47 @@ BRAND_TEMPLATES: Final = (
 )
 
 
+class LivePreset(BaseModel):
+    """A public live webcam for one-click demos (`GET /connectors/presets`).
+
+    These are public broadcasts by their publishers (a TV network, webcam and tourism channels),
+    connected like any `public` camera: read live, kept only as the normal rolling chunks, never
+    used for face recognition. Their links can go offline; the camera tile then says so.
+    """
+
+    preset_id: str
+    title: str
+    url: str
+    source: str
+    shows: str
+    label: str = "public live webcam"
+
+
+LIVE_PRESETS: Final = (
+    LivePreset(
+        preset_id="shibuya-crossing",
+        title="Shibuya Scramble Crossing, Tokyo",
+        url="https://www.youtube.com/watch?v=5B4LmH4JbnY",
+        source="ANN News (TV Asahi) on YouTube",
+        shows="crowd: one of the busiest pedestrian crossings in the world",
+    ),
+    LivePreset(
+        preset_id="times-square",
+        title="Times Square Crossroads, New York",
+        url="https://www.youtube.com/watch?v=KHy_n-EMWY8",
+        source="EarthCam on YouTube",
+        shows="crowd: a busy public square with crosswalks and traffic",
+    ),
+    LivePreset(
+        preset_id="fishermans-village",
+        title="Fisherman's Village shop street, Koh Samui",
+        url="https://www.youtube.com/watch?v=bbBGNNPu0rg",
+        source="The Real Samui Webcam on YouTube",
+        shows="shops: a shopping street with a pharmacy and shopfronts",
+    ),
+)
+
+
 def classify(url: str) -> SourceKind:
     """Name the kind of source a URL or path is.
 

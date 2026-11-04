@@ -1,0 +1,15 @@
+{
+  "name": "rulecam-ui-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser end-to-end checks of the Rulecam UI (QA). Separate package so the app's lockfile and CI stay untouched.",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:live": "E2E_BASE_URL=https://rulecam.vercel.app playwright test",
+    "report": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  }
+}

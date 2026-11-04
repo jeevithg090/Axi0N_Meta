@@ -18,6 +18,15 @@ with macOS text-to-speech (`docs/video/voiceover-scratch.m4a`). Both files are g
 (over the 500 KB pre-commit limit); they sit in the `p1/pitch` worktree and are rebuilt from the
 script, not edited by hand. Replace the scratch voice with a human take before submitting.
 
+## Where each judging criterion is scored
+
+| Criterion (weight) | Shots | What the judge should come away with |
+|---|---|---|
+| Impact (30%) | 1–5, 12, 17, 26 | Three real places with real stakes, on cameras they already own, in their own language |
+| Use of Meta AI tooling (25%) | 7, 9–10, 14–15, 18–20, 25 | Each model doing a visible job, and checking another: Spark plans and picks tools, SAM 3.1 measures and counts, Glimmer says no to the driver, MMS-TTS speaks, Muse Code writes and Z3 proves |
+| Demo (25%) | 6–11, 13–16, 17–18, 22–24 | It runs: typed request to plan to verdict, crowd reading to alert, question to answer, evidence to verify |
+| Technical depth (20%) | 8, 14, 22–23, 25 | Rule CI with mutants, numbers scored against ground truth, a hash chain you can break, a solver proof |
+
 ## Honesty rules for the edit (read before cutting)
 
 1. **Every screen shot shows its badge.** The UI header says LIVE or REPLAY. Keep it in frame,

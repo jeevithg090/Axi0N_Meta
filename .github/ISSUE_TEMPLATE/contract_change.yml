@@ -1,0 +1,27 @@
+name: Contract change
+description: Propose a change to src/rulecam/contracts. It needs its own contract-change pull request and two approvals.
+title: "contract-change: "
+labels: [contract-change]
+body:
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: The task or issue that needs it, and what breaks without it.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: The new or changed fields, with their types and defaults.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Who is affected
+      description: Producers and consumers of the contract, and whether old data still loads.
+    validations:
+      required: true

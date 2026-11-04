@@ -3,6 +3,9 @@ name = "rulecam"
 version = "0.1.0"
 description = "Rulecam: a camera agent that plans its own job and proves its work"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["computer-vision", "cctv", "workplace-safety", "sam", "llama", "verification"]
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "pydantic>=2.7",
@@ -46,6 +49,11 @@ tracking = ["motmetrics>=1.4"]
 # fails to import).
 reid = ["boxmot==26.0.0", "torch>=2.3", "torchvision>=0.18"]
 
+[project.urls]
+Homepage = "https://rulecam.vercel.app/demo?demo=1"
+Repository = "https://github.com/jeevithg090/Axi0N_Meta"
+Documentation = "https://github.com/jeevithg090/Axi0N_Meta/tree/main/docs"
+
 [project.scripts]
 rulecam = "rulecam.cli:app"
 
@@ -72,7 +80,7 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]  # 1.27 reads the SPDX `license` and `license-files` fields
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

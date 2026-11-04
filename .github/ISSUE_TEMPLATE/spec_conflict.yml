@@ -1,0 +1,27 @@
+name: Spec conflict
+description: The spec is unclear, or two parts of it disagree. Stop and ask here instead of guessing (AGENTS.md rule 10).
+title: "spec-conflict: "
+labels: [spec-conflict]
+body:
+  - type: textarea
+    id: conflict
+    attributes:
+      label: The conflict
+      description: Quote both places, with file and section (for example docs/tasks/P1.md §7 and src/rulecam/contracts/events.py).
+    validations:
+      required: true
+  - type: textarea
+    id: interim
+    attributes:
+      label: What the code does for now
+      description: How you are working around it without changing a contract, if at all.
+  - type: textarea
+    id: options
+    attributes:
+      label: Options and recommendation
+      placeholder: |
+        1. ...
+        2. ...
+        Recommended: ...
+    validations:
+      required: true

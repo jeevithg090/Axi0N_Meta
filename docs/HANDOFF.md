@@ -1,9 +1,9 @@
 # Rulecam Project Handoff & Session State
 
-> **Last Updated**: 2026-11-01 06:58:00 (Local Time)  
-> **Repository**: [https://github.com/jeevithg090/Axi0N_Meta](https://github.com/jeevithg090/Axi0N_Meta)  
-> **Local Workspace**: `C:\Users\nav6i\.gemini\antigravity\scratch\Axi0N_Meta`  
-> **User Persona**: Nava (`@nav6x`), Role **P2** (Planner, Rule CI & Advice Pipeline) in 4-person team.  
+> **Last Updated**: 2026-11-01 06:58:00 (Local Time)\
+> **Repository**: [https://github.com/jeevithg090/Axi0N_Meta](https://github.com/jeevithg090/Axi0N_Meta)\
+> **Local Workspace**: `C:\Users\nav6i\.gemini\antigravity\scratch\Axi0N_Meta`\
+> **User Persona**: Nava (`@nav6x`), Role **P2** (Planner, Rule CI & Advice Pipeline) in 4-person team.\
 > **Teammates**: `@jeevithg090` (P1 / Team Lead), `@nav6x` (P2), `@R3unakk` (P3 / Reviewer for P2), `@aris` (P4).
 
 ---
@@ -41,10 +41,10 @@ All Must-tier, Should-tier, Shared Duties, and Stretch goals assigned to P2 have
 - **P2-S3**: Kitchen Pass-Window Station Type Grounding.
 
 ### C. Shared Duties (Section 11)
-- **S-01** ([PR #64](https://github.com/jeevithg090/Axi0N_Meta/pull/64)): Physical floor plans, props, and camera layout in [`docs/sets.md`](docs/sets.md).
+- **S-01** ([PR #64](https://github.com/jeevithg090/Axi0N_Meta/pull/64)): Physical floor plans, props, and camera layout in [`docs/sets.md`](sets.md).
 - **S-04 / W-10** ([PR #63](https://github.com/jeevithg090/Axi0N_Meta/pull/63), [PR #121](https://github.com/jeevithg090/Axi0N_Meta/pull/121), [PR #126](https://github.com/jeevithg090/Axi0N_Meta/pull/126), [PR #127](https://github.com/jeevithg090/Axi0N_Meta/pull/127)): Real PlannerPipeline wired into E3 runner, positive outside-author validation, safe fallback defaults, and dataset ingested with verified outside authors across 5 domains in eval/heldout/requests.jsonl.
-- **S-08** ([PR #67](https://github.com/jeevithg090/Axi0N_Meta/pull/67)): 3-stage social launch copy and reply protocol in [`docs/social.md`](docs/social.md).
-- **S-10** ([PR #69](https://github.com/jeevithg090/Axi0N_Meta/pull/69), [PR #74](https://github.com/jeevithg090/Axi0N_Meta/pull/74)): Daily standup logs, gate readiness ledger (gate statuses corrected Oct 31), and pre-freeze checklist in [`docs/standups.md`](docs/standups.md).
+- **S-08** ([PR #67](https://github.com/jeevithg090/Axi0N_Meta/pull/67)): 3-stage social launch copy and reply protocol in [`docs/social.md`](social.md).
+- **S-10** ([PR #69](https://github.com/jeevithg090/Axi0N_Meta/pull/69), [PR #74](https://github.com/jeevithg090/Axi0N_Meta/pull/74)): Daily standup logs, gate readiness ledger (gate statuses corrected Oct 31), and pre-freeze checklist in [`docs/standups.md`](standups.md).
 
 ### D. P2 Stretch Goal
 - **Boundary-Pair Muse Image Edits** ([PR #71](https://github.com/jeevithg090/Axi0N_Meta/pull/71)): Chained turn-2 edits with `previous_response_id` preserving background confounders, planar homography ground metric projection (`project_pixel_to_ground`), and automated pass/fail suite runner (`src/rulecam/rule_ci/boundary_pairs.py`).

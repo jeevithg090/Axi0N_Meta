@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security or privacy problem
+    url: https://github.com/jeevithg090/Axi0N_Meta/security/advisories/new
+    about: Report it privately, never in a public issue (see SECURITY.md).
+  - name: Try the demo
+    url: https://rulecam.vercel.app/demo?demo=1
+    about: A recorded live run with no login and no keys.

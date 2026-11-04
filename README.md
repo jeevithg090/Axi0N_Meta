@@ -1,5 +1,9 @@
 # Rulecam
 
+[![ci](https://github.com/jeevithg090/Axi0N_Meta/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jeevithg090/Axi0N_Meta/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](.python-version)
+
 **Rulecam turns a phone or a CCTV camera into a safety helper you set up in plain words.
 You say what worries you. Rulecam works out what the camera can and can't check, proves each
 rule before it goes live, and has a second AI model look at every alert before anyone is

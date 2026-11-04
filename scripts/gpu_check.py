@@ -1,5 +1,12 @@
 # ruff: noqa
-"""Ping SAM and Glimmer, find people in a photo, embed two crops, ask Glimmer about the photo."""
+"""Ping SAM and Glimmer, find people in a photo, embed two crops, ask Glimmer about the photo.
+
+Usage:
+    uv run python scripts/gpu_check.py [photo.jpg]     # a grey test image when no photo is given
+
+Reads RUNPOD_API_KEY, SAM_URL, SAM_API_KEY, GLIMMER_URL and GLIMMER_API_KEY from the environment
+or `.env` (SAM_URL and GLIMMER_URL are the serverless load-balancer URLs).
+"""
 
 import base64
 import os

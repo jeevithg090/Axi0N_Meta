@@ -9,11 +9,13 @@ from rulecam.chain.retail import (
     RESTOCK,
     TILL,
     RetailLimits,
+    cameras_by_rule,
     observations,
     store_fit,
     store_observations,
     task_outcome,
     till_outcome,
+    window_start,
 )
 from rulecam.chain.scorecard import chain_scorecard
 from rulecam.retail.models import Finding, StaffTask
@@ -100,8 +102,10 @@ def test_store_row_on_the_scorecard() -> None:
         limits=LIMITS,
         now=NOW,
     )
-    fit = store_fit("demo", "A supermarket", ["aisle", "till"], LIMITS)
-    card = chain_scorecard([fit], observations("demo", observed, NOW - timedelta(hours=5), NOW))
+    fit = store_fit("demo", "A supermarket", cameras_by_rule(observed), LIMITS)
+    begin = window_start(observed, NOW - timedelta(hours=24))
+    assert begin == NOW - timedelta(hours=5)
+    card = chain_scorecard([fit], observations("demo", observed, begin, NOW))
     scores = {s.rule_id: s for s in card.scores}
     assert (scores[HAZARD].compliant, scores[HAZARD].violations) == (5, 2)
     assert scores[HAZARD].status == "ok"
@@ -123,8 +127,17 @@ def test_unrecorded_cameras_are_blind() -> None:
         limits=LIMITS,
         now=NOW,
     )
-    fit = store_fit("demo", "A supermarket", ["aisle"], LIMITS)
+    fit = store_fit("demo", "A supermarket", {HAZARD: ["aisle"]}, LIMITS)
     card = chain_scorecard([fit], observations("demo", observed, NOW - timedelta(hours=2), NOW))
     hazard = next(s for s in card.scores if s.rule_id == HAZARD)
     assert hazard.compliant == 0
     assert hazard.blind == 1
+
+
+def test_staff_photos_count_as_watched() -> None:
+    photo_task = task("hazard", 60, 5).model_copy(update={"camera_id": "upload"})
+    observed = store_observations(
+        [photo_task], [], answered={}, recorded={}, limits=LIMITS, now=NOW
+    )
+    assert observed.coverage["upload"][0].watched is True
+    assert cameras_by_rule(observed) == {HAZARD: ["upload"]}

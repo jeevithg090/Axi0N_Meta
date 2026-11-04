@@ -40,7 +40,7 @@ CLAUSES: Final = {
     "hazard": ("Keep aisles and walkways free of slip and trip hazards",),
     "shelf": ("Keep shelves stocked and faced",),
 }
-FIX_LABELS: Final = frozenset({"hazard_cleared", "gap_refilled"})
+FIX_LABELS: Final = frozenset({"hazard_cleared", "gap_refilled", "retail_fixed"})
 RULE_TEXT: Final = {
     "hazard": "Floor hazards and blocked exits are found, staff are told, and they are made safe.",
     "shelf": "Empty facings are found, staff are told, and they are refilled.",

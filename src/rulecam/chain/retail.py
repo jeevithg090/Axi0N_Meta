@@ -37,6 +37,7 @@ PACK_VERSION: Final = 1
 HAZARD: Final = "retail-hazard-cleared"
 RESTOCK: Final = "retail-gap-refilled"
 TILL: Final = "retail-till-answered"
+UPLOAD: Final = "upload"  # the camera id of a staff photo
 
 
 class RetailLimits(Frozen):
@@ -46,8 +47,10 @@ class RetailLimits(Frozen):
     restock_minutes: float = 60.0
 
 
-def _rules(limits: RetailLimits, cameras: Sequence[str]) -> tuple[FittedRule, ...]:
-    cams = tuple(sorted(cameras))
+def _rules(limits: RetailLimits, cameras: Mapping[str, Sequence[str]]) -> tuple[FittedRule, ...]:
+    def cams(rule: str) -> tuple[str, ...]:
+        return tuple(sorted(cameras.get(rule, ())))
+
     return (
         FittedRule(
             rule_id=HAZARD,
@@ -58,7 +61,7 @@ def _rules(limits: RetailLimits, cameras: Sequence[str]) -> tuple[FittedRule, ..
             ),
             knobs={"minutes": limits.hazard_minutes},
             severity=Severity.HIGH,
-            cameras=cams,
+            cameras=cams(HAZARD),
         ),
         FittedRule(
             rule_id=RESTOCK,
@@ -66,22 +69,25 @@ def _rules(limits: RetailLimits, cameras: Sequence[str]) -> tuple[FittedRule, ..
             says=f"Empty facings are refilled within {limits.restock_minutes:g} min.",
             knobs={"minutes": limits.restock_minutes},
             severity=Severity.LOW,
-            cameras=cams,
+            cameras=cams(RESTOCK),
         ),
         FittedRule(
             rule_id=TILL,
             status="ready",
             says="Staff answer every 'open another till' or 'customer needs help' alert.",
             severity=Severity.MEDIUM,
-            cameras=cams,
+            cameras=cams(TILL),
         ),
     )
 
 
 def store_fit(
-    store_id: str, store_name: str, cameras: Sequence[str], limits: RetailLimits
+    store_id: str, store_name: str, cameras: Mapping[str, Sequence[str]], limits: RetailLimits
 ) -> StoreFit:
-    """The retail rules as a fitted pack for one store (all ready: they need no zones)."""
+    """The retail rules as a fitted pack for one store (all ready: they need no zones).
+
+    `cameras` maps each rule id to the cameras its outcomes came from.
+    """
     rules = _rules(limits, cameras)
     digest = hashlib.sha256(
         json.dumps([r.model_dump(mode="json") for r in rules], sort_keys=True).encode()
@@ -160,11 +166,33 @@ def store_observations(
     """
     outcomes = [o for t in tasks if (o := task_outcome(t, limits, now)) is not None]
     outcomes += [o for f in findings if (o := till_outcome(f, answered.get(f.id))) is not None]
-    coverage = {
+    coverage: dict[str, tuple[CoverageSegment, ...]] = {
         cam: (CoverageSegment(start=first, end=last, watched=True),)
         for cam, (first, last) in recorded.items()
     }
+    # Staff photos are not a camera that can go blind: `upload` counts as watched from its
+    # first task on, and each photo task is judged on its own seen and fixed times.
+    photo_starts = [o.start for o in outcomes if o.camera_id == UPLOAD]
+    if photo_starts:
+        coverage[UPLOAD] = (CoverageSegment(start=min(photo_starts), end=now, watched=True),)
     return StoreObservations(outcomes=tuple(outcomes), coverage=coverage)
+
+
+def cameras_by_rule(observed: StoreObservations) -> dict[str, list[str]]:
+    """Each rule's cameras: the ones its outcomes came from."""
+    out: dict[str, list[str]] = {}
+    for o in observed.outcomes:
+        if o.camera_id not in out.setdefault(o.rule_id, []):
+            out[o.rule_id].append(o.camera_id)
+    return out
+
+
+def window_start(observed: StoreObservations, earliest: datetime) -> datetime:
+    """The window starts at the first outcome or recorded video, not before `earliest`."""
+    starts = [o.start for o in observed.outcomes] + [
+        s.start for segments in observed.coverage.values() for s in segments
+    ]
+    return max(earliest, min(starts)) if starts else earliest
 
 
 def observations(

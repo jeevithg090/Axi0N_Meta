@@ -23,7 +23,13 @@ from rulecam.advisor.api import AdviceStore
 from rulecam.advisor.ledger import AdviceLedger, PreregistrationError
 from rulecam.advisor.measurement import read_out
 from rulecam.advisor.recompute import NumberCheck, RecomputeReport
-from rulecam.chain.retail import RetailLimits, store_fit, store_observations
+from rulecam.chain.retail import (
+    RetailLimits,
+    cameras_by_rule,
+    store_fit,
+    store_observations,
+    window_start,
+)
 from rulecam.chain.retail import observations as chain_observations
 from rulecam.chain.scorecard import chain_scorecard
 from rulecam.contracts import Clock
@@ -446,8 +452,9 @@ class RetailService:
             limits=limits,
             now=now,
         )
-        fit = store_fit(store, self._profile or store, sorted(recorded), limits)
-        card = chain_scorecard([fit], chain_observations(store, observed, start, now))
+        fit = store_fit(store, self._profile or store, cameras_by_rule(observed), limits)
+        begin = window_start(observed, start)
+        card = chain_scorecard([fit], chain_observations(store, observed, begin, now))
         return {"fit": fit.model_dump(mode="json"), "scorecard": card.model_dump(mode="json")}
 
     def receipt(self, sha: str) -> Receipt:

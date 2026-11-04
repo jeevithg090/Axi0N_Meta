@@ -115,6 +115,13 @@ describe("stepSummary", () => {
     expect(stepSummary(step({ frames: [{ count: 3 }, { count: 4 }] }))).toBe("counts 3, 4");
     expect(stepSummary(step({ error: "bad" }))).toBe("error: bad");
   });
+
+  it("shows the three counts and whether they agree", () => {
+    const cross = { counts: { "sam-3.1": 22, "muse-spark-1.3": 12 }, all_equal: false };
+    expect(stepSummary(step({ ...cross, tracked: { customer: 22 } }))).toBe(
+      "sam-3.1 22 · muse-spark-1.3 12 (DISAGREE); tracker: customer 22",
+    );
+  });
 });
 
 describe("streamAsk", () => {

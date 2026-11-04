@@ -9,7 +9,7 @@ from pydantic import Field
 from rulecam.contracts import Frozen
 from rulecam.crowd.zones import CrowdZone
 
-Action = Literal["sql", "count_objects", "look", "watch", "crowd_scan", "answer"]
+Action = Literal["sql", "count_objects", "look", "watch", "crowd_scan", "cross_count", "answer"]
 
 
 class AskAction(Frozen):
@@ -22,7 +22,8 @@ class AskAction(Frozen):
         description="For sql: one or more SELECT/WITH statements separated by ';'.",
     )
     concept: str | None = Field(
-        default=None, description="For count_objects and crowd_scan: a noun phrase."
+        default=None,
+        description="For count_objects, cross_count and crowd_scan: a noun phrase.",
     )
     camera_id: str | None = Field(
         default=None, description="For count_objects, look, watch and crowd_scan."

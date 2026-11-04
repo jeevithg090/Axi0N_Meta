@@ -54,6 +54,7 @@ from typing import TYPE_CHECKING, Final, Protocol
 
 import yaml
 
+from rulecam.ask.crosscount import CrossCounter
 from rulecam.ask.data import DEFAULT_MAX_ROWS, CrowdFiles, QueryResult, SqlError, TrackTables
 from rulecam.ask.results import DEFAULT_MAX_RESULT_CHARS, fit_results
 from rulecam.ask.review import REVIEW_PROMPT, AnswerReviewer, AnswerVerdict, sent_back
@@ -244,7 +245,13 @@ counts `concept` (default person; "head" can work better in a packed crowd) on g
 enlarged tiles (default 2), and returns per zone people, area, density per square metre, speed, \
 coherence, counterflow and pressure, plus the grid cells and the densest one. Give `zones` as \
 named image polygons [[x, y], ...] in pixels to measure areas such as a gate or a stairway.
-6. answer: the final reply in the owner's language, with the numbers, the time range they cover \
+6. cross_count: three independent counts of `concept` on the recorded frame of camera_id at \
+times[0] (one instant): SAM 3.1's boxes, Muse Spark pointing at each one, Muse Glimmer's own \
+count, plus the tracker's count of every tracked concept at the nearest keyframe. Use it for \
+any "how many at that moment" on a busy view: the tracker can split one person into several \
+boxes. When the counts disagree, reconcile them yourself and say which you trust and why \
+(the marked frame shows Spark's points and SAM's boxes; look at it if unsure).
+7. answer: the final reply in the owner's language, with the numbers, the time range they cover \
 and one short sentence on how you got them and how sure you are. Also list the numbers the \
 reply gives in `numbers`, in the order the question asks for them.
 
@@ -634,9 +641,13 @@ class AskAgent:
         try:
             if action.action == "sql":
                 return _Outcome(_sql_result(tables.run_sql(action.sql or "")))
-            if action.action in ("watch", "crowd_scan"):
-                run = self._watch if action.action == "watch" else self._crowd_scan
-                return run(action)
+            own: dict[str, Callable[[AskAction], _Outcome]] = {
+                "watch": self._watch,
+                "crowd_scan": self._crowd_scan,
+                "cross_count": lambda a: self._cross_count(a, tables),
+            }
+            if action.action in own:
+                return own[action.action](action)
             asked = _instants(action.times)
             used = asked[: self._limits.max_frames]
             frames = self._frames.frames(action.camera_id or "", used)
@@ -673,6 +684,28 @@ class AskAgent:
             self._glimmer_model,
             tuple(f.path for f in frames),
         )
+
+    def _cross_count(self, action: AskAction, tables: TrackTables) -> _Outcome:
+        """Three independent counts on one frame, with the tracker's, for Spark to reconcile."""
+        asked = _instants(action.times)[:1]
+        frames = self._frames.frames(action.camera_id or "", asked)
+        if not frames or self._files is None:
+            return _Outcome({"error": "no recorded frame at that instant on that camera"})
+        frame = frames[0]
+        counter = CrossCounter(
+            segmenter=self._segmenter,
+            spark=self._spark,
+            files=self._files,
+            glimmer=None if self._glimmer_skipped() else self._glimmer,
+            glimmer_model=self._glimmer_model,
+            out_dir=self._marks_dir or self._frames.out_dir,
+        )
+        result = counter.count(frame, action.concept or "person", tracked_at(tables, frame))
+        if result.glimmer.error and "within" in result.glimmer.error:
+            self._glimmer_failed(ModelClientError(result.glimmer.error))
+        shown = (frame.path,) if result.marked is None else (frame.path, Path(result.marked))
+        models = ", ".join(sorted(result.counts)) or SAM_MODEL
+        return _Outcome(result.model_dump(mode="json"), models, shown)
 
     def _glimmer_failed(self, error: ModelClientError) -> None:
         """Remember that Glimmer did not answer, so the next looks fail at once.
@@ -856,6 +889,20 @@ def _frame_notes(
     if missing:
         notes.append(f"no recorded frame at: {', '.join(missing)}")
     return notes
+
+
+def tracked_at(tables: TrackTables, frame: Frame) -> dict[str, int]:
+    """The tracker's count per concept at the keyframe nearest `frame` (within a second)."""
+    at = frame.at.astimezone(UTC).replace(tzinfo=None)
+    rows = tables.query_params(
+        "WITH k AS (SELECT ts FROM track_points WHERE camera_id = ? "
+        "AND ts BETWEEN ? - INTERVAL 1 SECOND AND ? + INTERVAL 1 SECOND "
+        "ORDER BY abs(epoch(ts) - epoch(CAST(? AS TIMESTAMP))) LIMIT 1) "
+        "SELECT concept, count(*) FROM track_points WHERE camera_id = ? "
+        "AND ts = (SELECT ts FROM k) GROUP BY concept ORDER BY concept",
+        [frame.camera_id, at, at, at, frame.camera_id],
+    )
+    return {str(concept): int(str(n)) for concept, n in rows}
 
 
 def open_tables(

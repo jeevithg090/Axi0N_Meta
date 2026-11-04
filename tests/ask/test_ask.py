@@ -246,3 +246,51 @@ def test_a_glimmer_that_times_out_is_not_waited_for_again(
     assert "ReadTimeout" in reply.steps[0].result["error"]  # type: ignore[index]
     assert "looks are skipped" in reply.steps[1].result["error"]  # type: ignore[index]
     assert reply.answer == "From SAM instead."
+
+
+class Attach:
+    def attach(self, path: Path) -> dict[str, object]:
+        return {"type": "input_image", "file_id": path.name}
+
+
+def test_cross_count_gives_spark_three_counts_and_the_tracker(
+    tracks_root: Path, tmp_path: Path
+) -> None:
+    at = (EPOCH + timedelta(seconds=6)).isoformat()
+    spark = FakeLLM(
+        [
+            turn(
+                {
+                    "thought": "count three ways",
+                    "action": "cross_count",
+                    "camera_id": "checkout",
+                    "times": [at],
+                    "concept": "person",
+                }
+            ),
+            {"points": [{"x": 100, "y": 500, "what": "a"}], "note": "one is behind a pillar"},
+            turn({"thought": "done", "action": "answer", "answer": "One person; SAM split them."}),
+        ]
+    )
+    glimmer = FakeLLM([{"count": 1, "how": "one shopper at the till"}])
+    asker = AskAgent(
+        spark=spark,
+        segmenter=Sam(),
+        glimmer=glimmer,
+        glimmer_model="muse-glimmer-30b",
+        tables=open_tables(tracks_root),
+        frames=FrameGrabber(Chunks(), tmp_path / "frames", extract=write_frame),  # type: ignore[arg-type]
+        clock=FakeClock(EPOCH + timedelta(minutes=5)),
+        timezone="UTC",
+        files=Attach(),
+        marks_dir=tmp_path / "marks",
+    )
+    reply = asker.ask("How many people at the till?")
+    result = reply.steps[0].result
+    assert isinstance(result, dict)
+    assert result["counts"] == {"sam-3.1": 2, "muse-spark-1.3": 1, "muse-glimmer-30b": 1}
+    assert result["all_equal"] is False
+    assert (result["low"], result["high"]) == (1, 2)
+    assert result["tracked"] == {"person": 2}
+    assert result["spark"]["detail"] == "one is behind a pillar"
+    assert reply.answer == "One person; SAM split them."

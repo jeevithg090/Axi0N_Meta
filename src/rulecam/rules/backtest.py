@@ -25,6 +25,7 @@ from rulecam.contracts import (
 from rulecam.contracts.rule_ir import StateCheck
 from rulecam.rules.engine import EPISODE_GAP_S, evaluate
 from rulecam.rules.errors import RuleEvaluationError
+from rulecam.rules.extension import ExtensionHook, is_extension_state
 from rulecam.rules.hashing import rule_ir_hash
 from rulecam.rules.ir import parse_ref, referenced_concepts, referenced_zones, state_concepts, walk
 from rulecam.rules.operators import MAX_OPERATOR_WARMUP_S, OPERATOR_WARMUP_S
@@ -56,9 +57,13 @@ class DecisionContext(Frozen):
     operator_warmup_s: float = Field(default=OPERATOR_WARMUP_S, ge=0.0, le=MAX_OPERATOR_WARMUP_S)
 
     def evaluate(
-        self, tracks: Sequence[Track], *, pose: PoseFeatures | None = None
+        self,
+        tracks: Sequence[Track],
+        *,
+        pose: PoseFeatures | None = None,
+        extensions: ExtensionHook | None = None,
     ) -> list[CandidateEvent]:
-        """Run the engine on `tracks` with this context."""
+        """Run the engine on `tracks` with this context (and an extension hook, if any)."""
         return evaluate(
             self.rule,
             tracks,
@@ -73,6 +78,7 @@ class DecisionContext(Frozen):
             pose=pose,
             operator_exclusion=self.operator_exclusion,
             operator_warmup_s=self.operator_warmup_s,
+            extensions=extensions,
         )
 
 
@@ -113,6 +119,12 @@ def required_concepts(rule: RuleIR, zones: dict[str, Zone]) -> dict[str, frozens
     """Concepts the rule's predicate needs, each with the track names that satisfy it."""
     needed: dict[str, frozenset[str]] = {}
     for _, node in walk(rule.predicate):
+        if isinstance(node, StateCheck) and is_extension_state(node.state):
+            spec = rule.concepts.get(node.object)
+            needed[node.object] = frozenset(
+                {node.object} if spec is None else {node.object, spec.prompt}
+            )
+            continue
         if isinstance(node, StateCheck):
             needed[node.object if node.state == "present" else f"{node.state} {node.object}"] = (
                 frozenset(state_concepts(node))

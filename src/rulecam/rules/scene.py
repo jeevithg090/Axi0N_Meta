@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -34,6 +35,9 @@ from rulecam.rules.operators import (
 )
 from rulecam.rules.pose import PoseFeatures
 from rulecam.rules.timeline import SampledTrack, Timeline
+
+if TYPE_CHECKING:
+    from rulecam.rules.extension import ExtensionHook
 
 LEFT_WRIST, RIGHT_WRIST = 9, 10  # COCO-17 indices
 MIN_KEYPOINT_SCORE = 0.3
@@ -78,6 +82,7 @@ class Scene:
     pose: PoseFeatures | None = None
     operator_exclusion: bool = True
     operator_warmup_s: float = OPERATOR_WARMUP_S
+    extensions: ExtensionHook | None = None
     _by_concept: dict[str, tuple[SampledTrack, ...]] = field(default_factory=dict)
     _ignored: dict[tuple[str, str], BoolArray | None] = field(default_factory=dict)
 

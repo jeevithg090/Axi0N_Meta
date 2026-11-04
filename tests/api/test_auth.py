@@ -131,7 +131,10 @@ def test_session_tokens(clock: FakeClock) -> None:
     token, session = signer.issue(clock.now(), 60)
     assert signer.read(token, clock.now()) == session
     body, _, sig = token.partition(".")
-    assert signer.read(f"{body}.{sig[:-2]}AA", clock.now()) is None
+    # Change the signature's first character (all six of its bits count). Overwriting the last
+    # two with "AA" was a no-op whenever the random signature already ended in "AA" (1 in 4096).
+    tampered = ("B" if sig[0] == "A" else "A") + sig[1:]
+    assert signer.read(f"{body}.{tampered}", clock.now()) is None
     assert signer.read("nodot", clock.now()) is None
     assert signer.read("é.é", clock.now()) is None
     assert signer.read(token + "x" * 2000, clock.now()) is None

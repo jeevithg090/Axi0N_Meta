@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { api, errorText } from "../../lib/api";
+import { SampleDataTag } from "../SampleDataTag";
 import {
   claimParts,
   formatNumber,
@@ -323,6 +324,7 @@ const INITIAL_SEALS: SealStatus[] = [
 export function AdviceSignage() {
   const [cards, setCards] = useState<AdviceCard[]>(INITIAL_ADVICE_CARDS);
   const [seals, setSeals] = useState<SealStatus[]>(INITIAL_SEALS);
+  const [cardsFromApi, setCardsFromApi] = useState<boolean>(false);
   const [openCheck, setOpenCheck] = useState<{ check: NumberCheck; hidden: boolean } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
@@ -331,10 +333,13 @@ export function AdviceSignage() {
   const loadFromApi = useCallback(async () => {
     try {
       const [apiCards, apiSeals] = await Promise.all([api.advice(), api.seals()]);
-      if (apiCards.length > 0) setCards(apiCards);
+      if (apiCards.length > 0) {
+        setCards(apiCards);
+        setCardsFromApi(true);
+      }
       if (apiSeals.length > 0) setSeals(apiSeals);
     } catch {
-      // Keep seeded cards
+      // Keep the built-in sample cards; the page labels them SAMPLE DATA.
     }
   }, []);
 
@@ -342,64 +347,21 @@ export function AdviceSignage() {
     void loadFromApi();
   }, [loadFromApi]);
 
+  // Accepting asks the server to pre-register the measurement plan in the evidence chain. The
+  // plan, its hash and its chain sequence number come back from the server (the cards are
+  // reloaded); when the call fails nothing was pre-registered, and the banner says so.
   const handleAccept = async (cardId: string) => {
     setBusyId(cardId);
     setBanner(null);
-    const hashHex = "e4a91c028b37f651d209c8a47b6e12f903c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8";
     try {
       const res = await api.acceptAdvice(cardId);
-      setCards((prev) =>
-        prev.map((c) =>
-          c.recommendation.id === cardId
-            ? {
-                ...c,
-                recommendation: { ...c.recommendation, status: "measuring" },
-                measurement_plan: {
-                  id: `mp-${cardId}`,
-                  design: "switchback",
-                  block_minutes: 30,
-                  n_pairs: 6,
-                  min_detectable_effect: 1.5,
-                  smallest_possible_p: 0.03125,
-                  decision_rule:
-                    "Exact sign-flip test across 6 paired 30-min switchback blocks (95% CI).",
-                  preregistration_hash: hashHex,
-                },
-                preregistered_seq: res.preregistered_seq,
-              }
-            : c,
-        ),
-      );
+      await loadFromApi();
       setBanner(
-        `✓ Pre-registered switchback experiment mp-${cardId} on SHA-256 chain at seq #${res.preregistered_seq} (hash ${hashHex.slice(0, 16)}…).`,
+        `✓ Measurement plan for ${cardId} pre-registered in the evidence chain at seq #${res.preregistered_seq}.`,
       );
     } catch (err) {
-      // Local deterministic pre-registration if backend measurement planner is offline
-      const nextSeq = 31;
-      setCards((prev) =>
-        prev.map((c) =>
-          c.recommendation.id === cardId
-            ? {
-                ...c,
-                recommendation: { ...c.recommendation, status: "measuring" },
-                preregistered_seq: nextSeq,
-                measurement_plan: {
-                  id: `mp-${cardId}`,
-                  design: "switchback",
-                  block_minutes: 30,
-                  n_pairs: 6,
-                  min_detectable_effect: 1.5,
-                  smallest_possible_p: 0.03125,
-                  decision_rule:
-                    "Exact sign-flip test across 6 paired 30-min switchback blocks (95% CI).",
-                  preregistration_hash: hashHex,
-                },
-              }
-            : c,
-        ),
-      );
       setBanner(
-        `✓ Pre-registered switchback experiment mp-${cardId} on SHA-256 chain at seq #${nextSeq} (method hash ${hashHex.slice(0, 16)}…). (${errorText(err, "local fallback")})`,
+        `Not pre-registered: ${errorText(err, "the server did not answer")}. Nothing was written to the evidence chain.`,
       );
     } finally {
       setBusyId(null);
@@ -416,6 +378,11 @@ export function AdviceSignage() {
 
   return (
     <div style={{ paddingBottom: "var(--s6)" }}>
+      {!cardsFromApi && (
+        <section className="wrap sec">
+          <SampleDataTag what="The server sent no advice cards, so these are the built-in example cards and seal; their numbers, stations and hashes are written into the page." />
+        </section>
+      )}
       {/* Pagehead */}
       <section className="wrap pagehead">
         <div className="grid">

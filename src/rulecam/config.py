@@ -121,6 +121,13 @@ class Settings(BaseSettings):
     # Muse Spark Open (Baseten) checks each Ask answer against its trace and can send it back
     # once (needs BASETEN_API_KEY; off without it).
     rulecam_ask_review: bool = True
+    # Rule extensions (`rulecam.extensions`): Muse Code writes a new check type headless
+    # (`muse exec --json`), authenticated once with `muse auth set --api-key-stdin`. Extra
+    # arguments go after `exec --json` (shell-split), e.g. an approval mode for file edits.
+    rulecam_muse_code_bin: str = "muse"
+    rulecam_muse_code_args: str = ""
+    rulecam_muse_code_timeout_s: float = Field(default=300.0, gt=0.0, le=1800.0)
+    rulecam_muse_code_model: str = "muse-spark-1.2"
     # The deployed commit, for Ask's run log (empty: `git rev-parse HEAD` when run from a clone).
     rulecam_git_sha: str = ""
     # Crowd early warning (`rulecam.crowd`, prototype mode): measure each camera's crowd every N

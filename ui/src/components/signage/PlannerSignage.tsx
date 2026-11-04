@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import React, { useEffect, useState } from "react";
-import { api, errorText, withCsrf } from "../../lib/api";
-import { API_PROXY } from "../../lib/config";
-import type { SitePlan } from "../../lib/plan";
+import React, { useState } from "react";
+import { api, errorText } from "../../lib/api";
 import { PairPhoneButton } from "../PairPhoneButton";
+import { SampleDataTag } from "../SampleDataTag";
 
 interface RulePreset {
   id: string;
@@ -113,19 +112,12 @@ export function PlannerSignage() {
   const [lang, setLang] = useState<"en" | "es">("en");
 
   const [compiling, setCompiling] = useState<boolean>(false);
-  const [activeStepIdx, setActiveStepIdx] = useState<number>(9);
-  const [compiledPlanId, setCompiledPlanId] = useState<string>("plan-c914e72a03f5");
+  // Nothing has run in this browser: the strip lists the steps; the server reports real progress.
+  const activeStepIdx = -1;
+  const [compiledPlanId, setCompiledPlanId] = useState<string>("");
   const [approved, setApproved] = useState<boolean>(false);
   const [bannerMsg, setBannerMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [livePlan, setLivePlan] = useState<SitePlan | null>(null);
-
-  useEffect(() => {
-    api
-      .plan("plan-c914e72a03f5")
-      .then(setLivePlan)
-      .catch(() => {});
-  }, []);
 
   const selectPreset = (idx: number) => {
     const p = PRESETS[idx] ?? PRESETS[0]!;
@@ -139,174 +131,39 @@ export function PlannerSignage() {
     setBannerMsg(null);
   };
 
+  // The Site Planner's steps and who runs each one. The real run happens on the server
+  // (`POST /plans/requests`); its timings, acceptance trace and Rule CI result arrive with the
+  // plan, so none are invented here.
   const steps = [
-    { n: "01", name: "Understand", ms: "42 ms" },
-    { n: "02", name: "Survey", ms: "110 ms" },
-    { n: "03", name: "24 Probes", ms: "340 ms" },
-    { n: "04", name: "Gauge", ms: "19 ms" },
-    { n: "05", name: "Ask", ms: "0 open" },
-    { n: "06", name: "Compile IR", ms: "64 ms" },
-    { n: "07", name: "Z3 Lint", ms: "18 ms" },
-    { n: "08", name: "Accept (9/9)", ms: "94 ms" },
-    { n: "09", name: "Audit & BT", ms: "410 ms" },
-    { n: "10", name: "Prove (CI)", ms: "1.1 s" },
+    { n: "01", name: "Understand", ms: "Muse Spark" },
+    { n: "02", name: "Survey", ms: "SAM 3.1" },
+    { n: "03", name: "24 Probes", ms: "SAM 3.1" },
+    { n: "04", name: "Gauge", ms: "Wilson bound" },
+    { n: "05", name: "Ask", ms: "owner questions" },
+    { n: "06", name: "Compile IR", ms: "Muse Spark" },
+    { n: "07", name: "Lint", ms: "plan linter" },
+    { n: "08", name: "Accept", ms: "acceptance checks" },
+    { n: "09", name: "Audit & BT", ms: "Spark Open · Glimmer" },
+    { n: "10", name: "Prove (CI)", ms: "Rule CI" },
   ];
 
   const handleCompileAndStage = async () => {
+    const text = promptText.trim();
+    if (!text) return;
     setCompiling(true);
     setErrorMsg(null);
     setBannerMsg(null);
     setApproved(false);
-
-    for (let i = 0; i < steps.length; i++) {
-      setActiveStepIdx(i);
-      await new Promise((r) => setTimeout(r, 90));
-    }
-
     try {
-      const basePlan = livePlan ?? (await api.plan("plan-c914e72a03f5"));
-      const slug = promptText
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "")
-        .slice(0, 38) || preset.id;
-      const newPlanId = `plan-${Math.random().toString(16).slice(2, 10)}`;
-
-      const zoneKey = `zone_${cameraId.toLowerCase().replace(/[^a-z0-9]/g, "_")}`;
-      const compiledRule = {
-        id: slug,
-        version: 1,
-        source: {
-          kind: "text" as const,
-          text: promptText,
-          lang,
-          plan_id: newPlanId,
-          standard: [preset.standard],
-        },
-        concepts: {
-          [preset.conceptA]: { prompt: preset.conceptA, static: false },
-          [preset.conceptB]: { prompt: preset.conceptB.replace("_", " "), static: false },
-        },
-        zones: {
-          [zoneKey]: {
-            camera_id: cameraId,
-            kind: "polygon" as const,
-            polygon_px: [
-              [80.0, 120.0],
-              [1200.0, 120.0],
-              [1240.0, 690.0],
-              [40.0, 690.0],
-            ],
-          },
-        },
-        calibration: `ground-plane@${cameraId}`,
-        predicate:
-          preset.op === "distance_m"
-            ? {
-                op: "all",
-                of: [
-                  {
-                    op: "distance_m",
-                    a: preset.conceptA,
-                    b: preset.conceptB,
-                    lt: threshold,
-                    gt: null,
-                  },
-                  {
-                    op: "moving",
-                    object: preset.conceptB,
-                    speed_mps_gt: preset.speedMps || 0.2,
-                  },
-                ],
-              }
-            : {
-                op: "all",
-                of: [
-                  {
-                    op: "inside",
-                    object: preset.conceptA,
-                    zone: zoneKey,
-                  },
-                  {
-                    op: "without",
-                    subject: preset.conceptA,
-                    item: preset.conceptB,
-                    region: "top_25pct",
-                  },
-                ],
-              },
-        severity,
-        actions: [
-          {
-            kind: preset.actionKind,
-            role,
-            lang: "en",
-            after_s: 0.0,
-          },
-        ],
-        verify: {
-          tier1: "glimmer" as const,
-          tier2: "spark-open-on-disagree" as const,
-          min_confidence: 0.7,
-          calibrated_alpha: null,
-        },
-        accept: [promptText],
-        backtestable: "yes" as const,
-        schedule: null,
-      };
-
-      const checkNames = [
-        ["concern_covered", promptText, `rule '${slug}'`],
-        ["zone_in_view", slug, `zone ${zoneKey} visible on ${cameraId}`],
-        ["detect_lb>=0.8", slug, `lowest detect_lb 0.91 on ${cameraId} (24/24 frames)`],
-        ["calibration_err<=tol", slug, "calibrated within 0.094 m (tol 0.10 m)"],
-        ["privacy_consistent", slug, "consistent with standard mode"],
-        ["citation_text_match", slug, `${preset.standard} verified`],
-        ["no_private_spaces", slug, "no private-space zones"],
-        ["ci_green", slug, "boundary 16/16, mutations 6/6"],
-        ["nonvacuous", slug, "fires on positive boundary trace and not on negative trace"],
-      ];
-
-      const newPlanPayload = {
-        ...basePlan,
-        plan_id: newPlanId,
-        version: 1,
-        request: [{ kind: "text", text: promptText, lang, file: null, extracted: [] }],
-        rules: [compiledRule, ...basePlan.rules.filter((r) => r.id !== slug)],
-        acceptance: {
-          rounds: 0,
-          checks: [
-            ...checkNames.map(([check, item, detail]) => ({
-              check,
-              item,
-              passed: true,
-              detail,
-            })),
-            ...basePlan.acceptance.checks,
-          ],
-        },
-        back_translation: `[en]\n- ${slug}: ${promptText} (Camera: ${cameraId}, Threshold: ${threshold} ${preset.unit}, Severity: ${severity.toUpperCase()}).\n${basePlan.back_translation}`,
-      };
-
-      const res = await fetch(
-        `${API_PROXY}/plans`,
-        withCsrf({
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(newPlanPayload),
-        }),
-      );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { detail?: string };
-        throw new Error(body.detail ?? `HTTP ${res.status}`);
-      }
-
-      setCompiledPlanId(newPlanId);
+      const { plan_id } = await api.requestPlan([{ kind: "text", text, lang }]);
+      setCompiledPlanId(plan_id);
       setBannerMsg(
-        `✓ Compiled '${slug}' into SitePlan ${newPlanId} (9/9 Acceptance Checks + 6/6 Rule CI Mutants Killed) and staged on POST /plans.`,
+        `Sent to the planner: ${plan_id} is being planned with the live models. Its acceptance ` +
+          `trace and Rule CI result appear under Plans → ${plan_id} when it is ready; approve it ` +
+          "only if they pass.",
       );
     } catch (err) {
-      setErrorMsg(errorText(err, "Failed to compile and stage plan"));
+      setErrorMsg(errorText(err, "The planner did not accept the request"));
     } finally {
       setCompiling(false);
     }
@@ -327,6 +184,7 @@ export function PlannerSignage() {
 
   return (
     <div style={{ padding: "var(--s3) var(--gut) var(--s6)" }}>
+      <SampleDataTag what="The rule preview, calibration table, probe numbers and badges on this page are built in the browser from the chosen preset. 'Plan this rule' sends your words to the real planner, whose plan, acceptance trace and Rule CI result appear under Plans." />
       {/* Dashboard Top Control Strip */}
       <div
         style={{
@@ -343,8 +201,8 @@ export function PlannerSignage() {
       >
         <div>
           <div className="ctx" style={{ marginBottom: "2px" }}>
-            Site Planner Studio &nbsp;·&nbsp; 10-Step Deterministic Pipeline &nbsp;·&nbsp;{" "}
-            <b>Active Plan: {compiledPlanId}</b>
+            Site Planner Studio &nbsp;·&nbsp; 10-step planner on the server &nbsp;·&nbsp;{" "}
+            <b>Plan: {compiledPlanId || "none requested yet"}</b>
           </div>
           <h1 className="h2" style={{ fontSize: "28px", margin: 0 }}>
             Natural-Language Rule Compiler &amp; Spatial Homography Studio
@@ -360,13 +218,14 @@ export function PlannerSignage() {
             onClick={() => void handleCompileAndStage()}
             disabled={compiling}
           >
-            {compiling ? "Running 10-Step Pipeline…" : "⚙ Compile Rule & Stage Plan"}
+            {compiling ? "Sending to the planner…" : "⚙ Plan this rule (live planner)"}
           </button>
           <button
             type="button"
             className={`btn ${approved ? "o" : "alert"}`}
             style={{ minHeight: "40px", padding: "8px 16px", fontSize: "14px" }}
             onClick={() => void handleApproveAndDeploy()}
+            disabled={!compiledPlanId}
           >
             {approved ? `✓ ${compiledPlanId} Live in Runtime` : "Approve & Deploy to Runtime"}
           </button>
@@ -647,7 +506,7 @@ export function PlannerSignage() {
               <span className="small" style={{ fontWeight: 700, textTransform: "uppercase" }}>
                 2 · Compiled Canonical RuleIR AST (Discriminated Union)
               </span>
-              <span className="state ok">Z3 LINT + 9/9 GATES PASS</span>
+              <span className="state">PREVIEW · NOT COMPILED</span>
             </div>
 
             <pre
@@ -866,7 +725,7 @@ export function PlannerSignage() {
 
             <div className="kv" style={{ marginTop: "12px" }}>
               <span>Cited Regulatory Standard</span>
-              <b className="dm">{preset.standard} · Exact Clause Verified</b>
+              <b className="dm">{preset.standard} · preset citation (the planner checks it)</b>
             </div>
           </div>
         </div>

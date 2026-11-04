@@ -85,6 +85,7 @@ from rulecam.perception.static_cache import StaticCache, StaticServedSegmenter
 from rulecam.perception.tracking import Tracker
 from rulecam.pose.keypoints import RtmposeOnnx, load_pose_estimator
 from rulecam.replay.cache import ReplayCache
+from rulecam.rules.extension import ExtensionHook
 from rulecam.rules.operators import OperatorExclusion, is_person_like
 from rulecam.rules.store import ParquetTrackStore
 from rulecam.runtime.cost import CostMeter
@@ -423,6 +424,7 @@ def build_runtime(
     chain: EventChain,
     response: Response | None = None,
     cost: CostMeter | None = None,
+    extensions: ExtensionHook | None = None,
 ) -> RuntimeLoop:
     """Build the real runtime loop: router segmenter → `Tracker` → Parquet store → Glimmer.
 
@@ -435,6 +437,7 @@ def build_runtime(
         chain: The evidence chain.
         response: Policy, actions and Tier 1 (default: `build_tier1` + `build_response`).
         cost: The dollar budget; a camera it marks over budget degrades (`runtime.cost`).
+        extensions: Runs approved model-written checks (`extensions.registry.RegistryHook`).
 
     Returns:
         The loop.
@@ -494,6 +497,7 @@ def build_runtime(
         ),
         over_budget=cost.over_budget if cost is not None else None,
         bill_estimate=picked.bill_estimate,
+        extensions=extensions,
     )
 
 

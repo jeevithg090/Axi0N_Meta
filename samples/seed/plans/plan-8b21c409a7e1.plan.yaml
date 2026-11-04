@@ -1,126 +1,110 @@
 acceptance:
   checks:
   - check: concern_covered
-    detail: rule 'keep-people-2m-from-moving-forklift'
+    detail: '[SAMPLE: hand-written, not a model call] rule ''keep-people-2m-from-moving-forklift'''
     item: Keep people at least 2 metres away from a moving forklift.
     passed: true
   - check: zone_in_view
-    detail: all monitored zones visible in camera frame
+    detail: '[SAMPLE: hand-written, not a model call] all monitored zones in the camera
+      frame'
     item: keep-people-2m-from-moving-forklift
     passed: true
   - check: detect_lb>=0.8
-    detail: lowest detect_lb 0.89 (24/24 probe frames)
+    detail: '[SAMPLE: hand-written, not a model call] lowest detect_lb 0.89 (24/24
+      probe frames)'
     item: keep-people-2m-from-moving-forklift
     passed: true
   - check: calibration_err<=tol
-    detail: calibrated within 0.094 m (tol 0.10 m)
+    detail: '[SAMPLE: hand-written, not a model call] calibrated within 0.094 m (tol
+      0.10 m)'
     item: keep-people-2m-from-moving-forklift
     passed: true
   - check: privacy_consistent
-    detail: consistent with standard mode (face blur + non-biometric tracks)
+    detail: '[SAMPLE: hand-written, not a model call] standard mode (face blur, non-biometric
+      tracks)'
     item: keep-people-2m-from-moving-forklift
     passed: true
   - check: citation_text_match
-    detail: OSHA 1910.178(n)(1) matched
+    detail: '[SAMPLE: hand-written, not a model call] OSHA 1910.178(n)(1) matched'
     item: keep-people-2m-from-moving-forklift
     passed: true
   - check: no_private_spaces
-    detail: no private-space zones
+    detail: '[SAMPLE: hand-written, not a model call] no private-space zones'
     item: keep-people-2m-from-moving-forklift
     passed: true
   - check: ci_green
-    detail: boundary 16/16, mutations 6/6
+    detail: '[SAMPLE: hand-written, not a model call] boundary 16/16, mutations 6/6'
     item: keep-people-2m-from-moving-forklift
     passed: true
   - check: nonvacuous
-    detail: fires on its positive boundary trace and not on its negative one
+    detail: '[SAMPLE: hand-written, not a model call] fires on its positive boundary
+      trace, not on its negative one'
     item: keep-people-2m-from-moving-forklift
     passed: true
   - check: concern_covered
-    detail: rule 'require-hardhat-in-visitor-corridor'
+    detail: '[SAMPLE: hand-written, not a model call] rule ''require-hardhat-in-visitor-corridor'''
     item: Every person entering the East Visitor & PPE Corridor must wear a safety
       hardhat.
     passed: true
   - check: zone_in_view
-    detail: all monitored zones visible in camera frame
+    detail: '[SAMPLE: hand-written, not a model call] all monitored zones in the camera
+      frame'
     item: require-hardhat-in-visitor-corridor
     passed: true
   - check: detect_lb>=0.8
-    detail: lowest detect_lb 0.89 (24/24 probe frames)
+    detail: '[SAMPLE: hand-written, not a model call] lowest detect_lb 0.89 (24/24
+      probe frames)'
     item: require-hardhat-in-visitor-corridor
     passed: true
   - check: calibration_err<=tol
-    detail: calibrated within 0.094 m (tol 0.10 m)
+    detail: '[SAMPLE: hand-written, not a model call] calibrated within 0.094 m (tol
+      0.10 m)'
     item: require-hardhat-in-visitor-corridor
     passed: true
   - check: privacy_consistent
-    detail: consistent with standard mode (face blur + non-biometric tracks)
+    detail: '[SAMPLE: hand-written, not a model call] standard mode (face blur, non-biometric
+      tracks)'
     item: require-hardhat-in-visitor-corridor
     passed: true
   - check: citation_text_match
-    detail: OSHA 1910.178(n)(1) matched
+    detail: '[SAMPLE: hand-written, not a model call] OSHA 1910.135 matched'
     item: require-hardhat-in-visitor-corridor
     passed: true
   - check: no_private_spaces
-    detail: no private-space zones
+    detail: '[SAMPLE: hand-written, not a model call] no private-space zones'
     item: require-hardhat-in-visitor-corridor
     passed: true
   - check: ci_green
-    detail: boundary 16/16, mutations 6/6
+    detail: '[SAMPLE: hand-written, not a model call] boundary 16/16, mutations 6/6'
     item: require-hardhat-in-visitor-corridor
     passed: true
   - check: nonvacuous
-    detail: fires on its positive boundary trace and not on its negative one
+    detail: '[SAMPLE: hand-written, not a model call] fires on its positive boundary
+      trace, not on its negative one'
     item: require-hardhat-in-visitor-corridor
     passed: true
   rounds: 0
 audit:
 - by: spark-open
-  reasoning_ref: spark-open-audit-c914e72a03f5
-  text: Audited 4 rules against OSHA 1910.178, 1910.135, 1926.1424, and FDA Food Code.
-    Operator exclusion warm-up guard (1.5s) verified active on forklift proximity
-    rule; zero biometric or productivity tracking predicates present.
-back_translation: '[en]
+  reasoning_ref: sample-seed
+  text: '[SAMPLE: hand-written, not a model call] No Spark Open audit ran on this
+    sample plan.'
+back_translation: '[SAMPLE: hand-written, not a model call] Seeded by scripts/seed_live_backend.py,
+  not a planner run.
 
-  - keep-people-2m-from-moving-forklift: Monitors forklifts and pedestrians across
-  loading docks and aisles (CAM-01, CAM-02, CAM-04, CAM-10, CAM-11, phone-27). Triggers
-  with HIGH severity when a person is within 2.0 m of a forklift moving faster than
-  0.2 m/s (seated operators inside the cab are automatically excluded). Action: play
-  audible warning and notify safety_officer immediately.
+  [en]
 
-  - require-hardhat-in-visitor-corridor: Monitors the East Visitor & PPE Corridor
-  (CAM-03, CAM-06, CAM-12). Triggers with MEDIUM severity when a person is inside
-  the corridor without a safety helmet for over 2.0 s. Action: notify supervisor.
+  - keep-people-2m-from-moving-forklift: Keep people at least 2 metres away from a
+  moving forklift.
 
-  - heavy-equipment-swing-radius-exclusion: Monitors the South Freight Gate and Yard
-  Heavy Equipment Bay (CAM-08, CAM-09). Triggers with HIGH severity when a person
-  is within 3.5 m of a moving excavator boom or backing truck (>0.15 m/s). Action:
-  trip zone interlock and notify safety_officer.
+  - require-hardhat-in-visitor-corridor: Every person entering the East Visitor &
+  PPE Corridor must wear a safety hardhat.
 
-  - commercial-kitchen-prep-sanitation-guard: Monitors Commercial Kitchen Prep Line
-  A (CAM-05). Triggers with LOW severity when staff work at the prep line without
-  a chef hat or hairnet for over 5.0 s. Action: notify kitchen_lead.
+  - heavy-equipment-swing-radius-exclusion: Maintain a 3.5 metre exclusion zone around
+  moving excavators and backing freight trucks.
 
-  [es]
-
-  - keep-people-2m-from-moving-forklift: Monitorea montacargas y peatones en muelles
-  y pasillos (CAM-01, CAM-02, CAM-04, CAM-10, CAM-11, phone-27). Se activa con severidad
-  ALTA cuando una persona está a menos de 2.0 m de un montacargas en movimiento (>0.2
-  m/s; el operador sentado queda excluido). Acción: alerta de voz inmediata y notificación
-  al oficial de seguridad.
-
-  - require-hardhat-in-visitor-corridor: Monitorea el Corredor Este de Visitantes
-  y EPP (CAM-03, CAM-06, CAM-12). Se activa con severidad MEDIA cuando una persona
-  entra sin casco de seguridad por más de 2.0 s. Acción: notificar al supervisor.
-
-  - heavy-equipment-swing-radius-exclusion: Monitorea la Puerta Sur de Carga y Bahía
-  de Maquinaria Pesada (CAM-08, CAM-09). Se activa con severidad ALTA cuando un peatón
-  está a menos de 3.5 m de una excavadora o camión en movimiento. Acción: activar
-  bloqueo de seguridad y notificar al oficial.
-
-  - commercial-kitchen-prep-sanitation-guard: Monitorea la Línea de Preparación de
-  Cocina Comercial A (CAM-05). Se activa con severidad BAJA cuando el personal trabaja
-  sin gorro o malla para el cabello por más de 5.0 s.'
+  - commercial-kitchen-prep-sanitation-guard: Ensure commercial kitchen prep line
+  staff wear chef head coverings and maintain clear prep stations.'
 cost_usd_per_cam_hour: 0.14
 feasibility:
 - alternative: null
@@ -157,9 +141,8 @@ feasibility:
     median_px_height: 719.0
     n_frames: 24
   reason: null
-  says: Forklifts, pedestrians, and 48x40in reference pallets are clearly visible
-    across CAM-01, CAM-02, CAM-04, CAM-10, CAM-11, and phone-27 with lower-bound detection
-    >= 0.89.
+  says: '[SAMPLE: hand-written, not a model call] Forklifts, pedestrians and 48x40in
+    pallets are visible on six cameras.'
   verdict: observable
 - alternative: null
   concern: Every person entering the East Visitor & PPE Corridor must wear a safety
@@ -178,8 +161,8 @@ feasibility:
     median_px_height: 68.0
     n_frames: 24
   reason: null
-  says: SAM 3.1 + Tier-0 head crop-zoom detects safety helmets on CAM-03, CAM-06,
-    and CAM-12 at 0.91 lower bound.
+  says: '[SAMPLE: hand-written, not a model call] Safety helmets are visible on CAM-03,
+    CAM-06 and CAM-12 with a head crop-zoom.'
   verdict: observable
 - alternative: null
   concern: Maintain a 3.5 metre exclusion zone around moving excavators and backing
@@ -198,8 +181,8 @@ feasibility:
     median_px_height: 510.0
     n_frames: 24
   reason: null
-  says: Excavator boom and freight truck ground homography calibrated on CAM-08 and
-    CAM-09 within 0.088 m.
+  says: '[SAMPLE: hand-written, not a model call] Excavator boom and freight truck
+    are visible on CAM-08 and CAM-09.'
   verdict: observable
 - alternative: null
   concern: Ensure commercial kitchen prep line staff wear chef head coverings and
@@ -218,15 +201,16 @@ feasibility:
     median_px_height: 64.0
     n_frames: 24
   reason: null
-  says: Prep Line A counter and staff head coverings clearly observable on CAM-05.
+  says: '[SAMPLE: hand-written, not a model call] Prep Line A and the staff''s head
+    coverings are visible on CAM-05.'
   verdict: observable
-- alternative: Mount a paired mobile camera (Pair-a-Phone) at Stairwell B landing
-    or re-angle CAM-06.
+- alternative: Pair a phone at the Stairwell B landing, or re-angle CAM-06.
   concern: Monitor North Stairwell Blind Spot (CAM-07) for slip hazards.
   evidence: []
-  reason: CAM-07 optical feed is occluded / offline (0/24 probe frames).
-  says: I cannot verify slip hazards on CAM-07 because the camera feed is currently
-    blind; I refuse to activate an unobservable rule.
+  reason: '[SAMPLE: hand-written, not a model call] CAM-07 is occluded or offline
+    (0/24 probe frames).'
+  says: '[SAMPLE: hand-written, not a model call] CAM-07 cannot see, so a rule there
+    would not be activated.'
   verdict: not_observable
 inventory:
 - camera_id: CAM-01
@@ -306,7 +290,7 @@ retention_days: 30
 roles:
   kitchen_lead: telegram:@kitchen_lead
   safety_officer: telegram:@safety_ops
-  site_lead: webhook:https://ops.axi0n.internal/hooks/site-lead
+  site_lead: webhook:https://ops.example.invalid/hooks/site-lead
   supervisor: telegram:@floor_sup
 rules:
 - accept:

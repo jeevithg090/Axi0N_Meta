@@ -3,6 +3,7 @@
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { api, type CameraInfo } from "../../lib/api";
+import { SampleDataTag } from "../SampleDataTag";
 
 interface FleetCamera {
   id: string;
@@ -168,6 +169,8 @@ const FLEET_SPEC: FleetCamera[] = [
 export function StreamsSignage() {
   const [filter, setFilter] = useState<"all" | "ok" | "breach" | "bad">("all");
   const [liveCameras, setLiveCameras] = useState<Record<string, CameraInfo>>({});
+  const [cameraList, setCameraList] = useState<CameraInfo[] | null>(null);
+  const [cameraError, setCameraError] = useState<boolean>(false);
   const [selectedCam, setSelectedCam] = useState<FleetCamera | null>(null);
 
   useEffect(() => {
@@ -179,9 +182,11 @@ export function StreamsSignage() {
           map[c.camera_id] = c;
         }
         setLiveCameras(map);
+        setCameraList(list);
       })
       .catch(() => {
-        // fallback to static fleet metadata if offline
+        // The API is not reachable: say so; the sample fleet below stays labelled as sample.
+        setCameraError(true);
       });
   }, []);
 
@@ -205,12 +210,18 @@ export function StreamsSignage() {
         <div className="grid">
           <div className="s9">
             <div className="ctx">
-              Camera Fleet Matrix &nbsp;·&nbsp; 11 Live H.264 Feeds + 1 Occluded Sensor &nbsp;·&nbsp;{" "}
-              <b>GET /cameras ({Object.keys(liveCameras).length || 12} indexed)</b>
+              Camera Fleet &nbsp;·&nbsp;{" "}
+              <b>
+                GET /cameras (
+                {cameraList ? `${cameraList.length} reported` : cameraError ? "not reachable" : "loading…"})
+              </b>
             </div>
             <h1 className="h1">
-              11 of 12 cameras are watching.{" "}
-              <span className="hi">Camera 07 is blind.</span>
+              {cameraList
+                ? `${cameraList.length} camera${cameraList.length === 1 ? "" : "s"} reported by the server.`
+                : cameraError
+                  ? "The Rulecam server is not reachable."
+                  : "Asking the server for its cameras…"}
             </h1>
           </div>
           <div className="s3 end">
@@ -222,7 +233,45 @@ export function StreamsSignage() {
         </div>
       </section>
 
+      {/* Cameras the API reports (GET /cameras), the only live data on this page */}
+      <section className="wrap sec" aria-label="Cameras reported by the server">
+        {cameraList && cameraList.length > 0 ? (
+          <table className="small" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left" }}>Camera</th>
+                <th style={{ textAlign: "left" }}>Label</th>
+                <th style={{ textAlign: "left" }}>Source</th>
+                <th style={{ textAlign: "left" }}>Last chunk</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cameraList.map((c) => (
+                <tr key={c.camera_id}>
+                  <td className="dm">{c.camera_id}</td>
+                  <td>{c.label}</td>
+                  <td>{c.source}</td>
+                  <td className="dm">{c.last_chunk_at ?? "none yet"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="small">
+            {cameraError
+              ? "No live camera data: the server did not answer."
+              : cameraList
+                ? "The server reports no cameras yet. Pair a phone from the planner to add one."
+                : "Loading…"}
+          </p>
+        )}
+      </section>
+
       <div className="tape" />
+
+      <section className="wrap sec">
+        <SampleDataTag what="The fleet matrix below (12 named cameras, their latencies, states, breaches and rule badges) is a built-in example layout; only the 'last chunk' times come from the server." />
+      </section>
 
       {/* Filter and Model Telemetry Bar */}
       <section className="wrap sec">

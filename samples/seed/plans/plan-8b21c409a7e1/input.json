@@ -1,5 +1,5 @@
 {
-  "plan_id": "plan-c914e72a03f5",
+  "plan_id": "plan-8b21c409a7e1",
   "site_name": "demo",
   "request": [
     {
@@ -36,7 +36,7 @@
   "roles": {
     "safety_officer": "telegram:@safety_ops",
     "supervisor": "telegram:@floor_sup",
-    "site_lead": "webhook:https://ops.axi0n.internal/hooks/site-lead",
+    "site_lead": "webhook:https://ops.example.invalid/hooks/site-lead",
     "kitchen_lead": "telegram:@kitchen_lead"
   },
   "privacy_mode": "standard",

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { StripFrames, stripUrls } from "@/components/VerifierPanel";
@@ -160,5 +160,22 @@ describe("DemoPage", () => {
     for (const pending of PENDING_RUNS) {
       expect(screen.getByLabelText(`Pending: ${pending.name}`)).toBeTruthy();
     }
+  });
+
+  it("leads with the recorded live run and links the clip instead of a missing video", () => {
+    golden = run;
+    const { container } = render(<DemoPage />);
+    expect(screen.getByTestId("live-alerts")).toBeTruthy();
+    expect(container.querySelector("video")).toBeNull();
+    const clip = screen.getByTestId("golden-clip");
+    expect(within(clip).getByRole("link").getAttribute("href")).toBe(run.clip.source);
+    expect(clip.textContent).toContain("0 false alerts");
+  });
+
+  it("shows the recorded live run on the list page too", () => {
+    golden = null;
+    demo = false;
+    render(<DemoPage />);
+    expect(screen.getByTestId("live-alerts")).toBeTruthy();
   });
 });

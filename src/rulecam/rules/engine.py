@@ -16,6 +16,7 @@ from typing import Any
 from rulecam.contracts import Calibration, CandidateEvent, Measurement, RuleIR, Track, Zone
 from rulecam.contracts.rule_ir import All, Any_, Not_, Persist, Predicate, Rate
 from rulecam.contracts.rule_ir import Sequence as SequenceOp
+from rulecam.rules.extension import ExtensionHook
 from rulecam.rules.hashing import event_id, rule_ir_hash, track_window_hash
 from rulecam.rules.ir import (
     child_path,
@@ -88,6 +89,7 @@ def evaluate(
     pose: PoseFeatures | None = None,
     operator_exclusion: bool = True,
     operator_warmup_s: float = OPERATOR_WARMUP_S,
+    extensions: ExtensionHook | None = None,
 ) -> list[CandidateEvent]:
     """Evaluate a rule over a window of tracks and return one candidate per episode.
 
@@ -111,6 +113,8 @@ def evaluate(
             default; `OperatorExclusion.enabled_for(rule.id)` gives the owner's per-rule choice.
         operator_warmup_s: How long a person first seen on board a vehicle is held as its
             operator pending (`rules.operators`, rule 7); 0 turns the warm-up off.
+        extensions: Runs approved model-written checks for `StateCheck(state="ext:…")`
+            (`rules.extension`); without it those samples are unknown.
 
     Returns:
         Candidates sorted by `(ts_start, camera_id, event_id)`.
@@ -142,6 +146,7 @@ def evaluate(
             pose=pose,
             operator_exclusion=operator_exclusion,
             operator_warmup_s=operator_warmup_s,
+            extensions=extensions,
         )
         window_hash = track_window_hash(camera_id, t0, t1, hz, own)
         events.extend(_evaluate_camera(settings, scene, window_hash))

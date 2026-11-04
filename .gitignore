@@ -49,3 +49,8 @@ deploy/monitoring/targets/rulecam.json
 
 # Large generated MP4 streams (populated by scripts/seed_live_backend.py)
 ui/public/videos/*.mp4
+
+# The seed script's hand-made sample plans, written at run time for local UI work. They are
+# sample data, not real plans, so they are never committed to plans/ (see samples/seed/).
+plans/plan-8b21c409a7e1*
+plans/plan-c914e72a03f5*

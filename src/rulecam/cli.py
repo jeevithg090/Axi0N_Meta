@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from rulecam.eval.schema import EvalSet
     from rulecam.eval.score import EvalReport
     from rulecam.eval.scorecard import Checks
+    from rulecam.extensions.api import Extensions
 
 app = typer.Typer(help="Rulecam: a camera agent that plans its own job and proves its work.")
 
@@ -1089,6 +1090,81 @@ def shelf_scan(
         out_dir=settings.rulecam_data_dir / "shelf" / "marked",
     )
     typer.echo(scanner.scan_image(image).model_dump_json(indent=2))
+
+
+extension_app = typer.Typer(
+    help="Rule extensions: Muse Code writes a new check type; prove, review, approve it."
+)
+app.add_typer(extension_app, name="extension")
+
+
+def _extensions(site: str) -> Extensions:
+    from rulecam.extensions.api import build_extensions  # noqa: PLC0415 - heavy imports
+
+    settings = get_settings()
+    clock = SystemClock()
+    chain = EventChain(settings.rulecam_data_dir / "evidence" / "chain", site, clock=clock)
+    cache = ReplayCache.from_settings(settings, clock=clock)
+    return build_extensions(settings, cache=cache, clock=clock, bus=Bus(), chain=chain)
+
+
+def _line(text: str) -> tuple[tuple[float, float], tuple[float, float]]:
+    """`name=x1,y1,x2,y2` → the line's two points."""
+    values = [float(v) for v in text.split(",")]
+    if len(values) != 4:  # noqa: PLR2004 - two points
+        raise typer.BadParameter("a line is x1,y1,x2,y2 in pixels", param_hint="--line")
+    return (values[0], values[1]), (values[2], values[3])
+
+
+@extension_app.command("new")
+def extension_new(
+    request: Annotated[str, typer.Argument(help="The owner's words, in quotes")],
+    *,
+    concept: Annotated[str, typer.Option(help="Rule concept the check sees, e.g. pallet")],
+    camera: Annotated[str, typer.Option(help="Camera the line is drawn on")] = "cam1",
+    line: Annotated[
+        list[str] | None, typer.Option(help="name=x1,y1,x2,y2 in pixels (repeatable)")
+    ] = None,
+    name: Annotated[str | None, typer.Option(help="Extension name (default: from request)")] = None,
+    site: Annotated[str, typer.Option(help="Site whose evidence chain records it")] = "demo",
+) -> None:
+    """Have Muse Code write a check, prove and review it, and store it (proposed or rejected)."""
+    from rulecam.extensions.service import ExtensionRequest  # noqa: PLC0415
+
+    pairs = [item.split("=", 1) for item in (line or []) if "=" in item]
+    lines = {key: _line(value) for key, value in pairs}
+    service = _extensions(site).service
+    if service is None:
+        typer.echo("no generator: install the Muse Code CLI or set META_API_KEY", err=True)
+        raise typer.Exit(code=2)
+    record = service.propose(
+        ExtensionRequest(request=request, concept=concept, camera_id=camera, lines=lines, name=name)
+    )
+    for step in record.proof.steps:
+        typer.echo(f"{step.status:>7}  {step.name}: {step.detail}")
+    typer.echo(f" review  {record.review.reviewer}: {record.review.verdict}")
+    typer.echo(f"{record.status}: {record.ref} (generator {record.generator}, {record.model})")
+
+
+@extension_app.command("list")
+def extension_list(
+    site: Annotated[str, typer.Option(help="Site whose evidence chain records it")] = "demo",
+) -> None:
+    """The newest version of every extension, with its status and ref."""
+    for record in _extensions(site).registry.all_latest():
+        typer.echo(f"{record.status:>9}  {record.ref}  {record.request}")
+
+
+@extension_app.command("approve")
+def extension_approve(
+    name: Annotated[str, typer.Argument(help="Extension name")],
+    sha: Annotated[str, typer.Argument(help="At least 12 hex characters of its sha256")],
+    site: Annotated[str, typer.Option(help="Site whose evidence chain records it")] = "demo",
+) -> None:
+    """Approve a proposed version that passed its proof and review (as the owner)."""
+    record = _extensions(site).registry.approve(name, sha, by="owner")
+    use = f"StateCheck(object={record.concept!r}, state={record.ref!r})"
+    typer.echo(f"approved {record.ref}: use {use}")
 
 
 @app.callback()

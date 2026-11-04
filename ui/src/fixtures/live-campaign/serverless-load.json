@@ -1,0 +1,7 @@
+{
+  "source": "reports/eval/2026-11-02-serverless-load.json",
+  "scenario": 5,
+  "burst": 20,
+  "state": "warm",
+  "usd_per_alert": 0.00391729612166919
+}

@@ -23,6 +23,7 @@ from rulecam.contracts.rule_ir import (
     StateCheck,
     Without,
 )
+from rulecam.rules.extension import EXTENSION_PREFIX
 
 REF_PARTS = frozenset({"foot_point", "mask", "hands"})
 HANDS_CONCEPT = "hands"
@@ -68,8 +69,11 @@ def walk(node: Predicate, path: str | None = None) -> Iterator[tuple[str, Predic
 
 
 def state_concepts(node: StateCheck) -> tuple[str, ...]:
-    """Concept names that mean `node.object` is in `node.state` (e.g. "open door")."""
-    if node.state == "present":
+    """Concept names that mean `node.object` is in `node.state` (e.g. "open door").
+
+    An extension state (`ext:…`) reads the object itself; the extension decides the state.
+    """
+    if node.state == "present" or node.state.startswith(EXTENSION_PREFIX):
         return (node.object,)
     return (f"{node.state} {node.object}", f"{node.object}/{node.state}")
 

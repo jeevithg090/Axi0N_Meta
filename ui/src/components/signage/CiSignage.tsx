@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { api, errorText } from "../../lib/api";
 import type { SitePlan } from "../../lib/plan";
+import { SampleDataTag } from "../SampleDataTag";
 
 interface MutantSpec {
   id: string;
@@ -63,7 +64,7 @@ const MUTANTS: MutantSpec[] = [
     traceInput: "Boundary trace #01 (person at 0.85m, forklift moving 1.84 m/s)",
     expectedEngine: "FIRES VIOLATION",
     mutantEngine: "SILENT ON ACTIVE COLLISION PATH",
-    killedBy: "Positive boundary trace #01 + Z3 non-vacuity check",
+    killedBy: "Positive boundary trace #01 + non-vacuity check",
     status: "KILLED",
   },
   {
@@ -73,10 +74,18 @@ const MUTANTS: MutantSpec[] = [
     traceInput: "Single forklift trace #09 (no pedestrian in aisle)",
     expectedEngine: "NO FIRE",
     mutantEngine: "SELF-DISTANCE 0.0m DEGENERACY",
-    killedBy: "Z3 static AST lint + negative trace #09",
+    killedBy: "Plan lint + negative trace #09",
     status: "KILLED",
   },
 ];
+
+/** The page headline: the loaded plan's recorded Rule CI result, never a built-in claim. */
+function ciHeadline(plan: SitePlan | null): string {
+  const ci = plan?.acceptance.checks.find((c) => c.check === "ci_green");
+  if (!plan) return "No plan loaded · example layout below";
+  if (!ci) return `${plan.plan_id} · no Rule CI result recorded`;
+  return `Rule CI ${ci.passed ? "passed" : "failed"} · ${ci.detail}`;
+}
 
 const BOUNDARY_TRACES = [
   { id: "B-01", dist: 0.85, speed: 1.84, operator: false, expected: "FIRE", actual: "FIRE", pass: true },
@@ -97,8 +106,6 @@ export function CiSignage() {
   const [plan, setPlan] = useState<SitePlan | null>(null);
   const [selectedRuleId, setSelectedRuleId] = useState<string>("keep-people-2m-from-moving-forklift");
   const [selectedMutant, setSelectedMutant] = useState<MutantSpec>(MUTANTS[3]!);
-  const [runningCi, setRunningCi] = useState<boolean>(false);
-  const [ciRunCount, setCiRunCount] = useState<number>(1);
   const [certified, setCertified] = useState<boolean>(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -119,24 +126,28 @@ export function CiSignage() {
       .catch(() => {});
   }, []);
 
-  const handleRunSuite = async () => {
-    setRunningCi(true);
-    setStatusMsg(null);
-    await new Promise((r) => setTimeout(r, 450));
-    setCiRunCount((c) => c + 1);
-    setRunningCi(false);
+  // Rule CI runs on the server for every plan before it can be approved; this page cannot re-run
+  // it, so it shows the result recorded in the loaded plan's acceptance trace, never a simulation.
+  const handleRunSuite = () => {
+    const ci = plan?.acceptance.checks.find((c) => c.check === "ci_green");
     setStatusMsg(
-      `✓ Rule CI Run #${ciRunCount + 1} completed in 380 ms: 16/16 boundary traces passed, 6/6 AST mutants killed, P1-07 golden regression passed, and Prompt Guard 2 firewall blocked adversarial scene text.`,
+      plan && ci
+        ? `Rule CI result recorded in ${plan.plan_id}'s acceptance trace: ${ci.passed ? "passed" : "failed"} (${ci.detail}).`
+        : "No plan with a Rule CI result is loaded. Rule CI runs on the server when a plan is made; it cannot be re-run from this page.",
     );
   };
 
   const handleCertifyAndApprove = async () => {
-    const targetPlanId = plan?.plan_id ?? "plan-c914e72a03f5";
+    if (!plan) {
+      setStatusMsg("No plan is loaded, so there is nothing to approve.");
+      return;
+    }
+    const targetPlanId = plan.plan_id;
     try {
       await api.approve(targetPlanId);
       setCertified(true);
       setStatusMsg(
-        `✓ Plan ${targetPlanId} formally certified and re-anchored to the live RuntimeLoop via POST /plans/${targetPlanId}/approve.`,
+        `✓ Plan ${targetPlanId} approved and activated via POST /plans/${targetPlanId}/approve.`,
       );
     } catch (err) {
       setStatusMsg(errorText(err, "Failed to certify plan"));
@@ -145,6 +156,7 @@ export function CiSignage() {
 
   return (
     <div style={{ padding: "var(--s3) var(--gut) var(--s6)" }}>
+      <SampleDataTag what="The headline counts, boundary-trace table and mutant list on this page are built-in examples, not the Rule CI result of the plan shown. A plan's real Rule CI result is in its acceptance trace (Plans → the plan)." />
       {/* Top Verdict Control Strip */}
       <div
         style={{
@@ -162,11 +174,11 @@ export function CiSignage() {
       >
         <div>
           <div className="ctx" style={{ color: "var(--on-dark-2)", marginBottom: "4px" }}>
-            Rule CI Proof Engine &nbsp;·&nbsp; Plan: <b>{plan?.plan_id ?? "plan-c914e72a03f5"}</b>{" "}
+            Rule CI Proof Engine &nbsp;·&nbsp; Plan: <b>{plan?.plan_id ?? "none loaded"}</b>{" "}
             &nbsp;·&nbsp; Rule: <b>{selectedRuleId}</b>
           </div>
           <h1 className="h1 xl" style={{ color: "var(--yellow)", fontSize: "44px", lineHeight: 1 }}>
-            Safe to ship · 16/16 Boundary · 6/6 Mutants Killed
+            {ciHeadline(plan)}
           </h1>
         </div>
 
@@ -195,10 +207,9 @@ export function CiSignage() {
             type="button"
             className="btn"
             style={{ background: "#F2D100", color: "#141414", padding: "10px 16px" }}
-            onClick={() => void handleRunSuite()}
-            disabled={runningCi}
+            onClick={handleRunSuite}
           >
-            {runningCi ? "Executing Traces & Mutants…" : "▶ Re-Run Full Rule CI Suite"}
+            ▶ Show this plan&apos;s Rule CI result
           </button>
         </div>
       </div>
@@ -511,8 +522,8 @@ export function CiSignage() {
               }}
             >
               {certified
-                ? `✓ Certified & Active (${plan?.plan_id ?? "plan-c914e72a03f5"})`
-                : `Certify & Activate Plan (${plan?.plan_id ?? "plan-c914e72a03f5"})`}
+                ? `✓ Approved & Active (${plan?.plan_id ?? "no plan"})`
+                : `Approve & Activate Plan (${plan?.plan_id ?? "no plan loaded"})`}
             </button>
           </div>
         </div>

@@ -32,6 +32,10 @@ export const PAGES = [
   "/worker",
 ];
 
+/** Pages that land with later branches: checked when the build has them, skipped otherwise. */
+export const USE_CASES = ["/usecases/warehouse", "/usecases/crowd", "/usecases/supermarket"];
+export const OPTIONAL_PAGES = [...USE_CASES, "/staff", "/glasses", "/inspector"];
+
 /** Text that must not still be on screen once a page has settled. */
 export const STUCK = /Loading…|Loading\.\.\.|Checking who you are…/;
 

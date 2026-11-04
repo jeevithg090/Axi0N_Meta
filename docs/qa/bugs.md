@@ -43,6 +43,7 @@ pass, API revision `559f976`). Branch builds tested: `p1/final-integration` 0b35
 | QA-B25 | P2 | warehouse | `/usecases/warehouse` | Two nested `<main>` landmarks (the shell's and the page's): invalid HTML, confuses screen readers |
 | QA-B26 | P2 | warehouse (`ui/demo`) | `/demo?demo=1` | The first card is tagged "RECORDED LIVE RUN · 1 NOV 2026 · NOT A REPLAY, NOT LIVE NOW" while the header badge says REPLAY: two labels that contradict each other on the judge's first page |
 | QA-B27 | P2 | UI agent (`components/demo/SystemStatus.tsx`, `lib/health.ts`) | landing (`p1/ui-hallmark`) | "The system right now" says **OFFLINE · The Rulecam API is not reachable** whenever the API is up in REPLAY mode (`isLive` needs `mode === "live"`), right above "API ok · Mode replay"; the header badge says REPLAY. The DEMO.md fallback (switch to replay) would show this |
+| QA-B29 | P2 | compliance | `/inspector` (`p1/compliance`) | A visitor sees the API's raw "owner login required" on the proof portal (the pack list/creation is owner-only; show the `OwnerOnly` notice and keep the explanation) |
 | QA-B28 | P2 | crowd | `/usecases/crowd` | With no crowd camera the page shows operator hints to judges ("crowd watch needs RULECAM_PROTOTYPE_MODE=true and RULECAM_CROWD_EVERY_S > 0", "scripts/crowd/feed_clip.py") and two empty dropdowns; no recorded crowd run to look at |
 
 ### QA-B18 · P0 · Ask fabricates answers when the API says no
@@ -252,6 +253,12 @@ pass, API revision `559f976`). Branch builds tested: `p1/final-integration` 0b35
 | QA-B7 | P2 | `/alerts` | "Could not reach the Rulecam API" on a 403 | 403 → `OwnerOnly`; a network failure still says so | `ui/src/app/cards/owner-only.test.tsx` |
 
 ## Checked and fine
+
+- `/staff` (`p1/staff-app`, desktop and 375 px): onboarding, role, feed for the owner; a visitor
+  whose feed is refused is not told "Nothing needs you right now" without an explanation
+  (`ui/e2e` `staff.spec.ts`). `/glasses` (`p1/glasses`): loads clean on both viewports, owner and
+  visitor; it says the phone camera stands in for the glasses. `/inspector` (`p1/compliance`):
+  clean for the owner (see QA-B29 for visitors).
 
 - Branch APIs (01:10 UTC heads of `p1/glasses`, `p1/staff-app`, `p1/compliance`,
   `p1/uc-supermarket`, `p1/uc-warehouse`, `p1/uc-crowd`): `tests/e2e/test_api_surface.py` run on

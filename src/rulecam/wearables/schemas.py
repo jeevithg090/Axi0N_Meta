@@ -21,9 +21,11 @@ HazardSeverity = Literal["info", "caution", "danger"]
 class GlimmerLook(Frozen):
     """Muse Glimmer's first look at the wearer's view."""
 
-    scene: str = Field(description="One sentence: what is in front of the wearer.")
+    scene: str = Field(description="One short sentence: what is in front of the wearer.")
     answer: str = Field(description="A direct answer to the wearer's question; empty if none.")
-    hazards: list[str] = Field(description="Safety hazards visible now, each with where it is.")
+    hazards: list[str] = Field(
+        description="Safety hazards visible now, a few words each, with where it is."
+    )
     alert: bool = Field(description="True if the wearer should be warned right now.")
     count: list[str] = Field(
         description="Up to 3 short noun phrases SAM 3.1 should count to check the answer."
@@ -42,7 +44,7 @@ class Composed(Frozen):
     """Muse Spark's answer for the wearer's ear, after checking the other models' evidence."""
 
     spoken: str = Field(description="What to say in the wearer's ear: 1-2 short sentences.")
-    detail: str = Field(description="A fuller answer for the screen, with the evidence used.")
+    detail: str = Field(description="At most three sentences for the screen: the evidence used.")
     alert: bool = Field(description="True only if a hazard the wearer must act on is confirmed.")
     severity: Severity
     hazards: list[Hazard] = Field(default_factory=list)

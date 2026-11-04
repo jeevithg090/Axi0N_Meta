@@ -21,6 +21,7 @@ import {
   glimmerLabel,
   MODES,
   modelName,
+  progressLabel,
   scaledSize,
   shouldSpeak,
   SOURCE_LABELS,
@@ -218,15 +219,21 @@ export function GlassesMode() {
       setBusy(opts.label);
       setError(null);
       try {
-        const answer = await wearables.look({
-          frame,
-          mode,
-          source,
-          question: opts.question,
-          audio: opts.audio,
-          walkId: walk?.walk_id ?? null,
-          lang: (navigator.language || "en").split("-")[0],
-        });
+        const answer = await wearables.look(
+          {
+            frame,
+            mode,
+            source,
+            question: opts.question,
+            audio: opts.audio,
+            walkId: walk?.walk_id ?? null,
+            lang: (navigator.language || "en").split("-")[0],
+          },
+          (job) => {
+            const done = progressLabel(job);
+            if (done) setBusy(`${opts.label} ${done}`);
+          },
+        );
         setAnswers((prev) => [answer, ...prev].slice(0, KEEP_ANSWERS));
         if (shouldSpeak(answer)) say(answer.spoken, answer.audio);
         if (walk) setWalk({ ...walk, frames: walk.frames + 1 });

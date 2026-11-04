@@ -55,7 +55,7 @@ from rulecam.wearables.assist import (
     Voice,
     WearablesError,
 )
-from rulecam.wearables.schemas import Mode, PovAnswer, Walk, WalkReport
+from rulecam.wearables.schemas import Mode, PovAnswer, Stage, Walk, WalkReport
 from rulecam.wearables.walks import WalkError, WalkReporter, WalkStore
 
 _log = get_logger(__name__)
@@ -98,6 +98,7 @@ class Job(Frozen):
     answer: PovAnswer | None = None
     report: WalkReport | None = None
     error: str | None = None
+    stages: list[Stage] = Field(default_factory=list, description="Stages done so far.")
 
 
 class Jobs:
@@ -106,17 +107,24 @@ class Jobs:
     def __init__(self) -> None:
         """Create an empty job list."""
         self._tasks: OrderedDict[str, asyncio.Task[PovAnswer | WalkReport]] = OrderedDict()
+        self._stages: dict[str, list[Stage]] = {}
 
-    def start(self, work: Callable[[], Awaitable[PovAnswer | WalkReport]]) -> Job:
-        """Run `work` in the background and return its job."""
+    def start(
+        self,
+        work: Callable[[], Awaitable[PovAnswer | WalkReport]],
+        stages: list[Stage] | None = None,
+    ) -> Job:
+        """Run `work` in the background and return its job; `stages` fills in as it runs."""
         job_id = uuid.uuid4().hex[:16]
+        self._stages[job_id] = stages if stages is not None else []
 
         async def run() -> PovAnswer | WalkReport:
             return await work()
 
         self._tasks[job_id] = asyncio.create_task(run())
         while len(self._tasks) > MAX_JOBS:
-            self._tasks.popitem(last=False)
+            dropped, _ = self._tasks.popitem(last=False)
+            self._stages.pop(dropped, None)
         return Job(job_id=job_id, status="running")
 
     def get(self, job_id: str) -> Job:
@@ -129,7 +137,7 @@ class Jobs:
         if task is None:
             raise HTTPException(HTTP_NOT_FOUND, "no such job")
         if not task.done():
-            return Job(job_id=job_id, status="running")
+            return Job(job_id=job_id, status="running", stages=list(self._stages.get(job_id, [])))
         error = task.exception()
         if error is not None:
             detail = error.detail if isinstance(error, HTTPException) else repr(error)
@@ -232,6 +240,7 @@ def wearables_router(  # noqa: C901 - one closure per route
         if walk_id and _walk(walk_id).finished_at is not None:
             raise HTTPException(HTTP_CONFLICT, f"walk {walk_id} is finished")
         history = walks.answers(walk_id) if walk_id else []
+        stages: list[Stage] = []
         ask = Ask(
             image=await _read(image, MAX_IMAGE_BYTES, "frames"),
             content_type=image.content_type or "",
@@ -242,6 +251,7 @@ def wearables_router(  # noqa: C901 - one closure per route
             speak=speak,
             source=source if source in SOURCES else "phone-camera",
             walk_id=walk_id or None,
+            progress=None if wait else stages.append,
         )
 
         async def work() -> PovAnswer:
@@ -253,7 +263,7 @@ def wearables_router(  # noqa: C901 - one closure per route
                 walks.add(walk_id, answer)
             return answer
 
-        return await work() if wait else jobs.start(work)
+        return await work() if wait else jobs.start(work, stages)
 
     @router.post("/walks")
     def start_walk(body: WalkStart) -> Walk:

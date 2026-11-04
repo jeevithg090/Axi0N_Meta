@@ -13,8 +13,8 @@ fixed cameras' incidents.
 |---|---|---|
 | Point-of-view camera | The phone's rear camera on the `/glasses` page, held at chest height or clipped on, or an uploaded photo | **Stand-in**, labelled on the page ("Phone camera standing in for the glasses") |
 | The glasses' own camera | Meta's Wearables Device Access Toolkit (DAT) gives an iOS or Android app the glasses' camera. The plan is in `apps/glasses/README.md`. It is not built here because this build machine has no Xcode | **Not built** |
-| Spoken answers and alerts | Played through the phone's audio route, so with the glasses paired over Bluetooth they are heard in the glasses' open-ear speakers. This is ordinary Bluetooth audio, no SDK needed | Real |
-| Microphone | The phone's default input. With the glasses connected as a headset this can be the glasses' microphones | Real (the glasses mic depends on the phone's audio routing) |
+| Spoken answers and alerts | Played through the phone's audio route, so with the glasses paired over Bluetooth they are heard in the glasses' open-ear speakers. This is ordinary Bluetooth audio, no SDK needed | Real path, **not yet tried with glasses** (the team has none on hand) |
+| Microphone | The phone's default input. With the glasses connected as a headset this can be the glasses' microphones | Real path, not yet tried with glasses (it depends on the phone's audio routing) |
 | Looking, counting, answering | Muse Glimmer, SAM 3.1, Muse Spark 1.3, Muse Voice Transcribe | Real model calls, nothing mocked |
 | Voice | Meta MMS-TTS where the `ml` extra is installed (the API pod), otherwise the labelled system voice, otherwise the browser's voice. The Meta Model API has no text-to-speech | Real; the answer card says which voice spoke |
 
@@ -35,7 +35,9 @@ fixed cameras' incidents.
 5. **Speak.** The sentence is spoken.
 
 The mode (aisle, warehouse, crowd, general) only tells the models who is wearing the glasses and
-what they care about. Nothing is hard-coded: the models decide what matters and what to count.
+what they care about, and biases Voice Transcribe toward a few words of that trade ("shelf",
+"facings", "forklift"). Nothing else is hard-coded: the models decide what matters and what to
+count.
 
 **Verified alerts.** An alert is *verified* only when Glimmer flagged a hazard and Spark, checking
 the same frame with SAM's counts, confirmed it. A question is always answered aloud; a patrol frame

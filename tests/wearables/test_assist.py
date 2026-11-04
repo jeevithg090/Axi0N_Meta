@@ -24,7 +24,7 @@ from rulecam.wearables.assist import (
     concepts,
     fallback_spoken,
 )
-from rulecam.wearables.schemas import GlimmerLook
+from rulecam.wearables.schemas import GlimmerLook, Stage
 from tests.fakes import EPOCH, FakeClock, FakeLLM, FakeTranscriber, FakeTTS
 
 GLIMMER = "muse-glimmer-30b"
@@ -339,6 +339,17 @@ async def test_a_cold_slow_glimmer_does_not_hold_the_answer(tmp_path: Path) -> N
     assert answer.looked_by.startswith("muse-spark-1.3")
     assert time.perf_counter() - started < 2.0  # not the 5 s Glimmer timeout
     assert svc.glimmer_state == "down"
+
+
+async def test_progress_hears_each_stage_as_it_ends(tmp_path: Path) -> None:
+    spark = FakeLLM([composed(alert=False, spoken="Clear.")])
+    svc, _, _ = assistant(tmp_path, glimmer=FakeLLM([look()]), spark=spark, glimmer_up=True)
+    seen: list[Stage] = []
+
+    answer = await svc.answer(Ask(image=jpeg(), question="Clear?", progress=seen.append))
+
+    assert [s.name for s in seen] == ["look", "compose", "speak"]
+    assert seen == answer.stages
 
 
 async def test_warm_pings_glimmer_once_a_minute(tmp_path: Path) -> None:

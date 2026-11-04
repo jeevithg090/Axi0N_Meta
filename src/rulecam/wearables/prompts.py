@@ -73,7 +73,8 @@ COMPOSE_PROMPT: Final = (
     "that is clearly stocked. Write `spoken` "
     "for the ear: at most two short sentences, the most important thing first, directions "
     "relative to the wearer (ahead, left, right), no lists, no markdown. Put the evidence in "
-    "`detail`. Set `alert` only for a hazard you can confirm in this frame that the wearer "
+    "`detail`, in at most three sentences. Set `alert` only for a hazard you can confirm in "
+    "this frame that the wearer "
     "must act on now; severity `danger` when someone could be hurt within seconds. When the "
     "wearer asked nothing and nothing needs saying, leave `spoken` empty. " + PRIVACY
 )

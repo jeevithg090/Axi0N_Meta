@@ -106,14 +106,18 @@ class Ask:
     speak: bool = True
     source: str = "phone-camera"
     walk_id: str | None = None
+    progress: Callable[[Stage], None] | None = None  # told of each stage as it ends
 
 
 class Timer:
     """Collects timed stages."""
 
-    def __init__(self, monotonic: Callable[[], float]) -> None:
-        """Create the timer with a monotonic clock."""
+    def __init__(
+        self, monotonic: Callable[[], float], progress: Callable[[Stage], None] | None = None
+    ) -> None:
+        """Create the timer with a monotonic clock and an optional listener for each stage."""
         self._monotonic = monotonic
+        self._progress = progress
         self._start = monotonic()
         self.stages: list[Stage] = []
 
@@ -124,7 +128,10 @@ class Timer:
     def add(self, name: str, model: str, since: float, *, ok: bool = True, note: str = "") -> None:
         """Record a stage that started at `since`."""
         ms = round((self._monotonic() - since) * 1000)
-        self.stages.append(Stage(name=name, model=model, ms=ms, ok=ok, note=note[:300]))
+        stage = Stage(name=name, model=model, ms=ms, ok=ok, note=note[:300])
+        self.stages.append(stage)
+        if self._progress is not None:
+            self._progress(stage)
 
     def total_ms(self) -> int:
         """Milliseconds since the timer was made."""
@@ -392,7 +399,9 @@ class PovAssistant:
             WearablesError: When the image is not a JPEG or PNG.
         """
         answer_id = f"{self._clock.now():%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
-        run = _Run(ask, answer_id, self._save_frame(answer_id, ask), Timer(self._monotonic))
+        run = _Run(
+            ask, answer_id, self._save_frame(answer_id, ask), Timer(self._monotonic, ask.progress)
+        )
         if ask.audio is not None:
             run.kind, run.heard = "question", await self._hear(run)
             if not run.heard:

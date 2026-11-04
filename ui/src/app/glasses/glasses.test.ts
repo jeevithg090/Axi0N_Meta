@@ -8,6 +8,7 @@ import {
   frameUrl,
   glimmerLabel,
   lookForm,
+  progressLabel,
   modelName,
   scaledSize,
   shouldSpeak,
@@ -164,6 +165,18 @@ describe("glasses helpers", () => {
     );
     expect(done.answer?.spoken).toBe("Stop, forklift ahead.");
     expect(seen).toEqual(["j", "j"]);
+    const progress: string[] = [];
+    const withStage: Job = {
+      ...running,
+      stages: [{ name: "look", model: "muse-glimmer-30b", ms: 10_200, ok: true, note: "" }],
+    };
+    const queue: Job[] = [withStage, { ...running, status: "done", answer: answer() }];
+    await untilDone(running, async () => queue.shift() ?? running, {
+      wait: async () => undefined,
+      onProgress: (j) => progress.push(progressLabel(j) ?? ""),
+    });
+    expect(progress).toEqual(["Glimmer look 10.2 s ✓"]);
+    expect(progressLabel(running)).toBeNull();
     await expect(
       untilDone(running, async () => ({ ...running, status: "failed", error: "Spark down" }), {
         wait: async () => undefined,

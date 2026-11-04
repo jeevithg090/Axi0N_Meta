@@ -200,6 +200,7 @@ export interface Job {
   answer: PovAnswer | null;
   report: WalkReport | null;
   error: string | null;
+  stages?: Stage[];
 }
 
 export const POLL_MS = 800;
@@ -211,13 +212,24 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 export async function untilDone(
   started: Job,
   fetchJob: (id: string) => Promise<Job>,
-  { every = POLL_MS, limitMs = POLL_LIMIT_MS, wait = sleep } = {},
+  {
+    every = POLL_MS,
+    limitMs = POLL_LIMIT_MS,
+    wait = sleep,
+    onProgress,
+  }: {
+    every?: number;
+    limitMs?: number;
+    wait?: (ms: number) => Promise<void>;
+    onProgress?: (job: Job) => void;
+  } = {},
 ): Promise<Job> {
   let job = started;
   for (let waited = 0; job.status === "running"; waited += every) {
     if (waited >= limitMs) throw new ApiError(504, "No answer in time; try again.");
     await wait(every);
     job = await fetchJob(job.job_id);
+    if (job.status === "running") onProgress?.(job);
   }
   if (job.status === "failed") throw new ApiError(502, job.error ?? "The models did not answer.");
   return job;
@@ -227,9 +239,9 @@ const job = (id: string) => call<Job>(`/wearables/jobs/${encodeURIComponent(id)}
 
 export const wearables = {
   status: () => call<WearablesStatus>("/wearables/status"),
-  look: async (input: LookInput): Promise<PovAnswer> => {
+  look: async (input: LookInput, onProgress?: (job: Job) => void): Promise<PovAnswer> => {
     const started = await call<Job>("/wearables/look", { method: "POST", body: lookForm(input) });
-    const done = await untilDone(started, job);
+    const done = await untilDone(started, job, { onProgress });
     if (!done.answer) throw new ApiError(502, "The job ended without an answer.");
     return done.answer;
   },
@@ -274,6 +286,13 @@ export function verdictLabel(answer: PovAnswer): string {
 /** Whether the page should say this answer out loud (the server already decided what to say). */
 export function shouldSpeak(answer: PovAnswer): boolean {
   return answer.spoken.trim().length > 0;
+}
+
+/** The last finished stage of a running look, for the HUD: "Glimmer look 10.2 s ✓". */
+export function progressLabel(job: Job): string | null {
+  const last = job.stages?.at(-1);
+  if (!last) return null;
+  return `${modelName(last.model)} ${last.name} ${(last.ms / 1000).toFixed(1)} s ${last.ok ? "✓" : "✕"}`;
 }
 
 /** "look 3.1 s · count 1.9 s · compose 5.7 s" for the latency line. */

@@ -2,7 +2,6 @@
 
 import React, { useEffect, useRef, useState, type FormEvent } from "react";
 import { AskTimeline } from "@/components/ask/AskTimeline";
-import { errorText } from "@/lib/api";
 import {
   askReducer,
   isRunning,
@@ -321,7 +320,7 @@ export function AskSignage() {
       if (!receivedAny) {
         await runSynthesizedAgent(text, conversationId, preset);
       }
-    } catch (error) {
+    } catch {
       if (controller.signal.aborted) {
         apply({ type: "error", detail: "Stopped." });
       } else {

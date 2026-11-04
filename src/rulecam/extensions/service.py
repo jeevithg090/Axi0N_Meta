@@ -1,7 +1,8 @@
 """One request in, one stored extension version out: generate → prove → review → registry.
 
 `ExtensionService.propose` turns an owner's request into a `CheckSpec`, asks the generator for a
-`CheckSource`, proves it (`proof.prove`, the validator included), sends it to the reviewer only
+`CheckSource`, proves it (`proof.prove` with `steps.proof_steps`: validator, tests, boundary,
+mutation, common-sense relations and the Z3 math proof), sends it to the reviewer only
 if the proof passed, and stores the version as `proposed` (proof passed and review approved) or
 `rejected` (anything else, with the reasons in the report). Nothing becomes runnable here: an
 owner approves a proposed version through the registry, and a rule then refers to it as
@@ -28,6 +29,7 @@ from rulecam.extensions.registry import (
 from rulecam.extensions.review import ExtensionReviewer, skipped
 from rulecam.extensions.sample import Line
 from rulecam.extensions.sandbox import run_check
+from rulecam.extensions.steps import proof_steps
 
 _ABOVE: Final = re.compile(r"\b(above|over|higher than|taller than)\b", re.IGNORECASE)
 _BELOW: Final = re.compile(r"\b(below|under|lower than|beneath)\b", re.IGNORECASE)
@@ -113,7 +115,8 @@ class ExtensionService:
             registry: Where versions are stored.
             clock: Time source for `created_at`.
             runner: Runs code over samples (the sandbox).
-            steps: Proof steps (`proof.DEFAULT_STEPS` when None); add-ons extend this.
+            steps: Proof steps; None runs `steps.proof_steps` for each request (the defaults,
+                then the common-sense and Z3 math-proof steps drawn with its lines).
         """
         self._generator = generator
         self._reviewer = reviewer
@@ -143,7 +146,9 @@ class ExtensionService:
         """
         spec = spec_for(req)
         source = self._generator.generate(spec)
-        proof = prove(context_for(source.code, source.tests, spec, self._runner), self._steps)
+        frame = (req.frame_w, req.frame_h) if req.frame_w and req.frame_h else None
+        steps = self._steps if self._steps is not None else proof_steps(req.lines, frame)
+        proof = prove(context_for(source.code, source.tests, spec, self._runner), steps)
         review = (
             self._reviewer.review(spec, source.code, proof)
             if proof.passed

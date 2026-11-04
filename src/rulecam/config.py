@@ -235,6 +235,9 @@ class Settings(BaseSettings):
     planner_survey_window_s: float = (
         60.0  # seconds of recent chunks the planner samples frames from
     )
+    # Without Tier 2 (Spark Open), Muse Spark 1.3 reviews worker disputes with the evidence
+    # frames instead of leaving every one pending for a person (`worker.spark_review`).
+    rulecam_dispute_spark_fallback: bool = True
 
     @property
     def replay_dir(self) -> Path:

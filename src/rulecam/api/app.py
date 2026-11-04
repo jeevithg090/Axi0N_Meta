@@ -172,6 +172,7 @@ from rulecam.voice_out.tts import MmsTts
 from rulecam.warehouse.api import build_warehouse
 from rulecam.worker import DisputeService, worker_router
 from rulecam.worker.disputes import DisputeReviewer
+from rulecam.worker.spark_review import spark_dispute_reviewer
 
 _log = get_logger(__name__)
 
@@ -1022,7 +1023,9 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 chain=chain,
                 plans=plans,
                 client_address=client_address,
-                reviewer=response.policy,
+                reviewer=spark_dispute_reviewer(
+                    settings, response.policy, cache=cache, clock=clock, bus=bus
+                ),
                 hard_negatives=hard_negatives,
             ),
             owner_alerts_router(response, on_false_alarm=false_alarm),

@@ -269,6 +269,11 @@ class Settings(BaseSettings):
     )
     # Proof portal (`compliance/`): signs share links; default a random key in <data>/compliance.
     rulecam_share_secret: SecretStr | None = None
+    # Camera connectors (`rulecam.connectors`, `/connectors`): chunk rate, the widest frame
+    # kept (wider streams are scaled down) and how many 3 s chunk files each camera keeps.
+    rulecam_connectors_fps: float = Field(default=10.0, gt=0, le=30)
+    rulecam_connectors_max_width: int = Field(default=1280, ge=320, le=3840)
+    rulecam_connectors_keep_chunks: int = Field(default=1200, ge=10)
 
     @property
     def replay_dir(self) -> Path:

@@ -1,0 +1,171 @@
+/* Plain, local styles for /cameras; the shared design system restyles it later. */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tab {
+  padding: 6px 12px;
+  border: 1px solid currentColor;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.tabActive {
+  composes: tab;
+  opacity: 1;
+  font-weight: 700;
+}
+
+.form {
+  display: grid;
+  gap: 8px;
+  max-width: 720px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.row input,
+.row select {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.tile {
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 0;
+}
+
+.shot {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #111;
+}
+
+.title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.title h3 {
+  margin: 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.state {
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.live {
+  composes: state;
+  color: #1a9e4b;
+}
+
+.waiting {
+  composes: state;
+  color: #c98a00;
+}
+
+.down {
+  composes: state;
+  color: #d03838;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border: 1px solid rgba(127, 127, 127, 0.5);
+  border-radius: 999px;
+}
+
+.chipNone {
+  composes: chip;
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.strong {
+  composes: chip;
+  border-color: #1a9e4b;
+  color: #1a9e4b;
+  font-weight: 700;
+}
+
+.possible {
+  composes: chip;
+  border-color: #c98a00;
+  color: #c98a00;
+}
+
+.poor {
+  composes: chip;
+  opacity: 0.6;
+}
+
+.error {
+  color: #d03838;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.small {
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.devices {
+  display: grid;
+  gap: 8px;
+}
+
+.device {
+  border: 1px solid rgba(127, 127, 127, 0.4);
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}

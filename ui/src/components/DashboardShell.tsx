@@ -74,6 +74,8 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/monitor", label: "Monitor", icon: "monitor", badge: "SAMPLE", badgeTone: "sample" },
       { href: "/streams", label: "Camera fleet", icon: "video", badgeTone: "count" },
+      { href: "/cameras", label: "Connect cameras", icon: "video" },
+      { href: "/staff", label: "Staff app", icon: "bell" },
       { href: "/alerts", label: "Alerts", icon: "bell" },
       { href: "/ask", label: "Ask", icon: "chat" },
       { href: "/advice", label: "Advice", icon: "bars" },
@@ -86,6 +88,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/demo", label: "Golden replay", icon: "play", badge: "REPLAY", badgeTone: "replay" },
       { href: VERIFY_URL, label: "Verify evidence", icon: "shield", external: true },
       { href: "/incidents", label: "Incidents", icon: "alert", badgeTone: "count" },
+      { href: "/inspector", label: "Proof portal", icon: "shield" },
       { href: "/worker", label: "Worker page", icon: "qr" },
       { href: "/audit", label: "Audit", icon: "hash" },
     ],

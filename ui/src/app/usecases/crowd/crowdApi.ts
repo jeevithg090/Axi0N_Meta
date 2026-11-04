@@ -88,6 +88,38 @@ export interface ZoneForecast {
   in_per_min?: number | null;
   out_per_min?: number | null;
   fill_eta_s?: Record<string, number | null>;
+  phase?: PhaseMeter | null;
+}
+
+export interface PhaseMeter {
+  window_s: number;
+  speeds: number[];
+  speed_mps: number | null;
+  speed_per_min: number | null;
+  swings: number;
+  swing_share: number | null;
+  pressure: number | null;
+  pressure_peak: number | null;
+}
+
+export interface ZoneTally {
+  camera_id: string;
+  zone: string;
+  at: string;
+  sam: number;
+  spark: number | null;
+  spark_said: number | null;
+  glimmer: number | null;
+  glimmer_note: string;
+  low: number;
+  high: number;
+  spread: number;
+  disagree: boolean;
+  crop: string | null;
+  crop_box: [number, number, number, number] | null;
+  points_px: Pt[];
+  seconds: number;
+  notes: string[];
 }
 
 export interface RouteCheck {
@@ -122,6 +154,7 @@ export interface Assessment {
   actions: VenueAction[];
   announce: { lang: string; text: string }[];
   check: string;
+  phase?: string;
 }
 
 export interface CrowdCheck {
@@ -205,6 +238,7 @@ export interface CameraStatus {
   series: Record<string, (number | string | null)[]>;
   zone_series: Record<string, { t: string[]; people: number[]; density: (number | null)[] }>;
   forecast: ZoneForecast[];
+  tally: ZoneTally | null;
   assessment: Assessment | null;
   assessed_at: string | null;
   assess_seconds: number | null;

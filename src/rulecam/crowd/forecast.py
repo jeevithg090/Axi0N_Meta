@@ -5,6 +5,10 @@ readings:
 
 - the density now and its change per minute (a least-squares line, `signals.trend`);
 - the inflow: the change in people per minute in the zone (arrivals minus departures);
+- the phase meter: the zone's speed over the last `PHASE_S` seconds, its trend, its stop-and-go
+  swings (how often it turned from slowing to speeding up or back, and how far it swung
+  relative to its mean) and the crowd pressure now and at its peak (Helbing et al. 2007: in the
+  2006 Jamarat video, stop-and-go waves came before turbulence, and turbulence before deaths);
 - the fill clock: people crossing the zone's edge in and out per minute (optical flow, the mean
   of the last `FLUX_READINGS` readings), and the seconds that net flow takes to bring the zone
   to each reference density at its area;
@@ -20,6 +24,7 @@ UK Guide to Safety at Sports Grounds), not alarm thresholds.
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Sequence
 from typing import Final
 
@@ -30,6 +35,7 @@ from rulecam.crowd.scan import CrowdReading
 from rulecam.crowd.signals import trend
 
 RECENT_S: Final = 60.0  # the window the projection's line is fitted on
+PHASE_S: Final = 180.0  # the phase meter reads the speed over the last three minutes
 FLUX_READINGS: Final = 3  # the fill clock averages the edge crossings of this many readings
 MAX_ETA_S: Final = 1800.0  # a projection further out than this says nothing useful
 REFERENCE_PPM2: Final = (2.0, 4.0, 5.0, 6.0)
@@ -68,6 +74,27 @@ class ZoneForecast(Frozen):
         default_factory=dict,
         description="Reference density -> seconds the net edge flow takes to reach it.",
     )
+    phase: PhaseMeter | None = None
+
+
+class PhaseMeter(Frozen):
+    """How a zone's crowd has moved over the last minutes: speed, stop-and-go, pressure."""
+
+    window_s: float
+    speeds: list[float] = Field(default_factory=list, description="m/s, oldest first.")
+    speed_mps: float | None = None
+    speed_per_min: float | None = Field(default=None, description="Change of speed per minute.")
+    swings: int = Field(
+        default=0, description="Times the speed turned from falling to rising or back."
+    )
+    swing_share: float | None = Field(
+        default=None, description="(fastest - slowest) / mean speed over the window."
+    )
+    pressure: float | None = None
+    pressure_peak: float | None = None
+
+
+ZoneForecast.model_rebuild()
 
 
 def forecast(history: Sequence[CrowdReading], recent_s: float = RECENT_S) -> list[ZoneForecast]:
@@ -110,6 +137,7 @@ def _zone(
         eta[_key(level)] = _eta(current, fit.per_min if fit else None, level)
     peaks = [v for _, v in density if v is not None]
     flux = _flux(name, recent)
+    phase = _phase(name, [r for r in history if (recent[-1].at - r.at).total_seconds() <= PHASE_S])
     area = now.area_m2 if now is not None else None
     fill: dict[str, float | None] = {}
     if flux is not None and area:
@@ -130,6 +158,32 @@ def _zone(
         in_per_min=flux[0] if flux is not None else None,
         out_per_min=flux[1] if flux is not None else None,
         fill_eta_s=fill,
+        phase=phase,
+    )
+
+
+def _phase(name: str, window: Sequence[CrowdReading]) -> PhaseMeter | None:
+    """The zone's phase meter over `window` (`None` with fewer than three speeds)."""
+    rows = [(r.at, z) for r in window if (z := r.zone(name)) is not None]
+    speeds = [(at, z.speed_mps) for at, z in rows if z.speed_mps is not None]
+    if len(speeds) < 3:  # noqa: PLR2004 - a turn needs three points
+        return None
+    values = [float(v) for _, v in speeds if v is not None]
+    start = speeds[0][0]
+    fit = trend([(at - start).total_seconds() for at, _ in speeds], values)
+    steps = [b - a for a, b in itertools.pairwise(values) if b != a]
+    swings = sum(1 for a, b in itertools.pairwise(steps) if (a > 0) != (b > 0))
+    mean = sum(values) / len(values)
+    pressures = [z.pressure for _, z in rows if z.pressure is not None]
+    return PhaseMeter(
+        window_s=round((speeds[-1][0] - start).total_seconds(), 1),
+        speeds=[round(v, 3) for v in values],
+        speed_mps=values[-1],
+        speed_per_min=round(fit.per_min, 3) if fit is not None else None,
+        swings=swings,
+        swing_share=round((max(values) - min(values)) / mean, 3) if mean > 0 else None,
+        pressure=rows[-1][1].pressure,
+        pressure_peak=max(pressures) if pressures else None,
     )
 
 
@@ -175,4 +229,4 @@ def _key(level: float) -> str:
     return f"{level:g}"
 
 
-__all__ = ["RECENT_S", "REFERENCE_PPM2", "ZoneForecast", "forecast"]
+__all__ = ["PHASE_S", "RECENT_S", "REFERENCE_PPM2", "PhaseMeter", "ZoneForecast", "forecast"]

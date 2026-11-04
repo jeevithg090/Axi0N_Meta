@@ -42,6 +42,7 @@ from rulecam.crowd.memory import CrowdMemory
 from rulecam.crowd.report import EventReport, Truth, after_action, build_report
 from rulecam.crowd.scan import CrowdReading
 from rulecam.crowd.setup import SetupProposal, propose
+from rulecam.crowd.tally import ZoneTally
 from rulecam.crowd.venue import Venue, place_readings
 from rulecam.crowd.warden import AckState, CrowdAlert, CrowdWarden, FloorPoints, Watch
 from rulecam.crowd.zones import CrowdZone
@@ -119,6 +120,9 @@ class CameraStatus(BaseModel):
     series: dict[str, list[Any]] = Field(default_factory=dict)
     zone_series: dict[str, dict[str, list[Any]]] = Field(default_factory=dict)
     forecast: list[ZoneForecast] = Field(default_factory=list)
+    tally: ZoneTally | None = Field(
+        default=None, description="The hottest zone counted by SAM 3.1, Spark and Glimmer."
+    )
     assessment: dict[str, Any] | None = None
     assessed_at: str | None = None
     assess_seconds: float | None = None
@@ -190,6 +194,7 @@ def crowd_status(memory: CrowdMemory, warden: CrowdWarden, names: dict[str, str]
             series=series(recent),
             zone_series=zone_series(recent),
             forecast=forecast(recent),
+            tally=warden.tally(camera_id),
         )
         if state is not None:
             camera = camera.model_copy(

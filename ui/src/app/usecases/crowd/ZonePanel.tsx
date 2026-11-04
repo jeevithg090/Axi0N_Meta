@@ -33,6 +33,21 @@ function Sparkline({ values }: { values: (number | null)[] }) {
   );
 }
 
+function SpeedLine({ speeds }: { speeds: number[] }) {
+  if (speeds.length < 2) return null;
+  const top = Math.max(0.5, ...speeds);
+  const w = 200;
+  const h = 30;
+  const path = speeds
+    .map((v, k) => `${k ? "L" : "M"}${(k / (speeds.length - 1)) * w},${h - (v / top) * h}`)
+    .join(" ");
+  return (
+    <svg width="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden>
+      <path d={path} fill="none" stroke="#00897b" strokeWidth={1.5} />
+    </svg>
+  );
+}
+
 function Countdown({ forecast }: { forecast: ZoneForecast | undefined }) {
   if (!forecast) return null;
   const rows = REFERENCES.map((ref) => ({
@@ -99,6 +114,19 @@ export function ZonePanel({ camera }: { camera: CameraStatus }) {
             )}
             <Sparkline values={camera.zone_series[z.zone]?.density ?? []} />
             <Countdown forecast={f} />
+            {f?.phase && (
+              <div className={styles.small}>
+                <strong>Phase meter</strong> ({Math.round(f.phase.window_s)} s): speed{" "}
+                {fmt(f.phase.speed_mps, 2)} m/s
+                {f.phase.speed_per_min != null
+                  ? ` (${f.phase.speed_per_min >= 0 ? "+" : ""}${fmt(f.phase.speed_per_min, 2)}/min)`
+                  : ""}
+                {" · "}stop-and-go swings {f.phase.swings}
+                {f.phase.swing_share != null ? ` (±${Math.round(f.phase.swing_share * 50)}%)` : ""}
+                {" · "}pressure {fmt(f.phase.pressure, 3)} (peak {fmt(f.phase.pressure_peak, 3)})
+                <SpeedLine speeds={f.phase.speeds} />
+              </div>
+            )}
           </div>
         );
       })}
@@ -122,6 +150,11 @@ export function AssessmentCard({ camera }: { camera: CameraStatus }) {
           reading {new Date(camera.assessed_at ?? "").toLocaleTimeString([], { hour12: false })} ·{" "}
           {fmt(camera.assess_seconds)} s
         </span>
+        {a.phase && (
+          <span className={styles.badge} style={{ background: "#455a64" }}>
+            {a.phase}
+          </span>
+        )}
         {a.minutes_to_danger != null && (
           <strong>dangerous in ~{fmt(a.minutes_to_danger, 1)} min</strong>
         )}

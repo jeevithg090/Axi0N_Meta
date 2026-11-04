@@ -8,6 +8,7 @@ import { LEVEL_COLOUR, useCrowdStatus } from "./crowdApi";
 import { LiveFrame } from "./LiveFrame";
 import { ReportPanel } from "./ReportPanel";
 import { SetupPanel } from "./SetupPanel";
+import { TallyCard } from "./TallyCard";
 import { VenueMap } from "./VenueMap";
 import { AssessmentCard, ZonePanel } from "./ZonePanel";
 
@@ -87,6 +88,7 @@ export default function CrowdPage() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
             <AssessmentCard camera={camera} />
+            <TallyCard tally={camera.tally} />
             <div className={styles.card}>
               <h2>Venue</h2>
               <VenueMap

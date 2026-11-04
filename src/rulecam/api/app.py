@@ -119,6 +119,7 @@ from rulecam.config import Settings, get_settings
 from rulecam.contracts import TTS, Calibration, Chunk, Clock, PrivacyMode, SitePlan
 from rulecam.crowd.memory import Calibrations, CrowdMemory, ModelCalibration
 from rulecam.crowd.scan import CrowdScanner
+from rulecam.crowd.tally import Tallier
 from rulecam.crowd.warden import CrowdWarden
 from rulecam.crowd.zones import CrowdZone
 from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
@@ -1271,6 +1272,15 @@ def build_crowd(
         alert_store=response.notifier,
         verifier_warm=glimmer_warm,
         transcriber=voice,
+        tallier=Tallier(
+            spark=spark,
+            files=spark,
+            glimmer=glimmer,
+            glimmer_model=glimmer.model,
+            frames_dir=frames.out_dir,
+            out_dir=settings.rulecam_data_dir / "strips" / "crowd",
+            glimmer_warm=glimmer_warm,
+        ),
     )
     languages = [x for x in settings.rulecam_crowd_languages.split(",") if x.strip()]
     if settings.rulecam_crowd_instruction:

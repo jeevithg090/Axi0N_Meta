@@ -20,6 +20,13 @@ import {
   retail,
   type RetailCard,
 } from "./api";
+import {
+  RECORDED_ANSWER,
+  RECORDED_BRIEF,
+  RECORDED_CARD,
+  RECORDED_OVERVIEW,
+  SupermarketRecordedRun,
+} from "./SupermarketRecordedRun";
 import { SupermarketProof } from "./SupermarketProof";
 import styles from "./supermarket.module.css";
 
@@ -107,11 +114,16 @@ export default function SupermarketPage() {
   const [card, setCard] = useState<RetailCard | null>(null);
   const [brief, setBrief] = useState<Brief | null>(null);
   const [checkReceipt, setCheckReceipt] = useState<string | null>(null);
+  const [useRecorded, setUseRecorded] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
-      setOverview(await retail.overview());
+      const next = await retail.overview();
+      setOverview(next);
       setError("");
+      if (next.cameras.length > 0 || next.findings.length > 0 || next.tasks.length > 0) {
+        setUseRecorded(false);
+      }
     } catch (e) {
       setError(overviewProblem(e));
     }
@@ -125,31 +137,35 @@ export default function SupermarketPage() {
     return () => window.clearInterval(timer);
   }, [refresh]);
 
-  const cameras = newestFirst(overview?.cameras ?? []);
-  const latestCard = card ?? newestCard(overview?.cards ?? []) ?? null;
+  const activeOverview = useRecorded ? RECORDED_OVERVIEW : overview;
+  const activeAnswer = useRecorded ? (answer ?? RECORDED_ANSWER) : answer;
+  const cameras = newestFirst(activeOverview?.cameras ?? []);
+  const latestCard =
+    card ?? (useRecorded ? RECORDED_CARD : null) ?? newestCard(activeOverview?.cards ?? []) ?? null;
   const shownCard =
-    latestCard && overview
-      ? (overview.cards.find((c) => c.recommendation.id === latestCard.recommendation.id) ??
+    latestCard && activeOverview
+      ? (activeOverview.cards.find((c) => c.recommendation.id === latestCard.recommendation.id) ??
         latestCard)
       : latestCard;
-  const receipt = answer?.receipt || overview?.asks[0]?.receipt || null;
-  const alerted = overview?.findings.filter((f) => f.alert_id) ?? [];
-  const tasks = overview?.tasks ?? [];
+  const receipt = activeAnswer?.receipt || activeOverview?.asks[0]?.receipt || null;
+  const alerted = activeOverview?.findings.filter((f) => f.alert_id) ?? [];
+  const tasks = activeOverview?.tasks ?? [];
+  const activeBrief = brief ?? activeOverview?.brief ?? (useRecorded ? RECORDED_BRIEF : null);
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h2 className={styles.pageTitle}>Supermarket</h2>
         <p className={styles.lead}>
           Your cameras already see the queue, the empty shelf and the spill. Ask anything in your
           own language; Muse Spark answers from what SAM 3.1 tracked and the Tier 1 model saw, turns the
           answer into a change you can test, watches for it, tells the right person with the photo,
-          checks the fix twice and keeps a receipt. Everything below is live on this store’s
-          cameras.
+          checks the fix twice and keeps a receipt. Everything below runs on this store’s cameras
+          or replays the 4 Nov live store run.
         </p>
         {error && (
           <p className={styles.card} role="status">
             {error} {error === OWNER_ONLY && <a href="/login">Log in as the owner</a>}
+            {useRecorded && " The recorded 4 Nov run is shown below instead."}
           </p>
         )}
         {!overview && !error && <p className={styles.muted}>Connecting to the store’s cameras…</p>}
@@ -162,18 +178,52 @@ export default function SupermarketPage() {
         label="The supermarket story, step by step"
         columns={5}
         steps={[
-          { name: "Ask", text: "Typed or spoken, any language; the answer is read aloud.", state: answer !== null ? "done" : "todo" },
+          { name: "Ask", text: "Typed or spoken, any language; the answer is read aloud.", state: activeAnswer !== null ? "done" : "todo" },
           { name: "Advice", text: "A card with a pre-registered check; its numbers must be in the answer's evidence.", state: shownCard !== null ? "done" : "todo" },
           { name: "Watch", text: "Queue, hazard and shelf checks tell the right person, with the photo.", state: alerted.length > 0 ? "done" : "todo" },
           { name: "Fixed", text: "A staff photo checked by Spark and the Tier 1 model closes the task; the time goes on the chain.", state: tasks.some((t) => t.status === "done") ? "done" : "todo" },
-          { name: "Brief", text: "Muse Spark writes the owner's brief from the stored checks and tasks.", state: (brief ?? overview?.brief) != null ? "done" : "todo" },
+          { name: "Brief", text: "Muse Spark writes the owner's brief from the stored checks and tasks.", state: activeBrief != null ? "done" : "todo" },
         ]}
       />
-      <div className={styles.steps}>
+      <div id="sm-workspace" className={styles.steps}>
+        <SupermarketRecordedRun
+          loaded={useRecorded}
+          onLoadIntoSteps={() => setUseRecorded((v) => !v)}
+        />
+        <div className={styles.workspaceBar}>
+          <div>
+            <strong>
+              {useRecorded
+                ? "Steps 1–5 below are showing the recorded 4 Nov 2026 live store run (REPLAY)"
+                : "Steps 1–5 below are connected to the live local store API"}
+            </strong>
+            <div className={styles.muted}>
+              {useRecorded
+                ? "4 cameras, 1 pre-registered till switchback (#16), 4 findings (queue, spill #19, pasta shelf #18, fire exit #25), 2 photo-verified tasks (#20, #21), and the owner's brief."
+                : `${overview?.cameras.length ?? 0} live cameras, ${overview?.findings.length ?? 0} findings, ${overview?.tasks.length ?? 0} tasks on this server today.`}
+            </div>
+          </div>
+          <div className={styles.row}>
+            <button
+              type="button"
+              className={useRecorded ? styles.button : styles.ghost}
+              onClick={() => setUseRecorded(true)}
+            >
+              4 Nov Recorded Run (REPLAY)
+            </button>
+            <button
+              type="button"
+              className={!useRecorded ? styles.button : styles.ghost}
+              onClick={() => setUseRecorded(false)}
+            >
+              Live Store API ({overview?.cameras.length ?? 0} cameras)
+            </button>
+          </div>
+        </div>
         <Step
           n={1}
           title="Ask"
-          done={answer !== null}
+          done={activeAnswer !== null}
           note="typed or spoken, any language; answer read aloud"
         >
           <AskPanel
@@ -207,8 +257,8 @@ export default function SupermarketPage() {
         >
           <WatchPanel
             cameras={cameras}
-            watches={overview?.watches ?? []}
-            findings={overview?.findings ?? []}
+            watches={activeOverview?.watches ?? []}
+            findings={activeOverview?.findings ?? []}
             onChange={() => void refresh()}
           />
         </Step>
@@ -223,11 +273,11 @@ export default function SupermarketPage() {
         <Step
           n={5}
           title="Owner’s brief"
-          done={(brief ?? overview?.brief) != null}
+          done={activeBrief != null}
           note="written by Muse Spark from the stored checks, tasks, questions and the running test"
         >
           <BriefPanel
-            brief={brief ?? overview?.brief ?? null}
+            brief={activeBrief}
             onBrief={(b) => {
               setBrief(b);
               void refresh();

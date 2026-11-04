@@ -201,7 +201,7 @@ export function AskPanel({ onAnswer }: { onAnswer: (answer: AskAnswer) => void }
           disabled={busy && !recording}
           onClick={() => void toggleVoice()}
         >
-          {recording ? "■ Stop and ask" : "🎤 Speak"}
+          {recording ? "Stop and ask" : "Speak"}
         </button>
         <select value={lang} onChange={(e) => setLang(e.target.value)} aria-label="Language">
           <option value="en">English</option>

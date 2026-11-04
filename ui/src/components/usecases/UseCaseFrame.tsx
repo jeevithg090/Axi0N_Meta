@@ -52,6 +52,7 @@ export function UseCaseFrame({ children }: { children: ReactNode }) {
             <p className={styles.line}>
               {world ? world.line : "The same planner, Rule CI and verifier, pointed at three kinds of site."}
             </p>
+            {world && <p className={styles.worldModels}>{world.models.join(" · ")}</p>}
           </div>
           {world && <UseCaseStill world={world} caption="full" priority className={styles.heroStill} />}
         </div>

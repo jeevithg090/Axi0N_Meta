@@ -53,6 +53,7 @@
 .heroBody { display: grid; gap: var(--space-sm); max-width: 62rem; min-width: 0; }
 .heroStill { max-width: 560px; justify-self: end; width: 100%; }
 
+
 /* a still: one frame of real footage, black and white, a hairline edge, its source beneath */
 .still { margin: 0; display: grid; gap: var(--space-xs); min-width: 0; }
 .still img {
@@ -137,3 +138,4 @@
 @media (max-width: 40rem) {
   .reading, .journeyPanel { padding: var(--space-md); }
 }
+.worldModels { margin: 0; font: 500 var(--text-xs) / 1.5 var(--font-outlier); letter-spacing: 0.02em; color: var(--color-muted); }

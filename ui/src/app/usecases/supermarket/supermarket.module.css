@@ -147,9 +147,97 @@
 
 .answer { white-space: pre-wrap; font-size: var(--text-lg); line-height: 1.5; }
 
+.recordedSection {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background: var(--color-paper-2);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+}
+.recordedHeader {
+  display: grid;
+  gap: var(--space-sm);
+}
+.recordedTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.recordedTitle {
+  margin: 0 0 var(--space-3xs);
+  font-size: var(--text-xl);
+  letter-spacing: -0.02em;
+}
+.compactList {
+  margin: 0;
+  padding-left: var(--space-md);
+  display: grid;
+  gap: var(--space-2xs);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.alertText { color: var(--color-bad); }
+.okText { color: var(--color-ok); }
+.workspaceBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-paper-3);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+}
+
 .button:focus-visible, .ghost:focus-visible, .input:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 
 @media (max-width: 40rem) {
   .page { padding: var(--space-lg) var(--space-md) var(--space-2xl); }
   .step, .proofCard { padding: var(--space-md); }
 }
+
+/* a plain row of measured figures: hairline above, no boxes */
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: var(--space-md) var(--space-xl);
+  padding: var(--space-md) 0;
+  border-top: var(--rule-hair) solid var(--color-rule);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.kpiItem { display: grid; gap: var(--space-3xs); align-content: start; }
+.kpiValue {
+  font: 500 var(--text-xl) / 1.15 var(--font-outlier);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--color-ink);
+}
+.kpiLabel { font-size: var(--text-sm); line-height: 1.45; color: var(--color-muted); }
+
+/* underline tabs */
+.tabBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.tabBtn {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: var(--space-2xs) 0;
+  font: 500 var(--text-sm) / 1.3 var(--font-body);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.tabBtn:hover { color: var(--color-ink); }
+.tabBtnActive { color: var(--color-ink); border-bottom-color: var(--color-ink); }
+.tabBtn:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+.stepLabel { font: 500 var(--text-xs) / 1.4 var(--font-outlier); letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-muted); }

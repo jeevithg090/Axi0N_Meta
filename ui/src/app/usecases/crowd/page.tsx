@@ -43,7 +43,6 @@ export default function CrowdPage() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <h2 className={styles.title}>Crowd early warning</h2>
           <span className={styles.small}>
             SAM 3.1 counts. Muse Spark judges and plans. The Tier 1 model checks the frames. Voice
             Transcribe hears the announcements back. Every alert is chained.

@@ -42,6 +42,14 @@ const checker =
     (run.report.evidence.records as { kind: string; tier?: string }[]).find((r) => r.kind === "verdict")?.tier,
   ) || undefined;
 
+function speakCrowd(text: string, lang: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = lang === "hi" ? "hi-IN" : "en-US";
+  window.speechSynthesis.speak(u);
+}
+
 /**
  * A run the live system recorded (4 Nov 2026), shown to visitors and whenever no crowd camera is
  * live: Spark's decision with the route guard, the three-way count, the steward loop, the
@@ -49,14 +57,45 @@ const checker =
  */
 export function RecordedRun() {
   const peak = run.tallies.find((t) => t.camera_id === run.alert.camera_id) ?? null;
+  const gateZone = run.report.zones.find((z) => z.zone.startsWith("gate")) ?? run.report.zones[0];
+  const truth = run.report.truth?.[0];
+  const audioList = (run.alert as { audio?: { lang: string; text: string; heard?: string }[] }).audio ?? [];
+
   return (
-    <section className={styles.card} aria-label="Recorded live run">
+    <section id="crowd-workspace" className={styles.card} aria-label="Recorded live run">
       <div className={styles.row}>
         <span className={styles.recorded}>{run.label}</span>
+        <span className={styles.link} data-link="stream">
+          {run.report.evidence.records.length} chain records verified
+        </span>
       </div>
       <p className={styles.small} style={{ margin: 0 }}>
         {run.about}
       </p>
+
+      {audioList.length > 0 && (
+        <div className={styles.audioStrip}>
+          <div>
+            <strong>Announcements, as spoken and heard back</strong>
+            <div className={styles.small}>
+              Only announcements whose meaning survives round-trip transcription are broadcast (live, a Hindi announcement where “gate” came back as “crowd” was automatically stopped).
+            </div>
+          </div>
+          <div className={styles.row}>
+            {audioList.map((a) => (
+              <button
+                key={a.lang}
+                type="button"
+                className={styles.button}
+                onClick={() => speakCrowd(a.text, a.lang)}
+              >
+                Play {a.lang === "hi" ? "Hindi (हिन्दी)" : "English"} announcement
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className={styles.grid}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
           <AssessmentView

@@ -18,6 +18,11 @@ import { StoryPanel } from "./StoryPanel";
 import { WarehouseJourney } from "./WarehouseJourney";
 import { WarehouseProof } from "./WarehouseProof";
 import {
+  RECORDED_NEAR_MISSES,
+  RECORDED_WAREHOUSE_STORY,
+  WarehouseRecordedRun,
+} from "./WarehouseRecordedRun";
+import {
   accessOf,
   warehouse,
   type Access,
@@ -60,6 +65,7 @@ export default function WarehousePage() {
   const [rows, setRows] = useState<NearMiss[]>([]);
   const [heat, setHeat] = useState<Heatmap | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [useRecorded, setUseRecorded] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
@@ -68,6 +74,9 @@ export default function WarehousePage() {
       setAccess("ok");
       const all = await warehouse.nearMisses();
       setRows(all);
+      if (all.length > 0 || next.plan_id) {
+        setUseRecorded(false);
+      }
       if (all.length > 0) {
         const camera = all.find((r) => r.event_id === (selected ?? next.event_id))?.camera_id;
         setHeat(await warehouse.heatmap(camera ?? null).catch(() => null));
@@ -86,45 +95,76 @@ export default function WarehousePage() {
     return () => window.clearInterval(timer);
   }, [refresh, planning]);
 
-  const followedId = selected ?? story?.event_id ?? null;
-  const followed = rows.find((r) => r.event_id === followedId) ?? null;
+  const activeStory = useRecorded ? RECORDED_WAREHOUSE_STORY : story;
+  const activeRows = useRecorded ? RECORDED_NEAR_MISSES : rows;
+  const activeHeat = useRecorded ? null : heat; // no floor positions were kept for the recorded passes
+  const followedId = selected ?? activeStory?.event_id ?? null;
+  const followed = activeRows.find((r) => r.event_id === followedId) ?? activeRows[0] ?? null;
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h2>Warehouse forklift safety</h2>
         <p className={styles.muted}>
-          Every step below is read from what Rulecam recorded on this site today. Other safety
-          cameras ask you to trust their numbers; Rulecam proves every rule before it goes live and
-          lets the crew check every alert.
+          Every step below is read from what Rulecam recorded on this site today or in the 4 Nov
+          live campaign. Other safety cameras ask you to trust their numbers; Rulecam proves every
+          rule before it goes live and lets the crew check every alert.
         </p>
       </header>
       <WarehouseProof />
       {access === "loading" && <p className={styles.muted}>Loading the story…</p>}
       {access !== "ok" && access !== "loading" && <WarehouseJourney />}
       {access !== "ok" && access !== "loading" && <Notice access={access} />}
-      {access === "ok" && <StoryPanel story={story} onApproved={() => void refresh()} />}
+      {access !== "loading" && (
+        <div id="wh-workspace">
+          <WarehouseRecordedRun
+            useRecorded={useRecorded}
+            onToggleRecorded={setUseRecorded}
+            canUseLive={access === "ok"}
+          />
+        </div>
+      )}
+      {access === "ok" && (
+        <StoryPanel
+          story={activeStory}
+          onApproved={() => {
+            setUseRecorded(false);
+            void refresh();
+          }}
+        />
+      )}
       {access === "ok" && (
         <div className={styles.grid}>
           <div className={styles.column}>
-            <RequestPanel onPlan={setPlanId} />
-            <VoiceReportPanel onPlan={setPlanId} />
+            <RequestPanel
+              onPlan={(id) => {
+                setUseRecorded(false);
+                setPlanId(id);
+              }}
+            />
+            <VoiceReportPanel
+              onPlan={(id) => {
+                setUseRecorded(false);
+                setPlanId(id);
+              }}
+            />
           </div>
           <div className={styles.column}>
-            {followed ? (
+            {followed && !useRecorded ? (
               <IncidentPanel key={followed.event_id} near={followed} planId={followed.plan_id} />
             ) : (
               <section className={styles.card}>
                 <h2>The near miss, and what happens next</h2>
                 <p className={styles.muted}>
-                  Waiting for a near miss on a live camera (pair a phone or feed a clip).
+                  {useRecorded
+                    ? "The recorded run above shows what happened after each near miss. Switch to Live server, or plan a rule below, to work on a live camera."
+                    : "Waiting for a near miss on a live camera (pair a phone or feed a clip)."}
                 </p>
               </section>
             )}
             <NearMissPanel
-              rows={rows}
-              heat={heat}
-              frameUrl={heat?.background ? warehouse.frameUrl(heat.background) : null}
+              rows={activeRows}
+              heat={activeHeat}
+              frameUrl={activeHeat?.background ? warehouse.frameUrl(activeHeat.background) : null}
               selected={followedId}
               onSelect={setSelected}
             />

@@ -114,9 +114,85 @@ textarea.input { min-height: 88px; }
 
 .mono { font-family: var(--font-outlier); font-size: var(--text-xs); overflow-wrap: anywhere; }
 
+.recordedBox {
+  background: var(--color-paper-2);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+  padding: var(--space-lg);
+  display: grid;
+  gap: var(--space-md);
+  min-width: 0;
+}
+.recordedTop {
+  display: grid;
+  gap: var(--space-sm);
+}
+.recordedTitleBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.subCard {
+  background: var(--color-paper-3);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+  padding: var(--space-md);
+  display: grid;
+  gap: var(--space-xs);
+  align-content: start;
+  min-width: 0;
+}
+.subCard h3 { margin: 0; font-size: var(--text-md); }
+.subCard p { margin: 0; }
+.subCard ul { margin: 0; padding-left: var(--space-lg); display: grid; gap: var(--space-2xs); font-size: var(--text-sm); }
+
 .button:focus-visible, .input:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 
 @media (max-width: 40rem) {
   .page { padding: var(--space-lg) var(--space-md) var(--space-2xl); }
   .card { padding: var(--space-md); }
 }
+
+/* a plain row of measured figures: hairline above, no boxes */
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: var(--space-md) var(--space-xl);
+  padding: var(--space-md) 0;
+  border-top: var(--rule-hair) solid var(--color-rule);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.kpiCard { display: grid; gap: var(--space-3xs); align-content: start; }
+.kpiNum {
+  font: 500 var(--text-xl) / 1.15 var(--font-outlier);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--color-ink);
+}
+.kpiSub { font-size: var(--text-sm); line-height: 1.45; color: var(--color-muted); }
+
+/* underline tabs */
+.tabRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.tabPill {
+  appearance: none;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: var(--space-2xs) 0;
+  font: 500 var(--text-sm) / 1.3 var(--font-body);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.tabPill:hover { color: var(--color-ink); }
+.tabPillActive { color: var(--color-ink); border-bottom-color: var(--color-ink); }
+.tabPill:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+.table td:not(:last-child) { white-space: nowrap; }

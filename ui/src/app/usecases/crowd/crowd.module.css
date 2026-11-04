@@ -216,9 +216,39 @@
   background: var(--color-accent-soft);
 }
 
+.audioStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-paper-3);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+}
+
 @media (max-width: 40rem) {
   .page { padding: var(--space-lg) var(--space-md) var(--space-2xl); }
   .card { padding: var(--space-md); }
 }
 
 .tab:focus-visible, .tabActive:focus-visible, .button:focus-visible, .input:focus-visible, .textarea:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+
+/* a plain row of measured figures: hairline above, no boxes */
+.kpiRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+  gap: var(--space-md) var(--space-xl);
+  padding: var(--space-md) 0;
+  border-top: var(--rule-hair) solid var(--color-rule);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.kpiCard { display: grid; gap: var(--space-3xs); align-content: start; }
+.kpiNum {
+  font: 500 var(--text-xl) / 1.15 var(--font-outlier);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--color-ink);
+}
+.kpiSub { font-size: var(--text-sm); line-height: 1.45; color: var(--color-muted); }

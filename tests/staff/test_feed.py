@@ -208,3 +208,30 @@ def test_helpers() -> None:
         "retail fixed: proof; fixed in 7.5 min"
     )
     assert record_words({"_kind": "dispute"}) == "dispute"
+
+
+def test_a_restart_rebuilds_cards_from_the_chain_with_the_whole_strip(rig: Rig) -> None:
+    folder = rig.strips / "cam-1" / "ev-7"
+    folder.mkdir(parents=True)
+    for k in (2, 1, 10):
+        (folder / f"{k}.jpg").write_bytes(b"\xff\xd8x\xff\xd9")
+    rig.candidate("ev-7")
+    rig.verdict("ev-7")
+    rig.escalation.start(
+        "ev-7",
+        ("aisle_lead", "store_manager"),
+        after_s=60,
+        title="t",
+        body="b",
+        clip_path=str(folder / "1.jpg"),
+    )
+    live = rig.feed.item("ev-7")
+    assert live is not None
+    assert live.thumbnails == 3
+    assert rig.feed.media("ev-7", 2) == (folder / "10.jpg").resolve()
+    rig.notifier._alerts.clear()  # the notifier forgets every alert on an API restart
+    (item,) = rig.feed.items("aisle_lead")
+    assert item.item_id == "ev-7"
+    assert item.title == "Alert: Keep aisle 4 clear of pallets."
+    assert item.thumbnails == 3
+    assert not item.dry_run

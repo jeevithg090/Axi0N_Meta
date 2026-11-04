@@ -72,6 +72,8 @@ export interface Words {
   reportNearMiss: string;
   needsPerson: string;
   notChecked: string;
+  measured: string;
+  sentTo: string;
 }
 
 const en: Words = {
@@ -162,6 +164,8 @@ const en: Words = {
   reportNearMiss: "Report a near miss",
   needsPerson: "A person must check",
   notChecked: "not checked (verifier down)",
+  measured: "Measured",
+  sentTo: "Sent to",
 };
 
 const es: Words = {
@@ -252,6 +256,8 @@ const es: Words = {
   reportNearMiss: "Reportar un casi accidente",
   needsPerson: "Una persona debe revisarlo",
   notChecked: "sin verificar (verificador caído)",
+  measured: "Medido",
+  sentTo: "Enviado a",
 };
 
 const hi: Words = {
@@ -342,6 +348,8 @@ const hi: Words = {
   reportNearMiss: "बाल-बाल बचे हादसे की रिपोर्ट",
   needsPerson: "किसी व्यक्ति को जाँचना होगा",
   notChecked: "जाँच नहीं हुई (वेरिफ़ायर बंद)",
+  measured: "माप",
+  sentTo: "भेजा गया",
 };
 
 export const WORDS: Record<Lang, Words> = { en, es, hi };

@@ -110,6 +110,18 @@ export function AskDock({
     <div className={styles.dock}>
       {reply || note || typing ? (
         <div className={styles.answer} role="status" aria-live="polite">
+          <button
+            type="button"
+            className={styles.answerClose}
+            aria-label={words.cancel}
+            onClick={() => {
+              setReply(null);
+              setNote("");
+              setTyping(false);
+            }}
+          >
+            ×
+          </button>
           {reply ? (
             <>
               <div className={styles.answerHeard}>

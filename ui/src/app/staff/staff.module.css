@@ -600,6 +600,23 @@
   font-size: 16px;
 }
 
+.answer {
+  position: relative;
+  padding-right: 52px;
+}
+
+.answerClose {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 26px;
+}
+
 .answerHeard {
   color: var(--muted);
   font-size: 14px;

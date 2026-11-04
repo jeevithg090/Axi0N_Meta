@@ -212,12 +212,12 @@ export function ItemCard({
         ) : null}
         {item.measurement ? (
           <div className={styles.fact}>
-            <span className={styles.factLabel}>Measured</span>
+            <span className={styles.factLabel}>{words.measured}</span>
             <span className={styles.factValue}>{item.measurement}</span>
           </div>
         ) : null}
         <div className={styles.fact}>
-          <span className={styles.factLabel}>Sent to</span>
+          <span className={styles.factLabel}>{words.sentTo}</span>
           <span className={styles.factValue}>{item.roles.map(roleWords).join(" → ")}</span>
         </div>
       </div>

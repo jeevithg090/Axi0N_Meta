@@ -510,9 +510,13 @@ class StaffFeed:
         entry = self._view.get(key) or EventRecords()
         candidate = entry.candidate or {}
         first, last = alerts[0], alerts[-1]
+        # Who was told, in order: the notifier's alerts, plus the chain's sends from before an
+        # API restart (the notifier keeps alerts in memory only).
+        chained, _ = chained_sends(entry)
+        sends = [*((a.ts, a.role) for a in alerts), *((ts, r) for r, ts in chained.items())]
         reached: dict[str, datetime] = {}
-        for alert in alerts:
-            reached.setdefault(alert.role, alert.ts)
+        for ts, role in sorted(sends, key=lambda s: s[0]):
+            reached.setdefault(role, ts)
         rule_id = str(candidate.get("rule_id") or first.rule_id or "") or None
         clips = [a.clip_path for a in alerts if a.clip_path]
         media = self._media(candidate, clips, key)
@@ -523,7 +527,7 @@ class StaffFeed:
             title=last.title,
             body=last.body,
             roles=tuple(reached),
-            ts=first.ts,
+            ts=min(reached.values(), default=first.ts),
             status=self._status(key, alerts, entry),
             escalation_step=step,
             next_role=next_role,

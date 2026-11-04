@@ -33,6 +33,16 @@ ROLES: Final[Mapping[Mode, str]] = MappingProxyType(
     }
 )
 
+VOCABULARY: Final[Mapping[Mode, tuple[str, ...]]] = MappingProxyType(
+    {
+        "aisle": ("shelf", "shelves", "facings", "aisle", "restock", "spill", "gap"),
+        "warehouse": ("forklift", "aisle", "pallet", "racking", "hi-vis", "walkway", "dock"),
+        "crowd": ("crowd", "dense", "exit", "barrier", "steward", "queue", "surge"),
+        "general": ("aisle", "shelf", "forklift", "crowd", "exit"),
+    }
+)
+"""Words Voice Transcribe is biased toward for push-to-talk questions in each mode."""
+
 PRIVACY: Final = (
     "Never identify anyone or describe faces; refer to people by where they are and what they "
     "are doing, and mention what they wear only when it is safety equipment or its absence. "

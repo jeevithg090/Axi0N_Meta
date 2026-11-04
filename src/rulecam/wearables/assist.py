@@ -42,7 +42,7 @@ from rulecam.contracts import TTS, Clock, Frozen, StructuredLLM, Transcriber
 from rulecam.log import get_logger
 from rulecam.planner.steps.survey import ImageSegmenter
 from rulecam.shelf.gaps import ShelfReport, ShelfScanner
-from rulecam.wearables.prompts import compose_prompt, look_prompt
+from rulecam.wearables.prompts import VOCABULARY, compose_prompt, look_prompt
 from rulecam.wearables.schemas import (
     Composed,
     Count,
@@ -442,9 +442,12 @@ class PovAssistant:
         if self._transcriber is None or run.ask.audio is None:
             return ""
         transcriber, audio, lang = self._transcriber, run.ask.audio, run.ask.lang
+        mode = run.ask.mode
         since = run.timer.now()
         segments, error = await timed(
-            lambda: transcriber.transcribe(audio, lang_bias=[lang] if lang else None)
+            lambda: transcriber.transcribe(
+                audio, lang_bias=[lang] if lang else None, keywords=list(VOCABULARY[mode])
+            )
         )
         text = " ".join(s.get("text", "").strip() for s in segments or []).strip()
         run.timer.add("hear", VOICE_MODEL, since, ok=not error, note=error or text)

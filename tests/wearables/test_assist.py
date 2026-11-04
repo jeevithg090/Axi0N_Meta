@@ -240,6 +240,7 @@ async def test_push_to_talk_audio_becomes_the_question(tmp_path: Path) -> None:
     assert answer.kind == "question"
     assert answer.spoken == "Moderately busy ahead."
     assert transcriber.calls[0]["lang_bias"] == ["es"]
+    assert "dense" in transcriber.calls[0]["keywords"]  # type: ignore[operator]
     assert answer.stages[0].name == "hear"
 
 

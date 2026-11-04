@@ -286,7 +286,7 @@ def build_proof_router(
     )
     secret = settings.rulecam_share_secret
     signer = ShareSigner(
-        load_secret(secret.get_secret_value() if secret else None, root / "share.key")
+        lambda: load_secret(secret.get_secret_value() if secret else None, root / "share.key")
     )
 
     def inputs() -> BuildInputs:

@@ -18,6 +18,7 @@ import json
 import os
 import re
 import secrets
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Final
@@ -68,12 +69,17 @@ def load_secret(configured: str | None, key_file: Path) -> bytes:
 class ShareSigner:
     """Mints and checks share tokens."""
 
-    def __init__(self, secret: bytes) -> None:
-        """Use `secret` for the HMAC."""
+    def __init__(self, secret: bytes | Callable[[], bytes]) -> None:
+        """Use `secret` for the HMAC; a callable is read once, on the first token."""
         self._secret = secret
 
+    def _key(self) -> bytes:
+        if callable(self._secret):
+            self._secret = self._secret()
+        return self._secret
+
     def _sign(self, payload: str) -> str:
-        return _b64(hmac.new(self._secret, payload.encode("ascii"), hashlib.sha256).digest())
+        return _b64(hmac.new(self._key(), payload.encode("ascii"), hashlib.sha256).digest())
 
     def mint(self, pack_id: str, pack_hash: str, expires_at: datetime) -> str:
         """A token for one pack until `expires_at`."""

@@ -987,6 +987,20 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     connectors = build_connectors(
         settings, cache=cache, clock=clock, bus=bus, sam=perception.hosted, chunks=perception.chunks
     )
+    staff = build_staff(
+        settings,
+        cache=cache,
+        clock=clock,
+        bus=bus,
+        response=response,
+        chain_root=chain_root,
+        segmenter=perception.hosted,
+        ask_agent=ask_agent,
+        false_alarm=false_alarm,
+        plans_dir=PLANS_DIR,
+        camera_labels=lambda: {c.camera_id: c.label for c in pair.registry.cameras()},
+        dependencies=_OWNER,
+    )
     origins = viewer_origins(settings.public_ui_url)
     auth = OwnerAuth.from_settings(settings, clock=clock, allowed_origins=origins)
     client_address = ClientAddress(
@@ -1024,6 +1038,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             *((watch.tick,) if watch is not None else ()),
             *ask_tickers,
             *crowd_tickers,
+            *staff.tickers,
         ),
         pollers=(
             *response.pollers(false_alarm),
@@ -1097,20 +1112,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 dependencies=_OWNER,
                 plans_dir=PLANS_DIR,
             ),
-            build_staff(
-                settings,
-                cache=cache,
-                clock=clock,
-                bus=bus,
-                response=response,
-                chain_root=chain_root,
-                segmenter=perception.hosted,
-                ask_agent=ask_agent,
-                false_alarm=false_alarm,
-                plans_dir=PLANS_DIR,
-                camera_labels=lambda: {c.camera_id: c.label for c in pair.registry.cameras()},
-                dependencies=_OWNER,
-            ),
+            staff.router,
         ),
     )
 

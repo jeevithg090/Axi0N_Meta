@@ -31,6 +31,7 @@ export function DoneSheet({
         <p className={styles.sheetTitle}>
           {words.doneTitle}: {item.title}
         </p>
+        {item.retail_task_id ? <p className={styles.reason}>{words.proofHint}</p> : null}
         <input
           className={styles.input}
           value={note}

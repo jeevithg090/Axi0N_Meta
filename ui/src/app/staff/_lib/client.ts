@@ -73,6 +73,12 @@ export const staffApi = {
   ask: (role: string, lang: Lang, audio: Blob | null, question = "") =>
     call<AskReply>("/ask", form({ role, lang, question, audio })),
   shelf: (role: string, photo: Blob) => call<StaffItem[]>("/shelf", form({ role, photo })),
+  pushKey: () => call<{ public_key: string; roles: Record<string, number> }>("/push/key"),
+  pushSubscribe: (role: string, lang: Lang, subscription: PushSubscriptionJSON) =>
+    call<{ public_key: string; roles: Record<string, number> }>(
+      "/push/subscribe",
+      post({ role, lang, subscription }),
+    ),
 };
 
 /** A worker's spoken near-miss report (the warehouse's `POST /warehouse/reports/voice`). */

@@ -154,6 +154,15 @@ def chained_sends(entry: EventRecords) -> tuple[dict[str, datetime], bool]:
     return sends, dry
 
 
+def retail_task(entry: EventRecords) -> str | None:
+    """The retail task opened for this event's finding (its chained `retail_finding` record)."""
+    for other in entry.others:
+        task = other.get("task_id")
+        if other.get("type") == "retail_finding" and isinstance(task, str) and task:
+            return task
+    return None
+
+
 def needs_review(entry: EventRecords) -> bool:
     """Whether the policy sent the event to a person (the human queue) instead of acting."""
     routed = any(_dict(v.get("decision")).get("route") == "human_queue" for v in entry.verdicts)
@@ -554,6 +563,7 @@ class StaffFeed:
             "do_now": tuple(str(x) for x in do_now) if isinstance(do_now, list) else (),
             "announcements": tuple(self._announcements(entry)),
             "actions": tuple(self._store.actions(key)),
+            "retail_task_id": retail_task(entry),
             "dry_run": self._dry_run,
         }
 
@@ -700,7 +710,12 @@ class StaffFeed:
     # Acting --------------------------------------------------------------------------------
 
     def act(
-        self, item_id: str, request: StaffActionRequest, *, photo: Path | None = None
+        self,
+        item_id: str,
+        request: StaffActionRequest,
+        *,
+        photo: Path | None = None,
+        extra: Mapping[str, object] | None = None,
     ) -> ActionResult:
         """Apply one tap, chain it and wake the open streams.
 
@@ -708,6 +723,7 @@ class StaffFeed:
             item_id: The item.
             request: The tap, the tapping role and an optional note.
             photo: A photo taken with *Done* (already saved under a media root).
+            extra: More fields for the chained record (e.g. the retail proof check's outcome).
 
         Returns:
             The item after the tap and what the tap did.
@@ -740,7 +756,7 @@ class StaffFeed:
             did = {"acknowledge": "acknowledged", "on_my_way": "on the way", "done": "done"}[
                 request.action
             ]
-        taken = self._chain_tap(item_id, request, photo)
+        taken = self._chain_tap(item_id, request, photo, extra or {})
         self._store.record_action(item_id, taken, str(photo) if photo is not None else None)
         self._signal.fire()
         after = self.item(item_id)
@@ -766,11 +782,19 @@ class StaffFeed:
         return f"sent to {request.to_role}"
 
     def _chain_tap(
-        self, item_id: str, request: StaffActionRequest, photo: Path | None
+        self,
+        item_id: str,
+        request: StaffActionRequest,
+        photo: Path | None,
+        more: Mapping[str, object],
     ) -> TakenAction:
         now = self._clock.now()
         detail = f"staff app: {request.action.replace('_', ' ')}"
-        extra: dict[str, object] = {"source": "staff_app", "staff_action": request.action}
+        extra: dict[str, object] = {
+            **more,
+            "source": "staff_app",
+            "staff_action": request.action,
+        }
         if request.note:
             detail += f"; note: {request.note}"
         if request.to_role:

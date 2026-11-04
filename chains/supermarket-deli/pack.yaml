@@ -1,0 +1,96 @@
+# Chain Mode rule pack for supermarket deli counters, written once by head office.
+# `rulecam chain prove chains/supermarket-deli/pack.yaml` lints it and runs Rule CI at each
+# rule's default and at both ends of every knob's range. Zones are slots: each store maps them to
+# its own cameras. Food Code references are to the FDA Food Code, which most US inspectors use.
+# Not here yet, so the pack stays releasable:
+# - "raw meat stored above ready-to-eat food" needs a vertical relation the Rule IR does not have;
+# - "gloves at the slicer" (Food Code 3-301.11) needs a `without` predicate, and Rule CI has no
+#   boundary-trace generator for `without` yet, so it could not prove the rule (checked 4 Nov).
+# Ask (or a hazard-style watch with that focus) covers both until then.
+pack_id: supermarket-deli
+version: 1
+title: Supermarket deli
+publisher: Head office food safety
+vertical: supermarket
+privacy_floor: standard
+
+templates:
+  - concern: Nothing may block the deli hand sink for more than a minute.
+    slots:
+      sink_front:
+        kind: buffer
+        describe: The floor and counter in front of the deli hand sink
+        buffer_of: sink
+        buffer_m: 0.6
+    knobs:
+      - {name: blocked_seconds, path: [seconds], low: 30, high: 120, stricter: lower, unit: s}
+    rule:
+      id: deli-hand-sink-clear
+      source:
+        kind: plan
+        text: Nothing may block the deli hand sink for more than a minute.
+        standard: ["FDA Food Code 5-205.11 (handwashing sink kept accessible)"]
+      concepts:
+        obstruction: {prompt: box or tray or crate or cart}
+        sink: {prompt: hand sink, static: true}
+      predicate:
+        op: persist
+        seconds: 60
+        of: {op: inside, object: obstruction, zone: sink_front}
+      severity: medium
+      actions:
+        - {kind: notify, role: deli_lead}
+        - {kind: log}
+      verify: {tier1: glimmer, tier2: spark-open-on-disagree}
+
+  - concern: Raw meat does not sit out on the prep counter for more than 30 minutes.
+    slots:
+      prep_counter: {kind: polygon, describe: The deli prep counter outside the cold case}
+    knobs:
+      - {name: out_seconds, path: [seconds], low: 900, high: 1800, stricter: lower, unit: s}
+    rule:
+      id: deli-raw-meat-out
+      source:
+        kind: plan
+        text: Raw meat does not sit out on the prep counter for more than 30 minutes.
+        standard: ["FDA Food Code 3-501.16 (cold holding of time/temperature control foods)"]
+      concepts:
+        raw_meat: {prompt: tray of raw meat}
+      predicate:
+        op: persist
+        seconds: 1800
+        of: {op: inside, object: raw_meat, zone: prep_counter}
+      severity: medium
+      actions:
+        - {kind: notify, role: deli_lead}
+        - {kind: log}
+      verify: {tier1: glimmer, tier2: spark-open-on-disagree}
+
+  - concern: Keep the fire exit clear. Nothing may block it for more than five minutes.
+    slots:
+      egress:
+        kind: buffer
+        describe: The floor in front of the fire exit door
+        buffer_of: door
+        buffer_m: 1.5
+    knobs:
+      - {name: blocked_seconds, path: [seconds], low: 60, high: 300, stricter: lower, unit: s}
+    rule:
+      id: fire-exit-clear
+      source:
+        kind: plan
+        text: Keep the fire exit clear. Nothing may block it for more than five minutes.
+        standard: ["OSHA 1910.37(a)(3)"]
+      concepts:
+        obstruction: {prompt: box or cart or pallet}
+        door: {prompt: fire exit door, static: true}
+      predicate:
+        op: persist
+        seconds: 300
+        of: {op: inside, object: obstruction, zone: egress}
+      severity: high
+      actions:
+        - {kind: notify, role: facilities}
+        - {kind: escalate, role: store_manager, after_s: 180}
+        - {kind: log}
+      verify: {tier1: glimmer, tier2: spark-open-on-disagree}

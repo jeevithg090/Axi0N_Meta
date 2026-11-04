@@ -201,6 +201,12 @@ class Settings(BaseSettings):
     # Hosted OpenAI-compatible Glimmer (e.g. Routeway) may honour JSON mode but not a strict
     # schema: also state the schema in a system message. Off for llama-server (grammar-enforced).
     glimmer_schema_in_prompt: bool = False
+    # Automatic fallback when our Glimmer GPU gives no usable answer (no HTTP answer, 404, 429,
+    # 5xx): the same request, rewritten for a hosted OpenAI-compatible Glimmer (e.g. Routeway,
+    # https://api.routeway.ai/v1 with model `muse-glimmer-30b`, or `muse-glimmer-30b:free`).
+    glimmer_fallback_base_url: str | None = None
+    glimmer_fallback_api_key: SecretStr | None = None
+    glimmer_fallback_model: str = "muse-glimmer-30b"
     # Glimmer's output cap per call, reasoning included. A reply cut at it (finish_reason
     # `length`) is retried with the cap doubled, up to the ceiling, then reported.
     glimmer_max_tokens: int = Field(default=1024, ge=64, le=32768)

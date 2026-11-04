@@ -42,8 +42,10 @@ from rulecam.clients.open_weights.reasoning import ReasoningStore, reasoning_id
 from rulecam.clients.ratelimit import TokenBucket
 from rulecam.clients.relay import ModelUsed, publish_model_used
 from rulecam.clients.transport import (
+    FailoverTransport,
     HttpxTransport,
     PooledTransport,
+    RequestRewrite,
     RetryPolicy,
     Sender,
     Transport,
@@ -60,6 +62,8 @@ M = TypeVar("M", bound=BaseModel)
 PROVIDER = "glimmer"
 CHAT_PATH = "/chat/completions"
 DEFAULT_TIMEOUT_S = 60.0
+FALLBACK_TIMEOUT_S = 120.0  # hosted Glimmer took 37-47 s per call on 2 Nov
+LLAMA_SERVER_ONLY = ("reasoning_budget_tokens",)  # body fields a hosted API may reject
 DEFAULT_MAX_TOKENS = 1024
 DEFAULT_MAX_TOKENS_CEILING = 4096
 NO_BUDGET = -1
@@ -115,6 +119,65 @@ def glimmer_transport(url: str, settings: Settings) -> HttpxTransport:
     headers = glimmer_headers(settings)
     bearer = headers.pop("Authorization", "Bearer local").removeprefix("Bearer ")
     return HttpxTransport(url, bearer, timeout_s=DEFAULT_TIMEOUT_S, headers=headers)
+
+
+def hosted_rewrite(model: str) -> RequestRewrite:
+    """Adapt a llama-server chat request to a hosted OpenAI-compatible Glimmer.
+
+    The hosted server gets its own model name, no llama.cpp-only fields, and the JSON schema
+    stated in a system message too (it may honour JSON mode but not a strict schema), unless the
+    request already carries that message (`GLIMMER_SCHEMA_IN_PROMPT`).
+
+    Args:
+        model: The model name on the hosted server.
+
+    Returns:
+        The rewrite for `FailoverTransport`.
+    """
+
+    def rewrite(request: Mapping[str, object]) -> Mapping[str, object]:
+        body = request.get("json")
+        if not isinstance(body, Mapping):
+            return request
+        new = {k: v for k, v in body.items() if k not in LLAMA_SERVER_ONLY}
+        new["model"] = model
+        messages = list(body.get("messages") or [])
+        fmt = body.get("response_format")
+        spec = fmt.get("json_schema") if isinstance(fmt, Mapping) else None
+        schema = spec.get("schema") if isinstance(spec, Mapping) else None
+        first = messages[0] if messages else {}
+        hinted = isinstance(first, Mapping) and str(first.get("content", "")).startswith(
+            SCHEMA_PROMPT[:30]
+        )
+        if schema is not None and not hinted:
+            text = SCHEMA_PROMPT.format(schema=json.dumps(schema, separators=(",", ":")))
+            messages = [{"role": "system", "content": text}, *messages]
+        new["messages"] = messages
+        return {**request, "json": new}
+
+    return rewrite
+
+
+def glimmer_fallback(settings: Settings, primary: Transport) -> Transport:
+    """Wrap `primary` with the hosted Glimmer of `GLIMMER_FALLBACK_BASE_URL`, when it is set.
+
+    Args:
+        settings: Application settings (`GLIMMER_FALLBACK_*`).
+        primary: Our own llama-server(s).
+
+    Returns:
+        A `FailoverTransport` to the hosted server, or `primary` unchanged.
+    """
+    if not settings.glimmer_fallback_base_url:
+        return primary
+    key = settings.glimmer_fallback_api_key
+    hosted = HttpxTransport(
+        settings.glimmer_fallback_base_url,
+        key.get_secret_value() if key is not None else "",
+        timeout_s=FALLBACK_TIMEOUT_S,
+    )
+    rewrite = hosted_rewrite(settings.glimmer_fallback_model)
+    return FailoverTransport(primary, hosted, rewrite=rewrite, name="glimmer")
 
 
 def image_data_url(path: Path) -> str:
@@ -355,7 +418,7 @@ class GlimmerClient:
         urls = [settings.glimmer_base_url, *glimmer_extra_urls(settings)]
         servers = [glimmer_transport(url, settings) for url in urls]
         http: Transport = servers[0] if len(servers) == 1 else PooledTransport(servers)
-        transport = cache.wrap_transport(PROVIDER, config.model, http)
+        transport = cache.wrap_transport(PROVIDER, config.model, glimmer_fallback(settings, http))
         evidence = EvidenceLog(settings.evidence_dir / "glimmer" / "inference-log.jsonl")
         return cls(
             transport,

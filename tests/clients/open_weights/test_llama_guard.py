@@ -18,7 +18,8 @@ from rulecam.clients.open_weights.llama_guard import (
 )
 from rulecam.clients.transport import HttpxTransport
 from rulecam.config import Settings
-from rulecam.replay.cache import ReplayCache, ReplayMiss
+from rulecam.replay.cache import ReplayCache
+from rulecam.replay.errors import ReplayMiss
 from tests.fakes import FakeClock
 
 URL = "https://guard.api.runpod.ai/v1"
@@ -115,8 +116,8 @@ def test_from_settings_builds_a_replayable_client(tmp_path: Path) -> None:
     settings = Settings(
         _env_file=None,
         llama_guard_base_url=URL,
-        llama_guard_api_key="model",  # type: ignore[arg-type]
-        llama_guard_edge_key="rp",  # type: ignore[arg-type]
+        llama_guard_api_key="model",
+        llama_guard_edge_key="rp",
     )
     client = LlamaGuardClient.from_settings(settings, cache=make_cache(tmp_path))
     assert client.model == "llama-guard-4-12b"

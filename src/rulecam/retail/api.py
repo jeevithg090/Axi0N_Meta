@@ -72,6 +72,14 @@ class AdviceRequest(BaseModel):
     camera_id: str | None = Field(default=None, pattern=CAMERA)
 
 
+class BlockRequest(BaseModel):
+    """`POST /retail/advice/{id}/blocks`: one switchback block that has ended."""
+
+    state: Literal["on", "off"]
+    start: datetime
+    end: datetime
+
+
 class TaskUpdate(BaseModel):
     """`POST /retail/tasks/{id}/status`."""
 
@@ -268,6 +276,12 @@ def _advice_routes(router: APIRouter, svc: Callable[[], RetailService]) -> None:
         """Pre-register the card's check on the evidence chain and turn on its watch."""
         s = svc()
         return await _run(lambda: s.accept(card_id))
+
+    @router.post("/advice/{card_id}/blocks")
+    async def block(card_id: str, body: BlockRequest) -> RetailCard:
+        """Record a switchback block from the watch's readings; read the test out when done."""
+        s = svc()
+        return await _run(lambda: s.record_block(card_id, body.state, body.start, body.end))
 
     @router.post("/brief")
     async def brief(body: BriefRequest) -> Brief:

@@ -66,6 +66,7 @@ not contain.
 | `GET /retail/receipts/{sha}?link=` | | `{receipt, prev_sha256, hashed_text, question, answer, models, rows_verified, qr_png_base64}`; `sha256(prev_sha256 + hashed_text) == receipt` |
 | `POST /retail/advice` | `{receipt, camera_id?}` | `RetailCard`: the card (also on `/advice`), its numbers with grounding, the what-if, the switchback plan and the proposed watch |
 | `POST /retail/advice/{id}/accept` | | `RetailCard` with `preregistered_seq` and `watch_id` |
+| `POST /retail/advice/{id}/blocks` | `{state: on\|off, start, end}` | `RetailCard` with `blocks` (each the mean of the watch's readings in it, written to the chain as an `advice` record of `type: block`) and, once a pair is done, `verdict` by the pre-registered rule; after the planned pairs the card becomes `adopted`, `reverted` or `rejected` and a `type: verdict` record is written |
 | `POST /retail/brief` · `GET /retail/brief` | `{lang}` | `Brief` |
 | `POST /retail/ask/voice` | multipart `audio` (16-bit PCM WAV), `lang?`, `conversation_id?` | `{transcript, lang, transcribe_seconds, answer}` |
 
@@ -125,6 +126,6 @@ The same flow by API: `POST /ask` → `POST /retail/advice {receipt}` →
 - Muse Glimmer runs on a serverless GPU that scales from zero; a cold start takes minutes. Warm
   it before a demo. Without it, hazards fall back to SAM 3.1's confirmation and proofs to Spark
   alone, and each finding records which model answered.
-- The switchback test needs someone to switch the change on and off by block; recording the
-  blocks and the final read-out (`advisor.measurement.read_out`) is not wired to the page yet,
-  so the brief reports readings so far and "too early to tell".
+- The switchback test needs someone to switch the change on and off by block and press ON or
+  OFF on the card when a block ends; a real test takes the planned pairs of 30-minute blocks
+  (hours), so in a one-minute demo the card honestly says "too early to tell".

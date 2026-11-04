@@ -560,3 +560,49 @@ def test_story_routes(tmp_path: Path) -> None:
     watches = client.get("/retail/watches").json()
     assert len(watches) == 1
     assert client.get("/retail/findings", params={"kind": "shelf"}).json()[0]["kind"] == "shelf"
+
+
+def reading(watch_id: str, minute: int, waiting: float) -> Finding:
+    at = AT + timedelta(minutes=minute)
+    return Finding(
+        id=f"f-{minute}",
+        kind="queue",
+        camera_id="till",
+        at=at,
+        checked_at=at,
+        watch_id=watch_id,
+        act=False,
+        headline="",
+        metric=waiting,
+    )
+
+
+def test_switchback_blocks_and_read_out(tmp_path: Path) -> None:
+    rig = Rig(tmp_path, FakeLLM([advice_draft()]))
+    card = rig.service.draft_advice(RECEIPT)
+    card_id = card.recommendation.id
+    with pytest.raises(RetailError, match="accept it first"):
+        rig.service.record_block(card_id, "on", AT, AT + timedelta(minutes=10))
+    watch_id = str(rig.service.accept(card_id).watch_id)
+    for pair in range(6):  # change on: ~2 waiting; off: ~6 waiting
+        on, off = 20 * pair, 20 * pair + 10
+        rig.findings.add(reading(watch_id, on + 1, 2.0 + pair % 2))
+        rig.findings.add(reading(watch_id, off + 1, 6.0))
+    with pytest.raises(RetailError, match="no readings"):
+        rig.service.record_block(card_id, "on", AT - timedelta(hours=1), AT)
+    for pair in range(6):
+        start = AT + timedelta(minutes=20 * pair)
+        rig.service.record_block(card_id, "on", start, start + timedelta(minutes=10))
+        after = rig.service.record_block(
+            card_id, "off", start + timedelta(minutes=10), start + timedelta(minutes=20)
+        )
+        if pair < 5:
+            assert after.verdict is not None
+            assert after.verdict.label == "not_enough_data"
+    assert after.verdict is not None
+    assert after.verdict.label == "worked"
+    assert after.recommendation.status == "adopted"
+    assert rig.service.card_progress(after)["pairs_done"] == 6
+    kinds = [r.payload.get("type") for r in rig.records() if r.kind == "advice"]
+    assert kinds.count("block") == 12
+    assert kinds[-1] == "verdict"

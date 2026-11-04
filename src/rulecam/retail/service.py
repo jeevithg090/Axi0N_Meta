@@ -21,11 +21,20 @@ from typing import Final, Literal, Protocol
 
 from rulecam.advisor.api import AdviceStore
 from rulecam.advisor.ledger import AdviceLedger, PreregistrationError
+from rulecam.advisor.measurement import read_out
 from rulecam.advisor.recompute import NumberCheck, RecomputeReport
 from rulecam.contracts import Clock
 from rulecam.evidence.chain import EventChain
 from rulecam.log import get_logger
-from rulecam.retail.advice import AdviceWriter, Receipt, RetailCard, latest_runs, receipt
+from rulecam.retail.advice import (
+    AdviceWriter,
+    Block,
+    Receipt,
+    RetailCard,
+    differences,
+    latest_runs,
+    receipt,
+)
 from rulecam.retail.brief import BriefWriter, day_stats, since_day
 from rulecam.retail.checks import RetailError, new_id
 from rulecam.retail.models import Brief, CheckKind, Finding, StaffTask, Watch, WatchRequest
@@ -430,6 +439,52 @@ class RetailService:
             _log.info("retail_advice_not_shared", card_id=card_id)
         return accepted
 
+    def record_block(
+        self, card_id: str, state: Literal["on", "off"], start: datetime, end: datetime
+    ) -> RetailCard:
+        """Record one switchback block from the watch's readings, then read the test out.
+
+        The block's value is the mean of the card's watch readings inside it. It is written to
+        the evidence chain after the pre-registration; once the planned pairs are done the
+        verdict (the pre-registered decision rule, `advisor.measurement.read_out`) is written
+        too and the card becomes `adopted` (worked), `reverted` (worse) or `rejected`.
+
+        Raises:
+            RetailError: For an unknown or unaccepted card, a bad window, or no readings in it.
+        """
+        card = self.cards.get(card_id)
+        if card is None or card.watch_id is None or card.preregistered_seq is None:
+            msg = f"card {card_id} is not being measured (accept it first)"
+            raise RetailError(msg)
+        if end <= start:
+            msg = "a block must end after it starts"
+            raise RetailError(msg)
+        values = [
+            f.metric
+            for f in self.findings.recent(limit=2000, watch_id=card.watch_id)
+            if f.metric is not None and start <= (f.at or f.checked_at) < end
+        ]
+        if not values:
+            msg = "the watch has no readings in that block"
+            raise RetailError(msg)
+        mean = sum(values) / len(values)
+        block = Block(state=state, start=start, end=end, readings=len(values), mean=round(mean, 3))
+        seq = None
+        if self._ledger is not None:
+            seq = self._ledger.record_block(card.plan, block.model_dump(mode="json")).seq
+        blocks = [*card.blocks, block.model_copy(update={"seq": seq})]
+        update: dict[str, object] = {"blocks": blocks}
+        diffs = differences(blocks)
+        if diffs:
+            verdict = read_out(card.plan, diffs[: card.plan.n_pairs], card.direction)
+            update["verdict"] = verdict
+            if verdict.label != "not_enough_data":
+                if self._ledger is not None:
+                    self._ledger.record_verdict(verdict)
+                status = {"worked": "adopted", "worse": "reverted"}.get(verdict.label, "rejected")
+                update["recommendation"] = card.recommendation.model_copy(update={"status": status})
+        return self.cards.put(card.model_copy(update=update))
+
     def card_progress(self, card: RetailCard) -> dict[str, object]:
         """A card's check as the brief and the page see it."""
         readings = self.findings.recent(limit=500, watch_id=card.watch_id) if card.watch_id else []
@@ -441,7 +496,9 @@ class RetailService:
             "metric": card.plan.primary_metric,
             "pairs_planned": card.plan.n_pairs,
             "block_minutes": card.plan.block_minutes,
-            "pairs_done": 0,
+            "pairs_done": len(differences(card.blocks)),
+            "blocks": len(card.blocks),
+            "verdict": card.verdict.label if card.verdict is not None else None,
             "watch_readings": len(values),
             "mean_reading": round(sum(values) / len(values), 2) if values else None,
             "preregistered_seq": card.preregistered_seq,

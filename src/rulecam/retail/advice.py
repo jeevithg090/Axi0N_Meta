@@ -48,6 +48,7 @@ from rulecam.contracts.advisor import (
     Recommendation,
     SafetyCheck,
     SlotClaim,
+    Verdict,
 )
 from rulecam.contracts.core import Provenance
 from rulecam.log import get_logger
@@ -151,6 +152,37 @@ class ProposedWatch(Frozen):
     focus: str
 
 
+class Block(Frozen):
+    """One switchback block: the change on or off, and what the watch read in it.
+
+    Attributes:
+        state: Whether the change was on or off.
+        start: Block start (UTC).
+        end: Block end (UTC).
+        readings: Watch readings inside the block.
+        mean: Their mean (the block's value of the primary metric).
+        seq: The evidence-chain record of the block.
+    """
+
+    state: Literal["on", "off"]
+    start: datetime
+    end: datetime
+    readings: int
+    mean: float
+    seq: int | None = None
+
+
+def differences(blocks: Sequence[Block]) -> list[float]:
+    """On-minus-off difference per finished pair (blocks taken two by two in time order)."""
+    ordered = sorted(blocks, key=lambda b: b.start)
+    out = []
+    for first, second in zip(ordered[::2], ordered[1::2], strict=False):
+        if {first.state, second.state} == {"on", "off"}:
+            on, off = (first, second) if first.state == "on" else (second, first)
+            out.append(on.mean - off.mean)
+    return out
+
+
 class RetailCard(Frozen):
     """A supermarket advice card as the page shows it.
 
@@ -189,6 +221,9 @@ class RetailCard(Frozen):
     seconds: float
     preregistered_seq: int | None = None
     watch_id: str | None = None
+    direction: Literal["lower_is_better", "higher_is_better"] = "lower_is_better"
+    blocks: list[Block] = Field(default_factory=list)
+    verdict: Verdict | None = None
 
 
 ADVICE_PROMPT: Final = (
@@ -567,6 +602,7 @@ class AdviceWriter:
             question=str(row.get("question", "")),
             created_at=self._clock.now(),
             seconds=seconds,
+            direction=draft.direction,
         )
 
     def _claims(

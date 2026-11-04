@@ -115,6 +115,86 @@ export function AdviceCard({ card }: { card: RetailCard }) {
   );
 }
 
+/** Record the last few minutes as a switchback block (change on or off) and show the read-out. */
+export function SwitchbackControls({
+  card,
+  onCard,
+}: {
+  card: RetailCard;
+  onCard: (card: RetailCard) => void;
+}) {
+  const [busy, error, run] = useAction();
+  const [minutes, setMinutes] = useState(card.plan.block_minutes);
+  const record = (state: "on" | "off") =>
+    run(async () => {
+      const end = new Date();
+      const start = new Date(end.getTime() - minutes * 60_000);
+      onCard(await retail.block(card.recommendation.id, state, start, end));
+    }, "The block was not recorded.");
+  const blocks = card.blocks ?? [];
+  return (
+    <div className={styles.card} data-testid="switchback">
+      <strong>Switchback test</strong>
+      <div className={styles.row}>
+        <span>The last</span>
+        <input
+          className={styles.input}
+          style={{ flex: "0 0 80px" }}
+          type="number"
+          min={1}
+          value={minutes}
+          onChange={(e) => setMinutes(Math.max(1, Number(e.target.value)))}
+          aria-label="Block minutes"
+        />
+        <span>minutes were a block with the change</span>
+        <button
+          type="button"
+          className={styles.ghost}
+          disabled={busy}
+          onClick={() => void record("on")}
+        >
+          ON
+        </button>
+        <button
+          type="button"
+          className={styles.ghost}
+          disabled={busy}
+          onClick={() => void record("off")}
+        >
+          OFF
+        </button>
+      </div>
+      {error && <p className={styles.error}>{error}</p>}
+      {blocks.length > 0 && (
+        <table className={styles.table}>
+          <tbody>
+            {blocks.map((b) => (
+              <tr key={`${b.start}-${b.state}`}>
+                <td>{b.state.toUpperCase()}</td>
+                <td>
+                  {new Date(b.start).toLocaleTimeString()}–{new Date(b.end).toLocaleTimeString()}
+                </td>
+                <td>
+                  {b.mean} from {b.readings} readings
+                </td>
+                <td className={styles.muted}>chain #{b.seq ?? "?"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {card.verdict && (
+        <span className={card.verdict.label === "worked" ? styles.ok : styles.muted}>
+          Read-out by the pre-registered rule: <strong>{card.verdict.label}</strong> after{" "}
+          {card.verdict.pairs_done} of {card.plan.n_pairs} pairs (effect{" "}
+          {card.verdict.effect.toFixed(2)}, p = {card.verdict.p_value.toFixed(3)}); card is now{" "}
+          {card.recommendation.status}.
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function AdvicePanel({
   receipt,
   cameras,
@@ -172,6 +252,9 @@ export function AdvicePanel({
       {busy && <p className={styles.muted}>Muse Spark is drafting the card from the answer…</p>}
       {error && <p className={styles.error}>{error}</p>}
       {card && <AdviceCard card={card} />}
+      {card && card.preregistered_seq !== null && (
+        <SwitchbackControls card={card} onCard={onCard} />
+      )}
     </div>
   );
 }

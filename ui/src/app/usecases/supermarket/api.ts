@@ -136,6 +136,21 @@ export interface RetailCard {
   preregistered_seq: number | null;
   watch_id: string | null;
   progress?: CardProgress;
+  blocks?: {
+    state: "on" | "off";
+    start: string;
+    end: string;
+    readings: number;
+    mean: number;
+    seq: number | null;
+  }[];
+  verdict?: {
+    label: string;
+    effect: number;
+    ci: [number, number];
+    p_value: number;
+    pairs_done: number;
+  } | null;
 }
 
 export interface AskRun {
@@ -236,6 +251,11 @@ export const retail = {
   advice: (receipt: string, cameraId: string | null) =>
     call<RetailCard>("/retail/advice", post({ receipt, camera_id: cameraId })),
   accept: (id: string) => call<RetailCard>(`/retail/advice/${id}/accept`, { method: "POST" }),
+  block: (id: string, state: "on" | "off", start: Date, end: Date) =>
+    call<RetailCard>(
+      `/retail/advice/${id}/blocks`,
+      post({ state, start: start.toISOString(), end: end.toISOString() }),
+    ),
   brief: (lang: string) => call<Brief>("/retail/brief", post({ lang })),
   receipt: (sha: string, link: string | null) =>
     call<Receipt>(`/retail/receipts/${sha}${link ? `?link=${encodeURIComponent(link)}` : ""}`),

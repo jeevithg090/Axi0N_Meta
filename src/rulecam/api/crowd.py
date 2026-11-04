@@ -243,11 +243,7 @@ def crowd_report(
     """The after-event report of one camera (no narrative)."""
     watch = next((s.watch for s in warden.states() if s.watch.camera_id == camera_id), None)
     alert_ids = {a.alert_id for a in warden.alerts(500) if a.camera_id == camera_id}
-    notified = [
-        {"alert_id": alert_id, **n.model_dump()}
-        for alert_id in alert_ids
-        for n in warden.ack_state(alert_id).notified
-    ]
+    acks = {alert_id: warden.ack_state(alert_id).model_dump(mode="json") for alert_id in alert_ids}
     return build_report(
         camera_id=camera_id,
         name=names.get(camera_id, camera_id),
@@ -261,7 +257,7 @@ def crowd_report(
         clip_start=warden.first_recorded(camera_id),
         instruction=watch.instruction if watch is not None else None,
         truth=warden.truth(camera_id),
-        notified=notified,
+        acks=acks,
     )
 
 

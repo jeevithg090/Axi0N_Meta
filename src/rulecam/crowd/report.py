@@ -31,6 +31,7 @@ from pydantic import Field
 
 from rulecam.contracts import Frozen, StructuredLLM
 from rulecam.crowd.forecast import REFERENCE_PPM2
+from rulecam.crowd.record import TimelineEvent, link, unknowns
 from rulecam.evidence.chain import EventChain, read_chain, verify_chain
 from rulecam.log import get_logger
 
@@ -66,16 +67,6 @@ class ZoneSummary(Frozen):
     )
     max_pressure: float | None = None
     max_counterflow_share: float | None = None
-
-
-class TimelineEvent(Frozen):
-    """One moment of the event."""
-
-    at: datetime
-    kind: str = Field(description="assessment, alert, held, announcement, notified, tap, peak.")
-    level: str | None = None
-    text: str
-    ref: str | None = None
 
 
 class AlertLatency(Frozen):
@@ -119,11 +110,24 @@ class Evidence(Frozen):
     records: list[dict[str, object]] = Field(default_factory=list)
 
 
+class CitedSentence(Frozen):
+    """One sentence of the after-action summary and the chain records it rests on."""
+
+    text: str
+    records: list[int] = Field(
+        default_factory=list, description="`seq` of the evidence records it rests on; [] if none."
+    )
+
+
 class AfterAction(Frozen):
     """Muse Spark's after-action summary of the report."""
 
     headline: str = Field(description="One sentence: what happened and how the system did.")
     narrative: str = Field(description="Four to six sentences with times and numbers.")
+    cited: list[CitedSentence] = Field(
+        default_factory=list,
+        description="The narrative again, one sentence each, citing the evidence records.",
+    )
     worked: list[str] = Field(default_factory=list, description="What worked, short.")
     change: list[str] = Field(
         default_factory=list, description="What to change before the next event, short."
@@ -144,6 +148,9 @@ class EventReport(Frozen):
     series: dict[str, ZoneSeries] = Field(default_factory=dict)
     zones: list[ZoneSummary] = Field(default_factory=list)
     timeline: list[TimelineEvent] = Field(default_factory=list)
+    unknowns: list[str] = Field(
+        default_factory=list, description="What the system did not know when it acted."
+    )
     latency: list[AlertLatency] = Field(default_factory=list)
     evidence: Evidence = Field(default_factory=Evidence)
     truth: list[TruthZone] | None = None
@@ -225,7 +232,7 @@ def build_report(
     clip_start: datetime | None = None,
     instruction: str | None = None,
     truth: Truth | None = None,
-    notified: Sequence[dict[str, object]] = (),
+    acks: dict[str, dict[str, object]] | None = None,
 ) -> EventReport:
     """One camera's report over a window.
 
@@ -242,7 +249,7 @@ def build_report(
         clip_start: When clip second 0 was recorded (for `clip_s` and the truth).
         instruction: The operator's instruction.
         truth: The camera's ground truth, if registered.
-        notified: Notifications of the alerts (`role`, `at`, `status`, `alert_id`).
+        acks: Alert id -> its ack state as JSON (`status`, `notified`, `taps`, `arrival`).
 
     Returns:
         The report.
@@ -260,9 +267,13 @@ def build_report(
     alerts = list(_rows(alerts_path, camera_id, since, until))
     alert_ids = {str(a.get("alert_id")) for a in alerts}
     taps = [t for t in _all_rows(acks_path) if str(t.get("alert_id")) in alert_ids]
-    timeline = _timeline(
-        assessments, alerts, taps, [n for n in notified if n.get("alert_id") in alert_ids]
-    )
+    states = {k: v for k, v in (acks or {}).items() if k in alert_ids}
+    notified = [
+        {"alert_id": alert_id, **note}
+        for alert_id, state in states.items()
+        for note in _notes(state)
+    ]
+    timeline = _timeline(assessments, alerts, taps, notified)
     timeline += [
         TimelineEvent(
             at=z.peak_at,
@@ -273,6 +284,8 @@ def build_report(
         for z in zones
         if z.peak_at is not None and z.peak_density_ppm2 is not None
     ]
+    evidence = _evidence(chain, alerts)
+    scored = _truth(truth, by_zone, clip_start) if truth is not None and clip_start else None
     return EventReport(
         camera_id=camera_id,
         name=name,
@@ -283,12 +296,25 @@ def build_report(
         readings=len(instants),
         series=series,
         zones=zones,
-        timeline=sorted(timeline, key=lambda e: e.at),
+        timeline=sorted(
+            link(sorted(timeline, key=lambda e: e.at), evidence.records), key=lambda e: e.at
+        ),
+        unknowns=unknowns(
+            alerts=alerts,
+            readings=[r for rows in by_zone.values() for r in rows],
+            acks=states,
+            scored=scored is not None,
+        ),
         latency=[_latency(a, assessments) for a in alerts],
-        evidence=_evidence(chain, alerts),
-        truth=_truth(truth, by_zone, clip_start) if truth is not None and clip_start else None,
+        evidence=evidence,
+        truth=scored,
         truth_source=truth.source if truth is not None else None,
     )
+
+
+def _notes(state: dict[str, object]) -> list[dict[str, object]]:
+    found = state.get("notified")
+    return [n for n in found if isinstance(n, dict)] if isinstance(found, list) else []
 
 
 def _all_rows(path: Path) -> Iterator[dict[str, object]]:
@@ -373,13 +399,28 @@ def _timeline(
         at = _at(tap.get("at")) or _at(tap.get("ts"))
         if at is not None:
             text = f"{tap.get('role')}: {tap.get('button')}"
-            out.append(TimelineEvent(at=at, kind="tap", text=text, ref=str(tap.get("alert_id"))))
+            out.append(
+                TimelineEvent(
+                    at=at,
+                    kind="tap",
+                    text=text,
+                    alert_id=str(tap.get("alert_id")),
+                    role=str(tap.get("role")),
+                )
+            )
     for note in notified:
         when = note.get("at")
+        when = datetime.fromisoformat(when) if isinstance(when, str) else when
         if isinstance(when, datetime):
             text = f"notified {note.get('role')} ({note.get('status')})"
             out.append(
-                TimelineEvent(at=when, kind="notified", text=text, ref=str(note.get("alert_id")))
+                TimelineEvent(
+                    at=when,
+                    kind="notified",
+                    text=text,
+                    alert_id=str(note.get("alert_id")),
+                    role=str(note.get("role")),
+                )
             )
     return out
 
@@ -403,7 +444,8 @@ def _alert_events(row: dict[str, object]) -> list[TimelineEvent]:
             kind="alert" if sent else "held",
             level=str(row.get("level")),
             text=f"{'Sent' if sent else 'Held'} ({_verdict(row)})",
-            ref=str(row.get("alert_id")),
+            ref=str(row.get("heatmap")) if row.get("heatmap") else None,
+            alert_id=str(row.get("alert_id")),
         )
     ]
     audio = row.get("audio")
@@ -415,6 +457,7 @@ def _alert_events(row: dict[str, object]) -> list[TimelineEvent]:
                     kind="announcement",
                     text=f"[{spoken.get('lang')}] {spoken.get('text')}",
                     ref=str(spoken.get("audio")) if spoken.get("audio") else None,
+                    alert_id=str(row.get("alert_id")),
                 )
             )
     return out
@@ -493,8 +536,10 @@ def _event_of(payload: dict[str, object]) -> str | None:
 
 def _brief(payload: dict[str, object]) -> dict[str, object]:
     """The parts of a chain record a person reads: event, verdict, action detail, role."""
-    keep = ("event_id", "verdict", "reason", "kind", "role", "detail", "label", "tier")
+    keep = ("event_id", "verdict", "reason", "role", "detail", "label", "tier")
     out = {k: payload[k] for k in keep if k in payload}
+    if "kind" in payload:
+        out["action"] = payload["kind"]
     candidate = payload.get("candidate")
     if isinstance(candidate, dict):
         out["event_id"] = candidate.get("event_id")
@@ -572,8 +617,10 @@ def after_action(spark: StructuredLLM, report: EventReport) -> AfterAction:
         "lead, from the crowd watch's own report: what happened and when, how dense it got and "
         "for how long, how fast the system warned and whether stewards acknowledged, what was "
         "announced, and, when ground truth is given, how close the measurements were. Use the "
-        "report's times and numbers only; say plainly what is missing. Reply with one JSON "
-        "object."
+        "report's times and numbers only; say plainly what is missing (`unknowns`). In `cited`, "
+        "repeat the narrative one sentence at a time, each with the `seq` numbers of the "
+        "evidence records (`evidence.records`, and `seq` on timeline lines) it rests on, [] when "
+        "none does. Reply with one JSON object."
     )
     return spark.structured(
         model=SPARK_MODEL,

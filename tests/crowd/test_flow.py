@@ -186,6 +186,7 @@ def test_the_report_has_the_timeline_latency_evidence_and_the_ground_truth_score
         chain=chosen.chain,
         clip_start=start,
         truth=chosen.truth("gate"),
+        acks={alert.alert_id: chosen.ack_state(alert.alert_id).model_dump(mode="json")},
     )
     assert made.readings == 1
     assert made.zones[0].peak_people == 8
@@ -201,9 +202,20 @@ def test_the_report_has_the_timeline_latency_evidence_and_the_ground_truth_score
     assert scored.count_ratio == 0.8
     assert scored.count_mae == 2.0
     assert scored.true_peak_ppm2 == 2.5
-    summary: dict[str, object] = {"headline": "Warned in time.", "narrative": "…"}
+    linked = {e.kind: e for e in made.timeline if e.seq is not None}
+    assert {"alert", "notified", "announcement", "tap"} <= set(linked)
+    assert linked["alert"].hash == alert.chain_hash
+    assert any("SAM 3.1 counts what the camera sees" in u for u in made.unknowns)
+    assert any("owner" in u or "plan" in u for u in made.unknowns)
+    summary: dict[str, object] = {
+        "headline": "Warned in time.",
+        "narrative": "…",
+        "cited": [{"text": "Critical at the first reading.", "records": [2]}],
+    }
     narrator = FakeLLM([summary])
-    assert after_action(narrator, made).headline == "Warned in time."
+    told = after_action(narrator, made)
+    assert told.headline == "Warned in time."
+    assert told.cited[0].records == [2]
     brief = json.loads(str(narrator.calls[0]["messages"][1]["content"]))  # type: ignore[index]
     assert "series" not in brief
     assert "truth_curve_s" not in brief["truth"][0]

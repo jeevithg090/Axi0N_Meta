@@ -281,7 +281,18 @@ export interface EventReport {
     mean_density_ppm2: number | null;
     above_s: Record<string, number>;
   }[];
-  timeline: { at: string; kind: string; level: string | null; text: string; ref: string | null }[];
+  timeline: {
+    at: string;
+    kind: string;
+    level: string | null;
+    text: string;
+    ref: string | null;
+    alert_id?: string | null;
+    role?: string | null;
+    seq?: number | null;
+    hash?: string | null;
+  }[];
+  unknowns: string[];
   latency: {
     alert_id: string;
     level: string;
@@ -299,7 +310,13 @@ export interface EventReport {
   };
   truth: TruthZone[] | null;
   truth_source: string | null;
-  after_action: { headline: string; narrative: string; worked: string[]; change: string[] } | null;
+  after_action: {
+    headline: string;
+    narrative: string;
+    worked: string[];
+    change: string[];
+    cited: { text: string; records: number[] }[];
+  } | null;
 }
 
 /** A file the crowd watch wrote (heatmap, recorded frame or announcement WAV). */

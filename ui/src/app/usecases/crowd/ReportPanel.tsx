@@ -46,6 +46,17 @@ function TruthChart({ zone }: { zone: TruthZone }) {
   );
 }
 
+/** Save the report as a JSON file (the incident record). */
+function download(report: EventReport): void {
+  const blob = new Blob([JSON.stringify(report, null, 1)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `crowd-incident-${report.camera_id}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 /** Step 5: the report after the event, with the evidence and the ground-truth score. */
 export function ReportPanel({ cameraIds }: { cameraIds: { id: string; name: string }[] }) {
   const [camera, setCamera] = useState("");
@@ -103,7 +114,20 @@ export function ReportPanel({ cameraIds }: { cameraIds: { id: string; name: stri
           {report.after_action && (
             <div>
               <strong>{report.after_action.headline}</strong>
-              <p style={{ margin: "4px 0" }}>{report.after_action.narrative}</p>
+              {report.after_action.cited.length > 0 ? (
+                <p style={{ margin: "4px 0" }}>
+                  {report.after_action.cited.map((c, k) => (
+                    <span key={k}>
+                      {c.text}{" "}
+                      <span className={styles.small}>
+                        {c.records.length ? `[#${c.records.join(", #")}]` : "[no record]"}
+                      </span>{" "}
+                    </span>
+                  ))}
+                </p>
+              ) : (
+                <p style={{ margin: "4px 0" }}>{report.after_action.narrative}</p>
+              )}
               <div className={styles.row}>
                 <div>
                   <em>Worked</em>
@@ -124,6 +148,28 @@ export function ReportPanel({ cameraIds }: { cameraIds: { id: string; name: stri
               </div>
             </div>
           )}
+          <div className={styles.row}>
+            <span
+              className={styles.badge}
+              style={{
+                background:
+                  report.evidence.chain_ok == null
+                    ? "#757575"
+                    : report.evidence.chain_ok
+                      ? "#2e7d32"
+                      : "#c62828",
+              }}
+            >
+              {report.evidence.chain_ok == null
+                ? "no chain"
+                : report.evidence.chain_ok
+                  ? "chain verified"
+                  : "chain broken"}
+            </span>
+            <button type="button" className={styles.button} onClick={() => download(report)}>
+              Download incident record (JSON)
+            </button>
+          </div>
           <span className={styles.small}>
             {report.readings} readings · evidence chain{" "}
             {report.evidence.chain_ok == null
@@ -213,6 +259,18 @@ export function ReportPanel({ cameraIds }: { cameraIds: { id: string; name: stri
               </span>
             </>
           )}
+          {report.unknowns.length > 0 && (
+            <>
+              <strong>What the system did not know</strong>
+              <ul className={styles.list}>
+                {report.unknowns.map((u) => (
+                  <li key={u} className={styles.small}>
+                    {u}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <strong>Timeline</strong>
           <ul className={styles.list}>
             {report.timeline.map((e, k) => (
@@ -223,6 +281,12 @@ export function ReportPanel({ cameraIds }: { cameraIds: { id: string; name: stri
                 </strong>{" "}
                 {e.level && e.kind !== "alert" ? `${e.level}: ` : ""}
                 {e.text}
+                {e.seq != null && (
+                  <span className={styles.muted}>
+                    {" "}
+                    · chain #{e.seq} {e.hash?.slice(0, 10)}…
+                  </span>
+                )}
               </li>
             ))}
           </ul>

@@ -42,6 +42,8 @@ pass, API revision `559f976`). Branch builds tested: `p1/final-integration` 0b35
 | QA-B24 | P1 | supermarket | `/usecases/supermarket` | No branch has this page yet (`p1/uc-supermarket` has no `ui/src/app/usecases/`), but the new landing links it |
 | QA-B25 | P2 | warehouse | `/usecases/warehouse` | Two nested `<main>` landmarks (the shell's and the page's): invalid HTML, confuses screen readers |
 | QA-B26 | P2 | warehouse (`ui/demo`) | `/demo?demo=1` | The first card is tagged "RECORDED LIVE RUN · 1 NOV 2026 · NOT A REPLAY, NOT LIVE NOW" while the header badge says REPLAY: two labels that contradict each other on the judge's first page |
+| QA-B27 | P2 | UI agent (`components/demo/SystemStatus.tsx`, `lib/health.ts`) | landing (`p1/ui-hallmark`) | "The system right now" says **OFFLINE · The Rulecam API is not reachable** whenever the API is up in REPLAY mode (`isLive` needs `mode === "live"`), right above "API ok · Mode replay"; the header badge says REPLAY. The DEMO.md fallback (switch to replay) would show this |
+| QA-B28 | P2 | crowd | `/usecases/crowd` | With no crowd camera the page shows operator hints to judges ("crowd watch needs RULECAM_PROTOTYPE_MODE=true and RULECAM_CROWD_EVERY_S > 0", "scripts/crowd/feed_clip.py") and two empty dropdowns; no recorded crowd run to look at |
 
 ### QA-B18 · P0 · Ask fabricates answers when the API says no
 
@@ -223,6 +225,23 @@ pass, API revision `559f976`). Branch builds tested: `p1/final-integration` 0b35
   error #418". The header breadcrumb says "NO SUCH PAGE" from `usePathname()`, but the static
   `/_not-found` page was prerendered with another path.
 - **Fix:** render the breadcrumb after mount (`useEffect`), or give `not-found.tsx` its own title.
+
+## Merge risk (for the lead)
+
+`git merge-tree` of each branch head (01:20 UTC) into `p1/final-integration` 0b35805:
+
+| Branch | Result |
+|---|---|
+| `p1/ui-hallmark`, `p1/uc-crowd`, `p1/staff-app`, `p1/compliance`, `p1/pitch`, `p1/qa` | clean |
+| `p1/uc-warehouse` | conflict in `src/rulecam/api/app.py` |
+| `p1/uc-supermarket` | conflicts in `src/rulecam/api/app.py`, `ui/src/components/signage/AskSignage.tsx` |
+| `p1/glasses` | conflict in `src/rulecam/api/app.py` |
+| `p1/staff-app` + `p1/compliance`, `p1/ui-hallmark` + `p1/uc-warehouse` | conflict in `src/rulecam/api/app.py` |
+
+`app.py` is where every branch mounts its router. After resolving it, run
+`uv run pytest tests/e2e`: a router mounted without the owner dependency fails
+`test_every_owner_route_refuses_a_visitor` (unless it is meant to be public: add it to
+`surface.PUBLIC` with the reason).
 
 ## Fixed by QA
 

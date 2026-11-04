@@ -1058,6 +1058,80 @@ runs it once a day for 16 days (key from `/workspace/rulecam/.runpod_api_key`):
 `setsid nohup bash /workspace/rulecam/scripts/ops/keepalive_loop.sh >> /workspace/keepalive.log
 2>&1 < /dev/null &`.
 
+### More GPU data centers and types (US-NC-1, US-TX-3)
+
+On the night of 3 to 4 Nov US-IL-1 had no RTX 4090 left for serverless workers: SAM and Glimmer
+could not start, SAM calls waited 120 s and fell back to hosted SAM. Now:
+
+- **Data centers.** SAM runs in US-NC-1 and US-TX-3 (volumes `4q7tspgi9t`, `ysopmf0fjp`);
+  Glimmer in US-IL-1, US-NC-1 and US-TX-3 (`11ymk65bni` too). A worker mounts the volume of the
+  data center it lands in. SAM left US-IL-1 because that volume still has the code from before
+  the re-ID autocast fix and no pod or worker could be placed there to update it.
+- **GPU types.** Both endpoints take the pools ADA_24 (RTX 4090, $1.34/h), AMPERE_24 (A5000 /
+  3090 / L4, $0.75/h), AMPERE_48 (A6000 / A40, $1.22/h) and ADA_48_PRO (L40S / L40 / 6000 Ada,
+  $1.75/h): the 17 GB Glimmer GGUF and SAM 3.1 fit all of them. RTX 5090 is left out (Blackwell
+  needs newer CUDA builds than the images have).
+- **Staging.** The new volumes were staged from a 4090 pod mounting each at `/runpod-volume`:
+  the code of `p1/final-integration` (faf6039) untarred into `/runpod-volume/rulecam`, then
+  `scripts/sam_pod/setup.sh --stage`, `scripts/sam_pod/install_moge.sh` and
+  `scripts/glimmer_pod/stage.sh` (about 6 minutes each). They have no `sam.env`, so SAM runs with
+  the code defaults. Volumes do not sync: ship code to every one.
+- **Standby Glimmer** `kkj76vah84y5uj` (`rulecam-glimmer-standby`): the same llama.cpp build
+  with no volume (`scripts/glimmer_pod/anywhere.sh` downloads the weights on a cold start, about
+  6 minutes), so it can run in any data center with stock. The API tries it when the primary
+  gives no usable answer (`GLIMMER_STANDBY_BASE_URL=https://kkj76vah84y5uj.api.runpod.ai/v1`,
+  same keys), then the hosted fallback. Keep it warm for demos (`demo_warm.sh` does).
+- **Shorter wait before hosted SAM.** `SAM_HTTP_TIMEOUT_S` (default 60) and `SAM_HTTP_ATTEMPTS`
+  (default 2) bound one self-hosted SAM call; with `25` and `1` the runtime falls back to hosted
+  SAM after 25 s instead of 2 minutes.
+- Account limit: max workers across all endpoints is 10 (SAM 2, Glimmer 3, standby 2, Llama
+  Guard 2, Spark Open 1).
+
+### Serverless Muse Spark Open (Tier 2, plan audit, Ask review)
+
+Muse Spark Open is Meta's 816B-parameter mixture-of-experts model (about 42B active). Baseten,
+where the code first pointed, never gave us a key, so it runs on our own RunPod endpoint
+`hljmhlgjyaacyv` (`rulecam-spark-open`): llama.cpp `full-cuda-b12004` (the first build with the
+`muse-spark` architecture is b11681), the 4-bit GGUF `ggml-org/Muse-Spark-Open-816B-A42B-GGUF`
+(Q4_K_S, 470 GB in 22 parts), one worker with 8 x H100 80 GB in EUR-NO-2 (the only data center
+with 8-GPU stock that night), and a 520 GB high-performance network volume `uhe04aj7bm`.
+
+- The start script is `scripts/spark_open_pod/serverless.sh`. The endpoint has no code volume,
+  so the script and `llama_edge` reach the worker as env vars (`scripts/spark_open_pod/
+  endpoint_env.sh` prints them). The first start downloads the weights onto the volume
+  (resumable); later cold starts only load them, about 10 minutes.
+- Same key scheme as Glimmer: the RunPod key in `Authorization`, the model key (the RunPod
+  secret `rulecam_glimmer_api_key`) in `X-Rulecam-Key`.
+- API settings: `SPARK_OPEN_BASE_URL=https://hljmhlgjyaacyv.api.runpod.ai/v1`,
+  `SPARK_OPEN_API_KEY` (the Glimmer key) and `SPARK_OPEN_EDGE_KEY` (the RunPod key). They win
+  over `BASETEN_*`, which stays as an option. `SPARK_OPEN_MODEL` is `muse-spark-open`.
+- Cost: $5.39/h per H100, $43.12/h per running worker, plus the volume. Keep `workers.min` 0 and
+  warm it only for demos (`scripts/ops/demo_warm.sh`).
+- A hosted alternative: Routeway serves `muse-spark-open` ($1.25 / $4.25 per million tokens in /
+  out) through the same client (`SPARK_OPEN_BASE_URL=https://api.routeway.ai/v1`, its key as
+  `SPARK_OPEN_API_KEY`, no edge key), once the Routeway account has credit.
+
+### Serverless Llama Guard 4 (plan-time rule screen)
+
+`rulecam.clients.open_weights.llama_guard.screen_rule_text` sends an owner's rule request to
+Llama Guard 4 12B and refuses it when the model flags S7 Privacy or S10 Hate (rules about who
+people are). Endpoint `vzi5ij5gclndjc` (`rulecam-llama-guard`): vLLM `v0.32.0` serving
+`RedHatAI/Llama-Guard-4-12B-FP8-dynamic` (15 GB, downloaded to the container disk on a cold
+start, so no volume and any data center), pools ADA_24, AMPERE_24, AMPERE_48, ADA_48_PRO,
+$0.75 to $1.75/h per running worker, about 3 minutes cold. Start script:
+`scripts/llama_guard_pod/serverless.sh`. Settings: `LLAMA_GUARD_BASE_URL=https://vzi5ij5gclndjc.api.runpod.ai/v1`,
+`LLAMA_GUARD_API_KEY` (the Glimmer key), `LLAMA_GUARD_EDGE_KEY` (the RunPod key).
+
+### Hosted Glimmer fallback
+
+With `GLIMMER_FALLBACK_BASE_URL` set, a Glimmer call that gets no usable answer from our GPU (no
+HTTP answer, 404, 429 or 5xx) is sent to a hosted OpenAI-compatible Glimmer instead
+(`clients.transport.FailoverTransport`), with its own key, model name and the JSON schema in a
+system message. The API logs `model_failover`. For Routeway: `GLIMMER_FALLBACK_BASE_URL=https://api.routeway.ai/v1`,
+`GLIMMER_FALLBACK_API_KEY` (the Routeway key) and `GLIMMER_FALLBACK_MODEL=muse-glimmer-30b:free`
+(works without credit; `muse-glimmer-30b` needs credit). Measured on 4 Nov with our URL dead on
+purpose: the Tier 1 strip check answered through Routeway in 57 s.
+
 ## Checks
 
 - `curl https://rulecam.vercel.app/rulecam-api/mode` → `{"mode":"live","badge":"LIVE"}`.

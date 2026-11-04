@@ -73,7 +73,13 @@ def apply_limits(limits: dict[str, int]) -> None:
         limits: `cpu_s`, `memory_mb` and `max_files` from the parent.
     """
     _limit(resource.RLIMIT_CPU, int(limits["cpu_s"]))
-    _limit(resource.RLIMIT_AS, int(limits["memory_mb"]) * _MB)
+    if sys.platform == "darwin":
+        # macOS reserves a huge address space at start-up and does not enforce RLIMIT_AS, so
+        # lowering it fails; Linux (the API pod, CI) enforces it.
+        with contextlib.suppress(ValueError, OSError):
+            _limit(resource.RLIMIT_AS, int(limits["memory_mb"]) * _MB)
+    else:
+        _limit(resource.RLIMIT_AS, int(limits["memory_mb"]) * _MB)
     _limit(resource.RLIMIT_FSIZE, 0)
     _limit(resource.RLIMIT_NOFILE, int(limits["max_files"]))
     with contextlib.suppress(ValueError, OSError):

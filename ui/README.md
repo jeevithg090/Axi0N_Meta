@@ -9,13 +9,29 @@ open "http://localhost:3000/monitor?demo=1"   # recorded UC1 frames, no server n
 npm run lint && npm run typecheck && npm test -- --run
 ```
 
-- **Every screen** sits in `components/Shell.tsx`: the **LIVE/REPLAY badge**, set from
-  `GET /mode` and `mode.changed` (OFFLINE while the socket is down or reconnecting, and the last
-  mode is forgotten until `GET /mode` answers again; it never switches silently). HTTP calls go
-  through the same-origin `/rulecam-api/*` rewrite in `next.config.ts`, since the API sends no
-  CORS headers; the socket connects to the API directly,
-  and the **relay HUD**, which lists only the models that ran in the current segment, greys
-  non-Meta models and resets when the segment changes.
+- **Every screen** sits in `components/DashboardShell.tsx`, which shows the **LIVE/REPLAY
+  badge** in its header. The badge comes from one shared `GET /health` poll (`lib/health.ts`,
+  every 10 s), the same one behind the sidebar's GPU lines, the landing's status band and the
+  use-case status chip, so they never disagree:
+  - **REPLAY** on a golden replay (`?demo=…`, which polls nothing) or when the API runs in replay
+    mode;
+  - **LIVE** when `/health` answers `ok` in any other mode (the API's own `badge_for`: `live`
+    and `record` are LIVE);
+  - **OFFLINE** only when `/health` fails or is not `ok`; "…" until it first answers.
+
+  The `/ws` event socket is an enhancement: it can fill the badge before `/health` answers, and
+  it never makes it OFFLINE. Screens of hand-written content carry `SampleDataTag` (SAMPLE DATA)
+  and a SAMPLE badge in the nav. HTTP calls go through the same-origin `/rulecam-api/*` rewrite in
+  `next.config.ts`, since the API sends no CORS headers; the socket connects to the API directly.
+  The shell has three frames: the landing page (`/`, a wordmark bar), the app (grouped sidebar:
+  Use cases, Build, Run, Trust, System) and a bare frame with no sidebar for outside-facing
+  screens (`/worker/<plan>/<camera>`, `/station/<id>`, `/staff`, `/inspector/view`).
+- **Clips:** the sample boards' `/videos/*.mp4` are git-ignored and not deployed; `ClipPlayer`
+  shows each camera's committed still from `public/strips/` with "not bundled" instead of a black
+  player, and plays a clip only once its path is listed in `BUNDLED_CLIPS` and committed.
+- **Design system:** Console tokens in `app/globals.css` (light and dark), the component kit in
+  `components/kit/` (see its README), the **relay HUD**, which lists only the models that ran in
+  the current segment, greys non-Meta models and resets when the segment changes.
 - **State:** `lib/store.ts` is a pure reducer that folds `/ws` frames (`lib/events.ts`) into
   `UiState`. It is unit-tested.
 - **Live monitor** (`/monitor`): one rule card per rule and camera (greyed out with a **BLIND**

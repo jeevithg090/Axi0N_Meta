@@ -1,0 +1,295 @@
+{
+  "name": "pallet_above_line",
+  "sha256": "367981606c601fd49ba2f35132af9a182acd3b016112bf7da9ed5e1b2fa13bf3",
+  "parent_sha": "f76f0c43d16c3900051f7f506ce48efdc510f0aa5b0d11f03050edb04c675cc8",
+  "request": "Alert if a pallet is stacked above the yellow line on the rack",
+  "concept": "pallet",
+  "camera_id": "warehouse-pexels-4294434",
+  "lines": {
+    "yellow": [
+      [
+        0.0,
+        200.0
+      ],
+      [
+        1280.0,
+        200.0
+      ]
+    ]
+  },
+  "relation": "above",
+  "frame_w": null,
+  "frame_h": null,
+  "code": "import math\n\ndef check(sample):\n    lines = sample.get(\"lines\")\n    line = lines.get(\"yellow\")\n    if line == None:\n        return {\"value\": False, \"measure\": None, \"why\": \"no yellow line\"}\n    p1 = line[0]\n    p2 = line[1]\n    x1 = p1[0]\n    y1 = p1[1]\n    x2 = p2[0]\n    y2 = p2[1]\n    if x1 == x2:\n        return {\"value\": False, \"measure\": None, \"why\": \"vertical yellow line\"}\n    objects = sample.get(\"objects\")\n    count = 0\n    for obj in objects:\n        concept = obj.get(\"concept\")\n        if concept.lower() != \"pallet\":\n            continue\n        box = obj.get(\"box_xyxy_px\")\n        top = obj.get(\"mask_top_y_px\")\n        cx = (box[0] + box[2]) / 2\n        line_y = y1 + (y2 - y1) * (cx - x1) / (x2 - x1)\n        if top < line_y:\n            count = count + 1\n    if count > 0:\n        return {\"value\": True, \"measure\": float(count), \"why\": \"pallet above yellow line\"}\n    return {\"value\": False, \"measure\": None, \"why\": \"no pallet above yellow line\"}\n",
+  "tests": "CASES = [\n    {\n        \"name\": \"just-above\",\n        \"sample\": {\n            \"timestamp\": \"2024-01-01T00:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [150, 199, 250, 300],\n                    \"mask_top_y_px\": 199,\n                    \"mask_area_px\": 10000,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.9\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[100, 200], [500, 200]]},\n            \"px_per_m\": 100\n        },\n        \"expect\": True\n    },\n    {\n        \"name\": \"just-below\",\n        \"sample\": {\n            \"timestamp\": \"2024-01-01T00:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [150, 201, 250, 300],\n                    \"mask_top_y_px\": 201,\n                    \"mask_area_px\": 10000,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.9\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[100, 200], [500, 200]]},\n            \"px_per_m\": 100\n        },\n        \"expect\": False\n    },\n    {\n        \"name\": \"exactly-on\",\n        \"sample\": {\n            \"timestamp\": \"2024-01-01T00:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [150, 200, 250, 300],\n                    \"mask_top_y_px\": 200,\n                    \"mask_area_px\": 10000,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.9\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[100, 200], [500, 200]]},\n            \"px_per_m\": 100\n        },\n        \"expect\": False\n    },\n    {\n        \"name\": \"no-objects\",\n        \"sample\": {\n            \"timestamp\": \"2024-01-01T00:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[100, 200], [500, 200]]},\n            \"px_per_m\": 100\n        },\n        \"expect\": False\n    },\n    {\n        \"name\": \"line-missing\",\n        \"sample\": {\n            \"timestamp\": \"2024-01-01T00:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [150, 150, 250, 300],\n                    \"mask_top_y_px\": 150,\n                    \"mask_area_px\": 10000,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.9\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {},\n            \"px_per_m\": 100\n        },\n        \"expect\": False\n    },\n    {\n        \"name\": \"two-mixed-one-above\",\n        \"sample\": {\n            \"timestamp\": \"2024-01-01T00:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [150, 199, 250, 300],\n                    \"mask_top_y_px\": 199,\n                    \"mask_area_px\": 10000,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.9\n                },\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [300, 210, 400, 320],\n                    \"mask_top_y_px\": 210,\n                    \"mask_area_px\": 10000,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.85\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[100, 200], [500, 200]]},\n            \"px_per_m\": 100\n        },\n        \"expect\": True\n    },\n    {\n        \"name\": \"two-both-below\",\n        \"sample\": {\n            \"timestamp\": \"2024-01-01T00:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [150, 210, 250, 310],\n                    \"mask_top_y_px\": 210,\n                    \"mask_area_px\": 10000,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.9\n                },\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [300, 220, 400, 320],\n                    \"mask_top_y_px\": 220,\n                    \"mask_area_px\": 10000,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.85\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[100, 200], [500, 200]]},\n            \"px_per_m\": 100\n        },\n        \"expect\": False\n    },\n    {\n        \"name\": \"wrong-concept-above\",\n        \"sample\": {\n            \"timestamp\": \"2024-01-01T00:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"box\",\n                    \"box_xyxy_px\": [150, 150, 250, 300],\n                    \"mask_top_y_px\": 150,\n                    \"mask_area_px\": 10000,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.9\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[100, 200], [500, 200]]},\n            \"px_per_m\": 100\n        },\n        \"expect\": False\n    },\n    {\n        \"name\": \"vertical-line\",\n        \"sample\": {\n            \"timestamp\": \"2024-01-01T00:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [150, 150, 250, 300],\n                    \"mask_top_y_px\": 150,\n                    \"mask_area_px\": 10000,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.9\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[200, 100], [200, 300]]},\n            \"px_per_m\": 100\n        },\n        \"expect\": False\n    }\n]\n",
+  "generator": "muse-code",
+  "model": "muse-spark-1.2",
+  "proof": {
+    "steps": [
+      {
+        "name": "validator",
+        "status": "passed",
+        "detail": "only allowed syntax and names",
+        "metrics": {},
+        "cases": []
+      },
+      {
+        "name": "muse_code_tests",
+        "status": "passed",
+        "detail": "9 of 9 cases pass",
+        "metrics": {
+          "passed": 9.0,
+          "total": 9.0
+        },
+        "cases": [
+          {
+            "name": "just-above",
+            "source": "generator",
+            "expect": true,
+            "got": true,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "just-below",
+            "source": "generator",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "exactly-on",
+            "source": "generator",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "no-objects",
+            "source": "generator",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "line-missing",
+            "source": "generator",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "two-mixed-one-above",
+            "source": "generator",
+            "expect": true,
+            "got": true,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "two-both-below",
+            "source": "generator",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "wrong-concept-above",
+            "source": "generator",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "vertical-line",
+            "source": "generator",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          }
+        ]
+      },
+      {
+        "name": "boundary",
+        "status": "passed",
+        "detail": "12 of 12 cases pass",
+        "metrics": {
+          "passed": 12.0,
+          "total": 12.0
+        },
+        "cases": [
+          {
+            "name": "robust: empty sample",
+            "source": "robustness",
+            "expect": null,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "robust: calibrated, no line",
+            "source": "robustness",
+            "expect": null,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "boundary: no objects",
+            "source": "boundary",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "boundary: line missing",
+            "source": "boundary",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "boundary: just above",
+            "source": "boundary",
+            "expect": true,
+            "got": true,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "boundary: just below",
+            "source": "boundary",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "boundary: far above",
+            "source": "boundary",
+            "expect": true,
+            "got": true,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "boundary: far below",
+            "source": "boundary",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "boundary: sloped line, just above",
+            "source": "boundary",
+            "expect": true,
+            "got": true,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "boundary: sloped line, just below",
+            "source": "boundary",
+            "expect": false,
+            "got": false,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "boundary: two objects, the one across first",
+            "source": "boundary",
+            "expect": true,
+            "got": true,
+            "error": null,
+            "passed": true
+          },
+          {
+            "name": "boundary: two objects, the one across last",
+            "source": "boundary",
+            "expect": true,
+            "got": true,
+            "error": null,
+            "passed": true
+          }
+        ]
+      },
+      {
+        "name": "mutation",
+        "status": "passed",
+        "detail": "25 of 26 mutants caught (96%; need 80%); survived: line 27: number up 10%",
+        "metrics": {
+          "killed": 25.0,
+          "total": 26.0,
+          "score": 0.962
+        },
+        "cases": []
+      },
+      {
+        "name": "muse_image_scenes",
+        "status": "skipped",
+        "detail": "not run: rendered scenes need live Muse Image and SAM 3.1",
+        "metrics": {},
+        "cases": []
+      },
+      {
+        "name": "common_sense",
+        "status": "passed",
+        "detail": "5 of 5 relations held on 202 scenes",
+        "metrics": {
+          "scenes": 202.0,
+          "relations": 5.0,
+          "held": 5.0,
+          "errors": 0.0
+        },
+        "cases": []
+      },
+      {
+        "name": "math_proof",
+        "status": "passed",
+        "detail": "Z3 4.16.0, up to 2 objects: no_target_no_alert: proved; total: proved; translation_invariant: proved; monotone: proved",
+        "metrics": {
+          "proved": 4.0,
+          "counterexamples": 0.0,
+          "undecided": 0.0
+        },
+        "cases": []
+      }
+    ],
+    "passed": true
+  },
+  "review": {
+    "verdict": "approve",
+    "reasons": [
+      "Computes 'above' correctly: mask_top_y_px < interpolated line_y at pallet center-x, y-down semantics.",
+      "Boundary strict: touching (top == line_y) does not alert, matching 'above'.",
+      "Missing yellow line returns False, vertical line returns False avoiding ZeroDivision.",
+      "Empty objects returns False; ignores non-pallet concepts; never uses px_per_m/ground_xy_m/score so null-safe.",
+      "Validator rules followed: only import math, one def check, allowed builtins/methods get+lower+float only.",
+      "No person data, identities, tracking, or per-person scoring; only pallet boxes.",
+      "Proof shows no failed step: validator/boundary/mutation/common_sense/math_proof passed, one skipped not failed."
+    ],
+    "risks": [
+      "Image-space check only: sloped line evaluated at center-x, wide pallets may be misjudged at edges.",
+      "Vertical yellow line never alerts even if pallet is high.",
+      "Touching line counts as not-above; owner must confirm boundary expectation.",
+      "Measure is float(count) of pallets above, None when no alert."
+    ],
+    "reviewer": "spark-1.3-fallback",
+    "model": "muse-spark-1.3",
+    "reasoning_ref": null
+  },
+  "status": "approved",
+  "created_at": "2026-11-04T00:51:29.444641Z",
+  "decided_by": "owner",
+  "decided_at": "2026-11-04T00:52:00.661686Z"
+}

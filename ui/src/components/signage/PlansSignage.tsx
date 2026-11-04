@@ -108,9 +108,10 @@ export function PlansSignage() {
             style={{
               marginTop: "var(--s2)",
               padding: "10px 14px",
-              background: "var(--yellow)",
-              color: "#141414",
-              border: "2px solid var(--ink)",
+              background: "var(--color-accent-soft)",
+              color: "var(--color-ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               fontWeight: 700,
             }}
           >
@@ -122,8 +123,8 @@ export function PlansSignage() {
             style={{
               marginTop: "var(--s2)",
               padding: "10px 14px",
-              background: "var(--alert)",
-              color: "#fff",
+              background: "var(--color-bad-soft)",
+              color: "var(--color-bad)",
               fontWeight: 700,
             }}
           >
@@ -147,8 +148,9 @@ export function PlansSignage() {
               <div
                 key={s.plan_id}
                 style={{
-                  border: "2px solid var(--ink)",
-                  borderTop: s.approved ? "6px solid var(--ink)" : "4px solid var(--ink)",
+                  border: "1px solid var(--color-rule)",
+                  borderRadius: "var(--radius-card)",
+                  borderTop: s.approved ? "1px solid var(--color-rule-2)" : "1px solid var(--color-rule-2)",
                   background: isOpen ? "var(--paper-2)" : "var(--paper)",
                   padding: "var(--s3)",
                 }}
@@ -189,7 +191,7 @@ export function PlansSignage() {
                   <div
                     style={{
                       marginTop: "var(--s3)",
-                      borderTop: "2px solid var(--ink)",
+                      borderTop: "1px solid var(--color-rule)",
                       paddingTop: "var(--s3)",
                     }}
                   >
@@ -355,7 +357,8 @@ export function PlansSignage() {
                             style={{
                               padding: "var(--s2)",
                               background: "var(--paper)",
-                              border: "1.5px solid var(--ink)",
+                              border: "1px solid var(--color-rule)",
+                              borderRadius: "var(--radius-card)",
                             }}
                           >
                             <div

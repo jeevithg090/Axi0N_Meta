@@ -32,7 +32,7 @@ import cv2
 from rulecam.ask.vision import Frame, FrameGrabber
 from rulecam.contracts import Calibration, Clock
 from rulecam.crowd.scan import CrowdReading, CrowdScanner
-from rulecam.crowd.signals import Box
+from rulecam.crowd.signals import Box, foot_points, inside
 from rulecam.crowd.zones import CrowdZone
 from rulecam.errors import RulecamError
 from rulecam.log import get_logger
@@ -285,9 +285,36 @@ class CrowdMemory:
             after, before, calibration, zones, concept=concept, grid=grid, boxes=boxes
         )
 
+    def count(
+        self,
+        camera_id: str,
+        at: datetime,
+        concept: str,
+        *,
+        polygon: Sequence[tuple[float, float]] | None = None,
+        grid: int | None = None,
+    ) -> int:
+        """How many `concept` SAM 3.1 finds at one recorded instant (inside `polygon`, if given).
+
+        Raises:
+            ValueError: Nothing is recorded at that instant.
+            OSError: The frame cannot be read.
+            RulecamError: SAM fails.
+        """
+        found = self._frames.frames(camera_id, [at])
+        if not found:
+            msg = f"no recorded frame of {camera_id} at {at.isoformat()}"
+            raise ValueError(msg)
+        boxes = self._scanner.detect(found[0], concept, grid or self._scanner.grid)
+        if polygon is None:
+            return len(boxes)
+        return int(inside(polygon, foot_points(boxes)).sum()) if boxes else 0
+
     def _due(self) -> tuple[str, datetime] | None:
+        """The live camera whose reading is most overdue (never read first)."""
         wanted = set(self._cameras()) if self._cameras is not None else None
         now = self._clock.now() if self._clock is not None else None
+        due: list[tuple[datetime | None, str, datetime]] = []
         for camera_id, (_, last) in sorted(self._frames.cameras().items()):
             if wanted is not None and camera_id not in wanted:
                 continue
@@ -296,8 +323,11 @@ class CrowdMemory:
             at = last + timedelta(seconds=NEWEST_OFFSET_S)
             done = self._done.get(camera_id)
             if done is None or at - done >= self._every:
-                return camera_id, at
-        return None
+                due.append((done, camera_id, at))
+        if not due:
+            return None
+        _, camera_id, at = min(due, key=lambda d: (d[0] is not None, d[0] or d[2], d[1]))
+        return camera_id, at
 
     def _record(self, camera_id: str, at: datetime) -> None:
         self._done[camera_id] = at

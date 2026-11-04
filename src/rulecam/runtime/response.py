@@ -3,9 +3,10 @@
 `build_response` wires the merged P3-05/P3-06 modules for the runtime loop and the API:
 
 - **Policy.** `VerificationPolicy`: HIGH acts first and a verifier veto demotes it to the human
-  queue (never dropped); LOW and MEDIUM verify first; Tier 2 (Spark Open on Baseten) reviews
+  queue (never dropped); LOW and MEDIUM verify first; Tier 2 (Muse Spark Open) reviews
   what Tier 1 did not confirm when the rule allows it, and every dispute. Tier 2 is configured
-  when `BASETEN_API_KEY` is set (or in replay mode, where recorded reviews replay). Without it
+  when `SPARK_OPEN_BASE_URL` or `BASETEN_API_KEY` is set (or in replay mode, where recorded
+  reviews replay). Without it
   the policy decides on Tier 1 alone, unresolved candidates go to the human queue and disputes
   stay pending for a person (`TIER2_ABSENT`): never a silent pass.
 - **Tier 1 failures.** The Tier 1 verifier is a `verify.guard.GuardedVerifier` (retry, circuit
@@ -260,8 +261,8 @@ def sign_boxes(segmenter: ImageSegmenter) -> Callable[[Path, str], Sequence[BoxX
 def tier2_verifier(
     settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus
 ) -> Tier2 | None:
-    """Spark Open on Baseten when a key is set (or recorded reviews can replay), else `None`."""
-    if settings.baseten_api_key is None and settings.rulecam_mode != "replay":
+    """Spark Open when it is configured (or recorded reviews can replay), else `None`."""
+    if not settings.spark_open_configured and settings.rulecam_mode != "replay":
         return None
     client = SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
     return SparkOpenVerifier(client)

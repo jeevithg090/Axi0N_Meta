@@ -127,6 +127,8 @@ const STEP_NAMES: Record<string, string> = {
   boundary: "Rulecam boundary cases",
   mutation: "Mutation testing",
   muse_image_scenes: "Muse Image scenes",
+  common_sense: "Common-sense scene changes",
+  math_proof: "Z3 math proof",
 };
 
 /** A proof step's name in plain words. */

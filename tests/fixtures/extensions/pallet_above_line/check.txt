@@ -21,7 +21,7 @@ def check(sample):
         return {"value": False, "measure": None, "why": "no yellow line drawn"}
     highest = None
     for obj in sample.get("objects", []):
-        if CONCEPT not in str(obj.get("concept", "")).lower():
+        if str(obj.get("concept", "")).lower() != CONCEPT:
             continue
         box = obj["box_xyxy_px"]
         top = obj["mask_top_y_px"]

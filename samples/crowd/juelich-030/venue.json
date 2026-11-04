@@ -1,0 +1,11 @@
+{
+ "description": "SAMPLE layout for the demo, drawn over the Jülich bottleneck experiment (not a real venue): an entry corridor 5.6 m wide narrows to one gate into the hall. Side door B (2 m wide, normally closed) also leads into the hall, and the outer queue can be held at the barrier before the corridor.",
+ "sample": true,
+ "places": [
+  {"name": "Outer queue barrier", "kind": "holding point", "leads_to": ["Entry corridor"], "note": "stewards can stop the inflow here"},
+  {"name": "Entry corridor", "kind": "corridor", "leads_to": ["Main gate"], "camera_id": "CAMERA", "zone": "entry corridor", "note": "5.6 m wide"},
+  {"name": "Main gate", "kind": "gate", "leads_to": ["Hall"], "camera_id": "CAMERA", "zone": "gate approach (2 x 2 m)", "note": "narrow, one person at a time"},
+  {"name": "Side door B", "kind": "exit", "leads_to": ["Hall"], "note": "2 m wide, closed now; gate staff can open it"},
+  {"name": "Hall", "kind": "hall", "note": "has room"}
+ ]
+}

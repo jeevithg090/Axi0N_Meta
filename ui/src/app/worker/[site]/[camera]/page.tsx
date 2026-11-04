@@ -6,6 +6,7 @@
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 
+import { EmptyState, Skeleton } from "@/components/kit";
 import { api } from "@/lib/api";
 import { bucketLabel, STRINGS, uiLang, workerView, type WorkerPage } from "@/lib/worker";
 
@@ -48,7 +49,15 @@ function WorkerRules() {
 
   const strings = STRINGS[uiLang(page?.lang ?? lang ?? "en")];
   if (!page) {
-    return <p className="muted">{failed ? strings.loadFailed : strings.loading}</p>;
+    return (
+      <div className="worker">
+        {failed ? (
+          <EmptyState title={strings.loadFailed} tone="error" icon="qr" />
+        ) : (
+          <Skeleton lines={5} label={strings.loading} />
+        )}
+      </div>
+    );
   }
   const view = workerView(page);
 

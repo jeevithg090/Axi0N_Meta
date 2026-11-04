@@ -12,9 +12,11 @@ is chained on the near miss as a `label` record (`worker_report`, no transcript 
 
 from __future__ import annotations
 
+import io
 import json
 import secrets
 import subprocess
+import wave
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 
@@ -29,6 +31,7 @@ from rulecam.warehouse.talks import DATA_NOT_INSTRUCTIONS, SPARK_MODEL, Store, S
 _log = get_logger(__name__)
 
 MAX_AUDIO_BYTES = 10 * 1024 * 1024
+SAMPLE_RATE = 16_000
 CONVERT_TIMEOUT_S = 60.0
 WORKER_REPORT = "worker_report"
 REPORT_SYSTEM = (
@@ -58,8 +61,9 @@ def to_wav16k(audio: bytes) -> bytes:
     Raises:
         ReportError: When ffmpeg cannot decode it.
     """
-    args = ["ffmpeg", "-v", "error", "-i", "pipe:0", "-ac", "1", "-ar", "16000"]
-    args += ["-sample_fmt", "s16", "-f", "wav", "pipe:1"]
+    # Raw PCM out of the pipe, wrapped here: a WAV written to a pipe has no length in its header.
+    args = ["ffmpeg", "-v", "error", "-i", "pipe:0", "-ac", "1", "-ar", str(SAMPLE_RATE)]
+    args += ["-f", "s16le", "pipe:1"]
     try:
         done = subprocess.run(  # noqa: S603 - fixed argument list, audio on stdin
             args, input=audio, capture_output=True, timeout=CONVERT_TIMEOUT_S, check=False
@@ -70,7 +74,13 @@ def to_wav16k(audio: bytes) -> bytes:
     if done.returncode != 0 or not done.stdout:
         msg = "could not decode the audio"
         raise ReportError(msg)
-    return done.stdout
+    out = io.BytesIO()
+    with wave.open(out, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(SAMPLE_RATE)
+        wav.writeframes(done.stdout)
+    return out.getvalue()
 
 
 class NearMissReporter:

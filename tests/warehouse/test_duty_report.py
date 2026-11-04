@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import io
+import shutil
+import wave
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -12,6 +15,7 @@ import pytest
 from pydantic import BaseModel
 
 from rulecam.clients.meta_hosted.grounding import Grounded, SearchSource, normal_url
+from rulecam.clients.meta_hosted.voice import check_wav
 from rulecam.contracts import EventRecord, RequestItem
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.warehouse.duty import DutyWriter, RelinkDraft
@@ -242,6 +246,21 @@ def test_report_without_speech_or_with_unknown_match(
 def test_to_wav16k_rejects_what_ffmpeg_cannot_decode() -> None:
     with pytest.raises(ReportError):
         to_wav16k(b"not audio at all")
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
+def test_to_wav16k_gives_voice_transcribe_a_wav_with_its_length() -> None:
+    source = io.BytesIO()
+    with wave.open(source, "wb") as wav:
+        wav.setnchannels(2)
+        wav.setsampwidth(2)
+        wav.setframerate(44_100)
+        wav.writeframes(b"\x00\x01" * 2 * 44_100)
+    converted = to_wav16k(source.getvalue())
+    check_wav(converted)
+    with wave.open(io.BytesIO(converted), "rb") as wav:
+        assert (wav.getnchannels(), wav.getframerate()) == (1, 16_000)
+        assert wav.getnframes() == pytest.approx(16_000, abs=200)
 
 
 def test_clause_cited_off_search_is_relinked_by_spark(tmp_path: Path, chain: EventChain) -> None:

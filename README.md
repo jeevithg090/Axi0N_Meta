@@ -29,6 +29,11 @@ recorded live runs ([T02 and T04 goldens](scenarios/README.md); the same verdict
 | The live app | [rulecam.vercel.app](https://rulecam.vercel.app) | The cockpit on the deployed stack. The header says **LIVE**. GPUs scale to zero when idle, so the first check can take a few minutes |
 | Run it on your laptop | `cd ui && npm ci && npm run dev`, then open `localhost:3000/demo?demo=1` | The same replay, offline |
 
+![The Rulecam landing page: the recorded T02 run's verified alert, with the measured distance, Glimmer's verdict and the live state of the GPUs.](docs/pitch/media/app-landing.jpg)
+
+*The landing page: the recorded T02 run's verified alert, labelled as recorded, and the live
+state of the deployed stack underneath.*
+
 ## One engine, three worlds
 
 One set of parts serves all three: **SAM 3.1** sees, **Muse Spark** plans and reasons, **Muse

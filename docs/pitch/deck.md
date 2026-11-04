@@ -247,7 +247,7 @@ is listed in the repo, with the licence of everything we reused."
 
 **On the slide**
 
-> Plain words in. Proof out.
+> Plain words in. Verified alerts out.
 
 - **Pilots:** one warehouse, one supermarket, one venue or station, on cameras they already own.
 - **Meta:** access to Muse Spark Open for the second check, and the gated Prompt Guard 2 model.
@@ -258,7 +258,7 @@ is listed in the repo, with the licence of everything we reused."
 
 "We're asking for three pilots, one in each world, on cameras they already own. From Meta, the
 access we need to switch on the second check. And from you: open the demo and press verify.
-Your own browser will check our evidence. Plain words in. Proof out. Thank you."
+Your own browser will check our evidence. Plain words in. Verified alerts out. Thank you."
 
 ---
 

@@ -127,6 +127,11 @@ the part they built, in their own words. No numbers that are not in the thread.
 
 ## 30-second vertical cut (1080x1920, for X, Reels and Shorts)
 
+A first draft is rendered at `docs/video/vertical-30s.mp4` (git-ignored, in the `p1/pitch`
+worktree): shots 1–5 and 7–8 from the recorded runs, the crowd chart and the verify page; shot 6
+is a text card of the 1 Nov Ask answer until a screen recording of `/ask` exists. It has no
+voice; add music before posting.
+
 Most people watch muted, so the text carries the story. Big captions in the top third; the UI or
 footage in the middle; the LIVE / REPLAY / RESEARCH FOOTAGE tag in the top-right corner of every
 shot. Music only, no voiceover (or the voiceover lines in brackets, if recorded).
@@ -140,7 +145,7 @@ shot. Music only, no voiceover (or the voiceover lines in brackets, if recorded)
 | 5 | 0:15–0:20 | Jülich clip with the density heatmap; the counter climbs | **Crowd at a gate: 95–99% of heads counted** | RESEARCH FOOTAGE | Crowd run, 3 Nov |
 | 6 | 0:20–0:24 | `/ask` timeline streaming tools, then the answer card | **"Which lane was busier?" It picks its own tools** | LIVE or REPLAY, as recorded | Supermarket run |
 | 7 | 0:24–0:27 | Verify page green, then red after one byte changes | **Change one byte. It breaks.** | REPLAY | `/verify` |
-| 8 | 0:27–0:30 | Logo, URL | **Rulecam. Plain words in. Proof out.** rulecam.vercel.app/demo | — | End card |
+| 8 | 0:27–0:30 | Logo, URL | **Rulecam. Plain words in. Verified alerts out.** rulecam.vercel.app/demo | — | End card |
 
 Export: H.264 MP4, 1080x1920, 30 fps, under 30 s, captions burned in, safe margins of 150 px at
 the top and bottom for app UI.

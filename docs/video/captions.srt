@@ -184,7 +184,7 @@ Muse Code writes it, and a solver proves it never alerts without its target.
 
 47
 00:02:50,000 --> 00:02:52,690
-Rulecam. Plain words in. Proof out.
+Rulecam. Plain words in. Verified alerts out.
 
 48
 00:02:52,740 --> 00:02:56,800

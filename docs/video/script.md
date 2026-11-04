@@ -5,7 +5,7 @@ built around the four judging criteria: **Impact** (three real worlds), **Meta t
 model doing a job you can see, and what surprised us), **Demo** (it works, on screen),
 **Technical depth** (Rule CI, verified alerts, evidence you can check).
 
-**Length:** 3:00 exactly. **Voiceover:** 391 words, about 130 words a minute, with room to
+**Length:** 3:00 exactly. **Voiceover:** 392 words, about 130 words a minute, with room to
 breathe. The lines alone are in [`voiceover.txt`](voiceover.txt), timed captions in
 [`captions.srt`](captions.srt).
 
@@ -28,6 +28,10 @@ script, not edited by hand. Replace the scratch voice with a human take before s
 | Technical depth (20%) | 8, 14, 22–23, 25 | Rule CI with mutants, numbers scored against ground truth, a hash chain you can break, a solver proof |
 
 ## Honesty rules for the edit (read before cutting)
+
+0. **The `/monitor` screen is SAMPLE DATA** (a scripted walkthrough; its banner says so, see
+   `ui/public/screens/04-monitor-light.png`). Never show it as a result. Shots 9–11 use the
+   recorded T02, T03 and T04 runs instead.
 
 1. **Every screen shot shows its badge.** The UI header says LIVE or REPLAY. Keep it in frame,
    or burn a corner tag: `LIVE`, `REPLAY (recorded live run, <date>)`, `RESEARCH FOOTAGE`,
@@ -67,7 +71,7 @@ zoom 125%, cursor highlight on.
 | 8 | 0:28 | Rule CI panel: boundary traces and mutants turn green. Zoom on **16/16** and **6/6**. | REPLAY of the T02 golden (`worker_passes_4m`), so the rule on screen is the same 4 m rule; it reports the same boundary 16/16, mutations 6/6 as `warehouse_driver` (`/demo?demo=1` shows the 2 m rule) | "Before anyone approves, Rule CI attacks the rule. Sixteen edge cases, six broken copies. All caught." | "Rule CI: boundary 16/16, mutants 6/6". Source: [`scenarios/warehouse_driver.expected.json`](../../scenarios/warehouse_driver.expected.json) | Still of the same panel |
 | 9 | 0:35 | Split screen: T02 strip on the left, T04 strip on the right (the README hero). Left verdict card animates in: **violation 0.99**. | REPLAY (T02 golden, recorded live 2 Nov) | "Now it fires twice. A worker walks inside four metres. Muse Glimmer, Meta's open model on our own GPU, checks the frames: violation." | "Muse Glimmer: violation, 0.99". Source: [campaign](../../reports/eval/2026-11-01-live-test-campaign.md) | [`docs/pitch/media/hero-same-rule.jpg`](../pitch/media/hero-same-rule.jpg) with a slow push-in |
 | 10 | 0:45 | Right verdict card: **no violation 0.05**, with Glimmer's reason highlighted: "the forklift operator seated inside the cabin". | REPLAY (T04 golden, recorded live 2 Nov) | "Then the rule flags the driver. Glimmer: that's the operator, in the cab. No alert." | "Glimmer: the operator, seated in the cab. 0.05. Nobody bothered." | Same still |
-| 11 | 0:51 | `/monitor` action log: "would play the warning (es)", then the Spanish text of the warning. | LIVE or REPLAY, tag as shown | "The warning goes out in Spanish." | "Warning queued in Spanish (dry-run in this deployment)" | `/demo` action row; REPLAY |
+| 11 | 0:51 | Golden replay page (`/demo`), the T03 card: the Spanish request, "Verified alert", Glimmer 0.98, and the action "would play the warning (es)". | REPLAY (recorded live run, 1 Nov) | "The warning goes out in Spanish." | "Same rule in Spanish: Glimmer 0.98. Warning queued in Spanish (dry-run in this deployment)" | `ui/public/screens/03-golden-replay-dark.png`, push in on the T03 card |
 
 > If the Spanish warning is wired to a speaker by recording day, play the real audio in shot 11
 > and drop "(dry-run in this deployment)". Otherwise keep it.
@@ -109,7 +113,7 @@ zoom 125%, cursor highlight on.
 
 | # | Time | Do (on screen) | Source and tag | Voiceover | Caption | Fallback |
 |---|---|---|---|---|---|---|
-| 26 | 2:50 | Three quick tiles: the forklift verdict, the crowd density chart, the Ask answer. Then the logo. | Title card | "Rulecam. Plain words in. Proof out. On the cameras you already own, in any language." | **Plain words in. Proof out.** | — |
+| 26 | 2:50 | Three quick tiles: the forklift verdict, the crowd density chart, the Ask answer. Then the logo. | Title card | "Rulecam. Plain words in. Verified alerts out. On the cameras you already own, in any language." | **Plain words in. Verified alerts out.** | — |
 | 27 | 2:57 | URL and model credits. Hold. | Title card | (silence) | **github.com/jeevithg090/Axi0N_Meta · rulecam.vercel.app/demo** · "Muse Spark · SAM 3.1 · Muse Glimmer · Muse Code · Voice Transcribe · MMS-TTS" | — |
 
 ## What to record before editing (checklist)

@@ -46,4 +46,4 @@
 
 [2:40] Need a rule type we don't have? Muse Code writes it, and a solver proves it never alerts without its target.
 
-[2:50] Rulecam. Plain words in. Proof out. On the cameras you already own, in any language.
+[2:50] Rulecam. Plain words in. Verified alerts out. On the cameras you already own, in any language.

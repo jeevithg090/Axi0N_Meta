@@ -25,6 +25,7 @@ from rulecam.retail.api import Transcribe, retail_router
 from rulecam.retail.brief import BriefWriter
 from rulecam.retail.checks import HazardChecker, QueueChecker, ShelfChecker, Site
 from rulecam.retail.exits import ExitChecker
+from rulecam.retail.incident import masked_still
 from rulecam.retail.models import CheckKind
 from rulecam.retail.proof import ProofChecker
 from rulecam.retail.service import CardBook, Checker, ImageChecker, RetailService, image_resolver
@@ -32,6 +33,7 @@ from rulecam.retail.staff import StaffDesk
 from rulecam.retail.store import FindingLog, TaskBoard, WatchBook
 from rulecam.runtime.factory import Perception
 from rulecam.runtime.response import Response
+from rulecam.runtime.strip_draw import FaceDetector, NoFaceDetector, YuNetFaces
 from rulecam.shelf import ShelfScanner
 
 _log = get_logger(__name__)
@@ -82,6 +84,12 @@ def build_retail(
     )
     glimmer_model = glimmer.model if glimmer is not None else ""
     names = camera_names(settings.rulecam_camera_names)
+    face_model = settings.rulecam_face_model
+    faces: FaceDetector = (
+        YuNetFaces(face_model)
+        if face_model is not None and face_model.is_file()
+        else NoFaceDetector()
+    )
     site = Site(settings.rulecam_site_profile, names)
     findings = FindingLog(root / "findings.jsonl")
     tasks = TaskBoard(root / "tasks.json")
@@ -165,6 +173,7 @@ def build_retail(
         site_profile=settings.rulecam_site_profile,
         proof=ProofChecker(spark=spark, files=spark, glimmer=glimmer, glimmer_model=glimmer_model),
         image_path=resolve,
+        masker=lambda image: masked_still(image, perception.hosted, faces, root / "masked"),
     )
     transcribe: Transcribe | None = None
     try:

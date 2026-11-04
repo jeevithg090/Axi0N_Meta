@@ -33,11 +33,13 @@ from rulecam.retail.advice import (
 from rulecam.retail.api import retail_router
 from rulecam.retail.brief import BriefWriter, day_stats
 from rulecam.retail.checks import QueueChecker, RetailError, ShelfChecker, Site
+from rulecam.retail.incident import masked_still
 from rulecam.retail.models import Finding, StaffTask, WatchRequest
 from rulecam.retail.proof import ProofChecker
 from rulecam.retail.service import CardBook, RetailService, image_resolver
 from rulecam.retail.staff import StaffDesk
 from rulecam.retail.store import FindingLog, TaskBoard, WatchBook
+from rulecam.runtime.strip_draw import NoFaceDetector
 from rulecam.shelf import ShelfScanner
 from rulecam.voice_out.wav import encode_wav
 from tests.fakes import FakeClock, FakeLLM
@@ -194,7 +196,14 @@ class Rig:
             ),
             image_path=resolve,
             pool=SyncPool(),
+            masker=lambda image: masked_still(image, sam, NoFaceDetector(), tmp_path / "masked"),
+            printer=self.print_pdf,
         )
+
+    @staticmethod
+    def print_pdf(html: str, out: Path) -> Path:
+        out.write_bytes(b"%PDF-1.4 " + html.encode()[:64])
+        return out
 
     def records(self) -> list[Any]:
         return read_chain(self.chain.path_for(AT.date()))
@@ -606,3 +615,42 @@ def test_switchback_blocks_and_read_out(tmp_path: Path) -> None:
     kinds = [r.payload.get("type") for r in rig.records() if r.kind == "advice"]
     assert kinds.count("block") == 12
     assert kinds[-1] == "verdict"
+
+
+def test_incident_report_from_the_chain(tmp_path: Path) -> None:
+    agree = {"gaps": [], "all_filled": True, "summary": "agree"}
+    spark = FakeLLM(
+        [
+            gap_draft(),
+            {
+                "gaps": [{"number": 1, "filled": True, "note": "ok"}],
+                "all_filled": True,
+                "summary": "filled",
+            },
+        ]
+    )
+    rig = Rig(tmp_path, spark, glimmer=FakeLLM([agree]))
+    finding = rig.service.run_image("shelf", rig.frame)
+    task_id = str(finding.task_id)
+    rig.clock.advance(7 * 60)
+    rig.service.prove(task_id, image(tmp_path / "after.jpg", value=90))
+    html, media = rig.service.incident(task_id, "https://x/verify/", "html")
+    text = html.decode()
+    assert media == "text/html"
+    assert "Cleared after 7 min, checked by photo" in text
+    assert "cleared 09:07:00 (7.0 min)" in text
+    assert "retail-shelf" in text
+    assert "https://x/verify/?day=2026-11-04" in text
+    assert text.count("anonymised still") == 2
+    pdf, media = rig.service.incident(task_id, "https://x/verify/")
+    assert media == "application/pdf"
+    assert pdf.startswith(b"%PDF")
+    with pytest.raises(RetailError):
+        rig.service.incident("t-nope", "https://x/verify/")
+    app = FastAPI()
+    app.include_router(
+        retail_router(rig.service, uploads_dir=tmp_path / "up", files=image_resolver([tmp_path]))
+    )
+    reply = TestClient(app).get(f"/retail/tasks/{task_id}/incident", params={"format": "html"})
+    assert reply.status_code == 200
+    assert "attachment" in reply.headers["content-disposition"]

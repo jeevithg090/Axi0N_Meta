@@ -272,6 +272,11 @@ export const retail = {
 };
 
 /** The URL of a finding's frame, marked image or photo. */
+/** A task's incident report (PDF, or HTML when the API cannot print). */
+export function incidentUrl(taskId: string): string {
+  return `${API_PROXY}/retail/tasks/${encodeURIComponent(taskId)}/incident`;
+}
+
 export function fileUrl(name: string): string {
   return `${API_PROXY}/retail/files/${encodeURIComponent(name)}`;
 }

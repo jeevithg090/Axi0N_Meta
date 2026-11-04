@@ -24,7 +24,9 @@ from rulecam.advisor.ledger import AdviceLedger, PreregistrationError
 from rulecam.advisor.measurement import read_out
 from rulecam.advisor.recompute import NumberCheck, RecomputeReport
 from rulecam.contracts import Clock
-from rulecam.evidence.chain import EventChain
+from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
+from rulecam.evidence.incident import PdfPrinter, render_incident_html, report_document
+from rulecam.evidence.packs import render_pdf
 from rulecam.log import get_logger
 from rulecam.retail.advice import (
     AdviceWriter,
@@ -37,6 +39,7 @@ from rulecam.retail.advice import (
 )
 from rulecam.retail.brief import BriefWriter, day_stats, since_day
 from rulecam.retail.checks import RetailError, new_id
+from rulecam.retail.incident import task_incident
 from rulecam.retail.models import Brief, CheckKind, Finding, StaffTask, Watch, WatchRequest
 from rulecam.retail.proof import ProofChecker
 from rulecam.retail.staff import StaffDesk
@@ -105,6 +108,8 @@ class RetailService:
         proof: ProofChecker | None = None,
         image_path: Callable[[str], Path | None] | None = None,
         pool: Executor | None = None,
+        masker: Callable[[Path], Path | None] | None = None,
+        printer: PdfPrinter = render_pdf,
     ) -> None:
         """Create the service (see `rulecam.retail.build.build_retail` for the wiring)."""
         self._checkers = checkers
@@ -119,6 +124,7 @@ class RetailService:
         self._briefs = briefs
         self._advice = advice
         self._ledger = AdviceLedger(chain) if chain is not None else None
+        self._chain = chain
         self._clock = clock
         self._runs = ask_runs
         self.camera_names = camera_names
@@ -131,6 +137,8 @@ class RetailService:
         self.last_brief: Brief | None = None
         self._proof = proof
         self._image = image_path
+        self._masker = masker
+        self._printer = printer
 
     def now(self) -> datetime:
         """The service clock's time."""
@@ -369,6 +377,47 @@ class RetailService:
         )
 
     # -- advice --------------------------------------------------------------------------------
+
+    def incident(self, task_id: str, verify_base: str, fmt: str = "pdf") -> tuple[bytes, str]:
+        """A task's incident report: seen, alerted, answered, cleared (PDF, else HTML).
+
+        Raises:
+            RetailError: For an unknown task or without an evidence chain.
+        """
+        task = self.tasks.get(task_id)
+        if task is None or self._chain is None:
+            msg = f"no task {task_id} (or no evidence chain)"
+            raise RetailError(msg)
+        seen = (task.seen_at or task.created_at).date()
+        days = sorted({seen, (task.done_at or self._clock.now()).date()})
+        records = [
+            r for d in days if (path := self._chain.path_for(d)).is_file() for r in read_chain(path)
+        ]
+        path = self._chain.path_for(seen)
+        chain = verify_chain(path) if path.is_file() else ChainReport(ok=False, n=0, reason="none")
+        stills = [
+            masked
+            for name in (task.marked, task.proof_image)
+            if name
+            and self._image
+            and self._masker
+            and (found := self._image(name)) is not None
+            and (masked := self._masker(found)) is not None
+        ]
+        report, thumbs = task_incident(
+            task,
+            records,
+            site=self._chain.site,
+            day=seen,
+            verify_url=f"{verify_base}?day={seen.isoformat()}",
+            chain=chain,
+            stills=stills,
+            now=self._clock.now(),
+        )
+        html = render_incident_html(report, thumbs)
+        if fmt == "html":
+            return html.encode("utf-8"), "text/html"
+        return report_document(html, self._printer)
 
     def receipt(self, sha: str) -> Receipt:
         """An Ask answer's receipt with the text that was hashed.

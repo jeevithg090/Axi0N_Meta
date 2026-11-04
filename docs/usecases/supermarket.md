@@ -42,6 +42,8 @@ not contain.
 | Hazard check | Muse Spark 1.3 → SAM 3.1 (the phrase Spark names, inside Spark's box) and Muse Glimmer (second look at the marked frame) | spill, broken glass, fallen stock, obstruction. Counted when Glimmer agrees; SAM stands in only when Glimmer gives no answer within 25 s |
 | Shelf check | Muse Spark 1.3 (gaps on a 0-1000 grid, products read from packs) → SAM 3.1 (`product package` must cover at most 25% of a gap) | which facings are empty and what goes there |
 | Task proof | Muse Spark 1.3 and Muse Glimmer (before image with numbered boxes + staff photo) | every gap filled / hazard cleared |
+| Fire exit (typed rule) | Muse Spark 1.3 (is the exit blocked, by what) → SAM 3.1 (the obstruction inside Spark's box) | blocked or clear; code measures how long it has been blocked over the camera's readings and alerts at the owner's limit (`max_blocked_s` on the watch, 300 s by default) |
+| Ask `cross_count` | SAM 3.1 boxes, Muse Spark pointing, Muse Glimmer's own count, and the tracker, on one frame at once | Spark reconciles them with reasons (the tracker over-counts busy views) |
 | Ask | Muse Spark 1.3 tool loop, SAM 3.1, Muse Glimmer, Muse Spark 1.2 (video), Spark Open review | the answer, with the steps and a receipt |
 | Spoken question | Muse Voice Transcribe | the words and language; the browser speaks the answer |
 | Advice card | Muse Spark 1.3 (from the Ask run) | the change, the metric, the switchback size, which watch to run |
@@ -53,15 +55,16 @@ not contain.
 |---|---|---|
 | `GET /retail/overview` | | `{cameras, watches, findings (with alert_status), tasks, cards (with progress), asks, brief}`: everything the page shows |
 | `GET /retail/cameras` | | `[{camera_id, name, first, last}]`: cameras with recorded video |
-| `POST /retail/checks/{queue\|hazard\|shelf}` | `{camera_id, at?, role?}` | `Finding`: the check on the recorded instant `at` (default: newest), alerting `role` (default `tills`, `floor`, `stock`) if the models say act |
+| `POST /retail/checks/{queue\|hazard\|shelf\|exit}` | `{camera_id, at?, role?}` | `Finding`: the check on the recorded instant `at` (default: newest), alerting `role` (default `tills`, `floor`, `stock`) if the models say act |
 | `POST /retail/checks/{hazard\|shelf}/image` | multipart `image` (JPEG/PNG), `role?` | `Finding` for a staff photo |
 | `GET /retail/findings?kind=&limit=` | | `[Finding]`, newest first |
 | `GET /retail/files/{name}` | | a frame, marked image or photo a finding or task names |
-| `GET /retail/watches` · `POST /retail/watches` | `{kind, camera_id, every_s (15-86400), role, focus}` | `Watch` |
+| `GET /retail/watches` · `POST /retail/watches` | `{kind, camera_id, every_s (15-86400), role, focus, max_blocked_s?}` (`max_blocked_s`: exit watches) | `Watch` |
 | `POST /retail/watches/{id}/run` · `DELETE /retail/watches/{id}` | | `Finding` · the stopped `Watch` |
 | `GET /retail/tasks?role=&open_only=` | | `[StaffTask]`, newest first: **the staff app's feed** |
 | `POST /retail/tasks/{id}/proof` | multipart `image` | `StaffTask`: closed (`closed_by: photo`, `minutes_to_fix`, `fixed_seq`) only if the models agree it is fixed |
 | `POST /retail/tasks/{id}/status` | `{status: open\|on_my_way\|done\|false_alarm}` | `StaffTask` (`done` by hand is `closed_by: staff`, unchecked) |
+| `GET /retail/tasks/{id}/incident?format=pdf\|html` | | the task's incident report (the runtime's incident pack): seen → staff alerted → answered → cleared in N minutes, each chain record with its hash, face-blurred before/after stills and the QR code to the verify page; HTML when Chromium cannot print |
 | `GET /retail/asks?limit=` | | the newest Ask answers with their receipts |
 | `GET /retail/receipts/{sha}?link=` | | `{receipt, prev_sha256, hashed_text, question, answer, models, rows_verified, qr_png_base64}`; `sha256(prev_sha256 + hashed_text) == receipt` |
 | `POST /retail/advice` | `{receipt, camera_id?}` | `RetailCard`: the card (also on `/advice`), its numbers with grounding, the what-if, the switchback plan and the proposed watch |

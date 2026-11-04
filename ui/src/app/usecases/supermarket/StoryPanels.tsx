@@ -15,6 +15,7 @@ import {
   type CheckKind,
   fileUrl,
   type Finding,
+  incidentUrl,
   retail,
   type RetailCard,
   type StaffTask,
@@ -484,6 +485,9 @@ export function TasksPanel({ tasks, onChange }: { tasks: StaffTask[]; onChange: 
                   : ""
               }`}
           </div>
+          <a className={styles.muted} href={incidentUrl(t.id)}>
+            Incident report (seen → alerted → {t.done_at ? "cleared" : "still open"})
+          </a>
           {t.proof?.spark?.summary && (
             <div className={styles.muted}>Spark: {t.proof.spark.summary}</div>
           )}

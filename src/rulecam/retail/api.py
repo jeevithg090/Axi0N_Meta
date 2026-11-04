@@ -23,9 +23,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Final, Literal
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi import Path as PathParam
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 
 from rulecam.ask import AskAgent, AskAnswer
@@ -231,6 +231,23 @@ def _task_routes(router: APIRouter, svc: Callable[[], RetailService], uploads_di
         path = uploads_dir / f"proof-{uuid.uuid4().hex[:16]}{suffix}"
         path.write_bytes(data)
         return await _run(lambda: s.prove(task_id, path))
+
+    @router.get("/tasks/{task_id}/incident", response_class=Response)
+    async def task_incident_report(
+        task_id: str, request: Request, format: Literal["pdf", "html"] = "pdf"
+    ) -> Response:
+        """The task's incident report: seen, staff alerted, answered, cleared in N minutes."""
+        s = svc()
+        body, media = await _run(lambda: s.incident(task_id, f"{request.base_url}verify/", format))
+        extension = "pdf" if media == "application/pdf" else "html"
+        return Response(
+            body,
+            media_type=media,
+            headers={
+                "Content-Disposition": f'attachment; filename="incident-{task_id}.{extension}"',
+                "Cache-Control": "no-store",
+            },
+        )
 
     @router.post("/tasks/{task_id}/status")
     def task_status(task_id: str, body: TaskUpdate) -> StaffTask:

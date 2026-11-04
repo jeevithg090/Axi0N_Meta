@@ -10,7 +10,7 @@
 # Endpoints and what a warm worker costs (RunPod serverless prices read on 4 Nov 2026):
 #   sam          imz4qu1vzwp4z6  SAM 3.1 + DINOv2 + OSNet, 1 x 24-48 GB GPU       $0.75-1.75/h
 #   glimmer      z000o8uch2wj4i  Muse Glimmer 30B (llama.cpp), 1 x 24-48 GB GPU   $0.75-1.75/h
-#   glimmer_sb   kkj76vah84y5uj  standby Glimmer, no volume, any region            $0.75-1.75/h
+#   glimmer_sb   kkj76vah84y5uj  standby Glimmer, EU-RO-1 / EUR-IS-1               $0.75-1.75/h
 #   llama_guard  vzi5ij5gclndjc  Llama Guard 4 12B (vLLM FP8), 1 x 24-48 GB GPU   $0.75-1.75/h
 #   spark_open   hljmhlgjyaacyv  Muse Spark Open 816B-A42B (llama.cpp), 8 x H100  $43.12/h
 # SPARK=0 leaves Spark Open out (it is the expensive one, and its cold start is the longest:

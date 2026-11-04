@@ -10,7 +10,7 @@ into chat or a file in the repo). Times are counted back from the start of the d
 |---|---|---|---|
 | SAM 3.1 + DINOv2 + OSNet re-ID | RunPod serverless, 24-48 GB GPUs, US-NC-1 and US-TX-3 | `imz4qu1vzwp4z6` | $0.75-1.75/h |
 | Muse Glimmer 30B (llama.cpp) | RunPod serverless, 24-48 GB GPUs, US-IL-1, US-NC-1, US-TX-3 | `z000o8uch2wj4i` | $0.75-1.75/h |
-| Muse Glimmer 30B, standby | RunPod serverless, 24-48 GB GPUs, any data center (no volume) | `kkj76vah84y5uj` | $0.75-1.75/h |
+| Muse Glimmer 30B, standby | RunPod serverless, 24-48 GB GPUs, EU-RO-1 and EUR-IS-1 | `kkj76vah84y5uj` | $0.75-1.75/h |
 | Muse Spark Open 816B-A42B (llama.cpp, Q4_K_S) | RunPod serverless, 8 x H100, EUR-NO-2 | `hljmhlgjyaacyv` | $43.12/h |
 | Llama Guard 4 12B (vLLM, FP8) | RunPod serverless, any 24-48 GB GPU, any region | `vzi5ij5gclndjc` | $0.75-1.75/h |
 | Llama Prompt Guard 2 86M | CPU, inside the API process | API pod `7nv0ifjo2tmk00` | none |

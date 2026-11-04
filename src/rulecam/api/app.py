@@ -169,6 +169,7 @@ from rulecam.runtime.response import Response, ResponseStatus, build_response
 from rulecam.runtime.serverless import GpuHealth, RunPodServerless
 from rulecam.verify.tier2 import SparkOpenVerifier
 from rulecam.voice_out.tts import MmsTts
+from rulecam.warehouse.api import build_warehouse
 from rulecam.worker import DisputeService, worker_router
 from rulecam.worker.disputes import DisputeReviewer
 
@@ -1042,6 +1043,17 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 dependencies=_OWNER,
             ),
             extensions.router(_OWNER),
+            build_warehouse(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                chain_dir=chain_root / site,
+                plans=plans,
+                runtime=runtime,
+                perception=perception,
+                dependencies=_OWNER,
+            ),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
         ),

@@ -148,6 +148,7 @@ export function useStaffFeed(
       source.onerror = () => {
         if (closed) return;
         setConnection("reconnecting");
+        void refresh();
         startPolling();
         if (source?.readyState === EventSource.CLOSED) {
           window.setTimeout(() => {

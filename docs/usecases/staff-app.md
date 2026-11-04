@@ -11,7 +11,10 @@ warnings existed and nobody acted on them. Retail needs proof that a hazard was 
 Warehouses have near misses that nobody hears about. The app is built around closing that gap.
 
 ![Choosing language and role](../../ui/public/screens/staff-onboarding.png)
-![A Glimmer-verified alert on the till lead's phone](../../ui/public/screens/staff-verified-alert.png)
+![A Glimmer-verified alert with the countdown to the store manager](../../ui/public/screens/staff-live-alert-countdown.png)
+![The timed loop: raised, verified, sent, acknowledged, on the way, done](../../ui/public/screens/staff-timed-loop.png)
+![The same feed in Hindi, with Muse Spark's spoken line](../../ui/public/screens/staff-hindi.png)
+![Response times by role and shift](../../ui/public/screens/staff-response-stats.png)
 
 ## What a person sees
 
@@ -125,15 +128,18 @@ speech synthesis reads the text.
 3. Open `http://localhost:3462/staff` on a phone (or in a phone-sized window), choose a
    language, type the role `till lead`, and tap Start. Use Chrome's "Install app" to add it to
    the home screen.
-4. Activate a rule. The demo used `PUT /runtime/plan` with one rule: *"A customer with a
-   shopping basket is at the checkout: someone should help them pack."* Its predicate is a basket
-   and a person, held for 1.5 s; its action escalates to `till_lead, store_manager` after 45 s.
+4. Activate a rule. The demo used `PUT /runtime/plan` with one rule: *"Staff must wear gloves
+   when handling unpackaged fresh produce at the till."* Its predicate is leafy vegetables and a
+   person, held for 1.5 s; its action escalates to `till_lead, store_manager` after 45 s. Word a
+   rule as an obligation. Glimmer judges whether the rule is broken, so a rule that only
+   describes a situation ("a customer is at the till") comes back `no_violation`
+   (`reports/eval/2026-11-04-staff-app.md`).
 5. Feed a clip as a paired phone camera: `POST /pair/token`, `POST /pair/{token}/claim`, then
-   `POST /pair/{token}/chunk` with each 3 s MP4 (the demo used the supermarket checkout clip
-   `p8421356`).
-6. SAM 3.1 tracks the basket and the person, the rule fires, Glimmer checks the strip, and the
-   alert appears on the phone. It buzzes and is read aloud, and the countdown to the store
-   manager runs.
+   `POST /pair/{token}/chunk` with each 3 s MP4, one per second at most (the demo used the
+   supermarket checkout clip `p8421356`).
+6. SAM 3.1 finds the produce and the person, the rule fires, Glimmer checks the strip
+   (`violation 0.90`: "bare hands, no gloves"), and the alert appears on the phone. It buzzes and
+   is read aloud, and the countdown to the store manager runs.
 7. Tap Acknowledge, then On my way, then Done with a photo. Open "From camera to action" to see
    the timed loop. `GET /incidents/{event_id}` shows the same records in the chain.
 8. Let one alert run out its timer, and see it reach the store manager's phone.

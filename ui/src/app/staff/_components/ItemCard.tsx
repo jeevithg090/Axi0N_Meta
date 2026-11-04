@@ -44,8 +44,16 @@ export function headline(item: StaffItem): { title: string; why: string | null; 
       ? item.body.slice(rule.length).replace(/^[.\s]+/, "")
       : item.body;
   if (item.source !== "review" || !rule) return { title: item.title, why: null, body };
-  const reason = item.title.replace(/^Needs review:\s*/, "").split(" — ")[0] ?? "";
-  return { title: rule, why: reason || null, body };
+  const said = item.title.replace(/^Needs review:\s*/, "").split(" — ")[0] ?? "";
+  // A card rebuilt from the chain has only the rule in its title: say what the verifier did.
+  const verdict = item.verdict;
+  const fromVerdict = verdict?.reason.startsWith("verifier_error")
+    ? "verifier unavailable"
+    : verdict
+      ? `${verdict.model}: ${verdict.verdict}`
+      : "";
+  const why = said && said !== rule ? said : fromVerdict;
+  return { title: rule, why: why || null, body };
 }
 
 /** The next tap that moves the item on: Acknowledge → On my way → Done. */

@@ -77,6 +77,14 @@ and at 375 px.
   23), simulating a compromised or careless server. The recipient page turned red: "the pack's
   contents do not match its hash" and "Rejected by Muse Glimmer: recomputed 33, pack says 23".
   The file was then restored.
+- **Screenshots:** in `evidence/screenshots/`:
+  - `proof-portal-share-qr.jpg`: the owner's share link and QR code;
+  - `proof-portal-verified.jpg` and `proof-portal-verified-375px.jpg`: the recipient view,
+    verified;
+  - `proof-portal-tampered.jpg`: the tamper test.
+
+  The first two were taken before the per-person check was added, so they show six checks, not
+  seven.
 - **Cross-language tests:** `engine.test.ts` checks the browser against packs the Python builder
   wrote. It catches an edited record, a changed number with a recomputed hash, a withheld record,
   a false summary sentence and a per-person filter. 12 UI tests and 24 Python tests pass.

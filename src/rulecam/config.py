@@ -128,6 +128,9 @@ class Settings(BaseSettings):
     rulecam_muse_code_args: str = ""
     rulecam_muse_code_timeout_s: float = Field(default=300.0, gt=0.0, le=1800.0)
     rulecam_muse_code_model: str = "muse-spark-1.2"
+    # Chain Mode (`rulecam.chain`): one folder per rule pack (pack.yaml, stores/, simulation.yaml)
+    # served by the owner-only `/chain` routes.
+    rulecam_chains_dir: Path = Path("chains")
     # The deployed commit, for Ask's run log (empty: `git rev-parse HEAD` when run from a clone).
     rulecam_git_sha: str = ""
     # Crowd early warning (`rulecam.crowd`, prototype mode): measure each camera's crowd every N

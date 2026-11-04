@@ -18,8 +18,8 @@ from typing import Final
 from pydantic import BaseModel, ConfigDict, Field
 
 from rulecam.contracts import Clock
-from rulecam.extensions.generate import CheckGenerator, CheckSpec, Relation
-from rulecam.extensions.proof import ProofStep, Runner, context_for, prove
+from rulecam.extensions.generate import CheckGenerator, CheckSource, CheckSpec, Relation
+from rulecam.extensions.proof import ProofReport, ProofStep, Runner, context_for, prove
 from rulecam.extensions.registry import (
     NAME_PATTERN,
     ExtensionRecord,
@@ -36,6 +36,8 @@ _BELOW: Final = re.compile(r"\b(below|under|lower than|beneath)\b", re.IGNORECAS
 _WORD: Final = re.compile(r"[a-z0-9]+")
 _STOP_WORDS: Final = frozenset({"a", "an", "the", "if", "me", "alert", "when", "is", "on", "of"})
 _NAME_WORDS: Final = 5
+_FEEDBACK_CODE_CHARS: Final = 12_000
+DEFAULT_ROUNDS: Final = 2
 
 
 class ExtensionRequest(BaseModel):
@@ -106,6 +108,7 @@ class ExtensionService:
         clock: Clock,
         runner: Runner = run_check,
         steps: Sequence[ProofStep] | None = None,
+        max_rounds: int = DEFAULT_ROUNDS,
     ) -> None:
         """Create the service.
 
@@ -117,6 +120,8 @@ class ExtensionService:
             runner: Runs code over samples (the sandbox).
             steps: Proof steps; None runs `steps.proof_steps` for each request (the defaults,
                 then the common-sense and Z3 math-proof steps drawn with its lines).
+            max_rounds: Generations per request: the first, then repair rounds while the proof
+                fails.
         """
         self._generator = generator
         self._reviewer = reviewer
@@ -124,6 +129,7 @@ class ExtensionService:
         self._clock = clock
         self._runner = runner
         self._steps = steps
+        self._max_rounds = max_rounds
 
     @property
     def registry(self) -> ExtensionRegistry:
@@ -133,11 +139,16 @@ class ExtensionService:
     def propose(self, req: ExtensionRequest) -> ExtensionRecord:
         """Generate, prove and review a check for `req`, and store the version.
 
+        When a version fails its proof, the generator gets one repair round (up to
+        `max_rounds`): the failed steps and the rejected code go back to it as feedback. Every
+        version is stored (a rejected one too, so the history shows what was tried), each
+        pointing at the one before.
+
         Args:
             req: The owner's request.
 
         Returns:
-            The stored version: `proposed` when it may be approved, else `rejected`.
+            The last stored version: `proposed` when it may be approved, else `rejected`.
 
         Raises:
             ClientConfigError: If no generator is available.
@@ -145,10 +156,28 @@ class ExtensionService:
             RegistryError: If the same code was already stored under this name.
         """
         spec = spec_for(req)
-        source = self._generator.generate(spec)
         frame = (req.frame_w, req.frame_h) if req.frame_w and req.frame_h else None
         steps = self._steps if self._steps is not None else proof_steps(req.lines, frame)
-        proof = prove(context_for(source.code, source.tests, spec, self._runner), steps)
+        feedback: str | None = None
+        record: ExtensionRecord | None = None
+        for round_no in range(1, self._max_rounds + 1):
+            source = self._generator.generate(spec, feedback=feedback)
+            if record is not None and source.code == record.code:
+                break  # the generator repeated the rejected version
+            proof = prove(context_for(source.code, source.tests, spec, self._runner), steps)
+            record = self._store(req, spec, source, proof)
+            if proof.passed or round_no == self._max_rounds:
+                break
+            feedback = repair_feedback(proof, source.code)
+        if record is None:
+            msg = "max_rounds must be at least 1"
+            raise ValueError(msg)
+        return record
+
+    def _store(
+        self, req: ExtensionRequest, spec: CheckSpec, source: CheckSource, proof: ProofReport
+    ) -> ExtensionRecord:
+        """Review a proved version and store it (`proposed` or `rejected`)."""
         review = (
             self._reviewer.review(spec, source.code, proof)
             if proof.passed
@@ -177,3 +206,15 @@ class ExtensionService:
             created_at=self._clock.now(),
         )
         return self._registry.add(record)
+
+
+def repair_feedback(proof: ProofReport, code: str) -> str:
+    """What the generator reads in a repair round: each failed step, then the rejected code."""
+    failed = [f"- {step.name}: {step.detail}" for step in proof.steps if step.status == "failed"]
+    return (
+        "Failed proof steps:\n"
+        + "\n".join(failed or ["- (none failed, but a required step did not pass)"])
+        + "\n\nThe rejected check.py:\n\n```python\n"
+        + code[:_FEEDBACK_CODE_CHARS]
+        + "\n```\n"
+    )

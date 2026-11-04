@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
 
-from rulecam.clients.meta_hosted.muse_code import MuseCodeClient
+from rulecam.clients.meta_hosted.muse_code import MuseCodeClient, ProcessResult
 from rulecam.contracts import RuleIR, Track
 from rulecam.evidence.chain import EventChain, read_chain
 from rulecam.extensions.errors import RegistryError
@@ -18,6 +19,7 @@ from rulecam.extensions.service import (
     ExtensionService,
     infer_relation,
     name_for,
+    repair_feedback,
 )
 from rulecam.replay.cache import ReplayCache
 from rulecam.rules.engine import evaluate
@@ -117,6 +119,49 @@ def test_a_weak_check_is_rejected_unreviewed(tmp_path: Path) -> None:
         service.registry.approve(record.name, record.sha256[:12], by="owner")
 
 
+class RepairingMuseCode(FakeMuseCode):
+    """Writes a weak check first, then the reference check once it reads the proof feedback."""
+
+    def __call__(
+        self, argv: Sequence[str], cwd: Path, env: Mapping[str, str], timeout_s: float
+    ) -> ProcessResult:
+        spec = (cwd / "SPEC.md").read_text(encoding="utf-8")
+        repaired = "## Your previous version was rejected" in spec
+        self.files = {"check.py": EXAMPLE_CHECK if repaired else ALWAYS_NO}
+        self.files = {**self.files, "test_check.py": EXAMPLE_TESTS}
+        return super().__call__(argv, cwd, env, timeout_s)
+
+
+def test_a_failed_proof_gets_one_repair_round_with_feedback(tmp_path: Path) -> None:
+    clock = FakeClock()
+    runner = RepairingMuseCode()
+    muse = MuseCodeClient(
+        cache=ReplayCache(tmp_path / "replay", "live", clock=clock),
+        runner=runner,
+        which=lambda n: f"/bin/{n}",
+    )
+    registry = ExtensionRegistry(tmp_path / "extensions", clock=clock)
+    service = ExtensionService(
+        CheckGenerator(muse), ExtensionReviewer(FakeSparkOpen()), registry, clock=clock
+    )
+    record = service.propose(REQUEST)
+    assert record.status == "proposed"
+    versions = registry.versions(record.name)
+    [first] = [v for v in versions if v.status == "rejected"]
+    assert len(versions) == 2
+    assert first.code == ALWAYS_NO
+    assert record.parent_sha == first.sha256
+    assert len(runner.calls) == 2
+
+
+def test_repair_feedback_names_failed_steps_and_the_code(tmp_path: Path) -> None:
+    service, _, _ = _service(tmp_path, code=ALWAYS_NO)
+    record = service.propose(REQUEST)
+    text = repair_feedback(record.proof, ALWAYS_NO)
+    assert "- muse_code_tests:" in text or "- boundary:" in text
+    assert ALWAYS_NO in text
+
+
 def test_a_reviewer_reject_blocks_approval(tmp_path: Path) -> None:
     no = FakeSparkOpen(answer={"verdict": "reject", "reasons": ["ignores the rack's slope"]})
     service, _, _ = _service(tmp_path, reviewer=ExtensionReviewer(no))
@@ -150,6 +195,16 @@ def test_no_reviewer_or_a_failed_one_blocks_approval(tmp_path: Path) -> None:
     record = service.propose(REQUEST)
     assert record.review.verdict == "error"
     assert record.status == "rejected"
+
+
+def test_a_failed_spark_open_falls_back_to_spark(tmp_path: Path) -> None:
+    spark = FakeLLM([{"verdict": "approve", "reasons": ["ok"]}])
+    reviewer = ExtensionReviewer(FakeSparkOpen(fail=True), spark)
+    service, _, _ = _service(tmp_path, reviewer=reviewer)
+    record = service.propose(REQUEST)
+    assert record.review.reviewer == "spark-1.3-fallback"
+    assert record.review.reasons[0].startswith("Spark Open failed: ModelResponseError")
+    assert record.status == "proposed"
 
 
 def test_a_new_version_points_at_its_parent(tmp_path: Path) -> None:

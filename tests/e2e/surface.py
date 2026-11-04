@@ -43,14 +43,16 @@ PUBLIC: Final[dict[Operation, str]] = {
     ("POST", "/worker/dispute/voice"): "anonymous spoken dispute",
     ("GET", "/worker/{plan_id}/{camera}"): "the worker's rules page (QR poster)",
     ("GET", "/worker/{plan_id}/{camera}/poster"): "the printable A4 poster",
+    ("GET", "/proof/shared/{token}"): "a shared proof pack; the signed, expiring token is the key",
+    ("GET", "/proof/shared/{token}/document"): "the shared proof pack as PDF/HTML",
+    ("POST", "/warehouse/public/reports/voice"): (
+        "anonymous spoken near-miss report from the worker page (rate-limited, audio not kept)"
+    ),
 }
 
 # Public on purpose in branches not merged yet (QA checked them on the branch); once merged they
 # move to PUBLIC, until then they are not reported as stale.
-PUBLIC_PENDING: Final[dict[Operation, str]] = {
-    ("GET", "/proof/shared/{token}"): "p1/compliance: a shared proof pack; the token is the key",
-    ("GET", "/proof/shared/{token}/document"): "p1/compliance: the shared pack as PDF/HTML",
-}
+PUBLIC_PENDING: Final[dict[Operation, str]] = {}
 
 # FastAPI's own documentation routes: public, and they list nothing the OpenAPI does not.
 FRAMEWORK: Final = frozenset({"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"})

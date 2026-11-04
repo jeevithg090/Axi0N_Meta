@@ -293,12 +293,6 @@ class Settings(BaseSettings):
     rulecam_connectors_fps: float = Field(default=10.0, gt=0, le=30)
     rulecam_connectors_max_width: int = Field(default=1280, ge=320, le=3840)
     rulecam_connectors_keep_chunks: int = Field(default=1200, ge=10)
-    # Without Tier 2 (Spark Open), Muse Spark 1.3 reviews worker disputes with the evidence
-    # frames instead of leaving every one pending for a person (`worker.spark_review`).
-    rulecam_dispute_spark_fallback: bool = True
-    # Chain a `coverage` record when a camera goes BLIND or recovers (`runtime.coverage_log`).
-    # Off by default: moving-camera stock clips flap `moved`; turn it on for fixed site cameras.
-    rulecam_coverage_log: bool = False
     # Smart glasses (`/wearables`): how long a look waits for Glimmer before Muse Spark looks.
     rulecam_wearables_glimmer_timeout_s: float = Field(default=25.0, gt=0.0, le=300.0)
 

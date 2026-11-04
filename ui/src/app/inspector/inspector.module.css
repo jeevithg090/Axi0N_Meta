@@ -1,0 +1,213 @@
+/* Proof portal: simple, local styles on the shell's colour roles (the UI design pass restyles). */
+
+.page {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: var(--s3) var(--s2) var(--s6);
+  color: var(--ink);
+}
+
+.lede {
+  color: var(--ink-2);
+  max-width: 70ch;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--rule-2);
+  border-radius: 6px;
+  padding: var(--s2);
+  margin: var(--s2) 0;
+  overflow-x: auto;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: flex-end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.field input,
+.field select {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid var(--rule-2);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.button {
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 4px;
+  border: 2px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.ghost {
+  composes: button;
+  background: transparent;
+  color: var(--ink);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--rule-2);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.num {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--font-dm-mono), ui-monospace, monospace;
+  font-size: 12px;
+  word-break: break-all;
+  color: var(--ink-2);
+}
+
+.muted {
+  color: var(--mute);
+  font-size: 14px;
+}
+
+.ok {
+  color: #0a7d32;
+  font-weight: 700;
+}
+
+.bad {
+  color: var(--alert);
+  font-weight: 700;
+}
+
+.banner {
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  padding: var(--s2);
+  margin: var(--s2) 0;
+  font-size: 18px;
+}
+
+.bannerOk {
+  composes: banner;
+  border-color: #0a7d32;
+}
+
+.bannerBad {
+  composes: banner;
+  border-color: var(--alert);
+}
+
+.checks {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  font-size: 15px;
+}
+
+.checks li {
+  padding: 3px 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.tab {
+  composes: ghost;
+  padding: 4px 10px;
+  font-size: 14px;
+}
+
+.tabOn {
+  composes: button;
+  padding: 4px 10px;
+  font-size: 14px;
+}
+
+.disclaimer {
+  border-left: 4px solid #b06000;
+  padding: 6px 10px;
+  background: color-mix(in srgb, #ffb300 12%, transparent);
+}
+
+.quote {
+  margin: 4px 0;
+  padding-left: 8px;
+  border-left: 3px solid var(--rule-2);
+  color: var(--ink-2);
+}
+
+.share {
+  display: flex;
+  gap: var(--s2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.share img {
+  width: 180px;
+  height: 180px;
+  background: #fff;
+}
+
+.stills img {
+  height: 110px;
+  margin: 2px;
+  border-radius: 4px;
+}
+
+.details summary {
+  cursor: pointer;
+  color: var(--machine);
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .table {
+    font-size: 13px;
+  }
+  .share img {
+    width: 140px;
+    height: 140px;
+  }
+}

@@ -345,6 +345,67 @@ class PooledTransport:
         raise last_error
 
 
+RequestRewrite = Callable[[Mapping[str, object]], Mapping[str, object]]
+
+
+class FailoverTransport:
+    """Our own server first; a different (hosted) server only when ours gives no usable answer.
+
+    Unlike `PooledTransport`, whose members are identical servers sharing the load, the fallback
+    here is a different deployment (another key, model name or prompt contract): it gets a
+    request only when the primary raises `ModelTransportError` or answers 404 (a proxy that lost
+    its route) or a retryable status (429, 5xx), after `rewrite` adapts the request to it. Each
+    failover is logged (`model_failover`) and counted in `failovers`.
+    """
+
+    def __init__(
+        self,
+        primary: Transport,
+        fallback: Transport,
+        *,
+        rewrite: RequestRewrite | None = None,
+        name: str = "",
+    ) -> None:
+        """Create the transport.
+
+        Args:
+            primary: The preferred server.
+            fallback: The server to use when the primary fails.
+            rewrite: Adapts a request for the fallback (model name, prompt); identity if `None`.
+            name: What the log lines call this pair (e.g. `glimmer`).
+        """
+        self._primary = primary
+        self._fallback = fallback
+        self._rewrite = rewrite
+        self._name = name
+        self.failovers = 0
+
+    def __call__(self, request: Mapping[str, object]) -> Mapping[str, object]:
+        """Send to the primary; on no usable answer, send the rewritten request to the fallback.
+
+        Args:
+            request: A transport request mapping.
+
+        Returns:
+            The primary's reply, or the fallback's when the primary failed.
+
+        Raises:
+            ModelTransportError: If the primary failed and the fallback gave no HTTP answer.
+        """
+        try:
+            reply = self._primary(request)
+        except ModelTransportError as exc:
+            reason = str(exc)
+        else:
+            parsed = parse_reply(reply)
+            if parsed.status != HTTP_NOT_FOUND and not parsed.retryable:
+                return reply
+            reason = f"HTTP {parsed.status}"
+        self.failovers += 1
+        _log.warning("model_failover", model=self._name, reason=reason[:200])
+        return self._fallback(self._rewrite(request) if self._rewrite else request)
+
+
 def _form(request: Mapping[str, object]) -> dict[str, str] | None:
     form = request.get("form")
     return {str(k): str(v) for k, v in form.items()} if isinstance(form, Mapping) else None

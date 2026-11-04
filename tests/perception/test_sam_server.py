@@ -372,6 +372,21 @@ def test_http_worker_from_settings_needs_url_and_key() -> None:
     assert isinstance(built, HttpSamWorker)
 
 
+def test_http_worker_takes_its_timeout_and_tries_from_settings() -> None:
+    settings = Settings(
+        _env_file=None,
+        sam_base_url="http://127.0.0.1:1",
+        sam_api_key=SecretStr(KEY),
+        sam_http_timeout_s=25.0,
+        sam_http_attempts=1,
+    )
+    worker = HttpSamWorker.from_settings(settings)
+    assert worker._sender.policy.max_attempts == 1
+    transport = worker._sender.transport
+    assert isinstance(transport, HttpxTransport)
+    assert transport._client.timeout.read == 25.0
+
+
 def test_router_falls_back_to_hosted_when_the_http_worker_fails(tmp_path: Any) -> None:
     transport = ScriptedTransport(ModelTransportError("refused"), ModelTransportError("refused"))
     metrics = PerceptionMetrics()

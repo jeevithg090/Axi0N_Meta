@@ -355,7 +355,7 @@ export function AskSignage() {
               final answer with Spark Open before appending a SHA-256 run receipt.
             </p>
           </div>
-          <div className="s4" style={{ borderLeft: "4px solid var(--ink)", paddingLeft: "var(--s3)" }}>
+          <div className="s4" style={{ borderLeft: "1px solid var(--color-rule-2)", paddingLeft: "var(--s3)" }}>
             <div className="small">Read-Only DuckDB Snapshot</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
               4 TABLES
@@ -408,7 +408,8 @@ export function AskSignage() {
         <form
           onSubmit={(e) => void submit(e)}
           style={{
-            border: "3px solid var(--ink)",
+            border: "1px solid var(--color-rule)",
+            borderRadius: "var(--radius-card)",
             background: "var(--card)",
             padding: "var(--s3)",
             marginBottom: "var(--s4)",
@@ -438,7 +439,8 @@ export function AskSignage() {
             style={{
               width: "100%",
               padding: "12px",
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--paper)",
               fontFamily: "var(--font-dm-mono, monospace)",
               fontSize: "14px",
@@ -461,7 +463,8 @@ export function AskSignage() {
             <div
               key={k}
               style={{
-                border: "2px solid var(--ink)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
                 background: "var(--paper-2)",
                 padding: "var(--s3)",
               }}

@@ -1,26 +1,38 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+
+import { GOLDEN_RUNS } from "@/fixtures/golden";
 import { useAuth, type AuthPhase } from "@/lib/auth";
 import { API_PROXY } from "@/lib/config";
-import { useDemoQuery, useStream } from "@/lib/stream";
+import { gpuLine, healthBadge, HealthProvider, useSharedHealth, type HealthLoad, type SystemBadge } from "@/lib/health";
+import { useDemo, useDemoQuery, useStream } from "@/lib/stream";
+import type { UiState } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
+
+import { icons, RulecamMark, type IconName } from "./icons";
 import { ModeBadge } from "./ModeBadge";
 
 /**
- * A static nav badge. Only statements that are always true belong here (e.g. "REPLAY" on the
- * golden replay, "SAMPLE" on a screen that shows hand-written sample content); live counts come
- * from the API in `liveBadge`, and an unknown count shows no badge rather than a made-up one.
+ * A nav destination. A static badge is only a statement that is always true there ("REPLAY" on
+ * the golden replay, "SAMPLE" on a screen of hand-written sample content); live counts come from
+ * the API in `liveBadge`, and an unknown count shows no badge rather than a made-up one.
  */
 interface NavItem {
   href: string;
   label: string;
-  shortCode: string;
+  icon: IconName;
   badge?: string;
-  badgeTone?: "ok" | "warn" | "bad" | "neutral";
-  icon: React.ReactNode;
+  badgeTone?: "replay" | "sample" | "count";
+  /** Leaves the app (a static page with its own query); the demo query is not appended. */
+  external?: boolean;
+}
+
+interface NavGroup {
+  group: string;
+  items: NavItem[];
 }
 
 /** What the shell knows from the API; `null` means unknown (not reachable, or not allowed). */
@@ -28,53 +40,138 @@ interface LiveStats {
   plansCount: number | null;
   totalIncidents: number | null;
   cameras: number | null;
-  samGpu: string | null;
-  glimmerGpu: string | null;
 }
 
 const UNKNOWN_STATS: LiveStats = {
   plansCount: null,
   totalIncidents: null,
   cameras: null,
-  samGpu: null,
-  glimmerGpu: null,
 };
+
+const VERIFY_URL = GOLDEN_RUNS[0]?.verify_url ?? "/verify/";
+
+/** One engine, three worlds: the use cases first, then build, run and trust. */
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    group: "Use cases",
+    items: [
+      { href: "/usecases/supermarket", label: "Supermarket", icon: "cart" },
+      { href: "/usecases/warehouse", label: "Warehouse", icon: "forklift" },
+      { href: "/usecases/crowd", label: "Crowd", icon: "crowd" },
+    ],
+  },
+  {
+    group: "Build",
+    items: [
+      { href: "/planner", label: "Planner", icon: "pen" },
+      { href: "/plans", label: "Plans", icon: "file", badgeTone: "count" },
+      { href: "/ci", label: "Rule CI", icon: "check" },
+      { href: "/extensions", label: "Extensions", icon: "code" },
+    ],
+  },
+  {
+    group: "Run",
+    items: [
+      { href: "/monitor", label: "Monitor", icon: "monitor", badge: "SAMPLE", badgeTone: "sample" },
+      { href: "/streams", label: "Camera fleet", icon: "video", badgeTone: "count" },
+      { href: "/cameras", label: "Connect cameras", icon: "video" },
+      { href: "/staff", label: "Staff app", icon: "bell" },
+      { href: "/alerts", label: "Alerts", icon: "bell" },
+      { href: "/ask", label: "Ask", icon: "chat" },
+      { href: "/advice", label: "Advice", icon: "bars" },
+      { href: "/site", label: "Site tools", icon: "globe" },
+    ],
+  },
+  {
+    group: "Trust",
+    items: [
+      { href: "/demo", label: "Golden replay", icon: "play", badge: "REPLAY", badgeTone: "replay" },
+      { href: VERIFY_URL, label: "Verify evidence", icon: "shield", external: true },
+      { href: "/incidents", label: "Incidents", icon: "alert", badgeTone: "count" },
+      { href: "/inspector", label: "Proof portal", icon: "shield" },
+      { href: "/worker", label: "Worker page", icon: "qr" },
+      { href: "/audit", label: "Audit", icon: "hash" },
+    ],
+  },
+  {
+    group: "System",
+    items: [{ href: "/system", label: "System and GPUs", icon: "cpu" }],
+  },
+];
 
 /** The live count shown on a nav item, or `undefined` when there is none or it is unknown. */
 function liveBadge(href: string, stats: LiveStats): string | undefined {
   if (href === "/plans" && stats.plansCount !== null) return String(stats.plansCount);
-  if (href === "/incidents" && stats.totalIncidents !== null) return `${stats.totalIncidents} LOGGED`;
+  if (href === "/incidents" && stats.totalIncidents !== null) return String(stats.totalIncidents);
   if (href === "/streams" && stats.cameras !== null) return String(stats.cameras);
   return undefined;
 }
 
-/** A GPU's state from `GET /health` → `gpus` (an object with `state`, or a bare string). */
-function gpuState(gpus: Record<string, { state?: string } | string> | undefined, name: string): string | null {
-  const entry = gpus?.[name];
-  if (typeof entry === "string") return entry;
-  return entry?.state ?? null;
+/**
+ * The header badge: REPLAY on a golden replay; otherwise what `GET /health` says. The event
+ * socket is an enhancement only: it may fill the badge while /health has not answered yet, and it
+ * never makes the badge OFFLINE.
+ */
+export function shellBadge(demo: boolean | null, health: HealthLoad, stream: UiState): SystemBadge {
+  if (demo) return "REPLAY";
+  const fromHealth = healthBadge(health);
+  if (fromHealth === "…" && stream.connection === "open" && stream.badge) return stream.badge;
+  return fromHealth;
 }
+
+/** The badge this page shows, from the shared /health poll. */
+function useShellBadge(): SystemBadge {
+  const demo = useDemo();
+  const stream = useStream();
+  const health = useSharedHealth(demo === false);
+  return shellBadge(demo, health, stream);
+}
+
+const PHONE_QUERY = "(max-width: 760px)";
 
 /** Whether the viewport is phone-sized (the width at which `.shell-sidebar` becomes a drawer). */
 function isPhone(): boolean {
   return typeof window !== "undefined" && (window.matchMedia?.(PHONE_QUERY)?.matches ?? false);
 }
 
-const PHONE_QUERY = "(max-width: 760px)";
+/**
+ * Routes for people outside the owner's console, framed bare (the wordmark and the badge, no
+ * sidebar): the worker QR page, the station tablet, the staff companion PWA, and the proof
+ * portal's inspector view for outside recipients.
+ */
+const BARE_ROUTES: RegExp[] = [
+  /^\/worker\/[^/]+\/[^/]+/,
+  /^\/station\//,
+  /^\/staff(\/|$)/,
+  /^\/inspector\/view(\/|$)/,
+];
+
+/** Which frame a route sits in: the landing page, a bare outside-facing screen, or the app. */
+export function chromeFor(pathname: string): "page" | "bare" | "app" {
+  if (pathname === "/") return "page";
+  if (BARE_ROUTES.some((route) => route.test(pathname))) return "bare";
+  return "app";
+}
+
+function isActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 /**
- * The header's page name: the nav label of the current page, or `null` where no breadcrumb
- * belongs (the landing page and the golden replay, which carry their own titles).
+ * The header's page name: the group and nav label of the current page, or `null` where no
+ * breadcrumb belongs (the landing page and the golden replay, which carry their own titles).
  */
-function pageName(pathname: string): string | null {
+function pageName(pathname: string, mounted: boolean): { group: string; label: string } | null {
   if (pathname === "/" || pathname === "/demo" || pathname.startsWith("/demo/")) return null;
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
-      if (pathname === item.href || pathname.startsWith(`${item.href}/`)) return item.label;
+      if (!item.external && isActive(pathname, item.href)) return { group: group.group, label: item.label };
     }
   }
+  // A route outside the nav (a 404 among them) is named from the URL only after mount: the
+  // prerendered not-found page has another path, and naming it there breaks hydration (QA-B17).
   const first = pathname.split("/").filter(Boolean)[0];
-  return first ? first.replace(/-/g, " ") : null;
+  return mounted && first ? { group: "Rulecam", label: first.replace(/-/g, " ") } : null;
 }
 
 /** The session line in the sidebar footer, from the real auth state (no made-up user). */
@@ -85,7 +182,7 @@ function sessionLabel(phase: AuthPhase): string {
     case "visitor":
       return "Visitor · read-only";
     case "demo":
-      return "Replay · no login";
+      return "Replay, no login";
     case "offline":
       return "API not reachable";
     default:
@@ -93,218 +190,82 @@ function sessionLabel(phase: AuthPhase): string {
   }
 }
 
-interface NavGroup {
-  group: string;
-  items: NavItem[];
+/** Light and dark, as two pressed-state buttons. */
+export function ThemeSwitch({ compact = false }: { compact?: boolean }) {
+  const { isDark, setTheme } = useTheme();
+  return (
+    <div className="theme-switch" role="group" aria-label="Colour theme">
+      <button type="button" aria-pressed={!isDark} onClick={() => setTheme("light")} aria-label="Light theme">
+        {icons.sun}
+        {!compact && <span className="theme-word">Light</span>}
+      </button>
+      <button type="button" aria-pressed={isDark} onClick={() => setTheme("dark")} aria-label="Dark theme">
+        {icons.moon}
+        {!compact && <span className="theme-word">Dark</span>}
+      </button>
+    </div>
+  );
 }
 
-const NAV_GROUPS: NavGroup[] = [
-  {
-    group: "OPERATIONS",
-    items: [
-      {
-        href: "/monitor",
-        label: "Monitor",
-        shortCode: "MON",
-        badge: "SAMPLE",
-        badgeTone: "warn",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <rect x="2" y="3" width="20" height="14" />
-            <path d="M8 21h8M12 17v4" />
-            <circle cx="12" cy="10" r="3" />
-          </svg>
-        ),
-      },
-      {
-        href: "/streams",
-        label: "Camera Fleet",
-        shortCode: "CAM",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M23 7l-7 5 7 5V7z" />
-            <rect x="1" y="5" width="15" height="14" />
-          </svg>
-        ),
-      },
-      {
-        href: "/cameras",
-        label: "Connect Cameras",
-        shortCode: "ADD",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M23 7l-7 5 7 5V7z" />
-            <rect x="1" y="5" width="15" height="14" />
-            <path d="M8.5 9v6M5.5 12h6" />
-          </svg>
-        ),
-      },
-      {
-        href: "/incidents",
-        label: "Incidents",
-        shortCode: "INC",
-        badgeTone: "neutral",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    group: "PLANNER & RULE CI",
-    items: [
-      {
-        href: "/planner",
-        label: "Rule Planner",
-        shortCode: "PLN",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M12 20h9" />
-            <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
-          </svg>
-        ),
-      },
-      {
-        href: "/plans",
-        label: "Active Plans",
-        shortCode: "SET",
-        badgeTone: "neutral",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="8" y1="13" x2="16" y2="13" />
-            <line x1="8" y1="17" x2="16" y2="17" />
-          </svg>
-        ),
-      },
-      {
-        href: "/ci",
-        label: "Rule CI Matrix",
-        shortCode: "CI",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <polyline points="9 11 12 14 22 4" />
-            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-          </svg>
-        ),
-      },
-      {
-        href: "/extensions",
-        label: "Rule Extensions",
-        shortCode: "EXT",
-        badge: "MUSE",
-        badgeTone: "neutral",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <polyline points="16 18 22 12 16 6" />
-            <polyline points="8 6 2 12 8 18" />
-          </svg>
-        ),
-      },
-      {
-        href: "/advice",
-        label: "Site Advisor",
-        shortCode: "ADV",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <line x1="18" y1="20" x2="18" y2="10" />
-            <line x1="12" y1="20" x2="12" y2="4" />
-            <line x1="6" y1="20" x2="6" y2="14" />
-          </svg>
-        ),
-      },
-      {
-        href: "/site",
-        label: "Site Tools",
-        shortCode: "STE",
-        badge: "3 GATES",
-        badgeTone: "ok",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="2" y1="12" x2="22" y2="12" />
-            <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
-          </svg>
-        ),
-      },
-    ],
-  },
-  {
-    group: "VERIFICATION & OPS",
-    items: [
-      {
-        href: "/audit",
-        label: "Merkle Audit",
-        shortCode: "SHA",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
-        ),
-      },
-      {
-        href: "/demo",
-        label: "Golden Replay",
-        shortCode: "REP",
-        badge: "REPLAY",
-        badgeTone: "warn",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <polygon points="5 3 19 12 5 21 5 3" />
-          </svg>
-        ),
-      },
-      {
-        href: "/ask",
-        label: "Ask Safety AI",
-        shortCode: "ASK",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-          </svg>
-        ),
-      },
-      {
-        href: "/worker",
-        label: "Worker Portal",
-        shortCode: "WRK",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-          </svg>
-        ),
-      },
-      {
-        href: "/system",
-        label: "System & GPUs",
-        shortCode: "SYS",
-        icon: (
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <rect x="4" y="4" width="16" height="16" />
-            <rect x="9" y="9" width="6" height="6" />
-            <path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3" />
-          </svg>
-        ),
-      },
-    ],
-  },
-];
+/** The wordmark, linking home. */
+function Wordmark({ query, compact = false }: { query: string; compact?: boolean }) {
+  return (
+    <Link href={`/${query}`} className="wordmark" aria-label="Rulecam home">
+      <RulecamMark className="wordmark-mark" />
+      {!compact && <span>Rulecam</span>}
+    </Link>
+  );
+}
+
+/** The landing page's bar: the wordmark, four anchors on the page, the badge and one action. */
+function SiteHeader() {
+  const badge = useShellBadge();
+  const demoQuery = useDemoQuery();
+  return (
+    <header className="site-header">
+      <div className="container site-header-in">
+        <Wordmark query={demoQuery} />
+        <nav className="site-nav" aria-label="On this page">
+          <a href="#how">How it works</a>
+          <a href="#worlds">Use cases</a>
+          <a href="#models">Meta models</a>
+          <a href="#measured">Results</a>
+        </nav>
+        <div className="site-header-tools">
+          <ModeBadge label={badge} />
+          <ThemeSwitch compact />
+          <Link href={`/monitor${demoQuery}`} className="btn only-desktop">
+            Open the console
+          </Link>
+        </div>
+      </div>
+    </header>
+  );
+}
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
+  // One /health poll for the page, never on a golden replay (nor before the URL has been read).
+  const demo = useDemo();
+  return (
+    <HealthProvider enabled={demo === false}>
+      <ShellFrame>{children}</ShellFrame>
+    </HealthProvider>
+  );
+}
+
+function ShellFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { isDark, setTheme } = useTheme();
-  const stream = useStream();
+  const demo = useDemo();
+  const badge = useShellBadge();
+  const health = useSharedHealth(demo === false);
   const auth = useAuth();
   const demoQuery = useDemoQuery();
+  const chrome = chromeFor(pathname);
   const [collapsedPref, setCollapsed] = useState<boolean>(false);
-  // On a phone the sidebar is a drawer over the page (CSS `.shell-sidebar`), open or closed;
-  // an open drawer always shows the full labels.
+  const [mounted, setMounted] = useState<boolean>(false);
+  useEffect(() => setMounted(true), []);
+  // On a phone the sidebar is a drawer over the page, open or closed; an open drawer always
+  // shows the full labels.
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
   const collapsed = collapsedPref && !mobileOpen;
   const [liveStats, setLiveStats] = useState<LiveStats>(UNKNOWN_STATS);
@@ -316,9 +277,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   // Live telemetry from the API through the UI's proxy. A failed or forbidden call reads as
   // unknown (never a remembered or made-up value), and a golden replay polls nothing: what the
-  // audience sees there is the recording, labelled REPLAY by the mode badge.
+  // audience sees there is the recording, labelled REPLAY by the mode badge. The landing page
+  // and the bare screens poll for themselves or not at all.
   useEffect(() => {
-    if (demoQuery) {
+    if (demo !== false || chrome !== "app") {
       setLiveStats(UNKNOWN_STATS);
       return undefined;
     }
@@ -332,8 +294,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       }
     };
     const poll = async () => {
-      const [h, p, inc, cams] = await Promise.all([
-        json<{ gpus?: Record<string, { state?: string } | string> }>("/health"),
+      const [p, inc, cams] = await Promise.all([
         json<unknown[]>("/plans"),
         json<unknown[]>("/incidents"),
         json<unknown[]>("/cameras"),
@@ -343,8 +304,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         plansCount: p ? p.length : null,
         totalIncidents: inc ? inc.length : null,
         cameras: cams ? cams.length : null,
-        samGpu: gpuState(h?.gpus, "sam"),
-        glimmerGpu: gpuState(h?.gpus, "glimmer"),
       });
     };
     void poll();
@@ -353,9 +312,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       active = false;
       window.clearInterval(id);
     };
-  }, [demoQuery]);
+  }, [demo, chrome]);
 
-  // Keyboard shortcut: Ctrl+B toggles the sidebar
+  // Keyboard shortcut: Ctrl+B (or Cmd+B) toggles the sidebar.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
@@ -367,382 +326,108 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const sidebarW = collapsed ? 68 : 256;
-  const crumb = pageName(pathname);
+  if (chrome === "page") {
+    return (
+      <div className="app" data-chrome="page">
+        <SiteHeader />
+        <main className="shell-main">{children}</main>
+      </div>
+    );
+  }
 
-  const badgeStyle = (tone?: "ok" | "warn" | "bad" | "neutral"): React.CSSProperties => {
-    if (tone === "bad") return { background: "#C93410", color: "#fff" };
-    if (tone === "warn") return { background: "#F2D100", color: "#141414" };
-    if (tone === "ok") return { background: "#1E7A3A", color: "#fff" };
-    return { background: "#2B3033", color: "#ECEAE3" };
-  };
+  if (chrome === "bare") {
+    return (
+      <div className="app" data-chrome="bare">
+        <header className="bare-header">
+          <Wordmark query={demoQuery} />
+          <ModeBadge label={badge} />
+        </header>
+        <main className="shell-main">{children}</main>
+      </div>
+    );
+  }
+
+  const crumb = pageName(pathname, mounted);
+  const gpus = health.phase === "ok" ? health.health.gpus : undefined;
+  const samGpu = gpus ? gpuLine(gpus.sam).state : "unknown";
+  const glimmerGpu = gpus ? gpuLine(gpus.glimmer).state : "unknown";
+  const toggleNav = () => (isPhone() ? setMobileOpen((o) => !o) : setCollapsed((c) => !c));
 
   return (
-    <div
-      className="root"
-      style={{
-        display: "flex",
-        minHeight: "100vh",
-        width: "100%",
-        background: "var(--paper)",
-        color: "var(--ink)",
-      }}
-    >
-      {/* Left Collapsible Industrial Command Sidebar */}
+    <div className="app root" data-chrome="app">
       <aside
-        aria-label="Command Sidebar"
+        aria-label="Rulecam navigation"
         className="shell-sidebar"
+        data-collapsed={collapsed ? "true" : "false"}
         data-mobile-open={mobileOpen ? "true" : "false"}
-        style={{
-          width: `${sidebarW}px`,
-          minWidth: `${sidebarW}px`,
-          background: "var(--bar, #141414)",
-          color: "var(--on-dark, #ECEAE3)",
-          borderRight: "2px solid var(--ink)",
-          display: "flex",
-          flexDirection: "column",
-          position: "sticky",
-          top: 0,
-          height: "100vh",
-          overflow: "hidden",
-          transition: "width 0.18s cubic-bezier(0.2, 0, 0, 1), min-width 0.18s cubic-bezier(0.2, 0, 0, 1)",
-          zIndex: 40,
-          userSelect: "none",
-        }}
       >
-        {/* Pinned Top Brand + Collapse Button */}
-        <div
-          style={{
-            height: "60px",
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: collapsed ? "center" : "space-between",
-            padding: collapsed ? "0 8px" : "0 16px",
-            borderBottom: "2px solid #2B3033",
-            background: "#0B0C0D",
-          }}
-        >
-          <Link
-            href="/monitor"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-              overflow: "hidden",
-              whiteSpace: "nowrap",
-            }}
-            title="Rulecam Operational Safety Cockpit"
-          >
-            <span
-              style={{
-                width: "26px",
-                height: "26px",
-                minWidth: "26px",
-                background: "var(--yellow, #F2D100)",
-                border: "2px solid #fff",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#141414",
-                fontWeight: 900,
-                fontSize: "14px",
-                fontFamily: "var(--font-barlow-condensed, sans-serif)",
-              }}
-            >
-              RC
-            </span>
-            {!collapsed && (
-              <div>
-                <div
-                  style={{
-                    fontFamily: "var(--font-barlow-condensed, sans-serif)",
-                    fontWeight: 800,
-                    fontSize: "22px",
-                    letterSpacing: "1px",
-                    lineHeight: 1,
-                    color: "#fff",
-                  }}
-                >
-                  RULECAM
-                </div>
-                <div
-                  style={{
-                    fontFamily: "var(--font-dm-mono, monospace)",
-                    fontSize: "10px",
-                    color: "var(--yellow, #F2D100)",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  SAFETY COMMAND v2.4
-                </div>
-              </div>
-            )}
-          </Link>
-
+        <div className="side-head">
+          <Wordmark query={demoQuery} compact={collapsed} />
           {!collapsed && (
             <button
               type="button"
+              className="icon-btn"
               onClick={() => (isPhone() ? setMobileOpen(false) : setCollapsed(true))}
-              aria-label="Collapse sidebar"
+              aria-label={mobileOpen ? "Close navigation" : "Collapse sidebar"}
               title="Collapse sidebar (Ctrl+B)"
-              style={{
-                background: "#1B1E20",
-                border: "1px solid #3A3F42",
-                color: "#ECEAE3",
-                width: "30px",
-                height: "30px",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "14px",
-              }}
             >
-              «
+              {mobileOpen ? icons.close : icons.sidebar}
             </button>
           )}
         </div>
 
-        {/* Expand button strip when collapsed */}
-        {collapsed && (
-          <div style={{ padding: "6px 8px", borderBottom: "1px solid #2B3033", textAlign: "center", flexShrink: 0 }}>
-            <button
-              type="button"
-              onClick={() => setCollapsed(false)}
-              aria-label="Expand sidebar"
-              title="Expand sidebar (Ctrl+B)"
-              style={{
-                background: "#1B1E20",
-                border: "1px solid #3A3F42",
-                color: "var(--yellow, #F2D100)",
-                width: "100%",
-                height: "28px",
-                fontWeight: 800,
-                fontSize: "14px",
-              }}
-            >
-              »
-            </button>
-          </div>
-        )}
-
-        {/* Scrollable Middle Navigation Groups */}
-        <nav
-          aria-label="Primary Navigation"
-          className="sidebar-nav"
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflowY: "auto",
-            overflowX: "hidden",
-            padding: collapsed ? "8px 6px" : "10px 10px",
-          }}
-        >
+        <nav aria-label="Primary navigation" className="sidebar-nav">
           {NAV_GROUPS.map((grp) => (
-            <div key={grp.group} style={{ marginBottom: collapsed ? "8px" : "12px" }}>
-              {!collapsed ? (
-                <div
-                  style={{
-                    fontFamily: "var(--font-dm-mono, monospace)",
-                    fontSize: "10px",
-                    fontWeight: 600,
-                    color: "#8E9296",
-                    padding: "0 8px 4px",
-                    letterSpacing: "0.8px",
-                  }}
-                >
-                  {grp.group}
-                </div>
-              ) : (
-                <div style={{ height: "1px", background: "#2B3033", margin: "4px 4px 6px" }} />
-              )}
-
-              <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+            <div key={grp.group} className="nav-group">
+              <p className="nav-group-label" id={`nav-${grp.group.replace(/\s+/g, "-").toLowerCase()}`}>
+                {grp.group}
+              </p>
+              <ul className="nav-list" aria-labelledby={`nav-${grp.group.replace(/\s+/g, "-").toLowerCase()}`}>
                 {grp.items.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  const active = !item.external && isActive(pathname, item.href);
                   const badge = liveBadge(item.href, liveStats) ?? item.badge;
+                  const href = item.external ? item.href : `${item.href}${demoQuery}`;
                   return (
-                    <Link
-                      key={item.href}
-                      href={`${item.href}${demoQuery}`}
-                      title={collapsed ? `${item.label}${badge ? ` (${badge})` : ""}` : undefined}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: collapsed ? "center" : "space-between",
-                        padding: collapsed ? "7px 4px" : "7px 10px",
-                        background: active ? "#222629" : "transparent",
-                        borderLeft: active
-                          ? "4px solid var(--yellow, #F2D100)"
-                          : "4px solid transparent",
-                        color: active ? "#FFFFFF" : "#B9B7AE",
-                        fontWeight: active ? 700 : 500,
-                        fontSize: "13.5px",
-                        transition: "background 0.12s, color 0.12s",
-                        position: "relative",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: collapsed ? "3px" : "10px",
-                          minWidth: 0,
-                          flexDirection: collapsed ? "column" : "row",
-                        }}
+                    <li key={item.href}>
+                      <Link
+                        href={href}
+                        className="nav-link"
+                        aria-current={active ? "page" : undefined}
+                        title={collapsed ? `${item.label}${badge ? ` (${badge})` : ""}` : undefined}
+                        aria-label={collapsed ? item.label : undefined}
                       >
-                        <span style={{ color: active ? "var(--yellow, #F2D100)" : "inherit", display: "flex" }}>
-                          {item.icon}
-                        </span>
-                        {!collapsed ? (
-                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {item.label}
-                          </span>
-                        ) : (
-                          <span
-                            style={{
-                              fontFamily: "var(--font-dm-mono, monospace)",
-                              fontSize: "9px",
-                              letterSpacing: "0.3px",
-                              lineHeight: 1.1,
-                            }}
-                          >
-                            {item.shortCode}
+                        {icons[item.icon]}
+                        <span className="nav-label">{item.label}</span>
+                        {badge && (
+                          <span className="nav-badge" data-tone={item.badgeTone ?? "count"}>
+                            {badge}
                           </span>
                         )}
-                      </div>
-
-                      {!collapsed && badge && (
-                        <span
-                          style={{
-                            ...badgeStyle(item.badgeTone),
-                            fontFamily: "var(--font-dm-mono, monospace)",
-                            fontSize: "10px",
-                            fontWeight: 700,
-                            padding: "2px 6px",
-                            lineHeight: 1.2,
-                            flexShrink: 0,
-                          }}
-                        >
-                          {badge}
-                        </span>
-                      )}
-                    </Link>
+                      </Link>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             </div>
           ))}
         </nav>
 
-        {/* Pinned Sidebar Bottom Telemetry & Theme Footer */}
-        <div
-          style={{
-            flexShrink: 0,
-            borderTop: "2px solid #2B3033",
-            background: "#0B0C0D",
-            padding: collapsed ? "8px 6px" : "12px",
-          }}
-        >
-          {!collapsed && (
-            <div
-              style={{
-                background: "#15181A",
-                border: "1px solid #2B3033",
-                padding: "10px",
-                marginBottom: "12px",
-                fontFamily: "var(--font-dm-mono, monospace)",
-                fontSize: "11px",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ color: "#8E9296" }}>SAM 3.1 GPU</span>
-                <span style={{ color: "#00E070", fontWeight: 700 }}>
-                  {(liveStats.samGpu ?? "unknown").toUpperCase()}
-                </span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                <span style={{ color: "#8E9296" }}>GLIMMER GPU</span>
-                <span style={{ color: "#3DB8FF", fontWeight: 700 }}>
-                  {(liveStats.glimmerGpu ?? "unknown").toUpperCase()}
-                </span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "#8E9296" }}>EVIDENCE CHAIN</span>
-                <Link href={`/audit${demoQuery}`} style={{ color: "#F2D100", fontWeight: 700 }}>
-                  VERIFY →
-                </Link>
-              </div>
+        <div className="side-foot">
+          <dl className="gpu-list" aria-label="GPU state from the API">
+            <div className="gpu-row">
+              <dt>SAM 3.1 GPU</dt>
+              <dd data-state={samGpu}>{samGpu}</dd>
             </div>
-          )}
-
-          {/* Theme Switcher */}
-          <div
-            role="group"
-            aria-label="Theme toggle"
-            style={{
-              display: "grid",
-              gridTemplateColumns: collapsed ? "1fr" : "1fr 1fr",
-              gap: "4px",
-              marginBottom: "10px",
-            }}
-          >
-            <button
-              type="button"
-              aria-pressed={!isDark}
-              onClick={() => setTheme("light")}
-              style={{
-                background: !isDark ? "var(--yellow, #F2D100)" : "#1B1E20",
-                color: !isDark ? "#141414" : "#B9B7AE",
-                border: "1px solid #3A3F42",
-                padding: "6px 4px",
-                fontFamily: "var(--font-dm-mono, monospace)",
-                fontSize: "11px",
-                fontWeight: 700,
-              }}
-            >
-              {collapsed ? "☀" : "☀ LIGHT"}
-            </button>
-            <button
-              type="button"
-              aria-pressed={isDark}
-              onClick={() => setTheme("dark")}
-              style={{
-                background: isDark ? "var(--yellow, #F2D100)" : "#1B1E20",
-                color: isDark ? "#141414" : "#B9B7AE",
-                border: "1px solid #3A3F42",
-                padding: "6px 4px",
-                fontFamily: "var(--font-dm-mono, monospace)",
-                fontSize: "11px",
-                fontWeight: 700,
-              }}
-            >
-              {collapsed ? "☾" : "☾ DARK"}
-            </button>
+            <div className="gpu-row">
+              <dt>Glimmer GPU</dt>
+              <dd data-state={glimmerGpu}>{glimmerGpu}</dd>
+            </div>
+          </dl>
+          <ThemeSwitch compact={collapsed} />
+          <div className="session-line">
+            <span>{sessionLabel(auth.phase)}</span>
+            {auth.phase === "visitor" && <Link href="/login">Log in</Link>}
           </div>
-
-          {!collapsed && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                fontSize: "12px",
-                color: "#B9B7AE",
-              }}
-            >
-              <span>{sessionLabel(auth.phase)}</span>
-              {auth.phase === "owner" ? (
-                <span style={{ fontFamily: "var(--font-dm-mono, monospace)", fontSize: "10px", color: "#00E070" }}>
-                  ● AUTH
-                </span>
-              ) : auth.phase === "visitor" ? (
-                <Link href="/login" style={{ fontFamily: "var(--font-dm-mono, monospace)", fontSize: "10px" }}>
-                  LOG IN
-                </Link>
-              ) : null}
-            </div>
-          )}
         </div>
       </aside>
       {mobileOpen && (
@@ -754,86 +439,43 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* Main Right Viewport: Sticky Top Command Header + Scrollable Content */}
-      <div className="shell-main-col" style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        {/* Sticky Top Command Bar */}
-        <header
-          className="shell-header"
-          style={{
-            height: "60px",
-            background: "var(--card)",
-            borderBottom: "2px solid var(--ink)",
-            padding: "0 var(--gut)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "16px",
-            position: "sticky",
-            top: 0,
-            zIndex: 30,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+      <div className="shell-main-col">
+        <header className="shell-header">
+          <div className="shell-header-left">
             <button
               type="button"
-              onClick={() => (isPhone() ? setMobileOpen((o) => !o) : setCollapsed((c) => !c))}
-              aria-label="Toggle navigation sidebar"
+              className="icon-btn"
+              onClick={toggleNav}
+              aria-label="Toggle navigation"
               aria-expanded={mobileOpen}
-              title="Toggle Sidebar (Ctrl+B)"
-              style={{
-                background: "var(--paper)",
-                border: "2px solid var(--ink)",
-                color: "var(--ink)",
-                height: "36px",
-                padding: "0 10px",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                fontWeight: 700,
-                fontSize: "12px",
-                fontFamily: "var(--font-dm-mono, monospace)",
-              }}
+              title="Toggle sidebar (Ctrl+B)"
             >
-              <span className="only-desktop">{collapsed ? "☰ EXPAND" : "« SIDEBAR"}</span>
-              <span className="only-phone">☰ MENU</span>
+              {icons.menu}
             </button>
-
             {crumb && (
-              <div
-                className="shell-crumb"
-                style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}
-              >
-                <span className="dm shell-crumb-root" style={{ color: "var(--mute)", fontWeight: 600 }}>
-                  OPERATIONAL COCKPIT
+              <div className="shell-crumb">
+                <span className="shell-crumb-root">{crumb.group}</span>
+                <span className="shell-crumb-sep" aria-hidden="true">
+                  /
                 </span>
-                <span className="shell-crumb-root">/</span>
-                <strong style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>{crumb}</strong>
+                <strong>{crumb.label}</strong>
               </div>
             )}
           </div>
 
-          {/* Global KPI Telemetry Strip */}
-          <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-            <ModeBadge state={stream} />
-
-            <div className="dm" style={{ fontSize: "12px" }}>
-              CAMERAS: <b>{liveStats.cameras ?? "—"}</b>
-            </div>
-
-            <Link
-              href={`/planner${demoQuery}`}
-              className="btn"
-              style={{ minHeight: "36px", padding: "6px 14px", fontSize: "13px" }}
-            >
-              + New Safety Rule
+          <div className="shell-header-right">
+            <ModeBadge label={badge} />
+            <span className="shell-cameras" data-testid="shell-cameras">
+              Cameras <b>{liveStats.cameras ?? "—"}</b>
+            </span>
+            <Link href={`/planner${demoQuery}`} className="btn primary">
+              {icons.plus}
+              New rule
             </Link>
           </div>
         </header>
 
-        {/* Page Body */}
-        <main className="shell-main" style={{ flex: 1, minWidth: 0 }}>
-          {children}
-        </main>
+        <main className="shell-main">{children}</main>
       </div>
     </div>
   );

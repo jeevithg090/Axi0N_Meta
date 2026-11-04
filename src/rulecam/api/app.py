@@ -93,6 +93,7 @@ from rulecam.api.prometheus import (
     serverless_gpu_rate,
 )
 from rulecam.api.site_tools import build_site_tools
+from rulecam.api.validation import install_validation_handler
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
     AskAgent,
@@ -116,11 +117,13 @@ from rulecam.clients.meta_hosted import SparkClient, VoiceTranscribeClient
 from rulecam.clients.open_weights.glimmer import GlimmerClient
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
+from rulecam.compliance.api import build_proof_router
 from rulecam.config import Settings, get_settings
 from rulecam.connectors import ConnectorManager, build_connectors, connectors_router
 from rulecam.contracts import TTS, Calibration, Chunk, Clock, PrivacyMode, SitePlan
 from rulecam.crowd.memory import Calibrations, CrowdMemory, ModelCalibration
 from rulecam.crowd.scan import CrowdScanner
+from rulecam.crowd.tally import Tallier
 from rulecam.crowd.warden import CrowdWarden
 from rulecam.crowd.zones import CrowdZone
 from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
@@ -169,6 +172,7 @@ from rulecam.runtime.idle_stop import IdleGpuStop
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
 from rulecam.runtime.response import Response, ResponseStatus, build_response
 from rulecam.runtime.serverless import GpuHealth, RunPodServerless
+from rulecam.staff.factory import build_staff
 from rulecam.verify.tier2 import SparkOpenVerifier
 from rulecam.voice_out.tts import MmsTts
 from rulecam.worker import DisputeService, worker_router
@@ -670,6 +674,7 @@ def create_app(services: AppServices) -> FastAPI:
         publish) and starts the runtime loop if there is one; on shutdown it stops it.
     """
     app = FastAPI(title="Rulecam", version="0.1.0", lifespan=_lifespan(services))
+    install_validation_handler(app)
     auth = services.auth or OwnerAuth(clock=SystemClock(), allowed_origins=services.viewer_origins)
     app.dependency_overrides[require_owner] = auth.require_owner
     for router in _routers(services, auth):
@@ -973,6 +978,9 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         perception=perception,
         response=response,
         runtime=runtime,
+        glimmer_warm=lambda: any(
+            p.health().state == "warm" for p in probes if p.service == "glimmer"
+        ),
     )
     ask_agent, ask_tickers = build_ask(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, crowd=(crowd, warden)
@@ -1056,6 +1064,33 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             connectors_router(connectors, dependencies=_OWNER),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
+            build_proof_router(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                chain_root=chain_root,
+                site=site,
+                privacy_mode=lambda: (
+                    runtime.plan.privacy_mode if runtime and runtime.plan else None
+                ),
+                dependencies=_OWNER,
+                plans_dir=PLANS_DIR,
+            ),
+            build_staff(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                response=response,
+                chain_root=chain_root,
+                segmenter=perception.hosted,
+                ask_agent=ask_agent,
+                false_alarm=false_alarm,
+                plans_dir=PLANS_DIR,
+                camera_labels=lambda: {c.camera_id: c.label for c in pair.registry.cameras()},
+                dependencies=_OWNER,
+            ),
         ),
     )
 
@@ -1129,7 +1164,7 @@ def build_ask(
             site_profile=settings.rulecam_site_profile,
         )
     reviewer = None
-    if settings.rulecam_ask_review and settings.baseten_api_key is not None:
+    if settings.rulecam_ask_review and settings.spark_open_configured:
         reviewer = SparkOpenReviewer(
             SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus),
             max_result_chars=settings.rulecam_ask_max_result_chars,
@@ -1196,6 +1231,7 @@ def build_crowd(
     perception: Perception,
     response: Response,
     runtime: RuntimeLoop | None,
+    glimmer_warm: Callable[[], bool] | None = None,
 ) -> tuple[CrowdMemory | None, CrowdWarden | None, tuple[Callable[[], object], ...]]:
     """Crowd early warning: readings every few seconds and the warden that judges them.
 
@@ -1214,6 +1250,7 @@ def build_crowd(
         return None, None, ()
     try:
         spark = SparkClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
+        voice = VoiceTranscribeClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
     except ClientConfigError as exc:
         _log.warning("crowd_disabled", error=str(exc))
         return None, None, ()
@@ -1274,6 +1311,19 @@ def build_crowd(
         check_timeout_s=settings.rulecam_crowd_check_timeout_s,
         site_profile=settings.rulecam_site_profile,
         camera_names=names,
+        escalation=response.escalation,
+        alert_store=response.notifier,
+        verifier_warm=glimmer_warm,
+        transcriber=voice,
+        tallier=Tallier(
+            spark=spark,
+            files=spark,
+            glimmer=glimmer,
+            glimmer_model=glimmer.model,
+            frames_dir=frames.out_dir,
+            out_dir=settings.rulecam_data_dir / "strips" / "crowd",
+            glimmer_warm=glimmer_warm,
+        ),
     )
     languages = [x for x in settings.rulecam_crowd_languages.split(",") if x.strip()]
     if settings.rulecam_crowd_instruction:

@@ -4,6 +4,7 @@ import React, { useRef, useState } from "react";
 import Link from "next/link";
 
 import { SampleDataTag } from "../SampleDataTag";
+import { ClipPlayer } from "../ClipPlayer";
 
 interface ActSpec {
   id: number;
@@ -42,13 +43,13 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.99",
     glimmerVerdict: "CONFIRMED VIOLATION",
     glimmerReason:
-      "Worker #208 walks inside the 2.0m rear-right exclusion zone of moving Forklift #09 (measured 1.18m on calibrated floor plane; TTC 0.42s). Workers #201 & #204 remain outside at >2.4m.",
+      "A person on the right walks inside the 2.0 m rear-right exclusion zone of the moving forklift (measured 1.18 m on the calibrated floor plane; TTC 0.42 s). The two people on the left and in the centre stay outside, at more than 2.4 m.",
     plcState: "TRIPPED · 8 ms Interlock + Horn",
     entities: [
-      { id: "FORKLIFT #09", role: "Vehicle · Moving", metric: "2.4 m/s North", status: "warn" },
-      { id: "WORKER #208", role: "Pedestrian · Right", metric: "1.18 m (TTC 0.42s)", status: "bad" },
-      { id: "WORKER #204", role: "Pedestrian · Center", metric: "2.45 m · PPE OK", status: "ok" },
-      { id: "WORKER #201", role: "Pedestrian · Left", metric: "3.60 m · PPE OK", status: "ok" },
+      { id: "Forklift", role: "Vehicle, moving", metric: "2.4 m/s North", status: "warn" },
+      { id: "Person", role: "Pedestrian, right", metric: "1.18 m (TTC 0.42s)", status: "bad" },
+      { id: "Person", role: "Pedestrian, centre", metric: "2.45 m · PPE OK", status: "ok" },
+      { id: "Person", role: "Pedestrian, left", metric: "3.60 m · PPE OK", status: "ok" },
     ],
   },
   {
@@ -67,13 +68,13 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.98",
     glimmerVerdict: "CONFIRMED VIOLATION",
     glimmerReason:
-      "Worker #102 (red hardhat verified) escorts three visitors (#301, #302, #303) through active forklift aisle without mandatory head protection.",
+      "A person in a red hardhat walks three people without hardhats through the active forklift aisle, where head protection is mandatory.",
     plcState: "PA WARNING + SUPERVISOR ALERT",
     entities: [
-      { id: "WORKER #102", role: "Escort Lead", metric: "Red Hardhat Verified", status: "ok" },
-      { id: "VISITOR #301", role: "Visitor · Center-L", metric: "NO HARDHAT DETECTED", status: "bad" },
-      { id: "VISITOR #302", role: "Visitor · Center-R", metric: "NO HARDHAT DETECTED", status: "bad" },
-      { id: "VISITOR #303", role: "Visitor · Far-Right", metric: "NO HARDHAT DETECTED", status: "bad" },
+      { id: "Person", role: "Leading, left", metric: "Red Hardhat Verified", status: "ok" },
+      { id: "Person", role: "Centre-left", metric: "NO HARDHAT DETECTED", status: "bad" },
+      { id: "Person", role: "Centre-right", metric: "NO HARDHAT DETECTED", status: "bad" },
+      { id: "Person", role: "Far right", metric: "NO HARDHAT DETECTED", status: "bad" },
     ],
   },
   {
@@ -92,11 +93,11 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.97",
     glimmerVerdict: "CONFIRMED VIOLATION",
     glimmerReason:
-      "Forklift #04 crosses laterally from right rack aisle at 2.6 m/s directly across Engineer #108's forward walking trajectory (distance drops 3.40m -> 1.28m).",
+      "A forklift crosses from the right rack aisle at 2.6 m/s, straight across the path of a person walking north (the gap drops from 3.40 m to 1.28 m).",
     plcState: "JUNCTION STROBE + HORN TRIPPED",
     entities: [
-      { id: "FORKLIFT #04", role: "Cross-Aisle Vehicle", metric: "2.6 m/s Westbound", status: "bad" },
-      { id: "ENGINEER #108", role: "Pedestrian · North", metric: "Dist 1.28m · TTC 0.58s", status: "bad" },
+      { id: "Forklift", role: "Cross-aisle vehicle", metric: "2.6 m/s Westbound", status: "bad" },
+      { id: "Person", role: "Pedestrian, walking north", metric: "Dist 1.28m · TTC 0.58s", status: "bad" },
     ],
   },
   {
@@ -115,12 +116,12 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.00",
     glimmerVerdict: "BYPASSED (OPERATOR LINKED)",
     glimmerReason:
-      "Person track #01-OP overlaps Forklift #01 cabin at IoU 0.89 during 1.0s warm-up window. Linked as seated operator; Rule CI mutant drop_operator_warmup verified.",
+      "A person overlaps the forklift cabin at IoU 0.89 during the 1.0 s warm-up window, so they are linked as the seated operator; Rule CI mutant drop_operator_warmup verified.",
     plcState: "ARMED · CLEAR (0 False Alerts)",
     entities: [
-      { id: "FORKLIFT #01", role: "Active Vehicle", metric: "2.2 m/s · Cabin Mask", status: "ok" },
-      { id: "OPERATOR #01", role: "Seated Driver", metric: "IoU 0.89 · EXEMPT", status: "ok" },
-      { id: "PALLET REF #12", role: "Calibration Anchor", metric: "1.20m × 1.00m (Err 0.09m)", status: "ok" },
+      { id: "Forklift", role: "Active vehicle", metric: "2.2 m/s · Cabin Mask", status: "ok" },
+      { id: "Operator", role: "Seated in the cab", metric: "IoU 0.89 · EXEMPT", status: "ok" },
+      { id: "Pallet", role: "Calibration reference", metric: "1.20m × 1.00m (Err 0.09m)", status: "ok" },
     ],
   },
   {
@@ -139,11 +140,11 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.02",
     glimmerVerdict: "COMPLIANT (NO FOOT TRAFFIC)",
     glimmerReason:
-      "Excavator #EXC-02 boom slews from -42° to +12° to load Haul Truck #TRK-08. Full 5.0m radial exclusion zone is clear of ground personnel.",
+      "The excavator boom slews from -42° to +12° to load the haul truck. The full 5.0 m radial exclusion zone is clear of people on the ground.",
     plcState: "SLEW INTERLOCK ARMED · CLEAR",
     entities: [
-      { id: "EXCAVATOR #EXC-02", role: "Articulated Boom", metric: "Slew -42° -> +12°", status: "warn" },
-      { id: "HAUL TRUCK #TRK-08", role: "Dump Bed Target", metric: "Locked in Bay", status: "ok" },
+      { id: "Excavator", role: "Articulated boom", metric: "Slew -42° -> +12°", status: "warn" },
+      { id: "Haul truck", role: "Dump bed target", metric: "Locked in Bay", status: "ok" },
       { id: "5.0m SWING ARC", role: "Radial Exclusion", metric: "0 Personnel Inside", status: "ok" },
     ],
   },
@@ -163,11 +164,11 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.99",
     glimmerVerdict: "CONFIRMED WORKPLACE INCIDENT",
     glimmerReason:
-      "Blueprint discussion between Worker #401 and Supervisor #402 escalates into a physical shove at T+73.2s (4.8G lateral displacement spike).",
+      "Two people in the aisle come into sudden physical contact at T+73.2 s (a 4.8 G lateral motion spike); the event is escalated for a person to review.",
     plcState: "SECURITY DISPATCH + EVIDENCE LOCKED",
     entities: [
-      { id: "WORKER #401", role: "Personnel · Left", metric: "Shoved · 4.8G Spike", status: "bad" },
-      { id: "SUPERVISOR #402", role: "Personnel · Right", metric: "Aggressor Vector", status: "bad" },
+      { id: "Person", role: "Left", metric: "Sudden contact, 4.8 G", status: "bad" },
+      { id: "Person", role: "Right", metric: "Sudden contact", status: "bad" },
     ],
   },
   {
@@ -186,12 +187,12 @@ const MASTER_ACTS: ActSpec[] = [
     glimmerScore: "0.99 / 0.01",
     glimmerVerdict: "DOCK BREACH · KITCHEN COMPLIANT",
     glimmerReason:
-      "Part A: Worker #502 steps directly into approach path of Freight Truck #TRK-14 (1.05m). Part B: Kitchen Staff #601–#603 complete >=20.0s handwash dwell.",
+      "Part A: a person steps into the approach path of a freight truck (1.05 m). Part B: three people at the kitchen sink each wash for at least 20.0 s.",
     plcState: "DOCK SIREN TRIPPED · PREP LINE OPEN",
     entities: [
-      { id: "FREIGHT #TRK-14", role: "Heavy HGV Truck", metric: "3.1 m/s Dock Approach", status: "warn" },
-      { id: "WORKER #502", role: "Dock Pedestrian", metric: "1.05m Blind-Spot Breach!", status: "bad" },
-      { id: "STAFF #601-#603", role: "Kitchen Prep Crew", metric: "22.4s / 20.0s Verified", status: "ok" },
+      { id: "Freight truck", role: "Heavy goods vehicle", metric: "3.1 m/s Dock Approach", status: "warn" },
+      { id: "Person", role: "Dock pedestrian", metric: "1.05m Blind-Spot Breach!", status: "bad" },
+      { id: "3 people", role: "At the handwash sink", metric: "22.4s / 20.0s Verified", status: "ok" },
     ],
   },
 ];
@@ -231,7 +232,7 @@ export function MonitorSignage() {
 
   const wx = 520 + dist * 130;
   const mid = (520 + wx) / 2;
-  const wc = isBreach ? "var(--alert, #C93410)" : "var(--machine, #0B62A8)";
+  const wc = isBreach ? "var(--color-bad)" : "var(--color-scene-cool)";
   const py = 262 - (dist / 4.0) * 180;
 
   const ilText = viewMode === "video" ? currentAct.plcState : dist <= 2.0 ? "TRIPPED · 8 ms" : "Arm / Live";
@@ -257,12 +258,13 @@ export function MonitorSignage() {
           gap: "16px",
           padding: "14px 18px",
           background: "var(--card)",
-          border: "2px solid var(--ink)",
+          border: "1px solid var(--color-rule)",
+          borderRadius: "var(--radius-card)",
           marginBottom: "10px",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          <span className="small" style={{ fontWeight: 700, textTransform: "uppercase" }}>
+          <span className="small" style={{ fontWeight: 700 }}>
             Feed:
           </span>
           <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
@@ -273,7 +275,7 @@ export function MonitorSignage() {
               onClick={() => setActiveCam("master")}
               style={{ minHeight: "36px", padding: "0 12px", fontWeight: 700 }}
             >
-              🎬 90s Master Stress-Test (7 Acts)
+              90s Master Stress-Test (7 Acts)
             </button>
             <button
               type="button"
@@ -308,7 +310,7 @@ export function MonitorSignage() {
             style={{
               display: "flex",
               gap: "4px",
-              borderLeft: "2px solid var(--border, #444)",
+              borderLeft: "1px solid var(--color-rule)",
               paddingLeft: "12px",
             }}
           >
@@ -319,7 +321,7 @@ export function MonitorSignage() {
               onClick={() => setViewMode("video")}
               style={{ minHeight: "36px", padding: "0 12px", fontWeight: viewMode === "video" ? 700 : 400 }}
             >
-              📹 Annotated CV Video
+              Annotated CV Video
             </button>
             <button
               type="button"
@@ -328,7 +330,7 @@ export function MonitorSignage() {
               onClick={() => setViewMode("radar")}
               style={{ minHeight: "36px", padding: "0 12px", fontWeight: viewMode === "radar" ? 700 : 400 }}
             >
-              📐 Overhead Radar
+              Overhead Radar
             </button>
           </div>
         </div>
@@ -378,7 +380,8 @@ export function MonitorSignage() {
           gap: "6px",
           marginBottom: "var(--s3)",
           background: "var(--card)",
-          border: "2px solid var(--ink)",
+          border: "1px solid var(--color-rule)",
+          borderRadius: "var(--radius-card)",
           padding: "10px",
         }}
       >
@@ -392,18 +395,18 @@ export function MonitorSignage() {
               style={{
                 textAlign: "left",
                 padding: "8px 10px",
-                border: isActive ? "2px solid var(--ink)" : "1px solid var(--rule)",
+                border: isActive ? "1px solid var(--color-rule)" : "1px solid var(--rule)",
                 background: isActive
                   ? act.isBreach
-                    ? "var(--alert, #C93410)"
-                    : "var(--warn, #F2D100)"
+                    ? "var(--alert, var(--color-bad))"
+                    : "var(--warn, var(--color-accent))"
                   : "var(--paper)",
-                color: isActive && act.isBreach ? "#fff" : "var(--ink)",
+                color: isActive && act.isBreach ? "var(--color-on-signal)" : "var(--ink)",
                 cursor: "pointer",
                 transition: "all 0.12s ease",
               }}
             >
-              <div style={{ fontSize: "11px", fontWeight: 800, textTransform: "uppercase", opacity: 0.85 }}>
+              <div style={{ fontSize: "11px", fontWeight: 800, opacity: 0.85 }}>
                 {act.startS.toFixed(0)}s–{act.endS.toFixed(0)}s · {act.camId}
               </div>
               <div style={{ fontSize: "13px", fontWeight: 700, marginTop: "2px", lineHeight: 1.2 }}>
@@ -420,7 +423,7 @@ export function MonitorSignage() {
         {/* Left Column: 8 Cols or Full 12 Cols when Inspector is Collapsed */}
         <div className={inspectorOpen ? "s8" : "s12"} style={{ display: "flex", flexDirection: "column", gap: "var(--s3)" }}>
           {/* Panel: Camera Overhead Visualization / Master Video */}
-          <div style={{ border: "2px solid var(--ink)", background: "var(--cam)", overflow: "hidden" }}>
+          <div style={{ border: "1px solid var(--color-rule)", background: "var(--cam)", overflow: "hidden" }}>
             <div className="camhud">
               <span>
                 {activeCam === "master"
@@ -431,7 +434,7 @@ export function MonitorSignage() {
                   ? "CAM-01 Kitchen Prep · 1920×1080 · 60 fps · 29 ms"
                   : "CAM-07 Walk-in Cooler · FEED BLIND"}
               </span>
-              <span style={{ color: isBreach ? "#FF5A36" : "#3DB8FF", fontWeight: 700 }}>
+              <span style={{ color: isBreach ? "var(--color-bad)" : "var(--color-scene-cool)", fontWeight: 700 }}>
                 {viewMode === "video"
                   ? `${currentAct.statusBadge} · GLIMMER ${currentAct.glimmerScore}`
                   : `${isBreach ? "BREACH ACTIVE · EXCLUSION 2.0 m" : "CLEAR"} · T ${
@@ -442,20 +445,24 @@ export function MonitorSignage() {
 
             {viewMode === "video" ? (
               activeCam === "cam-07" ? (
-                <div style={{ padding: "100px 20px", textAlign: "center", background: "#0c0d0e", color: "var(--alert)" }}>
-                  <div style={{ fontSize: "56px", marginBottom: "16px" }}>⚠️</div>
-                  <div style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase" }}>
+                <div style={{ padding: "100px 20px", textAlign: "center", background: "var(--color-scene)", color: "var(--color-scene-accent)" }}>
+                  <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ margin: "0 auto 16px", display: "block" }}>
+                    <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+                    <path d="M12 9v4M12 17h.01" />
+                  </svg>
+                  <div style={{ fontSize: "24px", fontWeight: 500 }}>
                     CAM-07 Walk-in Cooler · FEED BLIND
                   </div>
-                  <p style={{ maxWidth: "560px", margin: "14px auto", color: "#8E8B82", fontSize: "14px", lineHeight: 1.5 }}>
+                  <p style={{ maxWidth: "560px", margin: "14px auto", color: "var(--color-on-scene-2)", fontSize: "14px", lineHeight: 1.5 }}>
                     Lens occlusion or connection drop detected at 14:12:08 UTC. Safety rules for this zone are suspended and cannot evaluate compliance. Operator manual clearance required.
                   </p>
                 </div>
               ) : (
-                <div style={{ position: "relative", width: "100%", background: "#0a0c0e" }}>
-                  <video
+                <div style={{ position: "relative", width: "100%", background: "var(--color-scene)" }}>
+                  <ClipPlayer
                     ref={videoRef}
                     key={activeCam}
+                    poster={`/strips/${activeCam === "master" ? currentAct.camId.split(" ")[0] : activeCam === "cam-04" ? "CAM-04" : "CAM-05"}_strip_1.jpg`}
                     src={
                       activeCam === "master"
                         ? "/videos/master_capabilities_demo.mp4"
@@ -474,7 +481,7 @@ export function MonitorSignage() {
                       maxHeight: "540px",
                       display: "block",
                       objectFit: "contain",
-                      background: "#0a0c0e",
+                      background: "var(--color-scene)",
                     }}
                   />
                 </div>
@@ -488,17 +495,17 @@ export function MonitorSignage() {
               >
                 <defs>
                   <pattern id="hy" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
-                    <rect width="6" height="12" fill="#F2D100" fillOpacity=".22" />
+                    <rect width="6" height="12" fill="var(--color-accent)" fillOpacity=".22" />
                   </pattern>
                   <pattern id="hb" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
-                    <rect width="4" height="10" fill="#3DB8FF" fillOpacity=".3" />
+                    <rect width="4" height="10" fill="var(--color-scene-cool)" fillOpacity=".3" />
                   </pattern>
                   <pattern id="gr" width="100" height="100" patternUnits="userSpaceOnUse">
                     <path d="M100 0H0V100" fill="none" stroke="#fff" strokeOpacity=".05" />
                   </pattern>
                 </defs>
 
-                <rect width="1440" height="520" fill="#15181A" />
+                <rect width="1440" height="520" fill="var(--color-scene-2)" />
                 <rect width="1440" height="520" fill="url(#gr)" />
 
                 <g fill="none" stroke="#fff" strokeOpacity=".16">
@@ -513,7 +520,7 @@ export function MonitorSignage() {
                   width="1130"
                   height="290"
                   fill="none"
-                  stroke="#F2D100"
+                  stroke="var(--color-accent)"
                   strokeOpacity=".45"
                   strokeWidth="3"
                   strokeDasharray="22 12"
@@ -523,14 +530,14 @@ export function MonitorSignage() {
                 <polygon
                   points="520,262 780,180 780,420 520,338"
                   fill="url(#hy)"
-                  stroke="#F2D100"
+                  stroke="var(--color-accent)"
                   strokeWidth="2"
                   strokeDasharray="8 6"
                 />
                 <text
                   x="520"
                   y="445"
-                  fill="#F2D100"
+                  fill="var(--color-accent)"
                   fontFamily="var(--font-barlow-condensed, sans-serif)"
                   fontWeight="600"
                   fontSize="20"
@@ -540,20 +547,20 @@ export function MonitorSignage() {
                 </text>
 
                 {/* Forklift chassis */}
-                <rect x="300" y="250" width="200" height="100" fill="url(#hb)" stroke="#3DB8FF" strokeWidth="2" />
-                <rect x="300" y="250" width="66" height="100" fill="#15181A" stroke="#3DB8FF" strokeWidth="2" />
-                <path d="M500 262H520M500 338H520" stroke="#3DB8FF" strokeWidth="5" />
-                <path d="M360 250V214" stroke="#ECEAE3" />
+                <rect x="300" y="250" width="200" height="100" fill="url(#hb)" stroke="var(--color-scene-cool)" strokeWidth="2" />
+                <rect x="300" y="250" width="66" height="100" fill="var(--color-scene-2)" stroke="var(--color-scene-cool)" strokeWidth="2" />
+                <path d="M500 262H520M500 338H520" stroke="var(--color-scene-cool)" strokeWidth="5" />
+                <path d="M360 250V214" stroke="var(--color-on-scene)" />
                 <text
                   x="360"
                   y="204"
                   textAnchor="middle"
-                  fill="#ECEAE3"
+                  fill="var(--color-on-scene)"
                   fontFamily="var(--font-barlow, sans-serif)"
                   fontWeight="600"
                   fontSize="16"
                 >
-                  Forklift #09 · 2.4 m/s
+                  Forklift · 2.4 m/s
                 </text>
 
                 {/* Pedestrian */}
@@ -561,17 +568,17 @@ export function MonitorSignage() {
                   <ellipse rx="10" ry="22" fill={wc} fillOpacity=".3" stroke={wc} strokeWidth="2" />
                   <circle r="9" fill={wc} />
                   <circle r="44" fill="none" stroke={wc} strokeWidth="2" strokeDasharray="3 6" />
-                  <path d="M0 44V70" stroke="#ECEAE3" />
+                  <path d="M0 44V70" stroke="var(--color-on-scene)" />
                   <text
                     x="0"
                     y="90"
                     textAnchor="middle"
-                    fill="#ECEAE3"
+                    fill="var(--color-on-scene)"
                     fontFamily="var(--font-barlow, sans-serif)"
                     fontWeight="600"
                     fontSize="16"
                   >
-                    Pedestrian #204
+                    Person
                   </text>
                 </g>
 
@@ -580,7 +587,7 @@ export function MonitorSignage() {
                   <path d={`M520 168V262M${wx} 168V254M520 168H${wx}M520 168l9 -5M520 168l9 5M${wx} 168l-9 -5M${wx} 168l-9 5`} />
                 </g>
                 <g transform={`translate(${mid}, 130)`}>
-                  <rect x="-56" y="-26" width="112" height="46" fill="#0F1112" stroke={wc} strokeWidth="2" />
+                  <rect x="-56" y="-26" width="112" height="46" fill="var(--color-scene)" stroke={wc} strokeWidth="2" />
                   <text
                     x="0"
                     y="10"
@@ -600,14 +607,15 @@ export function MonitorSignage() {
           {/* Synchronized Active Scenario & Real-Time Tracked Objects Matrix */}
           <div
             style={{
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--card)",
               padding: "18px 20px",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "8px", marginBottom: "10px" }}>
               <div>
-                <div className="small" style={{ fontWeight: 700, textTransform: "uppercase", color: "var(--muted)" }}>
+                <div className="small" style={{ fontWeight: 700, color: "var(--muted)" }}>
                   Active Scenario · Act {currentAct.id} of 7 ({currentAct.startS}s–{currentAct.endS}s)
                 </div>
                 <h2 className="h3" style={{ fontSize: "21px", marginTop: "2px" }}>
@@ -619,24 +627,24 @@ export function MonitorSignage() {
               </span>
             </div>
 
-            <p className="small" style={{ marginBottom: "14px", padding: "8px 12px", background: "var(--paper)", borderLeft: "4px solid var(--ink)" }}>
+            <p className="small" style={{ marginBottom: "14px", padding: "8px 12px", background: "var(--paper)", borderLeft: "1px solid var(--color-rule-2)" }}>
               <strong>Compiled Rule ({currentAct.ruleId}):</strong> &ldquo;{currentAct.ruleText}&rdquo;
             </p>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "10px" }}>
               {currentAct.entities.map((ent) => (
                 <div
-                  key={ent.id}
+                  key={`${ent.id}-${ent.role}`}
                   style={{
                     padding: "10px 12px",
-                    border: "1.5px solid var(--ink)",
-                    background: "var(--paper)",
-                    borderLeft:
+                    border: "1px solid var(--color-rule)",
+                    borderRadius: "var(--radius-pill)",
+                    background:
                       ent.status === "bad"
-                        ? "6px solid var(--alert, #C93410)"
+                        ? "var(--color-bad-soft)"
                         : ent.status === "warn"
-                        ? "6px solid var(--warn, #F2D100)"
-                        : "6px solid var(--ok, #1E7A3A)",
+                        ? "var(--color-accent-soft)"
+                        : "var(--color-paper)",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -655,7 +663,8 @@ export function MonitorSignage() {
           {/* Panel: Timeline & Curve Scrubber */}
           <div
             style={{
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--card)",
               padding: "20px",
             }}
@@ -680,19 +689,19 @@ export function MonitorSignage() {
 
             <svg
               viewBox="0 0 920 300"
-              style={{ width: "100%", height: "auto", display: "block", background: "var(--paper)", border: "1.5px solid var(--ink)" }}
+              style={{ width: "100%", height: "auto", display: "block", background: "var(--paper)", border: "1px solid var(--color-rule)", borderRadius: "var(--radius-pill)" }}
               role="img"
               aria-label="Distance over time curve"
             >
-              <g stroke="#111213" strokeOpacity=".12">
+              <g stroke="var(--color-scene-2)" strokeOpacity=".12">
                 <line x1="60" y1="40" x2="860" y2="40" />
                 <line x1="60" y1="100" x2="860" y2="100" />
                 <line x1="60" y1="160" x2="860" y2="160" />
                 <line x1="60" y1="220" x2="860" y2="220" />
               </g>
 
-              <rect x="60" y="172" width="800" height="88" fill="#C93410" fillOpacity=".09" />
-              <line x1="60" y1="172" x2="860" y2="172" stroke="#C93410" strokeWidth="2" strokeDasharray="8 6" />
+              <rect x="60" y="172" width="800" height="88" fill="var(--color-bad)" fillOpacity=".09" />
+              <line x1="60" y1="172" x2="860" y2="172" stroke="var(--color-bad)" strokeWidth="2" strokeDasharray="8 6" />
               <text
                 x="852"
                 y="164"
@@ -700,7 +709,7 @@ export function MonitorSignage() {
                 fontFamily="var(--font-barlow-condensed, sans-serif)"
                 fontWeight="700"
                 fontSize="14"
-                fill="#C93410"
+                fill="var(--color-bad)"
               >
                 2.0 m THRESHOLD
               </text>
@@ -734,12 +743,12 @@ export function MonitorSignage() {
               <path
                 d="M60 100 C 220 112, 340 148, 430 172 C 520 196, 620 218, 727 213 C 790 210, 830 202, 860 196"
                 fill="none"
-                stroke="#111213"
+                stroke="var(--color-scene-2)"
                 strokeWidth="3.5"
               />
 
-              <line x1={px} y1="28" x2={px} y2="262" stroke="#C93410" strokeWidth="2" />
-              <circle cx={px} cy={py} r="7" fill="#C93410" stroke="#F4F1EA" strokeWidth="2" />
+              <line x1={px} y1="28" x2={px} y2="262" stroke="var(--color-bad)" strokeWidth="2" />
+              <circle cx={px} cy={py} r="7" fill="var(--color-bad)" stroke="#F4F1EA" strokeWidth="2" />
             </svg>
 
             <div className="scrub" style={{ marginTop: "14px" }}>
@@ -772,15 +781,16 @@ export function MonitorSignage() {
           {/* Panel: Live Measurements */}
           <div
             style={{
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--card)",
               padding: "20px",
             }}
           >
-            <div className="small" style={{ textTransform: "uppercase", fontWeight: 700, marginBottom: "8px" }}>
+            <div className="small" style={{ fontWeight: 700, marginBottom: "8px" }}>
               Live Telemetry · {currentAct.camId}
             </div>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", borderBottom: "2px solid var(--ink)", paddingBottom: "12px", marginBottom: "12px" }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", borderBottom: "1px solid var(--color-rule)", paddingBottom: "12px", marginBottom: "12px" }}>
               <span className="small">Glimmer VLM Score</span>
               <div className="num" style={{ fontSize: "48px", color: wc }}>
                 {currentAct.glimmerScore}
@@ -814,7 +824,8 @@ export function MonitorSignage() {
           {/* Panel: Tier-1 Glimmer VLM Verification Reasoning */}
           <div
             style={{
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--card)",
               padding: "20px",
             }}
@@ -838,14 +849,14 @@ export function MonitorSignage() {
                 <div
                   key={idx}
                   style={{
-                    background: "#15181A",
-                    border: idx === 4 ? "2px solid var(--alert, #C93410)" : "1px solid var(--ink)",
+                    background: "var(--color-scene-2)",
+                    border: idx === 4 ? "2px solid var(--alert, var(--color-bad))" : "1px solid var(--color-rule)",
                     padding: "6px 4px",
                     textAlign: "center",
-                    color: "#ECEAE3",
+                    color: "var(--color-on-scene)",
                   }}
                 >
-                  <div className="dm" style={{ fontSize: "10px", color: idx === 4 ? "#FF5A36" : "#3DB8FF" }}>
+                  <div className="dm" style={{ fontSize: "10px", color: idx === 4 ? "var(--color-bad)" : "var(--color-scene-cool)" }}>
                     KF#{idx + 1}
                   </div>
                   <div className="dm" style={{ fontSize: "9px", opacity: 0.8 }}>
@@ -872,7 +883,8 @@ export function MonitorSignage() {
           {/* Panel: Operator Actions & Cryptographic Chain */}
           <div
             style={{
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--card)",
               padding: "20px",
             }}

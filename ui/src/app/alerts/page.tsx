@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { AlertCard } from "@/components/ops/AlertCard";
+import { OwnerOnly } from "@/components/OwnerOnly";
 import { api, ApiError } from "@/lib/api";
 import type { ActionRecord } from "@/lib/events";
 import type { Alert } from "@/lib/ops";
@@ -30,6 +31,7 @@ export default function AlertsPage() {
   const [role, setRole] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => setRole(readRole()), []);
 
@@ -39,7 +41,11 @@ export default function AlertsPage() {
     api
       .alerts()
       .then((alerts) => dispatch({ type: "alerts-loaded", alerts }))
-      .catch(() => setMessage("Could not reach the Rulecam API; alerts will appear live."));
+      .catch((e: unknown) => {
+        // A 403 means the API answered: alerts are for the site's staff, not a network failure.
+        if (e instanceof ApiError && e.status === 403) setForbidden(true);
+        else setMessage("Could not reach the Rulecam API; alerts will appear live.");
+      });
   }, [demo, dispatch]);
 
   const saveRole = (value: string): void => {
@@ -79,7 +85,8 @@ export default function AlertsPage() {
   return (
     <section className="alerts-page" aria-label="Alerts">
       <h2>Alerts</h2>
-      <label className="role-field">
+      {forbidden && <OwnerOnly what="The alert queue" checking={false} />}
+      <label className="role-field" hidden={forbidden}>
         My role{" "}
         <input
           value={role}
@@ -94,7 +101,7 @@ export default function AlertsPage() {
           {message}
         </p>
       )}
-      {visible.length === 0 && <p className="muted">No alerts.</p>}
+      {visible.length === 0 && !forbidden && <p className="muted">No alerts.</p>}
       {visible.map((alert) => (
         <AlertCard
           key={alert.alert_id}

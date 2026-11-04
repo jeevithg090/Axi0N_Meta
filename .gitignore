@@ -54,3 +54,8 @@ ui/public/videos/*.mp4
 # sample data, not real plans, so they are never committed to plans/ (see samples/seed/).
 plans/plan-8b21c409a7e1*
 plans/plan-c914e72a03f5*
+
+# Demo video renders (over the 500 KB pre-commit limit); see docs/video/script.md
+docs/video/*.mp4
+docs/video/*.m4a
+docs/video/*.aiff

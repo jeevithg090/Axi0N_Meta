@@ -175,6 +175,26 @@ class Settings(BaseSettings):
     baseten_base_url: str = "https://inference.baseten.co/v1"
     baseten_spark_open_model: str = "meta-models/muse-spark-open-1026"
     spark_open_images_supported: bool = False
+    # Muse Spark Open on any OpenAI-compatible server instead of Baseten (wins when set): our own
+    # llama-server on a RunPod serverless load balancer (docs/deploy.md "Serverless Muse Spark
+    # Open"; the RunPod key in SPARK_OPEN_EDGE_KEY goes in `Authorization`, SPARK_OPEN_API_KEY in
+    # `X-Rulecam-Key`) or a hosted provider (no edge key: SPARK_OPEN_API_KEY is the bearer).
+    spark_open_base_url: str | None = None
+    spark_open_api_key: SecretStr | None = None
+    spark_open_edge_key: SecretStr | None = None
+    spark_open_model: str = "muse-spark-open"
+    spark_open_hardware: str = "runpod-8xH100-llama.cpp-Q4_K_S"
+    # Hosted Spark Open used only when the server above gives no usable answer (e.g. Routeway,
+    # https://api.routeway.ai/v1, model `muse-spark-open`; its key is the bearer).
+    spark_open_fallback_base_url: str | None = None
+    spark_open_fallback_api_key: SecretStr | None = None
+    spark_open_fallback_model: str = "muse-spark-open"
+    # Llama Guard 4 (12B) on an OpenAI-compatible server (`clients.open_weights.llama_guard`):
+    # the plan-time screen that refuses rules about who people are. Same key scheme as Spark Open.
+    llama_guard_base_url: str | None = None
+    llama_guard_api_key: SecretStr | None = None
+    llama_guard_edge_key: SecretStr | None = None
+    llama_guard_model: str = "llama-guard-4-12b"
     glimmer_base_url: str = "http://127.0.0.1:8080/v1"
     glimmer_api_key: SecretStr | None = None
     # The Glimmer URLs are RunPod serverless load balancers: their edge takes this RunPod API key
@@ -189,6 +209,15 @@ class Settings(BaseSettings):
     # Hosted OpenAI-compatible Glimmer (e.g. Routeway) may honour JSON mode but not a strict
     # schema: also state the schema in a system message. Off for llama-server (grammar-enforced).
     glimmer_schema_in_prompt: bool = False
+    # A standby Glimmer endpoint (same keys and model, any region; docs/deploy.md "Standby
+    # Glimmer") tried when GLIMMER_BASE_URL and the extra URLs give no usable answer.
+    glimmer_standby_base_url: str | None = None
+    # Automatic fallback when our Glimmer GPU gives no usable answer (no HTTP answer, 404, 429,
+    # 5xx): the same request, rewritten for a hosted OpenAI-compatible Glimmer (e.g. Routeway,
+    # https://api.routeway.ai/v1 with model `muse-glimmer-30b`, or `muse-glimmer-30b:free`).
+    glimmer_fallback_base_url: str | None = None
+    glimmer_fallback_api_key: SecretStr | None = None
+    glimmer_fallback_model: str = "muse-glimmer-30b"
     # Glimmer's output cap per call, reasoning included. A reply cut at it (finish_reason
     # `length`) is retried with the cap doubled, up to the ceiling, then reported.
     glimmer_max_tokens: int = Field(default=1024, ge=64, le=32768)
@@ -207,6 +236,11 @@ class Settings(BaseSettings):
     # SAM_BASE_URL is a RunPod serverless load balancer: its edge takes this RunPod API key as
     # `Authorization`, and SAM_API_KEY goes in `X-Rulecam-Key` to the worker.
     sam_edge_key: SecretStr | None = None
+    # Seconds one self-hosted SAM call may take (a RunPod cold start included) and how many tries
+    # it gets before the runtime falls back to hosted SAM for that call. 60 s x 2 waits up to
+    # 2 minutes on a throttled endpoint; for live demos 25 s x 1 (docs/demo-day.md).
+    sam_http_timeout_s: float = Field(default=60.0, gt=0.0, le=300.0)
+    sam_http_attempts: int = Field(default=2, ge=1, le=4)
     kasa_plug_host: str | None = None
     kasa_light_host: str | None = None
     whatsapp_token: SecretStr | None = None
@@ -238,6 +272,8 @@ class Settings(BaseSettings):
     planner_survey_window_s: float = (
         60.0  # seconds of recent chunks the planner samples frames from
     )
+    # Proof portal (`compliance/`): signs share links; default a random key in <data>/compliance.
+    rulecam_share_secret: SecretStr | None = None
     # Camera connectors (`rulecam.connectors`, `/connectors`): chunk rate, the widest frame
     # kept (wider streams are scaled down) and how many 3 s chunk files each camera keeps.
     rulecam_connectors_fps: float = Field(default=10.0, gt=0, le=30)
@@ -248,6 +284,11 @@ class Settings(BaseSettings):
     def replay_dir(self) -> Path:
         """Directory of the replay cache (overridable for tests)."""
         return self.rulecam_replay_dir or self.rulecam_data_dir / "replay"
+
+    @property
+    def spark_open_configured(self) -> bool:
+        """Whether Muse Spark Open can be called live (an own/hosted server or a Baseten key)."""
+        return bool(self.spark_open_base_url) or self.baseten_api_key is not None
 
     @property
     def regressions_dir(self) -> Path:

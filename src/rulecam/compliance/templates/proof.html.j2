@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ pack.title }} · {{ pack.site }}</title>
+  <style>
+    body { font: 10.5pt/1.45 system-ui, sans-serif; color: #1b1b1f; margin: 24px; }
+    h1 { font-size: 18pt; margin: 0; }
+    h2 { font-size: 12.5pt; margin: 22px 0 6px; border-bottom: 2px solid #1b1b1f; padding-bottom: 2px; }
+    h3 { font-size: 11pt; margin: 14px 0 4px; }
+    .meta, .muted { color: #5f6368; }
+    table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+    th, td { border-bottom: 1px solid #ddd; padding: 5px 4px; text-align: left; vertical-align: top; }
+    th { font-size: 8.5pt; text-transform: uppercase; color: #5f6368; }
+    td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    code { font-size: 7.5pt; color: #5f6368; word-break: break-all; }
+    blockquote { margin: 4px 0; padding-left: 8px; border-left: 3px solid #ccc; color: #333; }
+    .verify { display: flex; gap: 18px; align-items: center; border: 2px solid #1b1b1f; padding: 12px; margin: 16px 0; }
+    .verify img { width: 140px; height: 140px; }
+    .ok { color: #0a7d32; font-weight: 600; }
+    .bad { color: #b3261e; font-weight: 600; }
+    .stills img { height: 110px; margin: 2px; border-radius: 4px; }
+    .disclaimer { border-left: 4px solid #b06000; padding: 6px 10px; background: #fff7e6; }
+    ul { margin: 4px 0; padding-left: 18px; }
+  </style>
+</head>
+<body>
+  <h1>{{ pack.title }}</h1>
+  <div class="meta">
+    Site <b>{{ pack.site }}</b> · {{ pack.period.start.strftime("%Y-%m-%d %H:%M") }} to
+    {{ pack.period.end.strftime("%Y-%m-%d %H:%M") }} UTC (compared with the {{ previous_label }} before) ·
+    privacy mode {{ pack.privacy_mode.value }} · made {{ pack.created_at.strftime("%Y-%m-%d %H:%M") }} UTC
+  </div>
+  <p class="disclaimer">{{ pack.disclaimer }}</p>
+
+  <div class="verify">
+    {% if qr %}<img src="{{ qr }}" alt="QR code to verify this pack">{% endif %}
+    <div>
+      <b>Check it yourself.</b> {% if url %}Scan the code or open <code>{{ url }}</code>:{% else %}Open the pack's share link:{% endif %}
+      your browser recomputes the hash of each of the {{ pack.records | length }} disclosed records,
+      folds each Merkle proof up to its day's root, recounts every number below from those records,
+      and compares the roots with the site's live log.
+      <div class="muted">Pack hash <code>{{ pack_hash }}</code></div>
+    </div>
+  </div>
+
+  {% if pack.summaries %}
+  <h2>Summaries</h2>
+  {% for s in pack.summaries %}
+    <h3>{{ audience_names[s.audience] }}{% if s.lang != "en" %} ({{ s.lang }}){% endif %}</h3>
+    <ul>{% for line in s.text %}<li>{{ line }}</li>{% endfor %}</ul>
+  {% endfor %}
+  <p class="muted">Written by {{ pack.summaries[0].model }}; every number in them is filled in from the table below.</p>
+  {% endif %}
+
+  {% if "worker_rep" in pack.audiences %}
+  {% set m = metrics %}
+  <h2>Crew representative certificate</h2>
+  <ul>
+    <li>{% if m.settings_without_both_keys.value == 0 %}<span class="ok">✓</span> No protected privacy setting (privacy mode, retention, the per-person metrics ban) was changed without both the owner's and the crew representative's key.{% else %}<span class="bad">✗</span> {{ fmt(m.settings_without_both_keys.value, "count") }} protected setting change(s) were applied without both keys.{% endif %}</li>
+    <li>Protected settings proposed {{ fmt(m.setting_proposals.value, "count") }}, changed with both keys {{ fmt(m.settings_applied.value, "count") }}, refused {{ fmt(m.settings_rejected.value, "count") }}.</li>
+    <li>{{ pack.rules | length }} rule(s) were in force, each listed below in the owner's own words with how it was tested before going live.</li>
+    <li>Workers disputed {{ fmt(m.disputes_filed.value, "count") }} alert(s): {{ fmt(m.disputes_upheld.value, "count") }} upheld as false alarms, {{ fmt(m.disputes_rejected.value, "count") }} rejected.</li>
+    <li><span class="ok">✓</span> Every number is per rule, camera or shift; none is per person.</li>
+  </ul>
+  {% endif %}
+
+  <h2>Headline numbers</h2>
+  <table>
+    <tr><th>What</th><th class="n">This period</th><th class="n">Previous</th><th class="n">Records</th></tr>
+    {% for m in headline %}
+    <tr><td>{{ m.label }}</td><td class="n">{{ fmt(m.value, m.unit) }}</td><td class="n">{{ fmt(m.previous, m.unit) }}</td><td class="n">{{ m.refs | length }}</td></tr>
+    {% endfor %}
+  </table>
+
+  <h2>Rules in force</h2>
+  <table>
+    <tr><th>Rule</th><th>Clause it gives evidence for</th><th>Proved before going live</th></tr>
+    {% for r in pack.rules %}
+    <tr>
+      <td>{{ r.text or r.rule_id }}<br><code>{{ r.rule_id }}</code> · {{ r.severity }} · in force {{ fmt(r.active_s, "seconds") }}</td>
+      <td>
+        {% if r.clause %}
+          <b>{{ r.clause.ref }}</b>
+          {% if r.clause.check == "page" %}<span class="ok">quote found on the page</span>{% elif r.clause.check == "search" %}<span class="ok">quote found in the search result for the page</span>{% else %}<span class="bad">quote not confirmed</span>{% endif %}
+          <div class="muted">{{ r.clause.detail }}</div>
+          <blockquote>{{ r.clause.quote }}</blockquote>
+          <code>{{ r.clause.url }}</code>
+        {% else %}<span class="muted">{{ r.clause_note or "none cited" }}</span>{% endif %}
+      </td>
+      <td>
+        Gate at approval: <b class="{{ 'ok' if r.gate == 'pass' else 'bad' }}">{{ r.gate }}</b>
+        {% for reason in r.gate_reasons %}<div class="muted">{{ reason }}</div>{% endfor %}
+        {% if r.ci_detail %}<div>Rule CI: {{ r.ci_detail }}</div>{% endif %}
+        <div class="muted">{{ r.plan_ids | length }} plan version(s)</div>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  {% for section, title in scoped %}
+    {% set rows = by_section.get(section, []) %}
+    {% if rows %}
+    <h2>{{ title }}</h2>
+    <table>
+      <tr><th>What</th><th class="n">This period</th><th class="n">Previous</th></tr>
+      {% for m in rows %}
+      <tr><td>{{ m.label }}{% if m.spec.rule %} <code>{{ m.spec.rule }}</code>{% endif %}</td><td class="n">{{ fmt(m.value, m.unit) }}</td><td class="n">{{ fmt(m.previous, m.unit) }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  {% endfor %}
+
+  {% if pack.incidents %}
+  <h2>Incidents ({{ pack.incidents | length }})</h2>
+  <table>
+    <tr><th>When (UTC)</th><th>Rule</th><th>Camera</th><th>Glimmer</th><th>Route</th><th>Record</th></tr>
+    {% for i in pack.incidents %}
+    <tr><td>{{ i.ts.strftime("%Y-%m-%d %H:%M:%S") }}</td><td>{{ i.rule_id }}</td><td>{{ i.camera_id }}</td><td>{{ i.verdict or "-" }}</td><td>{{ i.route or "-" }}</td><td><code>{{ i.key }}</code></td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if pack.stills %}
+  <h2>Anonymised stills</h2>
+  <div class="stills">{% for s in pack.stills %}<img src="{{ s.data_uri }}" alt="{{ s.kind }} still of {{ s.event_id }}">{% endfor %}</div>
+  <p class="muted">Illustrations only ({{ pack.stills[0].kind }}); the chain does not commit to images.</p>
+  {% endif %}
+
+  <h2>What the pack does not show</h2>
+  <ul>{% for n in pack.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+
+  <h2>Chain days and Merkle roots</h2>
+  <table>
+    <tr><th>Day</th><th class="n">Records</th><th>Chain</th><th>Root</th><th>Committed to git</th></tr>
+    {% for d in pack.days %}
+    <tr><td>{{ d.day }}</td><td class="n">{{ d.n }}</td><td>{% if d.chain_ok %}<span class="ok">intact</span>{% else %}<span class="bad">broken: {{ d.reason }}</span>{% endif %}</td>
+      <td><code>{{ d.root }}</code></td><td>{% if d.committed_root %}<code>{{ d.committed_root }}</code> ({{ d.committed_n }}){% else %}<span class="muted">not committed</span>{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+</body>
+</html>

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { GOLDEN_RUNS } from "@/fixtures/golden";
 import { CAMPAIGN, campaignTest, firstEvent, SERVERLESS_LOAD } from "@/fixtures/live-campaign";
 
-import { headlines, Landing, MODELS, PITCH, STEPS } from "./Landing";
+import { headlines, Landing, MODELS, PITCH, STEPS, WORLDS } from "./Landing";
 import { LiveAlerts, seconds, verdictWords } from "./LiveAlerts";
 
 afterEach(cleanup);
@@ -20,10 +20,25 @@ describe("Landing", () => {
 
   it("shows the four steps and every Meta model with its status", () => {
     render(<Landing />);
-    for (const s of STEPS) expect(screen.getByText(new RegExp(`· ${s.name}$`))).toBeTruthy();
+    const steps = screen.getByRole("list", { name: "How a rule goes live" });
+    for (const s of STEPS) {
+      expect(within(steps).getByRole("heading", { name: s.name })).toBeTruthy();
+      expect(within(steps).getByText(s.text)).toBeTruthy();
+    }
+    const table = screen.getByRole("table");
     for (const m of MODELS) {
-      const row = screen.getByText(m.model).closest("tr")!;
+      const row = within(table).getByText(m.model).closest("tr")!;
       expect(within(row).getByText(m.status)).toBeTruthy();
+    }
+  });
+
+  it("links the three worlds, each with a labelled still from its own footage", () => {
+    render(<Landing />);
+    for (const w of WORLDS) {
+      expect(screen.getByTestId(`world-${w.slug}`).getAttribute("href")).toBe(`/usecases/${w.slug}`);
+      const still = screen.getByTestId(`still-${w.slug}`);
+      expect(within(still).getByRole("img").getAttribute("alt")).toBe(w.still.alt);
+      expect(still.textContent).toBe(w.still.label);
     }
   });
 
@@ -53,7 +68,7 @@ describe("LiveAlerts", () => {
     render(<LiveAlerts />);
     const section = screen.getByTestId("live-alerts");
     expect(section.textContent).toContain(
-      "RECORDED LIVE RUN · 1 NOV 2026 · NOT A REPLAY, NOT LIVE NOW",
+      "Recorded live run, 1 Nov 2026. Not a replay, not live now.",
     );
     expect(screen.getByRole("link", { name: CAMPAIGN.source }).getAttribute("href")).toContain(
       CAMPAIGN.source,

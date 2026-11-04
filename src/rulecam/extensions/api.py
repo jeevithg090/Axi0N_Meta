@@ -97,7 +97,7 @@ def build_extensions(
         spark = None
     spark_open = (
         SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
-        if settings.baseten_api_key
+        if settings.spark_open_configured
         else None
     )
     service = (

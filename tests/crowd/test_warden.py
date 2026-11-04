@@ -202,10 +202,11 @@ def test_the_incident_report_reads_a_crowd_alert(
     assert len(report.timeline) == 5  # candidate, verdict, notify, two announcements (text)
 
 
-def test_glimmer_holds_an_alert_it_does_not_see(
+def test_an_alert_glimmer_does_not_see_is_held_when_spark_agrees_on_a_second_look(
     tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
 ) -> None:
-    spark = FakeLLM([warning()])
+    hold = {"send": False, "why": "The frames show people walking freely."}
+    spark = FakeLLM([warning(), hold])
     glimmer = FakeLLM([{"agrees": False, "seen": "A loose crowd walking.", "confidence": 0.8}])
     notifier = Notifier()
     chosen, chain = warden(
@@ -214,10 +215,32 @@ def test_glimmer_holds_an_alert_it_does_not_see(
     chosen.assess(chosen.watch("gate", INSTRUCTION), latest(crowd))
     (alert,) = chosen.alerts()
     assert not alert.sent
-    assert alert.held_reason == "Glimmer did not see it: A loose crowd walking."
+    assert alert.held_reason == (
+        "Glimmer did not see it: A loose crowd walking. Spark: The frames show people walking "
+        "freely."
+    )
+    second = json.loads(str(spark.calls[1]["messages"][1]["content"]))  # type: ignore[index]
+    assert second["frame_check"]["seen"] == "A loose crowd walking."
     assert notifier.sent == []
     assert not chain.path_for(EPOCH.date()).exists()
     assert chosen.states()[0].last_alert is None
+
+
+def test_spark_can_keep_an_alert_glimmer_does_not_confirm(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    keep = {"send": True, "why": "Glimmer describes shoulder-to-shoulder packing; 8 per m² holds."}
+    spark = FakeLLM([warning(), keep])
+    glimmer = FakeLLM([{"agrees": False, "seen": "Tightly packed.", "confidence": 0.6}])
+    notifier = Notifier()
+    chosen, _ = warden(tmp_path, crowd, grabber, spark, glimmer, notifier=notifier)
+    chosen.assess(chosen.watch("gate", INSTRUCTION), latest(crowd))
+    (alert,) = chosen.alerts()
+    assert alert.sent
+    assert alert.check is not None
+    assert not alert.check.agrees
+    assert alert.check_note == f"Glimmer did not confirm it; Spark kept the alert: {keep['why']}"
+    assert len(notifier.sent) == 1
 
 
 def test_no_alert_when_spark_sees_no_need(

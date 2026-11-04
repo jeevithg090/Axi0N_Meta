@@ -1139,7 +1139,7 @@ def build_ask(
             site_profile=settings.rulecam_site_profile,
         )
     reviewer = None
-    if settings.rulecam_ask_review and settings.baseten_api_key is not None:
+    if settings.rulecam_ask_review and settings.spark_open_configured:
         reviewer = SparkOpenReviewer(
             SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus),
             max_result_chars=settings.rulecam_ask_max_result_chars,

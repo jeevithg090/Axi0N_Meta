@@ -1,12 +1,19 @@
-"""Muse Spark Open client on Baseten (`SparkOpenClient`, task P3-04).
+"""Muse Spark Open client (`SparkOpenClient`, task P3-04).
 
-Baseten serves Spark Open behind an OpenAI-compatible chat API (`POST /chat/completions`,
-`Authorization: Api-Key …`). Spark Open always reasons before answering; its
+Spark Open is served behind an OpenAI-compatible chat API (`POST /chat/completions`) by one of:
+
+- our own llama-server on a RunPod serverless load balancer (`SPARK_OPEN_BASE_URL` plus
+  `SPARK_OPEN_EDGE_KEY`: the RunPod key in `Authorization`, `SPARK_OPEN_API_KEY` in
+  `X-Rulecam-Key`; `scripts/spark_open_pod/serverless.sh`);
+- a hosted OpenAI-compatible provider (`SPARK_OPEN_BASE_URL`, `SPARK_OPEN_API_KEY` as the bearer);
+- Baseten (`BASETEN_*`, `Authorization: Api-Key …`), used when `SPARK_OPEN_BASE_URL` is unset.
+
+Spark Open always reasons before answering; its
 `message.reasoning_content` is captured **verbatim**, stored under `data/reasoning/<id>.txt`, and
 referenced by id, so the UI can show the model thinking (MP §3.4).
 
 Every call asks for JSON-schema-constrained output, goes through the replay cache, publishes
-`relay.model_used`, and appends a line (with the Baseten response id) to
+`relay.model_used`, and appends a line (with the server's response id) to
 `evidence/spark_open/inference-log.jsonl`. Whether the deployment accepts images is a setting
 (`SPARK_OPEN_IMAGES_SUPPORTED`); when it does not, callers send text only.
 """
@@ -24,22 +31,37 @@ from rulecam.bus import Bus
 from rulecam.clients.errors import ModelResponseError
 from rulecam.clients.open_weights.evidence_log import EvidenceLog, InferenceLine
 from rulecam.clients.open_weights.glimmer import request_hash
+from rulecam.clients.open_weights.llama_edge import KEY_HEADER
 from rulecam.clients.open_weights.reasoning import ReasoningStore, reasoning_id
 from rulecam.clients.ratelimit import TokenBucket
 from rulecam.clients.relay import ModelUsed, publish_model_used
-from rulecam.clients.transport import HttpxTransport, RetryPolicy, Sender, Transport
+from rulecam.clients.transport import (
+    FailoverTransport,
+    HttpxTransport,
+    RetryPolicy,
+    Sender,
+    Transport,
+)
 from rulecam.config import Settings
 from rulecam.contracts import Clock
 from rulecam.log import get_logger
 from rulecam.replay.cache import ReplayCache
 
-__all__ = ["ReasoningStore", "SparkOpenClient", "SparkReply", "reasoning_id"]
+__all__ = [
+    "ReasoningStore",
+    "SparkOpenClient",
+    "SparkOpenTarget",
+    "SparkReply",
+    "reasoning_id",
+    "spark_open_target",
+]
 
 _log = get_logger(__name__)
 
 M = TypeVar("M", bound=BaseModel)
 
 PROVIDER = "baseten"
+OWN_PROVIDER = "spark_open"  # replay-cache provider of an own or hosted OpenAI-compatible server
 CHAT_PATH = "/chat/completions"
 DEFAULT_TIMEOUT_S = 90.0
 DEFAULT_MAX_TOKENS = 4096
@@ -56,7 +78,7 @@ class SparkReply[A: BaseModel]:
         answer: The reply, validated against the requested schema.
         reasoning: `reasoning_content`, verbatim (empty if the server sent none).
         reasoning_ref: Id of the stored reasoning file (`data/reasoning/<id>.txt`).
-        request_id: Baseten's response id, when present.
+        request_id: The server's response id, when present.
         latency_ms: Wall-clock latency including retries.
     """
 
@@ -72,16 +94,102 @@ class SparkOpenConfig:
     """Deployment facts.
 
     Attributes:
-        model: Baseten model slug.
+        model: Model name on the server (Baseten slug or the llama-server alias).
         images_supported: Whether image parts are accepted (checked on day one).
         max_tokens: Output cap, including reasoning.
         segment: Relay HUD segment name.
+        hardware: What serves it, for the evidence log.
     """
 
     model: str = "meta-models/muse-spark-open-1026"
     images_supported: bool = False
     max_tokens: int = DEFAULT_MAX_TOKENS
     segment: str = "verify"
+    hardware: str = "baseten"
+
+
+@dataclass(frozen=True)
+class SparkOpenTarget:
+    """Where Spark Open calls go: base URL, headers, replay provider, model and hardware."""
+
+    base_url: str
+    bearer: str
+    auth_scheme: str
+    headers: dict[str, str]
+    provider: str
+    model: str
+    hardware: str
+
+
+def with_model(model: str) -> Callable[[Mapping[str, object]], Mapping[str, object]]:
+    """A request rewrite that only swaps the chat body's `model` (for a hosted fallback)."""
+
+    def rewrite(request: Mapping[str, object]) -> Mapping[str, object]:
+        body = request.get("json")
+        if not isinstance(body, Mapping):
+            return request
+        return {**request, "json": {**body, "model": model}}
+
+    return rewrite
+
+
+def spark_open_fallback(settings: Settings, primary: Transport) -> Transport:
+    """Wrap `primary` with the hosted Spark Open of `SPARK_OPEN_FALLBACK_BASE_URL`, when set.
+
+    Args:
+        settings: Application settings (`SPARK_OPEN_FALLBACK_*`).
+        primary: Our own server (or Baseten).
+
+    Returns:
+        A `FailoverTransport`, or `primary` unchanged.
+    """
+    if not settings.spark_open_fallback_base_url:
+        return primary
+    key = settings.spark_open_fallback_api_key
+    hosted = HttpxTransport(
+        settings.spark_open_fallback_base_url,
+        key.get_secret_value() if key is not None else "",
+        timeout_s=DEFAULT_TIMEOUT_S,
+    )
+    rewrite = with_model(settings.spark_open_fallback_model)
+    return FailoverTransport(primary, hosted, rewrite=rewrite, name="spark_open")
+
+
+def spark_open_target(settings: Settings) -> SparkOpenTarget:
+    """Pick the Spark Open server from settings (`SPARK_OPEN_BASE_URL` wins over Baseten).
+
+    Args:
+        settings: Application settings.
+
+    Returns:
+        The target. Keys are empty strings when unset (replay can still serve recorded calls).
+    """
+    if settings.spark_open_base_url:
+        key = settings.spark_open_api_key.get_secret_value() if settings.spark_open_api_key else ""
+        if settings.spark_open_edge_key is not None:
+            bearer = settings.spark_open_edge_key.get_secret_value()
+            headers = {KEY_HEADER: key} if key else {}
+        else:
+            bearer, headers = key, {}
+        return SparkOpenTarget(
+            base_url=settings.spark_open_base_url,
+            bearer=bearer,
+            auth_scheme="Bearer",
+            headers=headers,
+            provider=OWN_PROVIDER,
+            model=settings.spark_open_model,
+            hardware=settings.spark_open_hardware,
+        )
+    key = settings.baseten_api_key.get_secret_value() if settings.baseten_api_key else ""
+    return SparkOpenTarget(
+        base_url=settings.baseten_base_url,
+        bearer=key,
+        auth_scheme=AUTH_SCHEME,
+        headers={},
+        provider=PROVIDER,
+        model=settings.baseten_spark_open_model,
+        hardware="baseten",
+    )
 
 
 def _parse(body: object) -> tuple[str, str, str | None]:
@@ -137,27 +245,34 @@ class SparkOpenClient:
     def from_settings(
         cls, settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus | None = None
     ) -> SparkOpenClient:
-        """Build a Baseten client routed through the replay cache.
+        """Build a client routed through the replay cache (see `spark_open_target`).
 
         Args:
-            settings: Application settings (`BASETEN_*`, `SPARK_OPEN_IMAGES_SUPPORTED`).
+            settings: Application settings (`SPARK_OPEN_*`, `BASETEN_*`).
             cache: The replay cache.
             clock: Time source.
             bus: Bus for `relay.model_used`.
 
         Returns:
-            The client. Without `BASETEN_API_KEY` it can still replay recorded calls.
+            The client. Without a key it can still replay recorded calls.
         """
-        key = settings.baseten_api_key.get_secret_value() if settings.baseten_api_key else ""
+        target = spark_open_target(settings)
         config = SparkOpenConfig(
-            model=settings.baseten_spark_open_model,
+            model=target.model,
             images_supported=settings.spark_open_images_supported,
+            hardware=target.hardware,
         )
         http = HttpxTransport(
-            settings.baseten_base_url, key, timeout_s=DEFAULT_TIMEOUT_S, auth_scheme=AUTH_SCHEME
+            target.base_url,
+            target.bearer,
+            timeout_s=DEFAULT_TIMEOUT_S,
+            auth_scheme=target.auth_scheme,
+            headers=target.headers,
         )
         return cls(
-            cache.wrap_transport(PROVIDER, config.model, http),
+            cache.wrap_transport(
+                target.provider, config.model, spark_open_fallback(settings, http)
+            ),
             clock=clock,
             reasoning=ReasoningStore(settings.rulecam_data_dir / "reasoning"),
             config=config,
@@ -167,7 +282,7 @@ class SparkOpenClient:
 
     @property
     def model(self) -> str:
-        """The Baseten model slug."""
+        """The model name on the server."""
         return self._config.model
 
     @property
@@ -262,7 +377,7 @@ class SparkOpenClient:
                 InferenceLine(
                     ts=self._clock.now(),
                     model=self._config.model,
-                    hardware="baseten",
+                    hardware=self._config.hardware,
                     latency_ms=latency_ms,
                     request_hash=request_hash(body),
                     ok=ok,

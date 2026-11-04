@@ -3,8 +3,9 @@
 Live on 4 Nov the planner's SAM calls answered in about 2 s, but now and then one request hung
 until the transport gave up 40 s later, and a probe of 24 frames waited for its slowest frame.
 `HedgedSegmenter` sends the same request again when the first has not answered after
-`after_s`, and returns whichever answers first; a call that fails while its twin is still
-running waits for the twin. The answer is the same SAM answer either way (same frame, same
+`after_s` (15 s: at 8 s a busy API got 198 twins in three plans, which only added load), and
+returns whichever answers first; a call that fails while its twin is still running waits for
+the twin. The answer is the same SAM answer either way (same frame, same
 concept), so no check changes; a hedge costs one extra image call.
 """
 
@@ -21,7 +22,7 @@ from rulecam.planner.steps.survey import ImageSegmenter
 
 _log = get_logger(__name__)
 
-HEDGE_AFTER_S: Final = 8.0
+HEDGE_AFTER_S: Final = 15.0  # far past a normal call (about 2 s): only hung calls get a twin
 MAX_IN_FLIGHT: Final = 96
 
 

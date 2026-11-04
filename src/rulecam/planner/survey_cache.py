@@ -7,8 +7,8 @@ be repeated for nothing. `SurveyCache` keeps each camera's last survey with a pe
 its scene: the median of the sampled frames (people and vehicles passing through drop out of a
 median), grey, 16 x 16, one bit per pixel against the mean. A new survey of the camera reuses the
 kept one when every camera of the request is kept, the kept survey is younger than `max_age_s`
-and the scene hash differs in at most `max_bits` of 256 bits (lighting flicker, not a moved
-camera). The plan says what it reused and how old it was.
+and the scene hash differs in at most `max_bits` of 256 bits (lighting, a vehicle that stays
+long in view; not a moved camera). The plan says what it reused and how old it was.
 
 Nothing else is reused: the probe still measures every needed concept on the current frames,
 the calibration is still checked against the people seen now, and Rule CI runs in full.
@@ -34,7 +34,9 @@ _log = get_logger(__name__)
 
 HASH_SIDE: Final = 16
 DEFAULT_MAX_AGE_S: Final = 1800.0
-DEFAULT_MAX_BITS: Final = 24  # of 256: about 9% of the hash
+# Of 256 bits (19%): a looping clip with a large moving forklift differed by 30-39 bits between
+# plans on 4 Nov; another scene differs by over 100.
+DEFAULT_MAX_BITS: Final = 48
 
 
 class Reused(Frozen):

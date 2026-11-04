@@ -23,9 +23,14 @@ pair a phone (the "Pair a phone" button, or `/pair`), or play a clip in with
 1. **Say the rule in Spanish.** Click *Español: 4 m de una carretilla* and *Plan this rule*, or
    pick *Español* and click *Say it instead*, speak, then *Stop and send* (Muse Voice
    Transcribe writes it down). The story shows the request and the plan id.
-2. **The plan says what it cannot check.** After about two minutes the story's "planner" step
-   lists the rule and the caveats in the planner's own words (for example "calibration error
-   0.15 m > 0.10 m"), shown under *What the planner says it cannot fully check*.
+2. **The plan says what it cannot check.** The page shows each planner step as it finishes,
+   with its time ("survey 0.0 s: reused phone-8's survey from plan-… (110 s old, same scene)",
+   "probe 18.4 s", …). When the plan is ready, the "planner" step lists the rule and the
+   caveats in the planner's own words (for example "calibration error 0.15 m > 0.10 m"), shown
+   under *What the planner says it cannot fully check*. **Before going on stage, plan once on
+   the stage camera** (any rule): the survey of that scene is then reused for 30 minutes and
+   the on-stage plan skips it; keep the Glimmer GPU warm (`scripts/ops/demo_warm.sh`), since
+   the audit step's back-translation waits for it.
 3. **Rule CI.** The next step shows the rule's Rule CI result, e.g. "boundary 16/16, mutations
    6/6". The full report is on `/ci`.
 4. **Approve.** Click *Approve this plan*. Nothing runs before this.
@@ -68,6 +73,22 @@ report** (Spark writes it from the day's counted chain facts and keeps the chain
 If a live step stalls, the golden REPLAY at `/demo?demo=1` has the same forklift story recorded
 (`worker_passes_4m`: verified alert; `driver_only_4m`: driver rejected).
 
+## Planning speed
+
+Request to plan took 291–424 s on 4 Nov before the changes below (reports/eval/2026-11-04-
+warehouse-live.md has the before and after). What changed, with every check kept:
+
+- the survey's SAM calls (up to 30 things on 8 frames) all run at once, up to 32 in flight,
+  instead of 8 at a time; each probe's 24 frames run at once, two probes at a time;
+- a SAM call that has not answered after 8 s gets a twin; the first answer wins;
+- the geometry model's health check runs alongside the survey, and is waited on for 5 s at most;
+- a camera's survey is reused for 30 minutes while its scene (median frame's perceptual hash)
+  is unchanged (`PLANNER_SURVEY_REUSE_S`); the probe, the calibration check against the people
+  seen now and Rule CI always run;
+- compile's Spark call starts with ask's (the steps are still reported in order).
+
+Rule CI itself takes 0.1–0.2 s (16 boundary traces, 6 mutants), so it was left as it is.
+
 ## API contract
 
 All routes are owner-only (loopback or an owner session), like `/incidents`. GET of a talk,
@@ -78,7 +99,7 @@ whose proxy times out can read it back with GET. Models are in
 
 | Method and path | Body or query | Returns |
 |---|---|---|
-| `GET /warehouse/story` | `plan_id`, `day` (both optional) | `WarehouseStory`: plan id, request and language, rules, `cant_check`, the followed `event_id`, `steps` (`key`, `title`, `status` = done / waiting / not_yet / failed, `detail`, `refs`), the day's `near_misses` |
+| `GET /warehouse/story` | `plan_id`, `day` (both optional) | `WarehouseStory`: plan id, request and language, rules, `cant_check`, the followed `event_id`, `steps` (`key`, `title`, `status` = done / waiting / not_yet / failed, `detail`, `refs`), the day's `near_misses`, and `planning` (each planner step's `status` and `seconds`, `total_s`). A plan still being planned has its own story (request, then its steps so far) |
 | `GET /warehouse/near-misses` | `day`, `camera_id`, `plan_id` | `NearMiss[]`, newest first |
 | `GET /warehouse/heatmap` | `camera_id`, `day`, `plan_id` | `Heatmap`: frame size, grid `cells`, `points`, `unplaced`, `background` |
 | `GET /warehouse/heatmap/{camera_id}/frame` | `day` | a recorded JPEG of the camera |
@@ -91,6 +112,7 @@ whose proxy times out can read it back with GET. Models are in
 | `POST /warehouse/reports/voice` | raw audio body (WebM, Ogg, MP4 or WAV), `lang` query | `VoiceReport`: `transcript`, `summary_en`, `what_happened`, `matches_event_id`, `measured_m`, `proposed_rule`, `chained_hash` |
 | `POST /warehouse/reports/{report_id}/propose` | none | the report with `plan_id` (the planner runs and Rule CI tests the rule) |
 | `GET /warehouse/reports` | none | every report, newest first |
+| `POST /warehouse/public/reports/voice` | raw audio body, `lang` query; **no login** (5 per client address and 200 per site a day) | `HeardReport`: `heard`, `what_happened`, `matched`, `measured_m` (no event id). The worker page's *Report a near miss by voice* button |
 | `POST /warehouse/shift-report` | `{"day": "2026-11-04", "lang": "en"}` | `ShiftReport`: counted `counts`, `headline`, `summary`, `patterns`, `actions`, `chain_root` |
 | `GET /warehouse/files/{name}` | none | a WAV or PNG made above |
 | `GET /warehouse/incidents/{event_id}/warning`, `/toolbox-talk` | `lang` | the saved one |

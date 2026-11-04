@@ -10,12 +10,14 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from rulecam.act.notify import LanNotifier
 from rulecam.advisor.api import AdviceStore
+from rulecam.ask import AskAgent, AskAnswer
 from rulecam.ask.runlog import GENESIS, row_hash
 from rulecam.ask.vision import FrameGrabber
 from rulecam.bus import Bus
@@ -37,6 +39,7 @@ from rulecam.retail.service import CardBook, RetailService, image_resolver
 from rulecam.retail.staff import StaffDesk
 from rulecam.retail.store import FindingLog, TaskBoard, WatchBook
 from rulecam.shelf import ShelfScanner
+from rulecam.voice_out.wav import encode_wav
 from tests.fakes import FakeClock, FakeLLM
 from tests.retail.conftest import AT, FakeFrames, FakeNotifier, FakeSam, Files, image
 from tests.retail.test_checks import judgement
@@ -485,3 +488,75 @@ def test_receipt_rehashes_in_any_language(tmp_path: Path) -> None:
     assert digest == got.receipt
     assert got.rows_verified == 1
     assert got.question == "¿Cuántos clientes esperan?"
+
+
+class FakeAsk:
+    """The Ask agent: answers every question the same way."""
+
+    def __init__(self) -> None:
+        self.asked: list[str] = []
+
+    def ask(self, question: str, *, conversation_id: str | None = None) -> AskAnswer:
+        self.asked.append(question)
+        return AskAnswer(
+            question=question,
+            answer="Seis clientes, dos cajas.",
+            steps=[],
+            seconds=1.0,
+            models=["muse-spark-1.3"],
+            conversation_id="c1",
+        )
+
+
+def test_story_routes(tmp_path: Path) -> None:
+    spark = FakeLLM([advice_draft(), gap_draft(), {"headline": "h", "text": "t", "decisions": []}])
+    rig = Rig(tmp_path, spark)
+    fake_ask = FakeAsk()
+    heard: list[list[str] | None] = []
+
+    def transcribe(wav: bytes, langs: list[str] | None) -> list[dict[str, str]]:
+        heard.append(langs)
+        return [{"speaker": "a", "text": "¿Cuántos clientes?", "lang": "es"}]
+
+    app = FastAPI()
+    app.include_router(
+        retail_router(
+            rig.service,
+            uploads_dir=tmp_path / "up",
+            files=image_resolver([tmp_path]),
+            ask=cast(AskAgent, fake_ask),
+            transcribe=transcribe,
+        )
+    )
+    client = TestClient(app)
+    card = client.post("/retail/advice", json={"receipt": RECEIPT}).json()
+    accepted = client.post(f"/retail/advice/{card['recommendation']['id']}/accept").json()
+    assert accepted["preregistered_seq"] is not None
+    assert client.post("/retail/advice/nope/accept").status_code == 422
+    photo = (tmp_path / "frame.jpg").read_bytes()
+    shelf = client.post(
+        "/retail/checks/shelf/image", files={"image": ("s.jpg", photo, "image/jpeg")}
+    ).json()
+    assert shelf["task_id"]
+    assert (
+        client.post(
+            "/retail/checks/shelf/image", files={"image": ("s.gif", b"x", "image/gif")}
+        ).status_code
+        == 422
+    )
+    brief = client.post("/retail/brief", json={"lang": "es"}).json()
+    assert brief["text"] == "t"
+    assert client.get("/retail/brief").json()["headline"] == "h"
+    wav = encode_wav(np.zeros(1600, dtype=np.float32), 16000)
+    voice = client.post(
+        "/retail/ask/voice", files={"audio": ("q.wav", wav, "audio/wav")}, data={"lang": "es"}
+    ).json()
+    assert voice["transcript"] == "¿Cuántos clientes?"
+    assert voice["lang"] == "es"
+    assert voice["answer"]["answer"] == "Seis clientes, dos cajas."
+    assert heard == [["es"]]
+    bad = client.post("/retail/ask/voice", files={"audio": ("q.wav", b"nope", "audio/wav")})
+    assert bad.status_code == 422
+    watches = client.get("/retail/watches").json()
+    assert len(watches) == 1
+    assert client.get("/retail/findings", params={"kind": "shelf"}).json()[0]["kind"] == "shelf"

@@ -53,6 +53,7 @@ export interface Clause {
   url: string;
   quote: string;
   checked: boolean;
+  check?: "page" | "search" | "none";
   detail: string;
   source: "plan" | "muse-spark-1.3";
 }

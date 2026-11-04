@@ -82,7 +82,8 @@
       <td>
         {% if r.clause %}
           <b>{{ r.clause.ref }}</b>
-          {% if r.clause.checked %}<span class="ok">quote found on the page</span>{% else %}<span class="bad">quote not confirmed</span>{% endif %}
+          {% if r.clause.check == "page" %}<span class="ok">quote found on the page</span>{% elif r.clause.check == "search" %}<span class="ok">quote found in the search result for the page</span>{% else %}<span class="bad">quote not confirmed</span>{% endif %}
+          <div class="muted">{{ r.clause.detail }}</div>
           <blockquote>{{ r.clause.quote }}</blockquote>
           <code>{{ r.clause.url }}</code>
         {% else %}<span class="muted">{{ r.clause_note or "none cited" }}</span>{% endif %}

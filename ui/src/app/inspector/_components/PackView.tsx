@@ -19,6 +19,11 @@ const SECTION_TITLES: Record<string, string> = {
   shift: "By shift",
   camera: "By camera",
 };
+const CHECK_TEXT: Record<"page" | "search" | "none", string> = {
+  page: "quote found on the page",
+  search: "quote found in the search result for the page",
+  none: "quote not confirmed",
+};
 const SECTION_ORDER = [...HEADLINE_SECTIONS, "forklift", "hazard", "rule", "shift", "camera"];
 
 function utc(ts: string): string {
@@ -169,7 +174,7 @@ export function PackView({ pack }: { pack: ProofPack }) {
                     <>
                       <b>{r.clause.ref}</b>{" "}
                       <span className={r.clause.checked ? styles.ok : styles.bad}>
-                        {r.clause.checked ? "quote found on the page" : "quote not confirmed"}
+                        {CHECK_TEXT[r.clause.check ?? (r.clause.checked ? "page" : "none")]}
                       </span>
                       <blockquote className={styles.quote}>{r.clause.quote}</blockquote>
                       <a
@@ -184,6 +189,7 @@ export function PackView({ pack }: { pack: ProofPack }) {
                         {r.clause.source === "plan"
                           ? "Cited by the plan"
                           : "Found by Muse Spark 1.3"}
+                        {` · ${r.clause.detail}`}
                       </div>
                     </>
                   ) : (

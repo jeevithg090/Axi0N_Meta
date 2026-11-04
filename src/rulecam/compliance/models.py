@@ -28,14 +28,17 @@ class Clause(Frozen):
     """The clause a rule gives evidence for, with a quote that was found on the cited page.
 
     `source` says who named it: the owner's plan, or Muse Spark 1.3 searching the web for the
-    rule's text when the plan cited none. `checked` is True only when the quote was found on the
-    page by fetching it (`planner.standards.check_citation`).
+    rule's text when the plan cited none. `checked` is True only when the quote was found: on
+    the page fetched by `planner.standards.check_citation` (`check: page`), or, when that page
+    refuses the fetch (HTTP 403, a PDF), in the title and snippet that Spark's own web search
+    returned for that same URL (`check: search`).
     """
 
     ref: str
     url: str
     quote: str
     checked: bool
+    check: Literal["page", "search", "none"] = "page"
     detail: str
     source: Literal["plan", "muse-spark-1.3"]
 

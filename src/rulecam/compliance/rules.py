@@ -20,7 +20,9 @@ import json
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
+from rulecam.clients.meta_hosted.grounding import Grounded
 from rulecam.compliance.engine import Located, get_path, micros, micros_of
 from rulecam.compliance.engine import Period as PackPeriod
 from rulecam.compliance.models import Clause, RuleInForce
@@ -28,18 +30,24 @@ from rulecam.contracts import SitePlan
 from rulecam.log import get_logger
 from rulecam.planner.pipeline import PlanStore
 from rulecam.planner.standards import (
+    GROUNDING_MODEL,
+    MAX_SEARCH_CALLS,
+    MIN_QUOTE_CHARS,
+    STANDARDS_SYSTEM_PROMPT,
     Citation,
     CitationCheck,
+    GroundedCitation,
     GroundingLLM,
     StandardsLibrary,
     check_citation,
     ground_concern_standard,
+    normalize_text,
 )
 
 _log = get_logger(__name__)
 
 CitationChecker = Callable[[Citation], CitationCheck]
-CONCERN_VERSION = "v2"
+CONCERN_VERSION = "v3"
 # The rule is the owner's words; the clause is whatever published requirement its alerts give
 # evidence about (a general duty counts), so Spark is asked for that, not for a clause that
 # repeats the rule's own number.
@@ -258,33 +266,67 @@ class ClauseFinder:
             return None, "no clause: the plan cites none and model grounding is off for this pack"
         hint = f" The owner's plan names: {', '.join(rule.standards)}." if rule.standards else ""
         try:
-            citation = ground_concern_standard(
-                CONCERN.format(text=rule.text, hint=hint), spark=self._spark
-            )
+            citation, found = self._ask(CONCERN.format(text=rule.text, hint=hint))
         except Exception as exc:  # a model failure must not fail the pack
             _log.warning("proof_clause_failed", rule_id=rule.rule_id, error=type(exc).__name__)
             return None, f"no clause: Muse Spark grounding failed ({type(exc).__name__})"
         if citation is None:
             clause, note = None, "Muse Spark 1.3 searched and found no governing clause"
         else:
-            result = self._check(citation)
-            clause = Clause(
-                ref=citation.ref,
-                url=citation.url,
-                quote=citation.quoted_text,
-                checked=result.matched,
-                detail=result.detail,
-                source="plan" if rule.standards else "muse-spark-1.3",
-            )
-            note = "clause found by Muse Spark 1.3 with web search; quote " + (
-                "found on the cited page" if result.matched else "NOT confirmed on the page"
-            )
+            clause = self._checked(citation, found, rule)
+            note = {
+                "page": "clause found by Muse Spark 1.3; quote found on the fetched page",
+                "search": "clause found by Muse Spark 1.3; quote found in the search result for "
+                "the cited page (the page itself could not be fetched)",
+                "none": "clause found by Muse Spark 1.3; quote NOT confirmed",
+            }[clause.check]
         self._cache[key] = {
             "clause": clause.model_dump(mode="json") if clause else None,
             "note": note,
         }
         self._save()
         return clause, note
+
+    def _ask(self, concern: str) -> tuple[Citation | None, Grounded[GroundedCitation] | None]:
+        """Spark's citation, with the pages its searches returned when the client reports them."""
+        grounded = getattr(self._spark, "grounded", None)
+        if not callable(grounded):
+            return ground_concern_standard(concern, spark=self._spark), None  # type: ignore[arg-type]
+        found: Grounded[GroundedCitation] = grounded(
+            model=GROUNDING_MODEL,
+            messages=[
+                {"role": "system", "content": STANDARDS_SYSTEM_PROMPT},
+                {"role": "user", "content": json.dumps({"concern": concern}, ensure_ascii=False)},
+            ],
+            schema=GroundedCitation,
+            max_tool_calls=MAX_SEARCH_CALLS,
+        )
+        return found.answer.citation, found
+
+    def _checked(
+        self, citation: Citation, found: Grounded[GroundedCitation] | None, rule: RuleInForce
+    ) -> Clause:
+        """Check the quote on the fetched page, else in the search result of that page."""
+        assert self._check is not None  # noqa: S101 - find() returns early without a checker
+        result = self._check(citation)
+        check: Literal["page", "search", "none"] = "page" if result.matched else "none"
+        detail = result.detail
+        source = found.retrieved(citation.url) if found is not None else None
+        if not result.matched and source is not None:
+            seen = normalize_text(f"{source.title} {source.snippet}")
+            needle = normalize_text(citation.quoted_text).rstrip(" .;:,")
+            if len(needle) >= MIN_QUOTE_CHARS and needle in seen:
+                check = "search"
+                detail = f"quote found in the search result for the cited page; {detail}"
+        return Clause(
+            ref=citation.ref,
+            url=citation.url,
+            quote=citation.quoted_text,
+            checked=check != "none",
+            check=check,
+            detail=detail,
+            source="plan" if rule.standards else "muse-spark-1.3",
+        )
 
 
 def with_clauses(

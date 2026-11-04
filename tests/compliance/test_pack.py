@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from rulecam.clients.meta_hosted.grounding import Grounded, grounded
 from rulecam.compliance.build import BuildInputs, build_pack, period_for
 from rulecam.compliance.engine import (
     Located,
@@ -25,7 +26,7 @@ from rulecam.compliance.proofs import day_root, fold, inclusion_proofs, pack_has
 from rulecam.compliance.rules import ClauseFinder
 from rulecam.evidence.merkle import merkle_root
 from rulecam.planner.pipeline import PlanStore
-from rulecam.planner.standards import Citation, CitationCheck
+from rulecam.planner.standards import Citation, CitationCheck, GroundedCitation
 from tests.compliance.conftest import write_synthetic
 from tests.fakes import FakeLLM
 
@@ -240,6 +241,58 @@ def test_clause_finder_checks_and_caches(golden_chain: Path, tmp_path: Path) -> 
     assert clause.source == "muse-spark-1.3"
     build_pack(request, _inputs(golden_chain, tmp_path, clauses=finder))
     assert spark.calls == 1  # the second pack reads the cache
+
+
+class _SearchGrounder:
+    """A grounded Spark whose search returned the cited page with the quote in its snippet."""
+
+    def __init__(self, citation: Citation, snippet: str) -> None:
+        self.citation = citation
+        self.snippet = snippet
+
+    def structured(self, **kwargs: object) -> object:  # pragma: no cover - grounded is used
+        raise AssertionError
+
+    def grounded(self, **kwargs: object) -> Grounded[GroundedCitation]:
+        body = {
+            "output": [
+                {
+                    "type": "web_search_call",
+                    "results": [
+                        {"url": self.citation.url, "title": "1910.178", "snippet": self.snippet}
+                    ],
+                }
+            ]
+        }
+        return grounded(GroundedCitation(citation=self.citation), [body])
+
+
+@pytest.mark.parametrize(
+    ("snippet", "check"),
+    [
+        ("... The driver shall be required to slow down and sound the horn ...", "search"),
+        ("", "none"),
+    ],
+)
+def test_clause_falls_back_to_the_search_result(
+    golden_chain: Path, tmp_path: Path, snippet: str, check: str
+) -> None:
+    citation = Citation(
+        ref="29 CFR 1910.178(n)(4)",
+        url="https://www.osha.gov/laws-regs/regulations/standardnumber/1910/1910.178",
+        quoted_text="The driver shall be required to slow down and sound the horn.",
+    )
+    finder = ClauseFinder(
+        _SearchGrounder(citation, snippet),  # type: ignore[arg-type]
+        lambda c: CitationCheck(citation=c, matched=False, detail="unverifiable: HTTP 403"),
+    )
+    request = PackRequest(
+        start=datetime(2026, 11, 1, tzinfo=UTC), end=datetime(2026, 11, 2, tzinfo=UTC)
+    )
+    clause = build_pack(request, _inputs(golden_chain, tmp_path, clauses=finder)).rules[0].clause
+    assert clause is not None
+    assert clause.check == check
+    assert clause.checked is (check == "search")
 
 
 def _fixture_pack(pack: ProofPack) -> dict[str, object]:

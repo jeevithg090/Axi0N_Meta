@@ -3,7 +3,8 @@
 The planner saves its input when a run starts and each step's output the moment the step ends
 (`planner.pipeline.PlanStore`), so the files' modification times are the step boundaries: a
 step took from the previous file's time to its own. The first step without a file is the one
-running now. The survey also says when it reused an earlier survey of the same scene.
+running now. The rule screen (Llama Guard 4, `planner.screen`) shows as its own step after
+understand, with its verdict; the survey says when it reused an earlier survey of the scene.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from typing import Literal
 from rulecam.contracts import Frozen
 from rulecam.planner.errors import PipelineError
 from rulecam.planner.pipeline import PIPELINE_STEPS, PlanStore
+from rulecam.planner.screen import ScreenResult
 
 StepState = Literal["done", "running", "pending"]
 
@@ -24,7 +26,7 @@ class PlanStepTiming(Frozen):
     """One planner step's timing.
 
     Attributes:
-        step: The step (`understand`, `survey`, ..., `prove`).
+        step: The step (`understand`, `screen`, `survey`, ..., `prove`).
         status: `done`, `running` (the first unfinished step) or `pending`.
         seconds: How long it took, or has been running; `None` while pending.
         detail: What it reused, when it reused something.
@@ -72,6 +74,28 @@ def _survey_detail(path: Path) -> str:
     )
 
 
+def _step_files(store: PlanStore, plan_id: str) -> list[tuple[str, Path]]:
+    """Each step and the file it writes when it ends; the rule screen runs after understand."""
+    files: list[tuple[str, Path]] = [
+        (name, store.step_path(plan_id, name)) for name in PIPELINE_STEPS
+    ]
+    screen = store.screen_path(plan_id)
+    if screen.is_file() or not files[1][1].is_file():  # a run from before the screen has none
+        files.insert(1, ("screen", screen))
+    return files
+
+
+def _detail(name: str, path: Path) -> str:
+    if name == "survey":
+        return _survey_detail(path)
+    if name == "screen":
+        try:
+            return ScreenResult.model_validate_json(path.read_text(encoding="utf-8")).summary()
+        except (OSError, ValueError):
+            return ""
+    return ""
+
+
 def planning_timeline(store: PlanStore, plan_id: str, now: datetime) -> Planning | None:
     """The plan's step timings from its saved run, or `None` when it has no saved run.
 
@@ -89,11 +113,10 @@ def planning_timeline(store: PlanStore, plan_id: str, now: datetime) -> Planning
     previous = started
     steps: list[PlanStepTiming] = []
     running = False
-    for name in PIPELINE_STEPS:
-        path = store.step_path(plan_id, name)
+    for name, path in _step_files(store, plan_id):
         ended = _mtime(path)
         if ended is not None and not running:
-            detail = _survey_detail(path) if name == "survey" else ""
+            detail = _detail(name, path)
             seconds = round(max(0.0, (ended - previous).total_seconds()), 1)
             steps.append(PlanStepTiming(step=name, status="done", seconds=seconds, detail=detail))
             previous = ended

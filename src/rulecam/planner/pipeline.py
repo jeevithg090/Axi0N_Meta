@@ -79,6 +79,13 @@ from rulecam.planner.geometry import (
 from rulecam.planner.hedge import HedgedSegmenter
 from rulecam.planner.lint import CameraViews, LintFinding, lint_plan
 from rulecam.planner.models import Concern, UnderstandResult
+from rulecam.planner.screen import (
+    RuleScreen,
+    ScreenResult,
+    request_text,
+    screen_decline,
+    screen_request,
+)
 from rulecam.planner.standards import (
     GroundingLLM,
     StandardsLibrary,
@@ -329,6 +336,18 @@ class PlanStore:
         }
         return {**scene, **owner}
 
+    def screen_path(self, plan_id: str) -> Path:
+        """`<root>/<plan_id>/screen.json`: the request's Llama Guard 4 screen."""
+        return self.root / check_plan_id(plan_id) / "screen.json"
+
+    def save_screen(self, plan_id: str, result: ScreenResult) -> None:
+        """Write the run's rule screen."""
+        atomic_write_text(self.screen_path(plan_id), result.model_dump_json(indent=2))
+
+    def load_screen(self, plan_id: str) -> ScreenResult | None:
+        """Read the run's rule screen, or `None` if it has not run."""
+        return self._read(self.screen_path(plan_id), ScreenResult, "rule screen")
+
     def save_step(self, plan_id: str, step: StepName, output: BaseModel) -> None:
         """Write one step's output."""
         atomic_write_text(self.step_path(plan_id, step), output.model_dump_json(indent=2))
@@ -532,6 +551,7 @@ class PlannerPipeline:
         geometry: GeometryEstimator | None = None,
         survey_cache: SurveyCache | None = None,
         geometry_wait_s: float = GEOMETRY_WAIT_S,
+        screen: RuleScreen | None = None,
     ) -> None:
         """Create the pipeline.
 
@@ -554,6 +574,7 @@ class PlannerPipeline:
             survey_cache: Reuses a fresh survey of the same scene (`planner.survey_cache`).
             geometry_wait_s: How long the survey waits, after its SAM calls, for the geometry
                 model's health check that started with it; a slower check skips the model.
+            screen: Llama Guard 4's rule screen (`planner.screen`); `None` skips it, logged.
         """
         self._spark = spark
         self._files = files
@@ -565,6 +586,7 @@ class PlannerPipeline:
         self._zoom = zoom
         self._geometry = geometry
         self._survey_cache = survey_cache
+        self._screen_model = screen
         self._geometry_wait_s = geometry_wait_s
         self.store = store
         self._hooks: dict[StepName, PlanHook | None] = dict(
@@ -627,19 +649,29 @@ class PlannerPipeline:
             lambda: self._understand(inputs),
             lambda out: f"{len(out.concerns)} concerns",
         )
+        screened = self._screen(inputs, understood, rerun=start <= 1)
         survey = step(
             "survey",
             SurveyResult,
-            lambda: self._survey(inputs),
+            lambda: SurveyResult(inventory=()) if screened.refused else self._survey(inputs),
             survey_summary,
         )
         probe = step(
             "probe",
             ProbeResult,
-            lambda: self._probe(inputs, understood, survey),
+            lambda: (
+                ProbeResult(needs={c.text: () for c in understood.concerns}, probes=())
+                if screened.refused
+                else self._probe(inputs, understood, survey)
+            ),
             probe_summary,
         )
-        gauge = step("gauge", GaugeResult, lambda: self._gauge(understood, probe), _verdict_counts)
+        gauge = step(
+            "gauge",
+            GaugeResult,
+            lambda: self._gauge(understood, probe, screened),
+            _verdict_counts,
+        )
         # Compile reads what ask reads, not ask's answer: its model call starts with ask's, and
         # the steps are still reported (and saved) in order, ask first.
         with ThreadPoolExecutor(max_workers=1, thread_name_prefix="compile-ahead") as ahead:
@@ -876,10 +908,29 @@ class PlannerPipeline:
             feasibility=feasibility,
         )
 
-    def _gauge(self, understood: UnderstandResult, probe: ProbeResult) -> GaugeResult:
+    def _gauge(
+        self, understood: UnderstandResult, probe: ProbeResult, screened: ScreenResult
+    ) -> GaugeResult:
+        if screened.refused:  # Llama Guard 4 declined the request: every concern, no model call
+            declined = screen_decline(screened)
+            verdicts = tuple(declined.to_feasibility_verdict(c.text) for c in understood.concerns)
+            return GaugeResult(feasibility=verdicts)
         requirements = {c.text: probe.needs.get(c.text, ()) for c in understood.concerns}
         feasibility = gauge_plan_feasibility(requirements, probe.probes, spark=self._spark)
         return GaugeResult(feasibility=feasibility)
+
+    def _screen(
+        self, inputs: PipelineInput, understood: UnderstandResult, *, rerun: bool
+    ) -> ScreenResult:
+        """Screen the request with Llama Guard 4 (once per run; a resume reuses the result)."""
+        saved = None if rerun else self.store.load_screen(inputs.plan_id)
+        if saved is not None:
+            return saved
+        texts = [item.text for item in inputs.request if item.text]
+        result = screen_request(self._screen_model, request_text(texts, understood))
+        self.store.save_screen(inputs.plan_id, result)
+        _log.info("rule_screen", plan_id=inputs.plan_id, detail=result.summary())
+        return result
 
     def _ask(
         self,

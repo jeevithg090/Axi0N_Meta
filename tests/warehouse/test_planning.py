@@ -17,6 +17,9 @@ from rulecam.warehouse.talks import Store
 
 T0 = 1_793_750_000.0
 PLAN = "plan-abc123def456"
+SAFE_SCREEN = (
+    '{"screened": true, "refused": false, "latency_ms": 400, "model": "llama-guard-4-12b"}'
+)
 
 
 def _touch(path: Path, at: float, text: str = "{}") -> None:
@@ -57,6 +60,18 @@ def test_timeline_reads_each_step_from_its_file_time(tmp_path: Path) -> None:
     assert planning_timeline(store, "plan-000000000000", now) is None
 
 
+def test_the_rule_screen_is_its_own_step_after_understand(tmp_path: Path) -> None:
+    store = _run(tmp_path, {"understand": T0 + 0.4, "survey": T0 + 30.0})
+    _touch(store.screen_path(PLAN), T0 + 0.8, SAFE_SCREEN)
+    timeline = planning_timeline(store, PLAN, datetime.fromtimestamp(T0 + 31, tz=UTC))
+    assert timeline is not None
+    assert [s.step for s in timeline.steps][:3] == ["understand", "screen", "survey"]
+    screen = timeline.steps[1]
+    assert screen.seconds == 0.4
+    assert screen.detail == "llama-guard-4-12b: safe (0.4 s)"
+    assert timeline.steps[2].seconds == 29.2
+
+
 def test_a_finished_run_has_a_total(tmp_path: Path) -> None:
     from rulecam.planner.pipeline import PIPELINE_STEPS  # noqa: PLC0415
 
@@ -83,7 +98,7 @@ def test_story_of_a_plan_still_planning(tmp_path: Path) -> None:
     story = client.get("/warehouse/story", params={"plan_id": PLAN}).json()
     assert story["request"] == "Mantener 4 m"
     assert story["steps"][1]["status"] == "waiting"
-    assert story["steps"][1]["detail"].startswith("Planning: survey running")
+    assert story["steps"][1]["detail"].startswith("Planning: screen running")
     assert story["planning"]["steps"][0]["status"] == "done"
     assert (
         client.get("/warehouse/story", params={"plan_id": "plan-ffffffffffff"}).status_code == 404

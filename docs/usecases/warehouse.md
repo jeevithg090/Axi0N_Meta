@@ -89,6 +89,14 @@ warehouse-live.md has the before and after). What changed, with every check kept
 
 Rule CI itself takes 0.1–0.2 s (16 boundary traces, 6 mutants), so it was left as it is.
 
+**Llama Guard 4 rule screen.** Right after the request is understood, the owner's words and the
+concerns read from them go to Llama Guard 4 (`planner/screen.py`, about 0.4 s warm). If it flags
+S7 Privacy or S10 Hate, every concern is declined with its reason, the survey and probes are
+skipped and no rule is compiled. It runs only with `LLAMA_GUARD_BASE_URL` set; otherwise the
+timeline shows "not screened: LLAMA_GUARD_BASE_URL is not set" (and the planner's own guardrails
+still run). It appears on the page's timeline as the step `screen`, between understand and
+survey.
+
 ## API contract
 
 All routes are owner-only (loopback or an owner session), like `/incidents`. GET of a talk,

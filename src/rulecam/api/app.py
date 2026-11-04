@@ -150,6 +150,7 @@ from rulecam.planner.errors import PipelineError
 from rulecam.planner.geometry import model_calibration
 from rulecam.planner.pipeline import PlannerPipeline, PlanStore
 from rulecam.planner.runner import ChunkFrames, PlannerService
+from rulecam.planner.screen import rule_screen_from_settings
 from rulecam.planner.site_config import SiteConfigError, load_site_config
 from rulecam.planner.standards import StandardsLibrary
 from rulecam.planner.steps.audit import audit_hook
@@ -783,6 +784,7 @@ def build_planner(
         zoom=crop_segmenter(settings, perception),
         geometry=geometry_estimator(settings, perception),
         survey_cache=SurveyCache(clock=clock, max_age_s=settings.planner_survey_reuse_s),
+        screen=rule_screen_from_settings(settings, cache=cache, bus=bus),
     )
     frames = ChunkFrames(
         perception.chunks,

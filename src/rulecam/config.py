@@ -260,6 +260,8 @@ class Settings(BaseSettings):
     rulecam_webhook_secret: SecretStr | None = None
     public_tunnel_url: str | None = None
     public_ui_url: str | None = None  # public origin of the web UI (worker page QR on posters)
+    # More web UI hosts owner sessions may act from, comma-separated (e.g. a fallback UI host).
+    rulecam_ui_extra_origins: str = ""
     # Owner login (docs/deploy.md "Owner login"): `rulecam owner set-passphrase` prints the hash.
     owner_passphrase_hash: SecretStr | None = None
     session_secret: SecretStr | None = None  # signs owner session cookies; 32+ characters

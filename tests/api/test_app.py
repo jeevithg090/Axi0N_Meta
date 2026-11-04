@@ -519,6 +519,19 @@ def test_viewer_origins_from_public_ui_url(url: str | None, expected: frozenset[
     assert viewer_origins(url) == expected
 
 
+def test_viewer_origins_take_extra_ui_hosts() -> None:
+    extra = " https://ui-3000.proxy.runpod.net/x , http://localhost:3000"
+    assert viewer_origins(PUBLIC_UI, extra) == viewer_origins(PUBLIC_UI) | {
+        "https://ui-3000.proxy.runpod.net",
+        "http://localhost:3000",
+    }
+    assert viewer_origins(None, "https://ui-3000.proxy.runpod.net") == {
+        "https://ui-3000.proxy.runpod.net"
+    }
+    with pytest.raises(ValueError, match="http"):
+        viewer_origins(None, "ftp://x")
+
+
 def test_viewer_origins_rejects_non_http_urls() -> None:
     with pytest.raises(ValueError, match="PUBLIC_UI_URL"):
         viewer_origins("javascript:alert(1)")

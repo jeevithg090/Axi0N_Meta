@@ -1006,7 +1006,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         camera_labels=lambda: {c.camera_id: c.label for c in pair.registry.cameras()},
         dependencies=_OWNER,
     )
-    origins = viewer_origins(settings.public_ui_url)
+    origins = viewer_origins(settings.public_ui_url, settings.rulecam_ui_extra_origins)
     auth = OwnerAuth.from_settings(settings, clock=clock, allowed_origins=origins)
     client_address = ClientAddress(
         settings.ui_proxy_secret.get_secret_value() if settings.ui_proxy_secret else None
@@ -1442,15 +1442,26 @@ def owner_alerts_router(
     return router
 
 
-def viewer_origins(public_ui_url: str | None) -> frozenset[str]:
-    """Return the origin of the public web UI (scheme://host[:port]) as the only viewer origin."""
-    if not public_ui_url:
-        return frozenset()
-    parts = urlsplit(public_ui_url)
-    if parts.scheme not in {"http", "https"} or not parts.netloc:
-        msg = f"PUBLIC_UI_URL must be an http(s) URL, got {public_ui_url!r}"
-        raise ValueError(msg)
-    return frozenset({f"{parts.scheme}://{parts.netloc}"})
+def viewer_origins(public_ui_url: str | None, extra: str = "") -> frozenset[str]:
+    """Return the web UI origins (scheme://host[:port]) owner sessions may act from.
+
+    Args:
+        public_ui_url: The public web UI (`PUBLIC_UI_URL`).
+        extra: More UI hosts, comma-separated (`RULECAM_UI_EXTRA_ORIGINS`), e.g. a fallback
+            UI host while the main one cannot deploy.
+
+    Raises:
+        ValueError: If any of them is not an http(s) URL.
+    """
+    urls = [u.strip() for u in [public_ui_url or "", *extra.split(",")] if u.strip()]
+    origins: set[str] = set()
+    for url in urls:
+        parts = urlsplit(url)
+        if parts.scheme not in {"http", "https"} or not parts.netloc:
+            msg = f"PUBLIC_UI_URL and RULECAM_UI_EXTRA_ORIGINS must be http(s) URLs, got {url!r}"
+            raise ValueError(msg)
+        origins.add(f"{parts.scheme}://{parts.netloc}")
+    return frozenset(origins)
 
 
 def openapi_json(app: FastAPI) -> str:

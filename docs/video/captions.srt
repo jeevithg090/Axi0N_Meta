@@ -1,0 +1,191 @@
+1
+00:00:00,000 --> 00:00:01,950
+A forklift passes a worker.
+
+2
+00:00:02,000 --> 00:00:04,350
+A crowd presses toward a gate.
+
+3
+00:00:04,400 --> 00:00:05,950
+A queue backs up.
+
+4
+00:00:06,000 --> 00:00:08,408
+The cameras saw it all.
+
+5
+00:00:08,458 --> 00:00:09,883
+Nobody was watching.
+
+6
+00:00:10,000 --> 00:00:11,800
+This is Rulecam.
+
+7
+00:00:12,000 --> 00:00:15,450
+A warehouse manager sets one rule, in Spanish:
+
+8
+00:00:15,500 --> 00:00:18,950
+keep people four metres from a moving forklift.
+
+9
+00:00:19,000 --> 00:00:20,664
+Muse Spark plans it.
+
+10
+00:00:20,714 --> 00:00:25,379
+SAM 3.1 finds the forklift and measures the floor in metres.
+
+11
+00:00:25,429 --> 00:00:27,950
+What it can't see, it says.
+
+12
+00:00:28,000 --> 00:00:31,450
+Before anyone approves, Rule CI attacks the rule.
+
+13
+00:00:31,500 --> 00:00:34,950
+Sixteen edge cases, six broken copies. All caught.
+
+14
+00:00:35,000 --> 00:00:36,689
+Now it fires twice.
+
+15
+00:00:36,739 --> 00:00:39,298
+A worker walks inside four metres.
+
+16
+00:00:39,348 --> 00:00:44,950
+Muse Glimmer, Meta's open model on our own GPU, checks the frames: violation.
+
+17
+00:00:45,000 --> 00:00:47,750
+Then the rule flags the driver. Glimmer:
+
+18
+00:00:47,800 --> 00:00:50,950
+that's the operator, in the cab. No alert.
+
+19
+00:00:51,000 --> 00:00:54,050
+The warning goes out in Spanish.
+
+20
+00:00:55,000 --> 00:00:58,428
+In a crowd crush, nobody does anything wrong.
+
+21
+00:00:58,478 --> 00:01:01,472
+People are packed too tightly to move.
+
+22
+00:01:01,522 --> 00:01:04,950
+From the ground, no one sees it building.
+
+23
+00:01:05,000 --> 00:01:11,950
+This is real footage from a crowd experiment, played live into Rulecam, with an instruction in Hindi.
+
+24
+00:01:12,000 --> 00:01:14,912
+SAM 3.1 counts heads in each zone:
+
+25
+00:01:14,962 --> 00:01:18,296
+ninety-five to ninety-nine percent of the true count.
+
+26
+00:01:18,346 --> 00:01:22,950
+At the gate, eight people per square metre. The truth: eight.
+
+27
+00:01:23,000 --> 00:01:31,883
+Muse Spark calls it critical, tells stewards to stop the inflow, and writes a calm announcement in Hindi and English.
+
+28
+00:01:32,000 --> 00:01:34,521
+Reading to alert: about forty seconds.
+
+29
+00:01:34,571 --> 00:01:37,950
+A slow check never holds a warning back.
+
+30
+00:01:38,000 --> 00:01:40,617
+A shop owner doesn't want rules.
+
+31
+00:01:40,667 --> 00:01:41,950
+They want answers.
+
+32
+00:01:42,000 --> 00:01:44,583
+Muse Spark picks its own tools:
+
+33
+00:01:44,633 --> 00:01:48,972
+SQL over SAM's tracks, SAM counts, Glimmer looking at frames.
+
+34
+00:01:49,022 --> 00:01:53,800
+It splits the view into two lanes by itself, and answers.
+
+35
+00:01:54,000 --> 00:01:59,950
+On shelves, Spark spots the gaps and SAM checks no product is there.
+
+36
+00:02:00,000 --> 00:02:06,950
+It reads local food recalls, and keeps only items it can link to a real page.
+
+37
+00:02:07,000 --> 00:02:11,300
+And one rule pack can run in every store.
+
+38
+00:02:12,000 --> 00:02:14,093
+Why trust any of this?
+
+39
+00:02:14,143 --> 00:02:16,664
+You don't have to trust us.
+
+40
+00:02:16,714 --> 00:02:23,950
+Every event, verdict and action goes into a hash chain, and your own browser recomputes every fingerprint.
+
+41
+00:02:24,000 --> 00:02:27,050
+Change one byte, and it breaks.
+
+42
+00:02:28,000 --> 00:02:31,077
+Workers see every rule on a poster.
+
+43
+00:02:31,127 --> 00:02:36,883
+One tap disputes an alert, and a false alarm becomes a permanent test.
+
+44
+00:02:37,000 --> 00:02:39,217
+No face recognition. Ever.
+
+45
+00:02:40,000 --> 00:02:43,067
+Need a rule type we don't have?
+
+46
+00:02:43,117 --> 00:02:49,300
+Muse Code writes it, and a solver proves it never alerts without its target.
+
+47
+00:02:50,000 --> 00:02:52,690
+Rulecam. Plain words in. Proof out.
+
+48
+00:02:52,740 --> 00:02:56,800
+On the cameras you already own, in any language.

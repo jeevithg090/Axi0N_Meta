@@ -1058,17 +1058,34 @@ runs it once a day for 16 days (key from `/workspace/rulecam/.runpod_api_key`):
 `setsid nohup bash /workspace/rulecam/scripts/ops/keepalive_loop.sh >> /workspace/keepalive.log
 2>&1 < /dev/null &`.
 
-### A second GPU data center (US-NC-1)
+### More GPU data centers and types (US-NC-1, US-TX-3)
 
-On the night of 3 to 4 Nov US-IL-1 had no RTX 4090 left for serverless workers, so SAM and
-Glimmer could not start at all. Both endpoints now list two data centers (`US-IL-1`, `US-NC-1`)
-and two network volumes, one per data center (`11ymk65bni`, `4q7tspgi9t`, 60 GB); a worker
-mounts the volume of the data center it lands in. The US-NC-1 volume was staged from a 4090 pod
-mounting it at `/runpod-volume`: the code of `p1/final-integration` (faf6039, with the re-ID
-autocast fix) untarred into `/runpod-volume/rulecam`, then `scripts/sam_pod/setup.sh --stage`,
-`scripts/sam_pod/install_moge.sh` and `scripts/glimmer_pod/stage.sh` with the paths above. It has
-no `sam.env`, so SAM runs with the code defaults there. Volumes do not sync: ship code to both
-(`make ship-gpu` per region, or `scripts/ops/volume_stager.sh`).
+On the night of 3 to 4 Nov US-IL-1 had no RTX 4090 left for serverless workers: SAM and Glimmer
+could not start, SAM calls waited 120 s and fell back to hosted SAM. Now:
+
+- **Data centers.** SAM runs in US-NC-1 and US-TX-3 (volumes `4q7tspgi9t`, `ysopmf0fjp`);
+  Glimmer in US-IL-1, US-NC-1 and US-TX-3 (`11ymk65bni` too). A worker mounts the volume of the
+  data center it lands in. SAM left US-IL-1 because that volume still has the code from before
+  the re-ID autocast fix and no pod or worker could be placed there to update it.
+- **GPU types.** Both endpoints take the pools ADA_24 (RTX 4090, $1.34/h), AMPERE_24 (A5000 /
+  3090 / L4, $0.75/h), AMPERE_48 (A6000 / A40, $1.22/h) and ADA_48_PRO (L40S / L40 / 6000 Ada,
+  $1.75/h): the 17 GB Glimmer GGUF and SAM 3.1 fit all of them. RTX 5090 is left out (Blackwell
+  needs newer CUDA builds than the images have).
+- **Staging.** The new volumes were staged from a 4090 pod mounting each at `/runpod-volume`:
+  the code of `p1/final-integration` (faf6039) untarred into `/runpod-volume/rulecam`, then
+  `scripts/sam_pod/setup.sh --stage`, `scripts/sam_pod/install_moge.sh` and
+  `scripts/glimmer_pod/stage.sh` (about 6 minutes each). They have no `sam.env`, so SAM runs with
+  the code defaults. Volumes do not sync: ship code to every one.
+- **Standby Glimmer** `kkj76vah84y5uj` (`rulecam-glimmer-standby`): the same llama.cpp build
+  with no volume (`scripts/glimmer_pod/anywhere.sh` downloads the weights on a cold start, about
+  6 minutes), so it can run in any data center with stock. The API tries it when the primary
+  gives no usable answer (`GLIMMER_STANDBY_BASE_URL=https://kkj76vah84y5uj.api.runpod.ai/v1`,
+  same keys), then the hosted fallback. Keep it warm for demos (`demo_warm.sh` does).
+- **Shorter wait before hosted SAM.** `SAM_HTTP_TIMEOUT_S` (default 60) and `SAM_HTTP_ATTEMPTS`
+  (default 2) bound one self-hosted SAM call; with `25` and `1` the runtime falls back to hosted
+  SAM after 25 s instead of 2 minutes.
+- Account limit: max workers across all endpoints is 10 (SAM 2, Glimmer 3, standby 2, Llama
+  Guard 2, Spark Open 1).
 
 ### Serverless Muse Spark Open (Tier 2, plan audit, Ask review)
 

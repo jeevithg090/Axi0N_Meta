@@ -16,7 +16,8 @@ API pod or RunPod secrets, and scripts read them from env vars.
 | API (FastAPI + runtime loop) | RunPod CPU pod, code at `/workspace/rulecam` | pod `7nv0ifjo2tmk00` |
 | SAM 3.1 | RunPod serverless load balancer, RTX 4090, US-IL-1 | endpoint `imz4qu1vzwp4z6` |
 | Glimmer (llama.cpp `server-cuda-b11669`) | RunPod serverless load balancer, RTX 4090, US-IL-1 | endpoint `z000o8uch2wj4i` |
-| GPU code, venvs, weights | network volumes mounted at `/runpod-volume`: US-IL-1 and US-NC-1 (SAM and Glimmer run in both) | volumes `11ymk65bni`, `4q7tspgi9t` |
+| GPU code, venvs, weights | network volumes at `/runpod-volume`: US-IL-1 (Glimmer only), US-NC-1, US-TX-3 | volumes `11ymk65bni`, `4q7tspgi9t`, `ysopmf0fjp` |
+| Standby Glimmer (no volume, any region) | RunPod serverless load balancer, 24-48 GB GPUs | endpoint `kkj76vah84y5uj` |
 | Muse Spark Open (llama.cpp `full-cuda-b12004`, Q4_K_S) | RunPod serverless load balancer, 8 x H100, EUR-NO-2, $43.12/h warm | endpoint `hljmhlgjyaacyv`, volume `uhe04aj7bm` |
 | Llama Guard 4 12B (vLLM, FP8) | RunPod serverless load balancer, any 24-48 GB GPU | endpoint `vzi5ij5gclndjc` |
 | UI | Vercel, `https://rulecam.vercel.app` (API behind `/rulecam-api`) | |

@@ -382,10 +382,12 @@ def crowd_router(  # noqa: C901, PLR0915 - one small handler per route
                     yield ": keep-alive\n\n"
                 await asyncio.sleep(STREAM_EVERY_S)
 
+        # `no-transform`: a proxy that compresses (the UI's Next.js rewrite does) must not
+        # buffer the stream.
         return StreamingResponse(
             events(),
             media_type="text/event-stream",
-            headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+            headers={"Cache-Control": "no-store, no-transform", "X-Accel-Buffering": "no"},
         )
 
     @router.get("/crowd/alerts", response_model=list[CrowdAlert], tags=["crowd"])

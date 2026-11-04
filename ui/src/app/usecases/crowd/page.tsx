@@ -21,7 +21,10 @@ export default function CrowdPage() {
   const [chosen, setChosen] = useState("");
   const cameras = status?.cameras ?? [];
   const camera =
-    cameras.find((c) => c.camera_id === chosen) ?? cameras.find((c) => c.watched) ?? cameras[0];
+    cameras.find((c) => c.camera_id === chosen) ??
+    cameras.find((c) => c.watched && c.latest) ??
+    cameras.find((c) => c.latest) ??
+    cameras[0];
   const alerts = status?.alerts ?? [];
 
   return (

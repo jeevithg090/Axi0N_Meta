@@ -311,8 +311,10 @@ class CrowdMemory:
         return int(inside(polygon, foot_points(boxes)).sum()) if boxes else 0
 
     def _due(self) -> tuple[str, datetime] | None:
+        """The live camera whose reading is most overdue (never read first)."""
         wanted = set(self._cameras()) if self._cameras is not None else None
         now = self._clock.now() if self._clock is not None else None
+        due: list[tuple[datetime | None, str, datetime]] = []
         for camera_id, (_, last) in sorted(self._frames.cameras().items()):
             if wanted is not None and camera_id not in wanted:
                 continue
@@ -321,8 +323,11 @@ class CrowdMemory:
             at = last + timedelta(seconds=NEWEST_OFFSET_S)
             done = self._done.get(camera_id)
             if done is None or at - done >= self._every:
-                return camera_id, at
-        return None
+                due.append((done, camera_id, at))
+        if not due:
+            return None
+        _, camera_id, at = min(due, key=lambda d: (d[0] is not None, d[0] or d[2], d[1]))
+        return camera_id, at
 
     def _record(self, camera_id: str, at: datetime) -> None:
         self._done[camera_id] = at

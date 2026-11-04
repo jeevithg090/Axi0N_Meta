@@ -46,22 +46,33 @@ def upload(api: HttpApiClient, pairing: Pairing, path: Path) -> str:
     return api.upload(pairing, path).chunk_id
 
 
-def sample(folder: Path, name: str, camera_id: str) -> object | None:
-    """A sample file with `CAMERA` replaced by the camera id (`None`: no such file)."""
+def sample(
+    folder: Path, name: str, camera_id: str, aliases: dict[str, str] | None = None
+) -> object | None:
+    """A sample file with `CAMERA` (and each alias) replaced by a camera id (`None`: no file)."""
     path = folder / name
     if not path.is_file():
         return None
-    return json.loads(path.read_text(encoding="utf-8").replace('"CAMERA"', json.dumps(camera_id)))
+    text = path.read_text(encoding="utf-8")
+    for key, value in {**(aliases or {}), "CAMERA": camera_id}.items():
+        text = text.replace(json.dumps(key), json.dumps(value))
+    return json.loads(text)
 
 
-def configure(http: httpx.Client, folder: Path, camera_id: str, log: dict[str, object]) -> None:
+def configure(
+    http: httpx.Client,
+    folder: Path,
+    camera_id: str,
+    log: dict[str, object],
+    aliases: dict[str, str] | None = None,
+) -> None:
     """Apply the sample folder's venue, truth and watch to the camera."""
     for name, method, path in (
         ("venue.json", "PUT", "/crowd/venue"),
         ("truth.json", "PUT", f"/crowd/truth/{camera_id}"),
         ("watch.json", "POST", "/crowd/watch"),
     ):
-        body = sample(folder, name, camera_id)
+        body = sample(folder, name, camera_id, aliases)
         if body is None:
             continue
         reply = http.request(method, path, json=body)
@@ -78,7 +89,14 @@ def main() -> None:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--label", default="Crowd replay")
     parser.add_argument("--setup", action="store_true", help="Ask Spark for a proposal first.")
+    parser.add_argument(
+        "--alias",
+        action="append",
+        default=[],
+        help="KEY=CAMERA_ID: another camera the sample files name (e.g. SIDE_CAMERA=phone-3).",
+    )
     args = parser.parse_args()
+    aliases = dict(item.split("=", 1) for item in args.alias)
     args.out.mkdir(parents=True, exist_ok=True)
     api = HttpApiClient(args.api)
     http = httpx.Client(base_url=args.api, timeout=180.0)
@@ -103,7 +121,7 @@ def main() -> None:
         )
         log["chunks"] = sent
         if chunk.index == 0:
-            configure(http, args.sample, pairing.camera_id, log)
+            configure(http, args.sample, pairing.camera_id, log, aliases)
             if args.setup:  # on its own thread: the feed must keep the clip's pace
                 threading.Thread(
                     target=_propose, args=(args, pairing.camera_id), daemon=True

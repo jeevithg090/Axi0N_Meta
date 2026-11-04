@@ -6,6 +6,7 @@ import json
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -381,3 +382,43 @@ def test_after_an_ack_sam_looks_for_the_steward_in_the_zone(
     assert arrival.seen_at == latest(crowd).at
     details = [r.payload.get("detail") for r in read_chain(chain.path_for(EPOCH.date()))]
     assert "8 x 'high-visibility vest' seen in view by SAM 3.1" in details
+
+
+class TwoCameras:
+    """Crowd memory stand-in with one fixed reading per camera."""
+
+    heatmaps = Path("heat")
+
+    def latest(self, camera_id: str) -> CrowdReading:
+        return reading(0.0, 4.0, 16).model_copy(update={"camera_id": camera_id})
+
+    def readings(self, camera_id: str, since: object = None) -> list[CrowdReading]:
+        return [self.latest(camera_id)]
+
+
+def test_the_camera_waiting_longest_is_assessed_first(
+    tmp_path: Path, grabber: FrameGrabber
+) -> None:
+    spark = FakeLLM([warning(alert=False), warning(alert=False)])
+    chosen = CrowdWarden(
+        memory=cast("CrowdMemory", TwoCameras()),
+        frames=grabber,
+        spark=spark,
+        glimmer=FakeLLM([]),
+        glimmer_model="muse-glimmer",
+        chain=None,
+        notifier=None,
+        tts=None,
+        clock=FakeClock(EPOCH),
+        out_dir=tmp_path / "crowd",
+    )
+    chosen.watch("b", INSTRUCTION)
+    chosen.watch("a", INSTRUCTION)
+    for _ in range(2):
+        chosen.tick()
+        running = chosen._running  # the assessment the tick started
+        assert running is not None
+        wait_for(running.done)
+    messages = [c["messages"] for c in spark.calls]
+    cameras = [json.loads(str(m[1]["content"]))["camera"]["id"] for m in messages]  # type: ignore[index]
+    assert sorted(cameras) == ["a", "b"]

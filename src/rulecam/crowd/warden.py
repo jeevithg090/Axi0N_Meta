@@ -597,16 +597,21 @@ class CrowdWarden:
             self._running = self._pool.submit(self._safe_assess, *due)
 
     def _due(self) -> tuple[Watch, CrowdReading] | None:
+        """The watched camera waiting longest for an assessment (never assessed first)."""
         with self._lock:
             watches = list(self._watches.values())
+        due = []
         for watch in watches:
             latest = self._memory.latest(watch.camera_id)
             if latest is None:
                 continue
             done = self._assessed.get(watch.camera_id)
             if done is None or (latest.at > done and latest.at - done >= self._every):
-                return watch, latest
-        return None
+                due.append((done, watch, latest))
+        if not due:
+            return None
+        _, watch, latest = min(due, key=lambda d: (d[0] is not None, d[0] or d[2].at))
+        return watch, latest
 
     def _safe_assess(self, watch: Watch, latest: CrowdReading) -> None:
         """The ticking path: assess here, deliver an alert on the delivery threads."""

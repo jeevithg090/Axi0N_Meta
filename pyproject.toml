@@ -30,7 +30,7 @@ dependencies = [
   "meta-sam-parser>=0.1.0",
   "prometheus-client>=0.21",
   "trackers==2.6.1",  # Apache-2.0: ByteTrack between SAM keyframes (P1-03)
-  "supervision==0.30.0",  # MIT: the detections type `trackers` takes
+  "supervision==0.31.1",  # MIT: the detections type `trackers` takes
   "z3-solver>=4.15,<5",  # MIT: proves properties of model-written checks (extensions/smt)
   "yt-dlp>=2025.10.22",  # Unlicense: public live streams (YouTube live...) for connectors
 ]

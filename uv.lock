@@ -1950,7 +1950,7 @@ requires-dist = [
     { name = "scipy", specifier = ">=1.13" },
     { name = "shapely", specifier = ">=2.0" },
     { name = "structlog", specifier = ">=24.1" },
-    { name = "supervision", specifier = "==0.30.0" },
+    { name = "supervision", specifier = "==0.31.1" },
     { name = "torch", marker = "extra == 'ml'", specifier = ">=2.3", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torch", marker = "extra == 'reid'", specifier = ">=2.3", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torchvision", marker = "extra == 'reid'", specifier = ">=0.18", index = "https://download.pytorch.org/whl/cpu" },
@@ -2132,7 +2132,7 @@ wheels = [
 
 [[package]]
 name = "supervision"
-version = "0.30.0"
+version = "0.31.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "av" },
@@ -2146,9 +2146,9 @@ dependencies = [
     { name = "scipy" },
     { name = "tqdm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3c/fc/9d772347bc30496521fd5520dee9a980e8be049f3a70400e3636528b3aa0/supervision-0.30.0.tar.gz", hash = "sha256:2289c28cde528009a82a9b0582bc5ce76d90b8645c76d0783b6b7abc3fc5c572", size = 334863, upload-time = "2026-08-04T17:37:56.438Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/71/3ab6c9d36ed74c1fd0e380e96f0b2ffa16b8550f4e5efd61256ee1c8c4a5/supervision-0.31.1.tar.gz", hash = "sha256:02bf7d4faf9cb8593ae159db6df01fb87e0b840e2912b0de109c58c1118ed97f", size = 426052, upload-time = "2026-10-20T18:19:35.669Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3d/9a/e9b30c1b7624397f2023d66771cde2bc954b81b0cfb124eb3f3c52c08c4b/supervision-0.30.0-py3-none-any.whl", hash = "sha256:5b7117f7bdfb4b890b873cf4d0521fdc0746bc48634fcc32ca534ce17d917e35", size = 373274, upload-time = "2026-08-04T17:37:54.75Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/55/dcbfcd1f2472480fcf776f9ef20f879a902d3b1e4c36f936e72f06b936b8/supervision-0.31.1-py3-none-any.whl", hash = "sha256:f9043e6423a87bb4630742b9281030817602ed08885fee38f8e2d17742509042", size = 469104, upload-time = "2026-10-20T18:19:33.747Z" },
 ]
 
 [[package]]

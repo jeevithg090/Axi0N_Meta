@@ -27,6 +27,7 @@ export interface PackReport {
   numbers: Check;
   summaries: Check;
   rules: Check;
+  perPerson: Check;
   ok: boolean;
 }
 
@@ -176,6 +177,24 @@ function checkRules(shared: SharedPack): Check {
   return check(problems, shared.pack.rules.length);
 }
 
+// Paths that would point a number at a person or a tracked individual (guardrail R13).
+const PERSONAL = /subject|track|person|worker|approver|proposed_by|rejecter|identity|face/i;
+
+/** No number is filtered or grouped by a person or a track: recipes use rule, camera, shift. */
+export function checkNoPerPerson(shared: SharedPack): Check {
+  const problems: string[] = [];
+  for (const metric of shared.pack.metrics) {
+    const paths = [
+      ...Object.keys(metric.spec.where),
+      ...Object.keys(metric.spec.prefix),
+      ...metric.spec.to.flatMap((option) => Object.keys(option)),
+    ];
+    const personal = paths.filter((path) => PERSONAL.test(path));
+    if (personal.length > 0) problems.push(`${metric.label}: filters on ${personal.join(", ")}`);
+  }
+  return check(problems, shared.pack.metrics.length);
+}
+
 /** Run every check that needs nothing but the pack itself. */
 export async function verifyPack(shared: SharedPack, token: string | null): Promise<PackReport> {
   const recomputed = await sha256Hex(canonical(shared.pack));
@@ -192,6 +211,7 @@ export async function verifyPack(shared: SharedPack, token: string | null): Prom
     numbers: checkNumbers(shared, records),
     summaries: checkSummaries(shared, records),
     rules: checkRules(shared),
+    perPerson: checkNoPerPerson(shared),
   };
   return { ...report, ok: Object.values(report).every((c) => c.ok) };
 }

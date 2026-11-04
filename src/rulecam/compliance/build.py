@@ -420,7 +420,7 @@ def _scoped_metrics(
                 f"rule:{rule_id}:glimmer_verified",
                 section,
                 "Confirmed by Muse Glimmer"
-                + (" (refresher-training review due)" if rule_id in distance else ""),
+                + (" (near miss to follow up)" if rule_id in distance else ""),
                 _count(VERIFIED, rule=rule_id),
             ),
             _Def(

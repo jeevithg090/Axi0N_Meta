@@ -195,7 +195,7 @@ class PackRequest(Frozen):
     crew_lang: str = Field(default="en", pattern=r"^[a-z]{2,3}(-[A-Za-z]{2,4})?$")
     shifts: tuple[Shift, ...] | None = None
     models: bool = True
-    ground_rules: int = Field(default=4, ge=0, le=12)
+    ground_rules: int = Field(default=6, ge=0, le=12)
 
 
 class ShareRequest(Frozen):

@@ -94,6 +94,10 @@ export function VerifyPanel({ shared, token }: { shared: SharedPack; token: stri
           check={report.summaries}
         />
         <Line label="Each rule's gate matches its chained approval" check={report.rules} />
+        <Line
+          label="No number is counted per person or per tracked individual (rule, camera and shift only)"
+          check={report.perPerson}
+        />
       </ul>
       <div className={styles.muted} style={{ marginTop: 8 }}>
         {shared.pack.days.map((d) => {

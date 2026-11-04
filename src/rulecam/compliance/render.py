@@ -37,7 +37,7 @@ HEADLINE: Final = (
     "settings_without_both_keys",
 )
 SCOPED: Final = (
-    ("forklift", "Forklift near misses (OSHA 29 CFR 1910.178 context)"),
+    ("forklift", "Near misses (rules that measure a distance, e.g. forklift separation)"),
     ("hazard", "Hazards seen and cleared"),
     ("rule", "By rule"),
     ("shift", "By shift"),
@@ -85,6 +85,7 @@ def render_html(pack: ProofPack, pack_hash: str, url: str | None) -> str:
         url=url,
         qr=qr_data_uri(url) if url else None,
         headline=[by_id[i] for i in HEADLINE if i in by_id],
+        metrics=by_id,
         by_section=by_section,
         scoped=SCOPED,
         fmt=_fmt,

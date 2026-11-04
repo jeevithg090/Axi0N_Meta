@@ -66,6 +66,14 @@ describe("proof pack verification in the browser", () => {
     expect((await verifyPack(pack, null)).summaries.ok).toBe(false);
   });
 
+  it("flags a number counted per person or per track", async () => {
+    const pack = copy(fixture.synthetic);
+    pack.pack.metrics[0]!.spec.where["payload.candidate.predicate_trace.subject"] = "x";
+    const report = await verifyPack(pack, null);
+    expect(report.perPerson.ok).toBe(false);
+    expect(report.perPerson.problems[0]).toContain("subject");
+  });
+
   it("checks the link's stated hash", async () => {
     const claims = btoa(JSON.stringify({ p: "pp-x", h: "a".repeat(64), x: 1 }))
       .replace(/\+/g, "-")

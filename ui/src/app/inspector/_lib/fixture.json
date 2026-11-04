@@ -643,7 +643,7 @@
         },
         {
           "id": "rule:keep-people-2m-from-moving-forklift:glimmer_verified",
-          "label": "Confirmed by Muse Glimmer (refresher-training review due)",
+          "label": "Confirmed by Muse Glimmer (near miss to follow up)",
           "previous": 0,
           "previous_refs": [],
           "refs": [],
@@ -2024,7 +2024,7 @@
       "summaries": [],
       "title": "Proof pack 2026-11-01 01:40 to 2026-11-01 02:31 UTC"
     },
-    "pack_hash": "c9be2bfc81e60395ee18e1ffd6f2408ccc356c75e6118cfba4247e8d7c02d399"
+    "pack_hash": "657fb70589837ebd33e400f2934fbc7415621bb39dd68b64b78be07db8af875b"
   },
   "synthetic": {
     "expires_at": "2026-11-05T00:00:00Z",

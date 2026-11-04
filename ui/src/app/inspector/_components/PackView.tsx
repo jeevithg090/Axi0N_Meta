@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { formatValue } from "../_lib/engine";
 import { AUDIENCE_NAMES, type Metric, type ProofPack } from "../_lib/types";
 import styles from "../inspector.module.css";
+import { WorkerCertificate } from "./WorkerCertificate";
 
 const HEADLINE_SECTIONS = ["alerts", "response", "disputes", "governance"] as const;
 const SECTION_TITLES: Record<string, string> = {
@@ -12,7 +13,7 @@ const SECTION_TITLES: Record<string, string> = {
   response: "Response",
   disputes: "Worker disputes",
   governance: "Governance: plans and protected privacy settings",
-  forklift: "Forklift near misses (OSHA 29 CFR 1910.178 context)",
+  forklift: "Near misses (rules that measure a distance, e.g. forklift separation)",
   hazard: "Hazards seen and cleared",
   rule: "By rule",
   shift: "By shift",
@@ -141,6 +142,8 @@ export function PackView({ pack }: { pack: ProofPack }) {
           </p>
         </section>
       ) : null}
+
+      {pack.audiences.includes("worker_rep") ? <WorkerCertificate pack={pack} /> : null}
 
       <section className={styles.card}>
         <h2>Rules in force</h2>

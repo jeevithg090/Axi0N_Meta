@@ -53,6 +53,18 @@
   <p class="muted">Written by {{ pack.summaries[0].model }}; every number in them is filled in from the table below.</p>
   {% endif %}
 
+  {% if "worker_rep" in pack.audiences %}
+  {% set m = metrics %}
+  <h2>Crew representative certificate</h2>
+  <ul>
+    <li>{% if m.settings_without_both_keys.value == 0 %}<span class="ok">✓</span> No protected privacy setting (privacy mode, retention, the per-person metrics ban) was changed without both the owner's and the crew representative's key.{% else %}<span class="bad">✗</span> {{ fmt(m.settings_without_both_keys.value, "count") }} protected setting change(s) were applied without both keys.{% endif %}</li>
+    <li>Protected settings proposed {{ fmt(m.setting_proposals.value, "count") }}, changed with both keys {{ fmt(m.settings_applied.value, "count") }}, refused {{ fmt(m.settings_rejected.value, "count") }}.</li>
+    <li>{{ pack.rules | length }} rule(s) were in force, each listed below in the owner's own words with how it was tested before going live.</li>
+    <li>Workers disputed {{ fmt(m.disputes_filed.value, "count") }} alert(s): {{ fmt(m.disputes_upheld.value, "count") }} upheld as false alarms, {{ fmt(m.disputes_rejected.value, "count") }} rejected.</li>
+    <li><span class="ok">✓</span> Every number is per rule, camera or shift; none is per person.</li>
+  </ul>
+  {% endif %}
+
   <h2>Headline numbers</h2>
   <table>
     <tr><th>What</th><th class="n">This period</th><th class="n">Previous</th><th class="n">Records</th></tr>

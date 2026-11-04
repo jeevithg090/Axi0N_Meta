@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from rulecam.clients.meta_hosted.grounding import Grounded, SearchSource, normal_url
 from rulecam.contracts import EventRecord, RequestItem
 from rulecam.evidence.chain import EventChain, read_chain
-from rulecam.warehouse.duty import DutyWriter
+from rulecam.warehouse.duty import DutyWriter, RelinkDraft
 from rulecam.warehouse.models import ClauseDraft, DutyDraft, NearMiss, ReportDraft
 from rulecam.warehouse.near_misses import near_misses
 from rulecam.warehouse.report import NearMissReporter, ReportError, to_wav16k
@@ -242,3 +242,15 @@ def test_report_without_speech_or_with_unknown_match(
 def test_to_wav16k_rejects_what_ffmpeg_cannot_decode() -> None:
     with pytest.raises(ReportError):
         to_wav16k(b"not audio at all")
+
+
+def test_clause_cited_off_search_is_relinked_by_spark(tmp_path: Path, chain: EventChain) -> None:
+    cited_elsewhere = CLAUSE.model_copy(update={"source_url": "https://example.org/not-returned"})
+    spark = FakeSpark({ClauseDraft: cited_elsewhere, RelinkDraft: RelinkDraft(index=0, why="ok")})
+    writer = DutyWriter(
+        spark, search=spark, store=Store(tmp_path / "w"), clock=FakeClock(NOW), chain=chain
+    )
+    clause = writer.clause()
+    assert clause.source_retrieved is True
+    assert clause.source_url == OSHA
+    assert writer.clause() == clause  # saved: looked up once

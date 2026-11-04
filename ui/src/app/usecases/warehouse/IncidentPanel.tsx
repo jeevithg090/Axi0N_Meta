@@ -13,7 +13,9 @@ import {
   metres,
   reportUrl,
   verifyUrl,
+  fresh,
   warehouse,
+  withRecovery,
   type NearMiss,
   type RefresherDuty,
   type SpokenWarning,
@@ -70,9 +72,30 @@ export function IncidentPanel({ near, planId }: { near: NearMiss; planId: string
     void loadSaved();
   }, [loadSaved]);
 
-  const speak = useAction(() => warehouse.warning(event, lang), setWarning);
-  const write = useAction(() => warehouse.talk(event, lang), setTalk);
-  const raise = useAction(() => warehouse.raiseDuty(event), setDuty);
+  const speak = useAction(
+    () =>
+      withRecovery(
+        () => warehouse.warning(event, lang),
+        fresh(() => warehouse.savedWarning(event, lang)),
+      ),
+    setWarning,
+  );
+  const write = useAction(
+    () =>
+      withRecovery(
+        () => warehouse.talk(event, lang),
+        fresh(() => warehouse.savedTalk(event, lang)),
+      ),
+    setTalk,
+  );
+  const raise = useAction(
+    () =>
+      withRecovery(
+        () => warehouse.raiseDuty(event),
+        fresh(() => warehouse.duty(event)),
+      ),
+    setDuty,
+  );
   const close = useAction(() => warehouse.dutyDone(event, "owner"), setDuty);
   const [tap, setTap] = useState<string | null>(null);
 

@@ -274,6 +274,7 @@ export const warehouse = {
   propose: (reportId: string) =>
     call<VoiceReport>(`/reports/${enc(reportId)}/propose`, { method: "POST" }),
   shift: (lang: string) => call<ShiftReport>("/shift-report", post({ lang })),
+  savedShift: (lang: string) => call<ShiftReport>(`/shift-report${query({ lang })}`),
   fileUrl: (name: string) => `${BASE}/files/${enc(name)}`,
   frameUrl: (path: string) => `${API_PROXY}${path}`,
 };
@@ -303,4 +304,47 @@ export function verifyUrl(day: string): string {
 /** The printable incident report (HTML, chained records and stills). */
 export function reportUrl(eventId: string): string {
   return `${API_PROXY}/incidents/${enc(eventId)}/report?format=html`;
+}
+
+/** A reader that returns the saved item only if it was made after now (minus clock skew). */
+export function fresh<T extends { created_at: string }>(
+  read: () => Promise<T>,
+  skewMs = 30_000,
+): () => Promise<T | null> {
+  const started = Date.now() - skewMs;
+  return async () => {
+    const item = await read();
+    return Date.parse(item.created_at) >= started ? item : null;
+  };
+}
+
+/** Whether an error is the UI proxy giving up on a long model call (the API keeps working). */
+export function proxyGaveUp(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    ((error.status === 500 && error.message === "Internal Server Error") || error.status === 504)
+  );
+}
+
+/**
+ * Run a model-backed write; if the proxy gives up before the API answers, read the saved
+ * result until it appears (the API finishes and saves it either way).
+ */
+export async function withRecovery<T>(
+  run: () => Promise<T>,
+  saved: () => Promise<T | null>,
+  { timeoutMs = 180_000, everyMs = 3_000 } = {},
+): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (!proxyGaveUp(error)) throw error;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, everyMs));
+      const found = await saved().catch(() => null);
+      if (found !== null) return found;
+    }
+    throw error;
+  }
 }

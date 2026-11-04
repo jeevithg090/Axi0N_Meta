@@ -3,10 +3,15 @@ import { describe, expect, it } from "vitest";
 
 import { HeatmapView, NearMissPanel } from "./NearMissPanel";
 import { StoryPanel } from "./StoryPanel";
+import { ApiError } from "@/lib/api";
+
 import {
+  fresh,
   heatFill,
   metres,
   progress,
+  proxyGaveUp,
+  withRecovery,
   reportUrl,
   verifyUrl,
   type Heatmap,
@@ -75,6 +80,33 @@ describe("warehouse helpers", () => {
     expect(progress(STORY.steps)).toEqual({ done: 2, total: 3 });
     expect(verifyUrl("2026-11-02")).toBe("/rulecam-api/verify/?day=2026-11-02");
     expect(reportUrl("ev-1")).toBe("/rulecam-api/incidents/ev-1/report?format=html");
+  });
+});
+
+describe("long model calls through the proxy", () => {
+  it("reads the saved result when the proxy gives up", async () => {
+    let reads = 0;
+    const result = await withRecovery(
+      () => Promise.reject(new ApiError(500, "Internal Server Error")),
+      async () => (++reads >= 2 ? { created_at: new Date().toISOString(), text: "ok" } : null),
+      { everyMs: 1 },
+    );
+    expect(result.text).toBe("ok");
+    expect(proxyGaveUp(new ApiError(502, "model call failed: ModelHTTPError"))).toBe(false);
+  });
+
+  it("keeps a real API error", async () => {
+    await expect(
+      withRecovery(
+        () => Promise.reject(new ApiError(503, "Muse Spark is not configured")),
+        async () => null,
+      ),
+    ).rejects.toThrow("Muse Spark is not configured");
+  });
+
+  it("only accepts a saved item made after the call started", async () => {
+    const old = fresh(async () => ({ created_at: "2020-01-01T00:00:00Z" }));
+    expect(await old()).toBeNull();
   });
 });
 

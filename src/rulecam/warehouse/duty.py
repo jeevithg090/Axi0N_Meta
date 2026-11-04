@@ -51,6 +51,12 @@ CLAUSE_SYSTEM = (
     "`title`, the quoted text in `text` and, in `source_url`, the page you quote: only a page "
     "your search returned. " + DATA_NOT_INSTRUCTIONS
 )
+MAX_RELINK_PAGES = 12
+RELINK_SYSTEM = (
+    "You cited a page your web search did not return. Below are the pages it did return, "
+    "numbered. Give the `index` of the page that states the quoted regulation text (the same "
+    "clause), or null if none does, and say why in `why`. " + DATA_NOT_INSTRUCTIONS
+)
 DUTY_SYSTEM = (
     "You are a warehouse safety officer. A camera rule recorded a near miss between a person on "
     "foot and a forklift (records and evidence frames follow). The rule below requires "
@@ -79,6 +85,13 @@ def verified_source(found: Grounded[ClauseDraft]) -> SearchSource | None:
         return page
     quote = _words(found.answer.text)
     return next((s for s in found.sources if quote and quote in _words(s.snippet)), None)
+
+
+class RelinkDraft(BaseModel):
+    """Which returned page backs the quoted clause (structured output)."""
+
+    index: int | None = None
+    why: str = ""
 
 
 class GroundedModel(Protocol):
@@ -150,7 +163,7 @@ class DutyWriter:
                 ],
                 schema=ClauseDraft,
             )
-            page = verified_source(found)
+            page = verified_source(found) or self._relink(found)
             _log.info(
                 "osha_clause_lookup",
                 cited=found.answer.source_url,
@@ -169,6 +182,29 @@ class DutyWriter:
             )
         self._store.save("duties", CLAUSE_KEY, clause)
         return clause
+
+    def _relink(self, found: Grounded[ClauseDraft]) -> SearchSource | None:
+        """Ask Spark which returned page backs the quote, when it cited one the search missed."""
+        pages = list(found.sources[:MAX_RELINK_PAGES])
+        if not pages:
+            return None
+        listing = "\n".join(
+            f"[{i}] {page.url} | {page.title} | {page.snippet[:300]}"
+            for i, page in enumerate(pages)
+        )
+        answer = self._spark.structured(
+            model=SPARK_MODEL,
+            messages=[
+                {"role": "system", "content": RELINK_SYSTEM},
+                {
+                    "role": "user",
+                    "content": f"Quote (data): {found.answer.text}\nPages (data):\n{listing}",
+                },
+            ],
+            schema=RelinkDraft,
+        )
+        index = answer.index
+        return pages[index] if index is not None and 0 <= index < len(pages) else None
 
     def raise_duty(self, incident: Incident) -> RefresherDuty:
         """Read the incident with Spark and save its duty (`due` or `not_required`)."""

@@ -7,7 +7,14 @@ import { useEffect, useState } from "react";
 import { errorText } from "@/lib/api";
 
 import { useRecorder } from "./useRecorder";
-import { metres, warehouse, type ShiftReport, type VoiceReport } from "./warehouse";
+import {
+  fresh,
+  metres,
+  warehouse,
+  withRecovery,
+  type ShiftReport,
+  type VoiceReport,
+} from "./warehouse";
 import styles from "./warehouse.module.css";
 
 export function VoiceReportPanel({ onPlan }: { onPlan: (planId: string) => void }) {
@@ -34,7 +41,14 @@ export function VoiceReportPanel({ onPlan }: { onPlan: (planId: string) => void 
     setBusy(true);
     setError(null);
     try {
-      const report = await warehouse.reportVoice(audio, lang);
+      const report = await withRecovery(
+        () => warehouse.reportVoice(audio, lang),
+        fresh(async () => {
+          const [newest] = await warehouse.reports();
+          if (newest === undefined) throw new Error("no report yet");
+          return newest;
+        }),
+      );
       setReports((current) => [report, ...current]);
     } catch (failure) {
       setError(errorText(failure, "The report failed."));
@@ -123,7 +137,12 @@ export function ShiftPanel() {
     setBusy(true);
     setError(null);
     try {
-      setReport(await warehouse.shift("en"));
+      setReport(
+        await withRecovery(
+          () => warehouse.shift("en"),
+          fresh(() => warehouse.savedShift("en")),
+        ),
+      );
     } catch (failure) {
       setError(errorText(failure, "The report failed."));
     } finally {

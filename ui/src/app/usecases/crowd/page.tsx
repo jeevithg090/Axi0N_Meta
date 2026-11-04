@@ -104,9 +104,13 @@ export default function CrowdPage() {
       <div className={styles.grid}>
         <SetupPanel
           cameras={cameras}
+          current={camera?.camera_id}
           venue={status?.venue ?? { description: "", places: [], sample: false }}
         />
-        <ReportPanel cameraIds={cameras.map((c) => ({ id: c.camera_id, name: c.name }))} />
+        <ReportPanel
+          cameraIds={cameras.map((c) => ({ id: c.camera_id, name: c.name }))}
+          current={camera?.camera_id}
+        />
       </div>
     </main>
   );

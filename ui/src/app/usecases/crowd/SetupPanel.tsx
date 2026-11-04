@@ -25,7 +25,15 @@ function draftWatch(proposal: SetupProposal, current: CameraStatus | undefined):
 }
 
 /** Step 1: the operator's words → Muse Spark's proposed watch → the operator starts it. */
-export function SetupPanel({ cameras, venue }: { cameras: CameraStatus[]; venue: Venue }) {
+export function SetupPanel({
+  cameras,
+  venue,
+  current,
+}: {
+  cameras: CameraStatus[];
+  venue: Venue;
+  current?: string;
+}) {
   const [cameraId, setCameraId] = useState("");
   const [instruction, setInstruction] = useState(EXAMPLE);
   const [proposal, setProposal] = useState<SetupProposal | null>(null);
@@ -33,7 +41,7 @@ export function SetupPanel({ cameras, venue }: { cameras: CameraStatus[]; venue:
   const [venueJson, setVenueJson] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const camera = cameraId || cameras[0]?.camera_id || "";
+  const camera = cameraId || current || cameras[0]?.camera_id || "";
 
   const run = async (what: string, task: () => Promise<void>): Promise<void> => {
     setBusy(true);

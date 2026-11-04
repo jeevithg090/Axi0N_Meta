@@ -58,12 +58,18 @@ function download(report: EventReport): void {
 }
 
 /** Step 5: the report after the event, with the evidence and the ground-truth score. */
-export function ReportPanel({ cameraIds }: { cameraIds: { id: string; name: string }[] }) {
+export function ReportPanel({
+  cameraIds,
+  current,
+}: {
+  cameraIds: { id: string; name: string }[];
+  current?: string;
+}) {
   const [camera, setCamera] = useState("");
   const [report, setReport] = useState<EventReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const chosen = camera || cameraIds[0]?.id || "";
+  const chosen = camera || current || cameraIds[0]?.id || "";
 
   const load = async (narrate: boolean): Promise<void> => {
     setBusy(true);

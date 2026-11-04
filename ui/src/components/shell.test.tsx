@@ -177,7 +177,7 @@ describe("DashboardShell information architecture", () => {
     expect(screen.getByTestId("mode-badge")).toBeTruthy();
     cleanup();
 
-    for (const path of ["/worker/plan-1/phone-1", "/inspector/view", "/inspector/view/pack-1", "/staff", "/staff/alerts"]) {
+    for (const path of ["/worker/plan-1/phone-1", "/inspector/view", "/inspector/view/pack-1", "/staff", "/staff/alerts", "/glasses"]) {
       pathname = path;
       render(<DashboardShell>page</DashboardShell>);
       expect(document.querySelector(".shell-sidebar")).toBeNull();

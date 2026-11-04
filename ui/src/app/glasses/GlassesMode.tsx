@@ -385,6 +385,16 @@ export function GlassesMode() {
   if (!owner)
     return (
       <div className={styles.wrap}>
+        <header className={styles.head}>
+          <div>
+            <h1 className={styles.title}>Glasses mode</h1>
+            <p className={styles.sub}>
+              Your point of view as a Rulecam camera. Hold to talk; patrol speaks only verified
+              alerts.
+            </p>
+          </div>
+        </header>
+        <StandIn />
         <OwnerOnly what="Glasses mode" checking={false} />
       </div>
     );
@@ -655,5 +665,21 @@ function ReportCard({ report }: { report: WalkReport }) {
         {modelName(report.model)} in {(report.ms / 1000).toFixed(1)} s
       </p>
     </section>
+  );
+}
+
+/** The honest line, first thing: today the phone is the camera, the glasses are the audio. */
+function StandIn() {
+  return (
+    <p className={styles.standIn} data-testid="stand-in">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="6" y="2" width="12" height="20" rx="2.5" />
+        <path d="M11 18h2" />
+      </svg>
+      <span>
+        <strong>The phone stands in for the glasses.</strong> Its rear camera is the point of view;
+        paired Meta glasses carry the answers as Bluetooth audio.
+      </span>
+    </p>
   );
 }

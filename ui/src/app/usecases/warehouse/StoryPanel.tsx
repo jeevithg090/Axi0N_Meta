@@ -4,12 +4,19 @@
 
 import { useState } from "react";
 
+import { StepFlow, type StepState } from "@/components/kit";
 import { api, errorText } from "@/lib/api";
 
 import { progress, type StepStatus, type WarehouseStory } from "./warehouse";
 import styles from "./warehouse.module.css";
 
-const MARK: Record<StepStatus, string> = { done: "✓", waiting: "…", not_yet: "○", failed: "✕" };
+// The API's step states, said in the kit's: waiting is the step in progress.
+const FLOW_STATE: Record<StepStatus, StepState> = {
+  done: "done",
+  waiting: "current",
+  not_yet: "todo",
+  failed: "failed",
+};
 
 export function StoryPanel({
   story,
@@ -41,7 +48,7 @@ export function StoryPanel({
   return (
     <section className={styles.card} aria-labelledby="wh-story">
       <h2 id="wh-story">
-        2. The story so far{" "}
+        The story so far{" "}
         <span className={styles.chip}>
           {done}/{total} steps
         </span>
@@ -67,17 +74,17 @@ export function StoryPanel({
           </ul>
         </div>
       )}
-      <ol className={styles.steps}>
-        {story.steps.map((step) => (
-          <li key={step.key} className={`${styles.step} ${styles[step.status]}`}>
-            <span aria-label={step.status}>{MARK[step.status]}</span>
-            <div>
-              <strong>{step.title}</strong>
-              <span>{step.detail}</span>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <StepFlow
+        label="The warehouse story, step by step"
+        columns={4}
+        size="compact"
+        as="h3"
+        steps={story.steps.map((step) => ({
+          name: step.title,
+          text: step.detail,
+          state: FLOW_STATE[step.status],
+        }))}
+      />
       {approveWaiting && (
         <div className={styles.row}>
           <button

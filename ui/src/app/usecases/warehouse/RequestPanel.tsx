@@ -56,7 +56,7 @@ export function RequestPanel({ onPlan }: { onPlan: (planId: string) => void }) {
 
   return (
     <section className={styles.card} aria-labelledby="wh-request">
-      <h2 id="wh-request">1. Say or type the rule</h2>
+      <h2 id="wh-request">Say or type the rule</h2>
       <div className={styles.row}>
         {PRESETS.map((preset) => (
           <button

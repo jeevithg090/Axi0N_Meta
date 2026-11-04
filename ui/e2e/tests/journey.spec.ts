@@ -48,6 +48,9 @@ for (const useCase of ["/usecases/warehouse", "/usecases/crowd", "/usecases/supe
     await page.goto(useCase);
     await settle(page);
     await expect(page.locator("main h1, main h2").first()).toBeVisible();
+    // The shared use-case frame: the world's promise and a still from the footage it ran on.
+    await expect(page.getByTestId("usecase-frame")).toBeVisible();
+    await expect(page.locator('[data-testid^="still-"] img').first()).toBeVisible();
     // QA-B23: an API route missing from the deployed API must not leave a raw "Not Found" or a
     // loader that never ends.
     await expect(page.locator("main").first()).not.toContainText(/^Not Found$|Loading the story…/m, {

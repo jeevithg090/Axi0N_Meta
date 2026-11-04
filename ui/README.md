@@ -25,7 +25,7 @@ npm run lint && npm run typecheck && npm test -- --run
   `next.config.ts`, since the API sends no CORS headers; the socket connects to the API directly.
   The shell has three frames: the landing page (`/`, a wordmark bar), the app (grouped sidebar:
   Use cases, Build, Run, Trust, System) and a bare frame with no sidebar for outside-facing
-  screens (`/worker/<plan>/<camera>`, `/station/<id>`, `/staff`, `/inspector/view`).
+  screens (`/worker/<plan>/<camera>`, `/station/<id>`, `/staff`, `/glasses`, `/inspector/view`).
 - **Clips:** the sample boards' `/videos/*.mp4` are git-ignored and not deployed; `ClipPlayer`
   shows each camera's committed still from `public/strips/` with "not bundled" instead of a black
   player, and plays a clip only once its path is listed in `BUNDLED_CLIPS` and committed.

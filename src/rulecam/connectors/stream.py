@@ -18,6 +18,9 @@ chunk), plus what a camera that runs for weeks needs:
 - **Retention.** Only the newest `keep_chunks` files are kept (default one hour).
 - **Size.** Frames wider than `max_width` are scaled down before encoding (a 4K camera costs
   the same to segment as a 720p one).
+- **No orphans.** ffmpeg runs in its own process group and dies with Rulecam even on a crash;
+  a previous run's ffmpeg for the same camera is killed before a new one starts
+  (`connectors.process`).
 """
 
 from __future__ import annotations
@@ -40,6 +43,7 @@ from pydantic import BaseModel
 from rulecam.bus import Bus, Topic
 from rulecam.capture import CaptureError, encoder_args, probe_chunk
 from rulecam.connectors.errors import ConnectorError
+from rulecam.connectors.process import clear_pidfile, reap_stale, spawn, write_pidfile
 from rulecam.connectors.sources import ResolvedInput, scrub
 from rulecam.contracts import Chunk, Clock, Provenance
 from rulecam.log import get_logger
@@ -335,13 +339,14 @@ class StreamWorker:
         self._last_frame_mono = 0.0
         if resolved.title:
             self._update(title=resolved.title)
+        reap_stale(self.config.out_dir)
         try:
-            process = subprocess.Popen(  # noqa: S603 - argument list, never a shell
-                args, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-            )
+            child = spawn(args)
         except OSError as exc:
             self._error(f"ffmpeg could not start: {exc}")
             return 0.0
+        process = child.process
+        write_pidfile(self.config.out_dir, process.pid)
         self._process = process
         readers = [
             threading.Thread(target=self._read_progress, args=(process.stdout,), daemon=True),
@@ -357,6 +362,8 @@ class StreamWorker:
         uptime = time.monotonic() - self._started_mono
         code = process.returncode
         self._process = None
+        child.release()
+        clear_pidfile(self.config.out_dir)
         if self._stopping.is_set():
             return uptime
         if code == 0 and self.config.ends and not stalled:

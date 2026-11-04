@@ -18,6 +18,7 @@ import {
   type CameraSurvey,
   type ConnectedCamera,
   type FoundDevice,
+  type LivePreset,
   type OnvifDevice,
   type StreamState,
 } from "@/lib/cameras";
@@ -311,6 +312,59 @@ function ScanPanel({ onUse, onAdded }: { onUse: (url: string) => void; onAdded: 
   );
 }
 
+/** One-click public live webcams for demos, labelled as such with who publishes them. */
+function Presets({ onAdded }: { onAdded: () => void }) {
+  const [presets, setPresets] = useState<LivePreset[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    cameras
+      .presets()
+      .then(setPresets)
+      .catch(() => setPresets([]));
+  }, []);
+
+  const connect = async (preset: LivePreset): Promise<void> => {
+    setBusy(preset.preset_id);
+    setError(null);
+    try {
+      await cameras.add({ url: preset.url }); // Muse Spark names it from what it sees
+      onAdded();
+    } catch (err) {
+      setError(errorText(err, "Could not connect that webcam."));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (presets.length === 0) return null;
+  return (
+    <div className={styles.devices} aria-label="Public live webcams">
+      <p className={styles.small}>
+        <strong>Try it with a public live webcam</strong> (public broadcasts; kept only as the
+        normal rolling chunks, no face recognition):
+      </p>
+      {presets.map((p) => (
+        <div key={p.preset_id} className={styles.row} data-testid="live-preset">
+          <button type="button" onClick={() => void connect(p)} disabled={busy !== null}>
+            {busy === p.preset_id ? "Connecting…" : p.title}
+          </button>
+          <span className={styles.chip}>{p.label}</span>
+          <span className={styles.small}>
+            {p.shows} · source: {p.source}
+          </span>
+        </div>
+      ))}
+      {error && (
+        <p role="alert" className={styles.error}>
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ClipForm({ onAdded }: { onAdded: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
@@ -509,7 +563,11 @@ function OtherTile({ camera, tick }: { camera: CameraInfo; tick: number }) {
       </div>
       {/* eslint-disable-next-line @next/next/no-img-element -- live owner-only snapshot */}
       <img className={styles.shot} src={snapshotUrl(camera.camera_id, tick)} alt={camera.label} />
-      {survey && <SurveyView survey={survey} />}
+      {survey ? (
+        <SurveyView survey={survey} />
+      ) : (
+        camera.description && <p className={styles.small}>{camera.description}</p>
+      )}
       <button type="button" onClick={() => void cameras.survey(camera.camera_id).then(setSurvey)}>
         First look (Spark + SAM 3.1)
       </button>
@@ -566,7 +624,12 @@ function LiveView() {
         ))}
       </div>
       <div className="site-panel">
-        {path === "url" && <UrlForm onAdded={() => void refresh()} preset={preset} />}
+        {path === "url" && (
+          <>
+            <UrlForm onAdded={() => void refresh()} preset={preset} />
+            <Presets onAdded={() => void refresh()} />
+          </>
+        )}
         {path === "scan" && <ScanPanel onUse={use} onAdded={() => void refresh()} />}
         {path === "phone" && (
           <div className={styles.form}>

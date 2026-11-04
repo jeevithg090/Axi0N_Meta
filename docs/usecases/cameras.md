@@ -73,6 +73,18 @@ Rulecam lets ffmpeg recognise the format.
 yt-dlp for the stream each time it connects, because those links expire after a few hours. These
 cameras are marked `public`.
 
+**Public live webcams (one click, for demos).** Under the URL form, "Try it with a public live
+webcam" lists three public broadcasts, each labelled "public live webcam" with who publishes it:
+
+| Preset | Shows | Source |
+|---|---|---|
+| Shibuya Scramble Crossing, Tokyo | crowd: one of the busiest pedestrian crossings | ANN News (TV Asahi) on YouTube |
+| Times Square Crossroads, New York | crowd: a busy public square | EarthCam on YouTube |
+| Fisherman's Village shop street, Koh Samui | shops: a shopping street with a pharmacy | The Real Samui Webcam on YouTube |
+
+They connect like any public stream: kept only as the normal rolling chunks, never used for face
+recognition. A broadcaster can end a stream at any time; the tile then says it cannot connect.
+
 **A clip as a virtual camera.** Upload a video (up to 500 MB) or give the path of one inside the
 Rulecam data or working folder. It loops forever at its normal speed and is marked `upload`.
 
@@ -88,6 +100,16 @@ size, frame rate), how many reconnects, and the last error in plain words (for e
 returned 401 Unauthorized" for a wrong password).
 
 Each camera keeps its newest 1,200 chunks on disk (one hour).
+
+A camera's ffmpeg never outlives Rulecam. It runs in its own process group; on Linux it gets a
+parent-death signal, and elsewhere a tiny watchdog kills it when Rulecam's end of a pipe closes,
+so even `kill -9` of the server stops it within seconds. On start, Rulecam also stops any ffmpeg
+a previous run left for the same camera (its pid is kept next to the chunks). A first look that a
+crash cut short runs again when the camera comes back.
+
+`GET /cameras`, which other pages use, lists connected cameras by the name the owner or Muse
+Spark gave them, with Spark's description, and adds the description to any other camera (a
+paired phone) that had a first look.
 
 ## Passwords
 
@@ -125,6 +147,7 @@ Every route is owner-only, like the other owner routes (this machine, or a signe
 | `POST /connectors/scan` | `{timeout_s?, sweep?}` → devices found on the local network |
 | `POST /connectors/onvif` | `{target, username?, password?}` → the device's streams (addresses without passwords) |
 | `GET /connectors/brands` | The usual RTSP addresses per maker |
+| `GET /connectors/presets` | The public live webcams offered as one-click demos |
 
 A camera answer carries `camera_id`, `name` (and `named_by`: owner, spark or source), `kind`
 (rtsp, hls, http, rtmp, public, file), `display_url` (never with a password), `has_credentials`,
@@ -152,6 +175,6 @@ You need ffmpeg and [mediamtx](https://github.com/bluenviron/mediamtx) (`brew in
    chips and a strong supermarket fit.
 4. Stop the ffmpeg command: the tile turns "reconnecting" and shows the error. Start it again:
    the tile is live again within about 30 seconds.
-5. Paste a YouTube live link (a town-square webcam works well) to show a public stream, or upload
+5. Click a public live webcam preset (Shibuya Crossing shows a strong crowd fit), or upload
    a clip to show a virtual camera.
 6. With a plan approved, the new camera's chunks go to the runtime like any other camera's.

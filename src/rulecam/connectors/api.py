@@ -15,6 +15,7 @@
 | `POST /connectors/scan` | ONVIF WS-Discovery + RTSP port sweep of the local network |
 | `POST /connectors/onvif` | one ONVIF device's profiles and RTSP URLs |
 | `GET /connectors/brands` | usual RTSP URLs per camera maker |
+| `GET /connectors/presets` | public live webcams for one-click demos |
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ from pydantic import BaseModel, Field, SecretStr
 from rulecam.connectors.discovery import OnvifDevice, ScanResult, onvif_streams, scan
 from rulecam.connectors.errors import DiscoveryError, SourceError, UnknownCameraError
 from rulecam.connectors.manager import AddCamera, CameraView, ConnectorManager
-from rulecam.connectors.sources import BRAND_TEMPLATES, BrandTemplate
+from rulecam.connectors.sources import BRAND_TEMPLATES, LIVE_PRESETS, BrandTemplate, LivePreset
 from rulecam.connectors.survey import CameraSurvey
 
 MAX_CLIP_BYTES: Final = 500 * 1024 * 1024
@@ -192,3 +193,7 @@ def _discovery_routes(router: APIRouter) -> None:
     @router.get("/brands")
     def brands() -> list[BrandTemplate]:
         return list(BRAND_TEMPLATES)
+
+    @router.get("/presets")
+    def presets() -> list[LivePreset]:
+        return list(LIVE_PRESETS)

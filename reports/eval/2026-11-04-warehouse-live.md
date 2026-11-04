@@ -111,7 +111,7 @@ scene hash is unchanged. The probe, the calibration check against people, the ac
 and Rule CI run in full every time; Rule CI was green (16/16, 6/6) on all nine plans below.
 
 **After.** Three benches, each: one phone camera fed the worker clip in a loop, the Spanish 4 m
-rule planned three times in a row (`scratchpad plan_bench.py`; request to plan, as measured by the
+rule planned three times in a row (`scripts/ops/plan_bench.py`; request to plan, as measured by the
 client and by the saved run):
 
 | Bench | Plan 1 (new camera) | Plan 2 | Plan 3 | What it showed |

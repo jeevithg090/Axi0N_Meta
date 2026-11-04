@@ -10,8 +10,9 @@ every page, the judge journey, the worker page on a 375 px phone, the API down),
 pass in the browser on https://rulecam.vercel.app and on local builds of the agents' branches.
 Re-run: see `docs/qa/README.md`.
 
-Status as of 2026-11-04 01:15 UTC. Live = https://rulecam.vercel.app (deployed ~11 h before this
-pass, API revision `559f976`). Branch builds tested: `p1/final-integration` 0b35805,
+Status as of 2026-11-04 01:30 UTC. Live UI = https://rulecam.vercel.app (deployed ~12 h before
+this pass); live API redeployed at revision `0b35805` during the pass and re-checked
+(`uv run pytest -m live tests/e2e`: only QA-B1 and QA-B4 fail). Branch builds tested: `p1/final-integration` 0b35805,
 `p1/ui-hallmark`, `p1/uc-warehouse`, `p1/uc-crowd`, `p1/uc-supermarket` (heads at 00:55 UTC).
 
 ## Open

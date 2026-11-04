@@ -497,7 +497,7 @@ export function SiteSignage() {
           </div>
           <div
             className="s4"
-            style={{ borderLeft: "4px solid var(--ink)", paddingLeft: "var(--s3)" }}
+            style={{ borderLeft: "1px solid var(--color-rule-2)", paddingLeft: "var(--s3)" }}
           >
             <div className="small">Cross-Modal Verification Gates</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
@@ -538,7 +538,8 @@ export function SiteSignage() {
             flexWrap: "wrap",
             alignItems: "center",
             padding: "var(--s3)",
-            border: "2px solid var(--ink)",
+            border: "1px solid var(--color-rule)",
+            borderRadius: "var(--radius-card)",
             background: "var(--card)",
             marginBottom: "var(--s3)",
           }}
@@ -552,7 +553,8 @@ export function SiteSignage() {
               style={{
                 marginLeft: "6px",
                 padding: "8px 12px",
-                border: "2px solid var(--ink)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
                 background: "var(--paper)",
                 fontFamily: "var(--font-dm-mono, monospace)",
                 fontWeight: 700,
@@ -576,7 +578,8 @@ export function SiteSignage() {
               flex: 1,
               minWidth: "240px",
               padding: "8px 12px",
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--paper)",
               fontFamily: "var(--font-dm-mono, monospace)",
             }}
@@ -591,9 +594,10 @@ export function SiteSignage() {
           <div
             style={{
               padding: "10px 14px",
-              background: "var(--yellow)",
-              color: "#141414",
-              border: "2px solid var(--ink)",
+              background: "var(--color-accent-soft)",
+              color: "var(--color-ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               fontWeight: 700,
               marginBottom: "var(--s3)",
             }}
@@ -610,7 +614,8 @@ export function SiteSignage() {
                 <article
                   key={`${item.title}-${item.source_url}`}
                   style={{
-                    border: "2px solid var(--ink)",
+                    border: "1px solid var(--color-rule)",
+                    borderRadius: "var(--radius-card)",
                     background: "var(--card)",
                     padding: "var(--s3)",
                   }}
@@ -626,7 +631,7 @@ export function SiteSignage() {
                   >
                     <span
                       className="state"
-                      style={{ background: "var(--yellow)", color: "#141414" }}
+                      style={{ background: "var(--color-accent-soft)", color: "var(--color-ink)" }}
                     >
                       {item.kind.toUpperCase()}
                     </span>
@@ -642,7 +647,7 @@ export function SiteSignage() {
                         marginTop: "10px",
                         padding: "8px 12px",
                         background: "var(--paper-2)",
-                        borderLeft: "4px solid var(--ink)",
+                        borderLeft: "1px solid var(--color-rule-2)",
                         fontSize: "14px",
                       }}
                     >
@@ -677,7 +682,8 @@ export function SiteSignage() {
           <div className="s4">
             <div
               style={{
-                border: "2px solid var(--ink)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
                 background: "var(--paper-2)",
                 padding: "var(--s3)",
               }}
@@ -742,9 +748,10 @@ export function SiteSignage() {
           <div
             style={{
               padding: "10px 14px",
-              background: "var(--yellow)",
-              color: "#141414",
-              border: "2px solid var(--ink)",
+              background: "var(--color-accent-soft)",
+              color: "var(--color-ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               fontWeight: 700,
               marginBottom: "var(--s3)",
             }}
@@ -758,8 +765,9 @@ export function SiteSignage() {
           <div className="s6">
             <div
               style={{
-                border: "3px solid var(--ink)",
-                background: "#0B0C0D",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
+                background: "var(--color-scene)",
                 position: "relative",
                 overflow: "hidden",
               }}
@@ -804,14 +812,14 @@ export function SiteSignage() {
                         width={x2 - x1}
                         height={y2 - y1}
                         fill="rgba(242, 209, 0, 0.22)"
-                        stroke="#F2D100"
+                        stroke="var(--color-accent)"
                         strokeWidth="8"
                       />
-                      <rect x={x1} y={y1 - 44} width="190" height="44" fill="#F2D100" />
+                      <rect x={x1} y={y1 - 44} width="190" height="44" fill="var(--color-accent)" />
                       <text
                         x={x1 + 12}
                         y={y1 - 12}
-                        fill="#141414"
+                        fill="var(--color-accent-ink)"
                         fontFamily="monospace"
                         fontWeight="900"
                         fontSize="28"
@@ -831,15 +839,15 @@ export function SiteSignage() {
                         width={x2 - x1}
                         height={y2 - y1}
                         fill="rgba(201, 52, 16, 0.18)"
-                        stroke="#C93410"
+                        stroke="var(--color-bad)"
                         strokeWidth="6"
                         strokeDasharray="16 10"
                       />
-                      <rect x={x1} y={y1} width="230" height="38" fill="#C93410" />
+                      <rect x={x1} y={y1} width="230" height="38" fill="var(--color-bad)" />
                       <text
                         x={x1 + 10}
                         y={y1 + 27}
-                        fill="#FFFFFF"
+                        fill="var(--color-on-signal)"
                         fontFamily="monospace"
                         fontWeight="800"
                         fontSize="22"
@@ -856,7 +864,8 @@ export function SiteSignage() {
               style={{
                 marginTop: "12px",
                 padding: "12px",
-                border: "2px solid var(--ink)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
                 background: "var(--card)",
                 display: "flex",
                 justifyContent: "space-between",
@@ -890,7 +899,8 @@ export function SiteSignage() {
                   key={g.number}
                   style={{
                     padding: "10px 12px",
-                    border: "2px solid var(--ink)",
+                    border: "1px solid var(--color-rule)",
+                    borderRadius: "var(--radius-card)",
                     background: "var(--card)",
                     display: "flex",
                     justifyContent: "space-between",
@@ -902,8 +912,8 @@ export function SiteSignage() {
                     <div style={{ fontWeight: 800 }}>
                       <span
                         style={{
-                          background: "var(--yellow)",
-                          color: "#141414",
+                          background: "var(--color-accent-soft)",
+                          color: "var(--color-ink)",
                           padding: "1px 6px",
                           marginRight: "8px",
                           fontFamily: "var(--font-dm-mono, monospace)",
@@ -972,7 +982,8 @@ export function SiteSignage() {
             flexWrap: "wrap",
             alignItems: "center",
             padding: "var(--s3)",
-            border: "2px solid var(--ink)",
+            border: "1px solid var(--color-rule)",
+            borderRadius: "var(--radius-card)",
             background: "var(--card)",
             marginBottom: "var(--s3)",
           }}
@@ -987,7 +998,8 @@ export function SiteSignage() {
               style={{
                 marginLeft: "6px",
                 padding: "8px 12px",
-                border: "2px solid var(--ink)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
                 background: "var(--paper)",
                 fontFamily: "var(--font-dm-mono, monospace)",
                 width: "140px",
@@ -1006,7 +1018,8 @@ export function SiteSignage() {
               style={{
                 marginLeft: "6px",
                 padding: "8px 12px",
-                border: "2px solid var(--ink)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
                 background: "var(--paper)",
                 fontFamily: "var(--font-dm-mono, monospace)",
                 width: "90px",
@@ -1022,9 +1035,10 @@ export function SiteSignage() {
           <div
             style={{
               padding: "10px 14px",
-              background: "var(--yellow)",
-              color: "#141414",
-              border: "2px solid var(--ink)",
+              background: "var(--color-accent-soft)",
+              color: "var(--color-ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               fontWeight: 700,
               marginBottom: "var(--s3)",
             }}
@@ -1039,7 +1053,8 @@ export function SiteSignage() {
             <article
               key={ep.episode.start}
               style={{
-                border: "3px solid var(--ink)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
                 borderLeft: ep.escalate ? "10px solid var(--alert)" : "10px solid var(--yellow)",
                 background: "var(--card)",
                 padding: "var(--s3)",
@@ -1085,7 +1100,8 @@ export function SiteSignage() {
                     marginTop: "10px",
                     padding: "12px",
                     background: "var(--paper-2)",
-                    border: "1.5px solid var(--ink)",
+                    border: "1px solid var(--color-rule)",
+                    borderRadius: "var(--radius-card)",
                   }}
                 >
                   <div className="dm small" style={{ fontWeight: 700 }}>

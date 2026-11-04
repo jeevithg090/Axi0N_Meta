@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { roleWords, toRoleId, type Words } from "../_lib/i18n";
 import type { RoleInfo, StaffItem } from "../_lib/types";
 import styles from "../staff.module.css";
+import { icons } from "@/components/icons";
 
 export function DoneSheet({
   item,
@@ -56,7 +57,7 @@ export function DoneSheet({
           className={`${styles.primary} ${styles.primaryDone}`}
           onClick={() => input.current?.click()}
         >
-          📷 {words.addPhoto}
+          {icons.camera} {words.addPhoto}
         </button>
         <button type="button" className={styles.secondary} onClick={() => onDone(null, note)}>
           {words.skipPhoto}

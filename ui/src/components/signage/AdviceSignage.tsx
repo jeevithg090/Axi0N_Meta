@@ -401,7 +401,7 @@ export function AdviceSignage() {
               SHA-256 chain before the change starts.
             </p>
           </div>
-          <div className="s4" style={{ borderLeft: "4px solid var(--ink)", paddingLeft: "var(--s3)" }}>
+          <div className="s4" style={{ borderLeft: "1px solid var(--color-rule-2)", paddingLeft: "var(--s3)" }}>
             <div className="small">Glimmer SQL Verification Rate</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
               {reproducedNumbers}/{totalNumbers}
@@ -420,9 +420,10 @@ export function AdviceSignage() {
             style={{
               marginTop: "var(--s3)",
               padding: "12px 16px",
-              background: "var(--yellow)",
-              color: "#141414",
-              border: "2px solid var(--ink)",
+              background: "var(--color-accent-soft)",
+              color: "var(--color-ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               fontWeight: 700,
             }}
           >
@@ -442,7 +443,8 @@ export function AdviceSignage() {
         >
           <div
             style={{
-              border: "3px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--bar)",
               color: "var(--on-dark)",
               padding: "var(--s3)",
@@ -454,7 +456,7 @@ export function AdviceSignage() {
             }}
           >
             <div>
-              <div className="dm" style={{ fontSize: "12px", color: "var(--yellow)" }}>
+              <div className="dm" style={{ fontSize: "12px", color: "var(--color-accent-text)" }}>
                 CRYPTOGRAPHIC BLIND EVALUATION SEAL · {s.seal_id.toUpperCase()}
               </div>
               <div style={{ fontSize: "18px", fontWeight: 700, marginTop: "4px" }}>
@@ -467,8 +469,8 @@ export function AdviceSignage() {
             <span
               className="state"
               style={{
-                background: s.matches ? "#1E7A3A" : "var(--alert)",
-                color: "#fff",
+                background: s.matches ? "var(--color-ok)" : "var(--alert)",
+                color: "var(--color-on-signal)",
                 borderColor: "#fff",
                 padding: "6px 12px",
                 fontSize: "13px",
@@ -487,7 +489,7 @@ export function AdviceSignage() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            borderBottom: "2px solid var(--ink)",
+            borderBottom: "1px solid var(--color-rule)",
             paddingBottom: "8px",
             flexWrap: "wrap",
             gap: "12px",
@@ -541,10 +543,11 @@ export function AdviceSignage() {
               <article
                 key={rec.id}
                 style={{
-                  border: "3px solid var(--ink)",
+                  border: "1px solid var(--color-rule)",
+                  borderRadius: "var(--radius-card)",
                   borderTop: card.flagged
                     ? "8px solid var(--alert)"
-                    : "8px solid var(--ink)",
+                    : "1px solid var(--color-rule-2)",
                   background: "var(--card)",
                   padding: "var(--s4)",
                 }}
@@ -557,7 +560,7 @@ export function AdviceSignage() {
                     alignItems: "flex-start",
                     flexWrap: "wrap",
                     gap: "12px",
-                    borderBottom: "2px solid var(--ink)",
+                    borderBottom: "1px solid var(--color-rule)",
                     paddingBottom: "var(--s2)",
                     marginBottom: "var(--s3)",
                   }}
@@ -584,8 +587,8 @@ export function AdviceSignage() {
                     role="alert"
                     style={{
                       padding: "12px 16px",
-                      background: "var(--alert)",
-                      color: "#fff",
+                      background: "var(--color-bad-soft)",
+                      color: "var(--color-bad)",
                       fontWeight: 700,
                       marginBottom: "var(--s3)",
                     }}
@@ -600,7 +603,7 @@ export function AdviceSignage() {
                   {/* Left 7 Cols: SAW, WHY, DO */}
                   <div className="s7 stack" style={{ gap: "var(--s3)" }}>
                     <div>
-                      <div className="dm small" style={{ fontWeight: 700, textTransform: "uppercase" }}>
+                      <div className="dm small" style={{ fontWeight: 700 }}>
                         1. SAW (Observed Station Telemetry — Click Any Number for SQL Proof)
                       </div>
                       {rec.saw.map((claim, i) => (
@@ -628,9 +631,10 @@ export function AdviceSignage() {
                                   type="button"
                                   onClick={() => setOpenCheck({ check: part.check, hidden: true })}
                                   style={{
-                                    background: "var(--alert)",
-                                    color: "#fff",
-                                    border: "2px solid var(--ink)",
+                                    background: "var(--color-bad-soft)",
+                                    color: "var(--color-bad)",
+                                    border: "1px solid var(--color-rule)",
+                                    borderRadius: "var(--radius-card)",
                                     padding: "2px 8px",
                                     margin: "0 4px",
                                     fontFamily: "var(--font-dm-mono, monospace)",
@@ -649,9 +653,10 @@ export function AdviceSignage() {
                                 onClick={() => setOpenCheck({ check: part.check, hidden: false })}
                                 title="Click to inspect Glimmer SQL query & recomputed value"
                                 style={{
-                                  background: "var(--yellow)",
-                                  color: "#141414",
-                                  border: "2px solid var(--ink)",
+                                  background: "var(--color-accent-soft)",
+                                  color: "var(--color-ink)",
+                                  border: "1px solid var(--color-rule)",
+                                  borderRadius: "var(--radius-card)",
                                   padding: "2px 8px",
                                   margin: "0 4px",
                                   fontFamily: "var(--font-dm-mono, monospace)",
@@ -668,7 +673,7 @@ export function AdviceSignage() {
                     </div>
 
                     <div className="rule">
-                      <div className="dm small" style={{ fontWeight: 700, textTransform: "uppercase" }}>
+                      <div className="dm small" style={{ fontWeight: 700 }}>
                         2. WHY (Causal Hypotheses Tested)
                       </div>
                       <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -682,7 +687,8 @@ export function AdviceSignage() {
                               gap: "12px",
                               padding: "8px 12px",
                               background: "var(--paper)",
-                              border: "1.5px solid var(--ink)",
+                              border: "1px solid var(--color-rule)",
+                              borderRadius: "var(--radius-card)",
                             }}
                           >
                             <span>
@@ -703,7 +709,7 @@ export function AdviceSignage() {
                     </div>
 
                     <div className="rule">
-                      <div className="dm small" style={{ fontWeight: 700, textTransform: "uppercase" }}>
+                      <div className="dm small" style={{ fontWeight: 700 }}>
                         3. DO (Recommended Operational Action &amp; Safety Veto Check)
                       </div>
                       {rec.do.map((c, idx) => (
@@ -713,7 +719,7 @@ export function AdviceSignage() {
                             marginTop: "8px",
                             padding: "12px",
                             background: "var(--paper-2)",
-                            borderLeft: "4px solid var(--ink)",
+                            borderLeft: "1px solid var(--color-rule-2)",
                             fontFamily: "var(--font-dm-mono, monospace)",
                             fontSize: "14px",
                           }}
@@ -750,7 +756,7 @@ export function AdviceSignage() {
                   <div
                     className="s5"
                     style={{
-                      borderLeft: "2px solid var(--ink)",
+                      borderLeft: "1px solid var(--color-rule)",
                       paddingLeft: "var(--s3)",
                       display: "flex",
                       flexDirection: "column",
@@ -758,7 +764,7 @@ export function AdviceSignage() {
                     }}
                   >
                     <div>
-                      <div className="dm small" style={{ fontWeight: 700, textTransform: "uppercase" }}>
+                      <div className="dm small" style={{ fontWeight: 700 }}>
                         4. EXPECTED GAIN ({rec.expect.model_rung.toUpperCase()})
                       </div>
                       <div className="num-m" style={{ marginTop: "6px" }}>
@@ -771,7 +777,7 @@ export function AdviceSignage() {
                     </div>
 
                     <div className="rule">
-                      <div className="dm small" style={{ fontWeight: 700, textTransform: "uppercase" }}>
+                      <div className="dm small" style={{ fontWeight: 700 }}>
                         5. PRE-REGISTERED SWITCHBACK CHECK (P4-08)
                       </div>
                       {plan ? (
@@ -780,7 +786,8 @@ export function AdviceSignage() {
                             marginTop: "8px",
                             padding: "12px",
                             background: "var(--paper)",
-                            border: "2px solid var(--ink)",
+                            border: "1px solid var(--color-rule)",
+                            borderRadius: "var(--radius-card)",
                           }}
                         >
                           <div className="dm" style={{ fontSize: "13px", fontWeight: 700 }}>
@@ -818,16 +825,17 @@ export function AdviceSignage() {
                           padding: "14px",
                           background: "var(--bar)",
                           color: "var(--on-dark)",
-                          border: "2px solid var(--ink)",
+                          border: "1px solid var(--color-rule)",
+                          borderRadius: "var(--radius-card)",
                         }}
                       >
-                        <div className="dm" style={{ fontSize: "11px", color: "var(--yellow)" }}>
+                        <div className="dm" style={{ fontSize: "11px", color: "var(--color-scene-accent)" }}>
                           6. SWITCHBACK EXPERIMENT VERDICT READ-OUT
                         </div>
                         <div style={{ fontSize: "18px", fontWeight: 700, marginTop: "4px" }}>
                           {verdictLine(card.verdict, rec.expect.unit)}
                         </div>
-                        <div className="dm" style={{ fontSize: "12px", color: "#00E070", marginTop: "4px" }}>
+                        <div className="dm" style={{ fontSize: "12px", color: "var(--color-scene-ok)", marginTop: "4px" }}>
                           Exact sign-flip p = {card.verdict.p_value.toFixed(4)} (α = 0.05) · Entire CI &lt; 0
                         </div>
                       </div>
@@ -863,7 +871,7 @@ export function AdviceSignage() {
               maxWidth: "680px",
               width: "100%",
               background: "var(--paper)",
-              border: "4px solid var(--ink)",
+              border: "1px solid var(--color-rule-2)",
               padding: "var(--s4)",
               boxShadow: "0 20px 50px rgba(0,0,0,0.45)",
             }}
@@ -908,7 +916,8 @@ export function AdviceSignage() {
                   fontFamily: "var(--font-dm-mono, monospace)",
                   fontSize: "13px",
                   overflowX: "auto",
-                  border: "2px solid var(--ink)",
+                  border: "1px solid var(--color-rule)",
+                  borderRadius: "var(--radius-card)",
                 }}
               >
                 {openCheck.check.sql}
@@ -920,8 +929,8 @@ export function AdviceSignage() {
                 style={{
                   marginTop: "var(--s2)",
                   padding: "10px 12px",
-                  background: "var(--alert)",
-                  color: "#fff",
+                  background: "var(--color-bad-soft)",
+                  color: "var(--color-bad)",
                   fontWeight: 600,
                 }}
               >

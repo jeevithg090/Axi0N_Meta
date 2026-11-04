@@ -15,6 +15,7 @@ import { NearMissPanel } from "./NearMissPanel";
 import { ShiftPanel, VoiceReportPanel } from "./ReportsPanel";
 import { RequestPanel } from "./RequestPanel";
 import { StoryPanel } from "./StoryPanel";
+import { WarehouseJourney } from "./WarehouseJourney";
 import { WarehouseProof } from "./WarehouseProof";
 import {
   accessOf,
@@ -98,6 +99,7 @@ export default function WarehousePage() {
       </header>
       <WarehouseProof />
       {access === "loading" && <p className={styles.muted}>Loading the story…</p>}
+      {access !== "ok" && access !== "loading" && <WarehouseJourney />}
       {access !== "ok" && access !== "loading" && <Notice access={access} />}
       {access === "ok" && <StoryPanel story={story} onApproved={() => void refresh()} />}
       {access === "ok" && (

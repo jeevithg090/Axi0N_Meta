@@ -1,9 +1,9 @@
 "use client";
 
-import { LiveBadge, StepFlow, type FlowStep } from "@/components/kit";
+import type { FlowStep } from "@/components/kit";
+import { UseCaseJourney } from "@/components/usecases/UseCaseJourney";
 
 import type { CrowdAlert, EventReport } from "./crowdApi";
-import styles from "./crowd.module.css";
 import recorded from "./recorded-run.json";
 
 interface Recorded {
@@ -88,14 +88,14 @@ export function crowdJourney(r: Recorded = run): FlowStep[] {
 /** Describe → Evidence for the recorded run, labelled as recorded; every value is the run's own. */
 export function CrowdJourney() {
   return (
-    <section className={styles.journey} aria-labelledby="crowd-journey-title">
-      <div className={styles.journeyHead}>
-        <h2 id="crowd-journey-title" className={styles.sectionTitle}>
-          One crush warning, step by step
-        </h2>
-        <LiveBadge mode="replay" detail="recorded 4 Nov 2026" />
-      </div>
-      <StepFlow steps={crowdJourney()} columns={4} size="compact" as="h3" label="The crowd warning, step by step" current={7} />
-    </section>
+    <UseCaseJourney
+      id="crowd-journey-title"
+      title="One crush warning, step by step"
+      badge={{ mode: "replay", detail: "recorded 4 Nov 2026" }}
+      steps={crowdJourney()}
+      label="The crowd warning, step by step"
+      columns={4}
+      current={7}
+    />
   );
 }

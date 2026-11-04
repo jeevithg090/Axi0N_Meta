@@ -256,7 +256,7 @@ export function ItemCard({
         <ul className={styles.doNow} aria-label={words.announced}>
           {item.announcements.map((a) => (
             <li key={`${a.lang}-${a.text}`}>
-              🔊 {a.lang}: {a.text}
+              {a.lang}: {a.text}
             </li>
           ))}
         </ul>
@@ -308,7 +308,7 @@ export function ItemCard({
           </button>
         ) : null}
         <button type="button" className={styles.iconButton} onClick={() => onRead(item)}>
-          🔊 {words.readAloud}
+          {words.readAloud}
         </button>
       </div>
       {message ? (

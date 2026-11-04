@@ -87,3 +87,53 @@
 @media (max-width: 760px) {
   .hero { padding: var(--space-lg) var(--space-md); gap: var(--space-lg); }
 }
+
+/* ---------- the proof block every use-case page leads with (UseCaseProof) ---------- */
+.proof { display: grid; gap: var(--space-lg); }
+.proofHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+.proofTitle { margin: 0; font-size: var(--text-section); letter-spacing: var(--tracking-display); line-height: 1.05; }
+
+.reading {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: var(--space-lg) var(--space-xl);
+  align-items: center;
+  padding: var(--space-lg);
+  background: var(--color-paper-3);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+}
+.readingFigure { display: grid; gap: var(--space-xs); }
+.struck { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs); font-size: var(--text-sm); color: var(--color-muted); }
+.struckValue {
+  font: 400 var(--text-3xl) / 1 var(--font-outlier);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--color-bad);
+  text-decoration-thickness: 2px;
+}
+.readingValue {
+  margin: 0;
+  font: 400 var(--text-reading) / 1 var(--font-outlier);
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--color-ink);
+}
+.readingUnit { font-size: 0.4em; letter-spacing: 0; margin-left: var(--space-xs); color: var(--color-muted); }
+.readingCaption { margin: 0; color: var(--color-muted); max-width: 64ch; }
+.readingVerdict { display: grid; gap: var(--space-sm); justify-items: start; }
+.reason { margin: 0; font-size: var(--text-lg); line-height: 1.45; color: var(--color-ink); max-width: 60ch; }
+.chipRow { display: flex; flex-wrap: wrap; gap: var(--space-2xs); }
+.proofGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); }
+
+/* the journey under the proof, on its own panel */
+.journeyPanel { display: grid; gap: var(--space-lg); padding: var(--space-lg); background: var(--color-paper-2); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); }
+.journeyHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+.journeyTitle { margin: 0; font-size: var(--text-xl); letter-spacing: -0.02em; }
+
+@media (max-width: 900px) {
+  .reading, .proofGrid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 40rem) {
+  .reading, .journeyPanel { padding: var(--space-md); }
+}

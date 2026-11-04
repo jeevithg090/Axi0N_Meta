@@ -36,8 +36,7 @@
 }
 .link[data-link="stream"], .link[data-link="polling"] { color: var(--color-ok); border-color: currentColor; background: var(--color-ok-soft); }
 
-.journey { display: grid; gap: var(--space-lg); padding: var(--space-lg); background: var(--color-paper-2); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); }
-.journeyHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+.proofLine { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); color: var(--color-ink-2); }
 
 .muted { color: var(--color-muted); }
 .small { font-size: var(--text-sm); color: var(--color-muted); line-height: 1.5; }
@@ -219,7 +218,7 @@
 
 @media (max-width: 40rem) {
   .page { padding: var(--space-lg) var(--space-md) var(--space-2xl); }
-  .card, .journey { padding: var(--space-md); }
+  .card { padding: var(--space-md); }
 }
 
 .tab:focus-visible, .tabActive:focus-visible, .button:focus-visible, .input:focus-visible, .textarea:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }

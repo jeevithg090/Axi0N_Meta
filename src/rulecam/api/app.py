@@ -972,6 +972,20 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     ask_agent, ask_tickers = build_ask(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, crowd=(crowd, warden)
     )
+    staff = build_staff(
+        settings,
+        cache=cache,
+        clock=clock,
+        bus=bus,
+        response=response,
+        chain_root=chain_root,
+        segmenter=perception.hosted,
+        ask_agent=ask_agent,
+        false_alarm=false_alarm,
+        plans_dir=PLANS_DIR,
+        camera_labels=lambda: {c.camera_id: c.label for c in pair.registry.cameras()},
+        dependencies=_OWNER,
+    )
     origins = viewer_origins(settings.public_ui_url)
     auth = OwnerAuth.from_settings(settings, clock=clock, allowed_origins=origins)
     client_address = ClientAddress(
@@ -1009,6 +1023,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             *((watch.tick,) if watch is not None else ()),
             *ask_tickers,
             *crowd_tickers,
+            *staff.tickers,
         ),
         pollers=response.pollers(false_alarm),
         response=response.status,
@@ -1045,20 +1060,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             extensions.router(_OWNER),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
-            build_staff(
-                settings,
-                cache=cache,
-                clock=clock,
-                bus=bus,
-                response=response,
-                chain_root=chain_root,
-                segmenter=perception.hosted,
-                ask_agent=ask_agent,
-                false_alarm=false_alarm,
-                plans_dir=PLANS_DIR,
-                camera_labels=lambda: {c.camera_id: c.label for c in pair.registry.cameras()},
-                dependencies=_OWNER,
-            ),
+            staff.router,
         ),
     )
 

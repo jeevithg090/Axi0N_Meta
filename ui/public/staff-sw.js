@@ -4,10 +4,12 @@
  *   signal and shows the last feed it saw (kept by the page itself).
  * - Navigations are network-first (a new build wins), static assets cache-first.
  * - API calls (/rulecam-api/...) always go to the network: alerts are never served stale here.
- * - Notifications the page shows while in the background open the app on that alert.
+ * - Web Push: an alert pushed for this phone's role is shown as a notification with the
+ *   verifier's verdict, even when the app is closed. "Acknowledge" opens the item and
+ *   acknowledges it (`/staff?item=<id>&ack=1`); tapping the notification just opens it.
  */
 
-const VERSION = "rulecam-staff-v1";
+const VERSION = "rulecam-staff-v2";
 const SHELL = [
   "/staff",
   "/staff-manifest.webmanifest",
@@ -77,13 +79,48 @@ self.addEventListener("fetch", (event) => {
   }
 });
 
+self.addEventListener("push", (event) => {
+  let message = {};
+  try {
+    message = event.data ? event.data.json() : {};
+  } catch {
+    message = { title: "Rulecam alert", body: event.data ? event.data.text() : "" };
+  }
+  const real = Boolean(message.item_id) && message.item_id !== "push-test";
+  const urgent = message.severity === "high" || message.severity === "critical";
+  event.waitUntil(
+    self.registration.showNotification(message.title || "Rulecam alert", {
+      body: message.body || "",
+      tag: message.item_id || "rulecam",
+      renotify: true,
+      requireInteraction: urgent,
+      icon: "/staff-icon-192.png",
+      badge: "/staff-icon-192.png",
+      vibrate: urgent ? [300, 120, 300, 120, 300] : [200, 100, 200],
+      timestamp: message.ts ? Date.parse(message.ts) : Date.now(),
+      data: { url: message.url || "/staff", item_id: message.item_id || null },
+      actions: real
+        ? [
+            { action: "ack", title: "Acknowledge" },
+            { action: "open", title: "Open" },
+          ]
+        : [],
+    }),
+  );
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = (event.notification.data && event.notification.data.url) || "/staff";
+  const data = event.notification.data || {};
+  let target = data.url || "/staff";
+  if (event.action === "ack" && data.item_id)
+    target += (target.includes("?") ? "&" : "?") + "ack=1";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
       for (const client of windows) {
-        if (client.url.includes("/staff") && "focus" in client) return client.focus();
+        if (client.url.includes("/staff") && "focus" in client) {
+          return client.navigate(target).then((c) => (c || client).focus());
+        }
       }
       return self.clients.openWindow(target);
     }),

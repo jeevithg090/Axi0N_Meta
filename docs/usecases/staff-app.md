@@ -109,6 +109,46 @@ and `after_s`), `ack_s` and `fix_s`.
 escalation through `EscalationManager.ack`, which chains an `ack`. False alarm chains the
 `label`. Each tap is also published as `action.done`, so the cockpit sees it live.
 
+## Web Push: alerts when the app is closed
+
+On first start the API makes a VAPID key pair in `data/staff/vapid.pem` (mode 600, never
+committed; the data folder is git-ignored). When a person allows notifications, the phone
+subscribes with its browser's push service and posts the subscription with its role. Every new
+alert the site's notifier sends to that role is then pushed: rule alerts, reviews, crowd
+warnings, drills and escalations. Each message is encrypted for that one phone (RFC 8291) and
+signed with the VAPID key (RFC 8292). The code uses `cryptography`; there is no web-push
+library. The relay runs on the API's one-second ticker and sends on its own threads. A push
+service's `404`/`410` drops the subscription. Only HTTPS endpoints on the browsers' push
+services are accepted.
+
+The service worker shows the alert's title, the verdict ("muse-glimmer-30b: violation 95% ·
+Till 2 · …"), and two actions:
+- **Acknowledge** opens `/staff?item=<id>&ack=1`. The app acknowledges the item, chained like a
+  tap, and scrolls to it.
+- **Open**, or tapping the notification, opens the item.
+
+A 🔔 in the top bar shows the phone is subscribed.
+
+| Route | What it does |
+|---|---|
+| `GET /staff/push/key` | `{public_key, roles}`: the VAPID public key and how many phones each role subscribed |
+| `POST /staff/push/subscribe` | `{role, lang, subscription}` (`PushSubscription.toJSON()`); a phone that changes role keeps one subscription |
+| `POST /staff/push/unsubscribe` | `{endpoint}` |
+| `POST /staff/push/test` | `{role}`: a test notification to that role's phones; returns the push services' statuses |
+
+## Retail tasks: Done with a photo
+
+When an alert came from a supermarket finding, the feed reads the task from the finding's
+chained `retail_finding` record and shows it as `retail_task_id`. The app then tells the person
+the photo will be checked. A *Done* photo on such a card is sent, inside the API process, to the
+supermarket's owner-only `POST /retail/tasks/{id}/proof` (multipart `image`), as a loopback
+request with no network hop. That route closes the task only when Muse Spark agrees and Glimmer
+does not disagree, and it chains `gap_refilled` or `hazard_cleared`. The staff tap is chained
+with the check's outcome (`retail_proof`: status, `closed_by`, `minutes_to_fix`). The person
+sees "the models confirmed the fix from the photo in N min", or that the task stays open. When
+that route is not mounted, the tap is still chained and the person is told the photo could not
+be checked.
+
 ## Speech
 
 Muse Spark 1.3 writes the spoken line from the card's facts, in the chosen language and script.
@@ -148,13 +188,12 @@ speech synthesis reads the text.
 
 ## Not done
 
-- **Web Push** (VAPID). Alerts reach the phone while the app is open or in the background tab:
-  an SSE stream with a buzz, a tone, a system notification and speech. A phone whose browser
-  has killed the page gets nothing until it is reopened.
 - **Staff sign-in.** Routes use the owner check, as `/alerts` does.
-- **Handing the retail agent's restock tasks a Done photo.** Its `/retail/tasks/{id}/proof`
-  checks the photo with Spark and Glimmer. The staff app could forward the photo there when
-  that branch lands.
+- **The retail proof check has not been run live.** It is coded against the supermarket
+  branch's contract (see "Retail tasks: Done with a photo") and tested against a stand-in for
+  that route.
+- **Web Push has not been tried on a real phone or in Google Chrome.** It was proved in
+  Playwright's Chromium on this Mac, through Google's push service; see the report.
 - **The voice near-miss report has not been tried live.** The app shows a "Report a near miss"
   hold button whenever the API serves the warehouse's `POST /warehouse/reports/voice`. That
   route is on `p1/uc-warehouse`, and `GET /staff/config` checks for it on every request. The

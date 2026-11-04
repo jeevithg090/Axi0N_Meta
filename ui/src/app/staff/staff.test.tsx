@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ItemCard, nextAction } from "./_components/ItemCard";
 import { mergeItems, ordered } from "./_lib/feed";
 import { WORDS, countdown, duration, roleWords, toRoleId } from "./_lib/i18n";
+import { keyBytes } from "./_lib/push";
 import type { StaffItem } from "./_lib/types";
 
 function item(overrides: Partial<StaffItem> = {}): StaffItem {
@@ -44,6 +45,13 @@ function item(overrides: Partial<StaffItem> = {}): StaffItem {
     ...overrides,
   };
 }
+
+describe("web push", () => {
+  it("turns the base64url VAPID key into the bytes the browser wants", () => {
+    const bytes = keyBytes("BAEC_-8");
+    expect(Array.from(bytes)).toEqual([4, 1, 2, 255, 239]);
+  });
+});
 
 describe("staff words", () => {
   it("formats durations, countdowns and roles", () => {

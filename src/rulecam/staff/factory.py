@@ -8,6 +8,7 @@ acts on the same alerts and chains as every other channel instead of running its
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -15,12 +16,14 @@ import yaml
 from fastapi import APIRouter
 
 from rulecam.act.api import FalseAlarmSink
+from rulecam.act.notify import LanNotifier
 from rulecam.ask.agent import camera_names
 from rulecam.bus import Bus
 from rulecam.clients.errors import ClientConfigError
 from rulecam.clients.meta_hosted import SparkClient, VoiceTranscribeClient
 from rulecam.config import Settings
 from rulecam.contracts import Clock
+from rulecam.errors import RulecamError
 from rulecam.log import get_logger
 from rulecam.replay.cache import ReplayCache
 from rulecam.runtime.response import Response
@@ -30,6 +33,7 @@ from rulecam.staff.asking import Asker, VoiceAsk
 from rulecam.staff.chainview import ChainView
 from rulecam.staff.feed import StaffFeed
 from rulecam.staff.models import LANGS
+from rulecam.staff.push import PushRelay, SubscriberStore, Vapid
 from rulecam.staff.signal import Signal
 from rulecam.staff.speech import Speaker, default_engines
 from rulecam.staff.store import StaffStore
@@ -77,6 +81,32 @@ def _voice(
         return None
 
 
+@dataclass(frozen=True)
+class StaffParts:
+    """What the API mounts: the `/staff` router and what it ticks once a second."""
+
+    router: APIRouter
+    tickers: tuple[Callable[[], object], ...]
+
+
+def build_push(
+    settings: Settings, staff_dir: Path, notifier: LanNotifier, feed: StaffFeed
+) -> PushRelay | None:
+    """Web Push with the site's VAPID key (made on first start); `None` (logged) if it fails."""
+    subject = settings.public_ui_url or "mailto:rulecam@localhost"
+    try:
+        vapid = Vapid.load_or_create(staff_dir / "vapid.pem", subject)
+    except (OSError, ValueError, RulecamError) as exc:
+        _log.warning("staff_push_off", error=str(exc)[:200])
+        return None
+    return PushRelay(
+        vapid=vapid,
+        store=SubscriberStore(staff_dir / "push.json"),
+        alerts=notifier.list,
+        item=feed.item,
+    )
+
+
 def build_staff(
     settings: Settings,
     *,
@@ -92,8 +122,8 @@ def build_staff(
     near_miss_voice: bool = False,
     camera_labels: Callable[[], Mapping[str, str]] | None = None,
     dependencies: Sequence[Any] = (),
-) -> APIRouter:
-    """The `/staff` router, wired to the site's alerts, chains, models and speech.
+) -> StaffParts:
+    """The `/staff` router and its ticker, wired to the site's alerts, chains, models and speech.
 
     Args:
         settings: Application settings.
@@ -111,7 +141,7 @@ def build_staff(
         dependencies: Authentication for every route.
 
     Returns:
-        The router.
+        The router, and the Web Push relay's ticker.
     """
     data = settings.rulecam_data_dir
     staff_dir = data / "staff"
@@ -147,6 +177,7 @@ def build_staff(
         if spark is not None and segmenter is not None
         else None
     )
+    push = build_push(settings, staff_dir, response.notifier, feed)
     config = StaffConfig(
         langs=LANGS,
         dry_run=response.status.actions_dry_run,
@@ -155,8 +186,9 @@ def build_staff(
         shelf=shelf is not None,
         speech=tuple(engine.name for engine, _ in engines),
         near_miss_voice=near_miss_voice,
+        push=push is not None,
     )
-    return staff_router(
+    router = staff_router(
         feed,
         bus=bus,
         clock=clock,
@@ -165,5 +197,7 @@ def build_staff(
         photos_dir=staff_dir / "photos",
         asker=asker,
         shelf=shelf,
+        push=push,
         dependencies=dependencies,
     )
+    return StaffParts(router=router, tickers=(push.tick,) if push is not None else ())

@@ -172,6 +172,21 @@ class Settings(BaseSettings):
     baseten_base_url: str = "https://inference.baseten.co/v1"
     baseten_spark_open_model: str = "meta-models/muse-spark-open-1026"
     spark_open_images_supported: bool = False
+    # Muse Spark Open on any OpenAI-compatible server instead of Baseten (wins when set): our own
+    # llama-server on a RunPod serverless load balancer (docs/deploy.md "Serverless Muse Spark
+    # Open"; the RunPod key in SPARK_OPEN_EDGE_KEY goes in `Authorization`, SPARK_OPEN_API_KEY in
+    # `X-Rulecam-Key`) or a hosted provider (no edge key: SPARK_OPEN_API_KEY is the bearer).
+    spark_open_base_url: str | None = None
+    spark_open_api_key: SecretStr | None = None
+    spark_open_edge_key: SecretStr | None = None
+    spark_open_model: str = "muse-spark-open"
+    spark_open_hardware: str = "runpod-8xH100-llama.cpp-Q4_K_S"
+    # Llama Guard 4 (12B) on an OpenAI-compatible server (`clients.open_weights.llama_guard`):
+    # the plan-time screen that refuses rules about who people are. Same key scheme as Spark Open.
+    llama_guard_base_url: str | None = None
+    llama_guard_api_key: SecretStr | None = None
+    llama_guard_edge_key: SecretStr | None = None
+    llama_guard_model: str = "llama-guard-4-12b"
     glimmer_base_url: str = "http://127.0.0.1:8080/v1"
     glimmer_api_key: SecretStr | None = None
     # The Glimmer URLs are RunPod serverless load balancers: their edge takes this RunPod API key
@@ -240,6 +255,11 @@ class Settings(BaseSettings):
     def replay_dir(self) -> Path:
         """Directory of the replay cache (overridable for tests)."""
         return self.rulecam_replay_dir or self.rulecam_data_dir / "replay"
+
+    @property
+    def spark_open_configured(self) -> bool:
+        """Whether Muse Spark Open can be called live (an own/hosted server or a Baseten key)."""
+        return bool(self.spark_open_base_url) or self.baseten_api_key is not None
 
     @property
     def regressions_dir(self) -> Path:

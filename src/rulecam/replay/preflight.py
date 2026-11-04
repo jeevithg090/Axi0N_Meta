@@ -24,6 +24,7 @@ import httpx
 import numpy as np
 
 from rulecam.clients.open_weights.glimmer import glimmer_headers
+from rulecam.clients.open_weights.spark_open import spark_open_target
 from rulecam.config import Settings, get_settings
 from rulecam.contracts import Frozen
 from rulecam.voice_out.wav import encode_wav
@@ -37,7 +38,7 @@ HTTP_SERVER_ERROR_MIN = 500
 TONE_HZ = 880.0
 TONE_S = 0.5
 TONE_RATE = 16_000
-REQUIRED_ENV = ("META_API_KEY", "META_API_BASE_URL", "BASETEN_API_KEY", "HF_TOKEN")
+REQUIRED_ENV = ("META_API_KEY", "META_API_BASE_URL", "SPARK_OPEN", "HF_TOKEN")
 CREDITS_REMINDER = "check credits and usage alerts on dev.meta.ai"
 
 SUBPROCESS_TIMEOUT_S = 60
@@ -136,7 +137,7 @@ def check_env(deps: PreflightDeps) -> CheckResult:
     present = {
         "META_API_KEY": s.meta_api_key is not None,
         "META_API_BASE_URL": bool(s.meta_api_base_url),
-        "BASETEN_API_KEY": s.baseten_api_key is not None,
+        "SPARK_OPEN": s.spark_open_configured,  # SPARK_OPEN_BASE_URL or BASETEN_API_KEY
         "HF_TOKEN": s.hf_token is not None,
     }
     missing = [name for name in REQUIRED_ENV if not present[name]]
@@ -161,17 +162,21 @@ def check_meta_api(deps: PreflightDeps) -> CheckResult:
 
 
 def check_spark_open(deps: PreflightDeps) -> CheckResult:
-    """Baseten Spark Open answers a tiny prompt with `reasoning_content`."""
+    """Spark Open (own server, hosted, or Baseten) answers a tiny prompt with reasoning."""
     s = deps.settings
-    if s.baseten_api_key is None:
-        return CheckResult(name="Spark Open", ok=False, detail="BASETEN_API_KEY not set")
+    if not s.spark_open_configured:
+        return CheckResult(
+            name="Spark Open", ok=False, detail="SPARK_OPEN_BASE_URL / BASETEN_API_KEY not set"
+        )
+    target = spark_open_target(s)
     body = {
-        "model": s.baseten_spark_open_model,
+        "model": target.model,
         "messages": [{"role": "user", "content": "Reply with the word OK."}],
         "max_tokens": 256,
+        "reasoning_effort": "low",
     }
-    headers = {"Authorization": f"Api-Key {s.baseten_api_key.get_secret_value()}"}
-    url = f"{s.baseten_base_url.rstrip('/')}/chat/completions"
+    headers = {"Authorization": f"{target.auth_scheme} {target.bearer}", **target.headers}
+    url = f"{target.base_url.rstrip('/')}/chat/completions"
     try:
         response = deps.http.post(url, json=body, headers=headers)
         message = response.json()["choices"][0]["message"]
@@ -180,7 +185,7 @@ def check_spark_open(deps: PreflightDeps) -> CheckResult:
     reasoning = message.get("reasoning_content") if isinstance(message, dict) else None
     if not reasoning:
         return CheckResult(name="Spark Open", ok=False, detail="no reasoning_content in reply")
-    return CheckResult(name="Spark Open", ok=True, detail=f"{s.baseten_spark_open_model}")
+    return CheckResult(name="Spark Open", ok=True, detail=target.model)
 
 
 def check_glimmer(deps: PreflightDeps) -> CheckResult:

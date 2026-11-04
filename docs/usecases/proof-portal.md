@@ -23,11 +23,17 @@ it proves.
   - the acceptance gate chained at approval (`pass`, or `amber` with reasons), which includes
     Rule CI;
   - the Rule CI detail from the plan file (for example "boundary 16/16, mutations 6/6");
-  - the clause it gives evidence for. The plan's own citation is used when it has one. Otherwise
-    Muse Spark 1.3 searches the web for the governing clause of the rule's text
-    (`planner.standards.ground_concern_standard`). The quote is marked checked only when
-    `check_citation` fetches the cited page and finds it there. Answers are cached per rule text
-    in `<data>/compliance/clauses.json`.
+  - the clause it gives evidence for:
+    - Muse Spark 1.3 is asked, with web search, which published clause sets the requirement that
+      the rule's alerts give evidence about. It uses the planner's standards prompt, and the
+      plan's own citation is passed as a hint when the plan has one.
+    - For a distance rule, the lead clauses of the forklift evidence template
+      (`evidence.packs.LEAD_CLAUSES["osha_pit"]`) are passed as a hint when that template exists.
+    - The quote is marked checked only when it is found: first on the cited page fetched by
+      `check_citation` (`check: page`); else in the search result for that URL; else on one of
+      up to three other pages Spark's search returned (`check: search`, naming that page).
+      Otherwise it is "quote not confirmed", with the reason.
+    - Answers are cached per rule text in `<data>/compliance/clauses.json`.
 - **Alerts:** raised, confirmed by Muse Glimmer, rejected by Glimmer, Glimmer unsure, sent to a
   person, and passed on as alerts by the policy. Tamper attempts are counted too.
 - **Response:** actions (and how many were dry-run), acknowledgements by role, and median and
@@ -40,10 +46,12 @@ it proves.
   records are chained.
 - **Near-miss section (forklift pack):** rules that measure a distance (`distance_m`, such as
   forklift separation) are listed as near misses, with how many Glimmer confirmed ("near miss to
-  follow up"). Each rule's clause comes from Spark's checked grounding, not from code. For OSHA
-  forklift rules, the market research notes that 29 CFR 1910.178(l)(4)(ii)(B) requires refresher
-  training after a near miss. Rulecam never identifies the operator, so the site records the
-  training itself.
+  follow up"). Two more numbers come from the warehouse duty tracker's chained
+  `label: refresher_training_done` records (`warehouse/duty.py`): how many refreshers were
+  recorded done, and the median time from the near miss to that record. Each rule's clause comes
+  from Spark's checked grounding, not from code. For OSHA forklift rules, the market research
+  notes that 29 CFR 1910.178(l)(4)(ii)(B) requires refresher training after a near miss. Rulecam
+  never identifies the operator.
 - **Crew representative certificate** (when `worker_rep` is a reader):
   - protected privacy settings changed without both keys (checked against the chained two-key
     records from `worker/two_key.py`);
@@ -154,8 +162,13 @@ docstring shows the command line.
   because actions ran in dry-run mode.
 - **Retail time-to-clear:** chain `label` `{event_id, label: "hazard_cleared"}` when staff clear
   a spill.
-- **Training records:** a record that a refresher was done would close each near miss's
-  "review due" line.
+- **Training records:** the warehouse branch (`p1/uc-warehouse`) chains
+  `refresher_training_done`. The pack counts it already; it shows up once that branch is merged
+  and used.
+- **osha.gov refuses our page fetcher** (HTTP 403), and FDA Food Code pages are PDFs. Clause
+  quotes from those sites stay unconfirmed unless another searched page carries the same text. A
+  standards text source the fetcher can read (eCFR's API, or the text uploaded with the plan)
+  would confirm them.
 - **Committed roots:** commit `evidence/roots/<day>.txt` daily (`rulecam evidence root`), so the
   browser can check each day against git as well as against the live log. Chain Mode's HQ root
   (`chain/rollup.py`) can anchor many stores at once.

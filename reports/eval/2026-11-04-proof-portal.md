@@ -101,15 +101,18 @@ fetched the cited page to look for the quote.
 | "which clause do this rule's alerts give evidence about" | forklift 2 m → UK Workplace Regulations 1992 reg. 17(1); forklift 4 m → 29 CFR 1910.176(a); hard hat → 29 CFR 1910.135(a)(1); hair cover → FDA §2-402.11 | 0: osha.gov answers our fetch with HTTP 403, legislation.gov.uk timed out, FDA is a PDF |
 | same question through `grounded` (search results kept) | hard hat → 1910.135(a)(1); hair cover → §2-402.11; forklift → none this time | 0: the search results carried empty snippets, and Spark cited osha.gov pages its search had not returned |
 
+| final build (`pp-6b0accfe4ef7`, 144 s, 109 numbers): also checks other searched pages | forklift 2 m → 29 CFR 1910.176(a) (osha.gov eTool); hard hat → 1910.135(a)(1); hair cover (two rules) → "FDA Food Code §2-402.11" cited on Washington State's WAC 246-215-02410; forklift 4 m and customer tracking → none | **2 of 4: both hair-cover rules, the quote found on the fetched WAC page.** Forklift and hard hat stay unconfirmed (osha.gov HTTP 403) |
+
 What this means:
 
-- Spark names plausible clauses. The pack prints them as "quote not confirmed", with the reason,
-  instead of as fact.
-- The answers vary from run to run. They are cached per rule text, so one site's packs stay
-  consistent.
-- The latest build also fetches up to three other pages the search returned and accepts the quote
-  only if it appears verbatim on one of them. That run's outcome is in the addendum below.
+- Spark names plausible clauses. A clause it cannot check is printed as "quote not confirmed",
+  with the reason, not as fact.
+- In the confirmed case, the ref says FDA Food Code while the page is the Washington State code
+  that adopts it. The pack shows both the ref and the URL, so the reader sees the difference.
+- The answers vary from run to run (forklift: UK reg. 17(1), then 1910.176(a), then none). They
+  are cached per rule text, so one site's packs stay consistent.
 - We did not disguise our fetcher to get past osha.gov's 403.
+- The final Polish crew summary translates "evidence for" ("dowód") as the prompt now asks.
 
 ## Not done or not measured
 

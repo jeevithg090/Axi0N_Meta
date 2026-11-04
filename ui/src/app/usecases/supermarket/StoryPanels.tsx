@@ -191,7 +191,8 @@ export function FindingCard({ finding }: { finding: Finding }) {
       <div>{finding.headline}</div>
       {finding.staff_message && (
         <div>
-          Staff told: <em>{finding.staff_message}</em>{" "}
+          {finding.alert_id ? "Staff told" : "Suggested (no new alert)"}:{" "}
+          <em>{finding.staff_message}</em>{" "}
           {finding.alert_status && <span className={styles.pill}>{finding.alert_status}</span>}
         </div>
       )}

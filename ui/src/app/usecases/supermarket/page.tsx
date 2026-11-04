@@ -10,10 +10,23 @@ import type { AskAnswer } from "@/lib/ask";
 
 import { AskPanel } from "./AskPanel";
 import { AdvicePanel, BriefPanel, TasksPanel, WatchPanel } from "./StoryPanels";
-import { type Brief, type Overview, receiptHolds, retail, type RetailCard } from "./api";
+import {
+  type Brief,
+  type Camera,
+  type Overview,
+  receiptHolds,
+  retail,
+  type RetailCard,
+} from "./api";
 import styles from "./supermarket.module.css";
 
 const POLL_MS = 5000;
+const MAX_CAMERAS = 6;
+
+/** Cameras with the newest video first, at most `MAX_CAMERAS` (old pairings drop off). */
+function newestFirst(cameras: Camera[]): Camera[] {
+  return [...cameras].sort((a, b) => b.last.localeCompare(a.last)).slice(0, MAX_CAMERAS);
+}
 
 function Step({
   n,
@@ -90,7 +103,7 @@ export default function SupermarketPage() {
     return () => window.clearInterval(timer);
   }, [refresh]);
 
-  const cameras = overview?.cameras ?? [];
+  const cameras = newestFirst(overview?.cameras ?? []);
   const latestCard =
     card ??
     overview?.cards.find((c) => c.preregistered_seq !== null) ??

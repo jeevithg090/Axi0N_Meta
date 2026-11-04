@@ -45,7 +45,7 @@ fetch() {  # fetch <file>: download until the file has the size the CDN reports
 started=$(date +%s)
 # Hugging Face's Xet client fetches chunks in parallel (several times faster than one curl);
 # plain curl is the fallback when it cannot be installed.
-if pip install -q --root-user-action=ignore "huggingface_hub[hf_xet]>=0.34" 2>/dev/null \
+if pip install -q --root-user-action=ignore --break-system-packages "huggingface_hub[hf_xet]>=0.34" \
   && HF_XET_HIGH_PERFORMANCE=1 hf download meta-models/Muse-Glimmer-30B-GGUF \
     "$MODEL" "$MMPROJ" --local-dir "$DIR" > /dev/null; then
   log "downloaded with hf"

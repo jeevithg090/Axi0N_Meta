@@ -2,7 +2,8 @@
 
 Muse Spark Open (Baseten, the Tier 2 client) reads the owner's request, the code, the validator
 rules and the proof summary, and answers approve or reject with reasons. Without a Baseten key,
-Muse Spark 1.3 reviews instead and the result says `reviewer="spark-1.3-fallback"`; with neither,
+or when Spark Open fails, Muse Spark 1.3 reviews instead and the result says
+`reviewer="spark-1.3-fallback"` (with the Spark Open error as its first reason); with neither,
 the review is `skipped` and the extension cannot be approved. A model error is recorded as
 `error`, which also blocks approval. Any reject blocks approval.
 
@@ -20,8 +21,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from rulecam.clients.errors import ModelClientError
 from rulecam.clients.meta_hosted.spark import DEFAULT_MODEL
 from rulecam.clients.open_weights.spark_open import SparkReply
-from rulecam.extensions.generate import CheckSpec, StructuredModel, validator_rules
+from rulecam.extensions.generate import SCHEMA_DOC, CheckSpec, StructuredModel, validator_rules
 from rulecam.extensions.proof import ProofReport
+from rulecam.extensions.schema import MAX_WHY_CHARS
 from rulecam.log import get_logger
 
 _log = get_logger(__name__)
@@ -39,7 +41,9 @@ an alert.
 Approve only if ALL hold:
 - it computes what the owner asked for, including the direction and the boundary;
 - it returns value False (no alert) when the data it needs (a line, a zone, a calibration) is \
-missing, and never crashes on an empty or partial sample;
+missing, and never crashes on a sample that follows the schema: no objects, a line or zone name \
+missing from its dict, a vertical line, a null calibration or ground point. Every key of the \
+schema is always present, so indexing those keys directly is correct, not a defect;
 - it follows every validator rule listed;
 - it uses nothing about people beyond the objects in the sample (no identities, no tracking a \
 person over time, no per-person scoring);
@@ -111,6 +115,7 @@ def review_messages(spec: CheckSpec, code: str, proof: ProofReport) -> list[dict
         "concept": spec.concept,
         "reference_lines": list(spec.lines),
         "relation": spec.relation,
+        "sample_schema": SCHEMA_DOC.replace("WHY_CHARS", str(MAX_WHY_CHARS)),
         "validator_rules": validator_rules(),
         "proof": [{"step": s.name, "status": s.status, "detail": s.detail} for s in proof.steps],
         "code": code,
@@ -160,7 +165,13 @@ class ExtensionReviewer:
         """
         messages = review_messages(spec, code, proof)
         if self._spark_open is not None:
-            return self._with_spark_open(self._spark_open, messages)
+            result = self._with_spark_open(self._spark_open, messages)
+            if result.verdict != "error" or self._spark is None:
+                return result
+            fallback = self._with_spark(self._spark, messages)
+            return fallback.model_copy(
+                update={"reasons": (f"Spark Open failed: {result.reasons[0]}", *fallback.reasons)}
+            )
         if self._spark is not None:
             return self._with_spark(self._spark, messages)
         return skipped("no reviewer configured (needs BASETEN_API_KEY or a Spark key)")

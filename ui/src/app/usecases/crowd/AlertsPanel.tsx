@@ -61,9 +61,11 @@ function AckLine({ ack }: { ack: AckState | undefined }) {
 export function AlertsPanel({
   alerts,
   acks,
+  readOnly = false,
 }: {
   alerts: CrowdAlert[];
   acks: Record<string, AckState>;
+  readOnly?: boolean;
 }) {
   const [role, setRole] = useState("stewards");
   const [autoplay, setAutoplay] = useState(false);
@@ -123,23 +125,27 @@ export function AlertsPanel({
     <div className={styles.card}>
       <div className={styles.row}>
         <h2>Alerts and announcements</h2>
-        <label className={styles.small}>
-          <input
-            type="checkbox"
-            checked={autoplay}
-            onChange={(e) => setAutoplay(e.target.checked)}
-          />{" "}
-          play new announcements
-        </label>
-        <label className={styles.small}>
-          my role{" "}
-          <input
-            className={styles.input}
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            size={14}
-          />
-        </label>
+        {!readOnly && (
+          <>
+            <label className={styles.small}>
+              <input
+                type="checkbox"
+                checked={autoplay}
+                onChange={(e) => setAutoplay(e.target.checked)}
+              />{" "}
+              play new announcements
+            </label>
+            <label className={styles.small}>
+              my role{" "}
+              <input
+                className={styles.input}
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                size={14}
+              />
+            </label>
+          </>
+        )}
       </div>
       {message && <span className={styles.small}>{message}</span>}
       {alerts.length === 0 && <p className={styles.muted}>No alerts yet.</p>}
@@ -162,7 +168,7 @@ export function AlertsPanel({
           <span>{alert.assessment.why}</span>
           <span className={styles.small}>{alert.held_reason ?? checkText(alert)}</span>
           {alert.sent && <AckLine ack={acks[alert.alert_id]} />}
-          {alert.sent && (
+          {alert.sent && !readOnly && (
             <div className={styles.row}>
               {["On my way", "False alarm", "Escalate"].map((button) => (
                 <button

@@ -1,7 +1,7 @@
 "use client";
 
 import styles from "./crowd.module.css";
-import type { CameraStatus, ZoneForecast } from "./crowdApi";
+import type { Assessment, CameraStatus, PhaseMeter, RouteCheck, ZoneForecast } from "./crowdApi";
 import { LEVEL_COLOUR, densityColour, fmt, seconds } from "./crowdApi";
 
 const REFERENCES = ["4", "5", "6"];
@@ -30,6 +30,23 @@ function Sparkline({ values }: { values: (number | null)[] }) {
       ))}
       <path d={path} fill="none" stroke="currentColor" strokeWidth={1.5} />
     </svg>
+  );
+}
+
+/** The phase meter: speed over the last minutes, its stop-and-go swings, the pressure. */
+export function PhaseView({ phase }: { phase: PhaseMeter }) {
+  return (
+    <div className={styles.small}>
+      <strong>Phase meter</strong> ({Math.round(phase.window_s)} s): speed {fmt(phase.speed_mps, 2)}{" "}
+      m/s
+      {phase.speed_per_min != null
+        ? ` (${phase.speed_per_min >= 0 ? "+" : ""}${fmt(phase.speed_per_min, 2)}/min)`
+        : ""}
+      {" · "}stop-and-go swings {phase.swings}
+      {phase.swing_share != null ? ` (±${Math.round(phase.swing_share * 50)}%)` : ""}
+      {" · "}pressure {fmt(phase.pressure, 3)} (peak {fmt(phase.pressure_peak, 3)})
+      <SpeedLine speeds={phase.speeds} />
+    </div>
   );
 }
 
@@ -114,19 +131,7 @@ export function ZonePanel({ camera }: { camera: CameraStatus }) {
             )}
             <Sparkline values={camera.zone_series[z.zone]?.density ?? []} />
             <Countdown forecast={f} />
-            {f?.phase && (
-              <div className={styles.small}>
-                <strong>Phase meter</strong> ({Math.round(f.phase.window_s)} s): speed{" "}
-                {fmt(f.phase.speed_mps, 2)} m/s
-                {f.phase.speed_per_min != null
-                  ? ` (${f.phase.speed_per_min >= 0 ? "+" : ""}${fmt(f.phase.speed_per_min, 2)}/min)`
-                  : ""}
-                {" · "}stop-and-go swings {f.phase.swings}
-                {f.phase.swing_share != null ? ` (±${Math.round(f.phase.swing_share * 50)}%)` : ""}
-                {" · "}pressure {fmt(f.phase.pressure, 3)} (peak {fmt(f.phase.pressure_peak, 3)})
-                <SpeedLine speeds={f.phase.speeds} />
-              </div>
-            )}
+            {f?.phase && <PhaseView phase={f.phase} />}
           </div>
         );
       })}
@@ -138,7 +143,28 @@ export function ZonePanel({ camera }: { camera: CameraStatus }) {
 export function AssessmentCard({ camera }: { camera: CameraStatus }) {
   const a = camera.assessment;
   if (!a) return <p className={styles.muted}>Waiting for Muse Spark’s first assessment.</p>;
-  const routes = camera.last_alert?.route_checks ?? [];
+  return (
+    <AssessmentView
+      assessment={a}
+      routes={camera.last_alert?.route_checks ?? []}
+      readingAt={camera.assessed_at}
+      seconds={camera.assess_seconds}
+    />
+  );
+}
+
+/** One assessment of Muse Spark's, with the route guard's checks behind its last alert. */
+export function AssessmentView({
+  assessment: a,
+  routes,
+  readingAt,
+  seconds,
+}: {
+  assessment: Assessment;
+  routes: RouteCheck[];
+  readingAt: string | null;
+  seconds: number | null;
+}) {
   return (
     <div className={styles.card}>
       <div className={styles.row}>
@@ -147,8 +173,8 @@ export function AssessmentCard({ camera }: { camera: CameraStatus }) {
         </span>
         <strong>Muse Spark 1.3</strong>
         <span className={styles.small}>
-          reading {new Date(camera.assessed_at ?? "").toLocaleTimeString([], { hour12: false })} ·{" "}
-          {fmt(camera.assess_seconds)} s
+          reading {new Date(readingAt ?? "").toLocaleTimeString([], { hour12: false })} ·{" "}
+          {fmt(seconds)} s
         </span>
         {a.phase && (
           <span className={styles.badge} style={{ background: "#455a64" }}>

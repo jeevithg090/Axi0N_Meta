@@ -115,189 +115,192 @@ export function ReportPanel({
         </button>
       </div>
       {message && <span className={styles.small}>{message}</span>}
-      {report && (
-        <>
-          {report.after_action && (
-            <div>
-              <strong>{report.after_action.headline}</strong>
-              {report.after_action.cited.length > 0 ? (
-                <p style={{ margin: "4px 0" }}>
-                  {report.after_action.cited.map((c, k) => (
-                    <span key={k}>
-                      {c.text}{" "}
-                      <span className={styles.small}>
-                        {c.records.length ? `[#${c.records.join(", #")}]` : "[no record]"}
-                      </span>{" "}
-                    </span>
-                  ))}
-                </p>
-              ) : (
-                <p style={{ margin: "4px 0" }}>{report.after_action.narrative}</p>
-              )}
-              <div className={styles.row}>
-                <div>
-                  <em>Worked</em>
-                  <ul className={styles.list}>
-                    {report.after_action.worked.map((x) => (
-                      <li key={x}>{x}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <em>Change</em>
-                  <ul className={styles.list}>
-                    {report.after_action.change.map((x) => (
-                      <li key={x}>{x}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
+      {report && <ReportView report={report} />}
+    </div>
+  );
+}
+
+/** A report: after-action, chain seal, zones, latency, ground truth, unknowns, timeline. */
+export function ReportView({ report }: { report: EventReport }) {
+  return (
+    <>
+      {report.after_action && (
+        <div>
+          <strong>{report.after_action.headline}</strong>
+          {report.after_action.cited.length > 0 ? (
+            <p style={{ margin: "4px 0" }}>
+              {report.after_action.cited.map((c, k) => (
+                <span key={k}>
+                  {c.text}{" "}
+                  <span className={styles.small}>
+                    {c.records.length ? `[#${c.records.join(", #")}]` : "[no record]"}
+                  </span>{" "}
+                </span>
+              ))}
+            </p>
+          ) : (
+            <p style={{ margin: "4px 0" }}>{report.after_action.narrative}</p>
           )}
           <div className={styles.row}>
-            <span
-              className={styles.badge}
-              style={{
-                background:
-                  report.evidence.chain_ok == null
-                    ? "#757575"
-                    : report.evidence.chain_ok
-                      ? "#2e7d32"
-                      : "#c62828",
-              }}
-            >
-              {report.evidence.chain_ok == null
-                ? "no chain"
-                : report.evidence.chain_ok
-                  ? "chain verified"
-                  : "chain broken"}
-            </span>
-            <button type="button" className={styles.button} onClick={() => download(report)}>
-              Download incident record (JSON)
-            </button>
-          </div>
-          <span className={styles.small}>
-            {report.readings} readings · evidence chain{" "}
-            {report.evidence.chain_ok == null
-              ? "not written"
-              : report.evidence.chain_ok
-                ? `verified (${report.evidence.records.length} records for these alerts)`
-                : `BROKEN: ${report.evidence.problem}`}
-          </span>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>zone</th>
-                <th>peak /m²</th>
-                <th>at</th>
-                <th>mean</th>
-                {report.reference_ppm2.map((r) => (
-                  <th key={r}>≥{r}/m²</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {report.zones.map((z) => (
-                <tr key={z.zone}>
-                  <td>{z.zone}</td>
-                  <td>
-                    {z.peak_heatmap ? (
-                      <a href={fileUrl(z.peak_heatmap)} target="_blank" rel="noreferrer">
-                        {fmt(z.peak_density_ppm2)}
-                      </a>
-                    ) : (
-                      fmt(z.peak_density_ppm2)
-                    )}
-                  </td>
-                  <td>{clock(z.peak_at)}</td>
-                  <td>{fmt(z.mean_density_ppm2)}</td>
-                  {report.reference_ppm2.map((r) => (
-                    <td key={r}>{seconds(z.above_s[`${r}`] ?? 0)}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {report.latency.length > 0 && (
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>alert</th>
-                  <th>reading</th>
-                  <th>→ Spark</th>
-                  <th>→ sent</th>
-                  <th>frame check</th>
-                </tr>
-              </thead>
-              <tbody>
-                {report.latency.map((l) => (
-                  <tr key={l.alert_id}>
-                    <td style={{ color: LEVEL_COLOUR[l.level] }}>
-                      {l.level} {l.sent ? "" : "(held)"}
-                    </td>
-                    <td>{clock(l.reading_at)}</td>
-                    <td>{seconds(l.assess_s)}</td>
-                    <td>{seconds(l.alert_s)}</td>
-                    <td>{l.checked}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-          {report.truth && (
-            <>
-              <strong>Against the ground truth</strong>
-              <span className={styles.small}>{report.truth_source}</span>
-              {report.truth.map((z) => (
-                <div key={z.zone}>
-                  <span className={styles.small}>
-                    <strong>{z.zone}</strong>: {z.readings} readings · count{" "}
-                    {fmt((z.count_ratio ?? 0) * 100, 0)}% of the true people (mean error{" "}
-                    {fmt(z.count_mae)}) · density ×{fmt(z.density_ratio_median, 2)} (median) · peak
-                    system {fmt(z.sys_peak_ppm2)} vs true {fmt(z.true_peak_ppm2)}/m² at{" "}
-                    {fmt(z.true_peak_clip_s)} s
-                  </span>
-                  <TruthChart zone={z} />
-                </div>
-              ))}
-              <span className={styles.small}>
-                Green line: true density; orange dots: the live readings.
-              </span>
-            </>
-          )}
-          {report.unknowns.length > 0 && (
-            <>
-              <strong>What the system did not know</strong>
+            <div>
+              <em>Worked</em>
               <ul className={styles.list}>
-                {report.unknowns.map((u) => (
-                  <li key={u} className={styles.small}>
-                    {u}
-                  </li>
+                {report.after_action.worked.map((x) => (
+                  <li key={x}>{x}</li>
                 ))}
               </ul>
-            </>
-          )}
-          <strong>Timeline</strong>
-          <ul className={styles.list}>
-            {report.timeline.map((e, k) => (
-              <li key={k} className={styles.small}>
-                {clock(e.at)}{" "}
-                <strong style={{ color: e.level ? LEVEL_COLOUR[e.level] : undefined }}>
-                  {e.kind}
-                </strong>{" "}
-                {e.level && e.kind !== "alert" ? `${e.level}: ` : ""}
-                {e.text}
-                {e.seq != null && (
-                  <span className={styles.muted}>
-                    {" "}
-                    · chain #{e.seq} {e.hash?.slice(0, 10)}…
-                  </span>
+            </div>
+            <div>
+              <em>Change</em>
+              <ul className={styles.list}>
+                {report.after_action.change.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+      <div className={styles.row}>
+        <span
+          className={styles.badge}
+          style={{
+            background:
+              report.evidence.chain_ok == null
+                ? "#757575"
+                : report.evidence.chain_ok
+                  ? "#2e7d32"
+                  : "#c62828",
+          }}
+        >
+          {report.evidence.chain_ok == null
+            ? "no chain"
+            : report.evidence.chain_ok
+              ? "chain verified"
+              : "chain broken"}
+        </span>
+        <button type="button" className={styles.button} onClick={() => download(report)}>
+          Download incident record (JSON)
+        </button>
+      </div>
+      <span className={styles.small}>
+        {report.readings} readings · evidence chain{" "}
+        {report.evidence.chain_ok == null
+          ? "not written"
+          : report.evidence.chain_ok
+            ? `verified (${report.evidence.records.length} records for these alerts)`
+            : `BROKEN: ${report.evidence.problem}`}
+      </span>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>zone</th>
+            <th>peak /m²</th>
+            <th>at</th>
+            <th>mean</th>
+            {report.reference_ppm2.map((r) => (
+              <th key={r}>≥{r}/m²</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {report.zones.map((z) => (
+            <tr key={z.zone}>
+              <td>{z.zone}</td>
+              <td>
+                {z.peak_heatmap ? (
+                  <a href={fileUrl(z.peak_heatmap)} target="_blank" rel="noreferrer">
+                    {fmt(z.peak_density_ppm2)}
+                  </a>
+                ) : (
+                  fmt(z.peak_density_ppm2)
                 )}
+              </td>
+              <td>{clock(z.peak_at)}</td>
+              <td>{fmt(z.mean_density_ppm2)}</td>
+              {report.reference_ppm2.map((r) => (
+                <td key={r}>{seconds(z.above_s[`${r}`] ?? 0)}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {report.latency.length > 0 && (
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>alert</th>
+              <th>reading</th>
+              <th>→ Spark</th>
+              <th>→ sent</th>
+              <th>frame check</th>
+            </tr>
+          </thead>
+          <tbody>
+            {report.latency.map((l) => (
+              <tr key={l.alert_id}>
+                <td style={{ color: LEVEL_COLOUR[l.level] }}>
+                  {l.level} {l.sent ? "" : "(held)"}
+                </td>
+                <td>{clock(l.reading_at)}</td>
+                <td>{seconds(l.assess_s)}</td>
+                <td>{seconds(l.alert_s)}</td>
+                <td>{l.checked}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {report.truth && (
+        <>
+          <strong>Against the ground truth</strong>
+          <span className={styles.small}>{report.truth_source}</span>
+          {report.truth.map((z) => (
+            <div key={z.zone}>
+              <span className={styles.small}>
+                <strong>{z.zone}</strong>: {z.readings} readings · count{" "}
+                {fmt((z.count_ratio ?? 0) * 100, 0)}% of the true people (mean error{" "}
+                {fmt(z.count_mae)}) · density ×{fmt(z.density_ratio_median, 2)} (median) · peak
+                system {fmt(z.sys_peak_ppm2)} vs true {fmt(z.true_peak_ppm2)}/m² at{" "}
+                {fmt(z.true_peak_clip_s)} s
+              </span>
+              <TruthChart zone={z} />
+            </div>
+          ))}
+          <span className={styles.small}>
+            Green line: true density; orange dots: the live readings.
+          </span>
+        </>
+      )}
+      {report.unknowns.length > 0 && (
+        <>
+          <strong>What the system did not know</strong>
+          <ul className={styles.list}>
+            {report.unknowns.map((u) => (
+              <li key={u} className={styles.small}>
+                {u}
               </li>
             ))}
           </ul>
         </>
       )}
-    </div>
+      <strong>Timeline</strong>
+      <ul className={styles.list}>
+        {report.timeline.map((e, k) => (
+          <li key={k} className={styles.small}>
+            {clock(e.at)}{" "}
+            <strong style={{ color: e.level ? LEVEL_COLOUR[e.level] : undefined }}>{e.kind}</strong>{" "}
+            {e.level && e.kind !== "alert" ? `${e.level}: ` : ""}
+            {e.text}
+            {e.seq != null && (
+              <span className={styles.muted}>
+                {" "}
+                · chain #{e.seq} {e.hash?.slice(0, 10)}…
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

@@ -414,46 +414,86 @@ export const crowdApi = {
 
 export type Link = "stream" | "polling" | "offline";
 
+/**
+ * Whether the page can show the live crowd watch: `owner` means the API refused a visitor (log
+ * in), `unavailable` that this API has no crowd routes, `off` that crowd watch is switched off,
+ * `offline` that the API did not answer within `ANSWER_WITHIN_MS`.
+ */
+export type Access = "loading" | "ok" | "owner" | "unavailable" | "off" | "offline";
+
+export const ANSWER_WITHIN_MS = 8000;
+
+/** What an HTTP status from `/crowd/status` means for the page. */
+export function accessFor(status: number): Access {
+  if (status === 401 || status === 403) return "owner";
+  if (status === 404) return "unavailable";
+  if (status === 503) return "off";
+  return "offline";
+}
+
 /** The live crowd status: the SSE stream when it delivers, polling every 3 s otherwise. */
-export function useCrowdStatus(): { status: CrowdStatus | null; link: Link; error: string } {
+export function useCrowdStatus(): {
+  status: CrowdStatus | null;
+  link: Link;
+  access: Access;
+} {
   const [status, setStatus] = useState<CrowdStatus | null>(null);
   const [link, setLink] = useState<Link>("offline");
-  const [error, setError] = useState("");
+  const [access, setAccess] = useState<Access>("loading");
   const lastEvent = useRef(0);
 
   useEffect(() => {
     let closed = false;
     let source: EventSource | null = null;
-    if (typeof EventSource !== "undefined") {
-      source = new EventSource(`${API_PROXY}/crowd/stream`);
-      source.addEventListener("status", (event) => {
-        lastEvent.current = Date.now();
-        setStatus(JSON.parse((event as MessageEvent<string>).data) as CrowdStatus);
-        setLink("stream");
-        setError("");
-      });
-    }
-    const poll = async (): Promise<void> => {
-      if (closed || Date.now() - lastEvent.current < 8000) return;
-      try {
-        setStatus(await crowdApi.status());
-        setLink("polling");
-        setError("");
-      } catch (exc) {
-        setLink("offline");
-        setError(exc instanceof Error ? exc.message : "Could not reach the API");
-      }
-    };
-    void poll();
-    const timer = window.setInterval(() => void poll(), 3000);
-    return () => {
+    let timer = 0;
+    const stop = (): void => {
       closed = true;
       window.clearInterval(timer);
       source?.close();
     };
+    const poll = async (): Promise<void> => {
+      if (closed || Date.now() - lastEvent.current < ANSWER_WITHIN_MS) return;
+      let response: Response;
+      try {
+        response = await fetch(`${API_PROXY}/crowd/status`, { cache: "no-store" });
+      } catch {
+        setLink("offline");
+        setAccess("offline");
+        return;
+      }
+      if (!response.ok) {
+        const found = accessFor(response.status);
+        setLink("offline");
+        setAccess(found);
+        if (found === "owner" || found === "unavailable") stop(); // no point retrying
+        return;
+      }
+      setStatus((await response.json()) as CrowdStatus);
+      setLink("polling");
+      setAccess("ok");
+      if (source === null && typeof EventSource !== "undefined") {
+        source = new EventSource(`${API_PROXY}/crowd/stream`);
+        source.addEventListener("status", (event) => {
+          lastEvent.current = Date.now();
+          setStatus(JSON.parse((event as MessageEvent<string>).data) as CrowdStatus);
+          setLink("stream");
+          setAccess("ok");
+        });
+      }
+    };
+    const deadline = window.setTimeout(
+      () => setAccess((now) => (now === "loading" ? "offline" : now)),
+      ANSWER_WITHIN_MS,
+    );
+    void poll();
+    timer = window.setInterval(() => void poll(), 3000);
+    return () => {
+      window.clearTimeout(deadline);
+      stop();
+    };
   }, []);
 
-  return { status, link, error };
+  return { status, link, access };
 }
 
 export const LEVEL_COLOUR: Record<string, string> = {

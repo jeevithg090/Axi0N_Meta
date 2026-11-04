@@ -1262,6 +1262,8 @@ def build_crowd(
         check_timeout_s=settings.rulecam_crowd_check_timeout_s,
         site_profile=settings.rulecam_site_profile,
         camera_names=names,
+        escalation=response.escalation,
+        alert_store=response.notifier,
     )
     languages = [x for x in settings.rulecam_crowd_languages.split(",") if x.strip()]
     if settings.rulecam_crowd_instruction:

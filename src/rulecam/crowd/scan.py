@@ -45,6 +45,7 @@ DEFAULT_CELLS: Final = (8, 6)  # density grid columns x rows
 VIEW: Final = "view"
 _HEAT_MAX_PPM2: Final = 6.0  # colour scale top of the heatmap (display only)
 _TILE_WORKERS: Final = 4
+_ARROW_MAX_PX: Final = 30.0  # longest motion arrow on the heatmap (display only)
 
 
 class ZoneReading(Frozen):
@@ -64,13 +65,20 @@ class ZoneReading(Frozen):
 
 
 class CellReading(Frozen):
-    """One cell of the density grid."""
+    """One cell of the density grid, with how the people in it move."""
 
     row: int
     col: int
     people: int
     area_m2: float
     density_ppm2: float | None
+    flow_px: tuple[float, float] | None = Field(
+        default=None, description="Mean image motion of the cell's people, pixels per second."
+    )
+    speed_mps: float | None = None
+    coherence: float | None = None
+    counterflow_share: float | None = None
+    pressure: float | None = None
 
 
 class CrowdReading(Frozen):
@@ -232,7 +240,7 @@ class CrowdScanner:
         ground = _Ground.of(h, width, height) if h is not None else None
         if h is None:
             notes.append("no ground calibration: areas, densities and m/s speeds are unknown")
-        velocities = self._velocities(
+        velocities, flow_px = self._velocities(
             image, before, found=found, feet=feet, h=h, at=frame.at, notes=notes
         )
         view = [(0.0, 0.0), (float(width), 0.0), (float(width), float(height)), (0.0, height)]
@@ -243,11 +251,15 @@ class CrowdScanner:
                 for z in zones
             ),
         ]
-        cells = _cells(feet, ground, self._cells) if ground is not None else []
+        cells = (
+            _cells(feet, ground, self._cells, velocities=velocities, flow_px=flow_px)
+            if ground is not None
+            else []
+        )
         dense = [c for c in cells if c.density_ppm2 is not None]
         peak = max(dense, key=lambda c: c.density_ppm2 or 0.0) if dense else None
         heat = _heatmap(
-            image, cells, feet=feet, velocities=velocities, shape=self._cells, view=readings[0]
+            image, cells, feet=feet, flow_px=flow_px, shape=self._cells, view=readings[0]
         )
         name = f"crowd-{frame.camera_id}-{frame.at.strftime('%Y%m%dT%H%M%S%f')}.jpg"
         self._out_dir.mkdir(parents=True, exist_ok=True)
@@ -280,20 +292,24 @@ class CrowdScanner:
         h: signals.FloatArray | None,
         at: datetime,
         notes: list[str],
-    ) -> signals.FloatArray:
-        """Each detection's velocity (m/s, or px/s without a calibration); NaN when unknown."""
+    ) -> tuple[signals.FloatArray, signals.FloatArray]:
+        """Each detection's velocity and image motion; NaN when unknown.
+
+        Returns:
+            Velocities in m/s (px/s without a calibration), and image motion in px/s.
+        """
         unknown = np.full((len(found), 2), np.nan)
         if before is None or not found:
-            return unknown
+            return unknown, unknown
         earlier = cv2.imread(str(before.path))
         dt = (at - before.at).total_seconds()
         if earlier is None or earlier.shape != image.shape or dt <= 0:
             notes.append("no usable earlier frame: motion is unknown")
-            return unknown
+            return unknown, unknown
         moved = signals.box_flow(signals.optical_flow(earlier, image), found)
         if h is None:
-            return moved / dt
-        return signals.ground_velocities(h, feet, moved, dt)
+            return moved / dt, moved / dt
+        return signals.ground_velocities(h, feet, moved, dt), moved / dt
 
 
 @dataclass(frozen=True)
@@ -341,19 +357,39 @@ def _zone(
     )
 
 
-def _cells(feet: signals.FloatArray, ground: _Ground, shape: tuple[int, int]) -> list[CellReading]:
+def _cells(
+    feet: signals.FloatArray,
+    ground: _Ground,
+    shape: tuple[int, int],
+    *,
+    velocities: signals.FloatArray,
+    flow_px: signals.FloatArray,
+) -> list[CellReading]:
     cols, rows = shape
     out = []
     for k, rect in enumerate(signals.cell_rects(ground.width, ground.height, cols, rows)):
-        people = int(signals.in_rect(feet, rect).sum())
+        chosen = signals.in_rect(feet, rect)
+        people = int(chosen.sum())
         area = ground.area(signals.rect_polygon(rect))
+        dense = signals.density(people, area)
+        moved = signals.motion(velocities[chosen])
+        image = flow_px[chosen]
+        image = image[np.isfinite(image).all(axis=1)] if len(image) else image
+        mean = image.mean(axis=0) if len(image) else None
         out.append(
             CellReading(
                 row=k // cols,
                 col=k % cols,
                 people=people,
                 area_m2=round(area, 2),
-                density_ppm2=_round(signals.density(people, area)),
+                density_ppm2=_round(dense),
+                flow_px=(round(float(mean[0]), 1), round(float(mean[1]), 1))
+                if mean is not None
+                else None,
+                speed_mps=_round(moved.speed),
+                coherence=_round(moved.coherence),
+                counterflow_share=_round(moved.counterflow),
+                pressure=_round(signals.pressure(dense, moved.velocity_var), 4),
             )
         )
     return out
@@ -364,7 +400,7 @@ def _heatmap(
     cells: Sequence[CellReading],
     *,
     feet: signals.FloatArray,
-    velocities: signals.FloatArray,
+    flow_px: signals.FloatArray,
     shape: tuple[int, int],
     view: ZoneReading,
 ) -> MatLike:
@@ -386,17 +422,10 @@ def _heatmap(
     for cell, rect in zip(cells, rects, strict=False):
         if cell.density_ppm2 is not None and cell.people:
             _label(out, f"{cell.density_ppm2:.1f}/m2", (rect[0] + 4, rect[1] + 16))
-    for rect in rects:
-        chosen = signals.in_rect(feet, rect)
-        v = velocities[chosen] if len(velocities) else velocities
-        v = v[np.isfinite(v).all(axis=1)] if len(v) else v
-        if not len(v):
-            continue
-        mean = v.mean(axis=0)
-        cx, cy = (rect[0] + rect[2]) / 2.0, (rect[1] + rect[3]) / 2.0
-        scale = 25.0 / max(1e-6, float(np.hypot(*mean))) * min(1.0, float(np.hypot(*mean)))
-        tip = (round(cx + mean[0] * scale), round(cy + mean[1] * scale))
-        cv2.arrowedLine(out, (round(cx), round(cy)), tip, (255, 255, 255), 2, tipLength=0.35)
+        if cell.counterflow_share:  # magenta border, thicker the more people push against it
+            width = 1 + round(4 * cell.counterflow_share)
+            cv2.rectangle(out, rect[:2], (rect[2] - 1, rect[3] - 1), (255, 0, 255), width)
+    _arrows(out, rects, feet, flow_px)
     for x, y in feet:
         cv2.circle(out, (round(x), round(y)), 3, (0, 255, 255), -1)
     summary = f"{view.people} people"
@@ -406,6 +435,27 @@ def _heatmap(
         summary += f"  {view.speed_mps:.2f} m/s"
     _label(out, summary, (8, height - 10), scale=0.7)
     return out
+
+
+def _arrows(
+    out: MatLike,
+    rects: Sequence[signals.TileRect],
+    feet: signals.FloatArray,
+    flow_px: signals.FloatArray,
+) -> None:
+    """Each cell's mean image motion as an arrow (one second of it, capped)."""
+    for rect in rects:
+        chosen = signals.in_rect(feet, rect)
+        v = flow_px[chosen] if len(flow_px) else flow_px
+        v = v[np.isfinite(v).all(axis=1)] if len(v) else v
+        if not len(v):
+            continue
+        mean = v.mean(axis=0)
+        cx, cy = (rect[0] + rect[2]) / 2.0, (rect[1] + rect[3]) / 2.0
+        length = float(np.hypot(*mean))
+        scale = min(_ARROW_MAX_PX, length) / max(1e-6, length)
+        tip = (round(cx + mean[0] * scale), round(cy + mean[1] * scale))
+        cv2.arrowedLine(out, (round(cx), round(cy)), tip, (255, 255, 255), 2, tipLength=0.35)
 
 
 def _label(image: MatLike, text: str, at: tuple[int, int], scale: float = 0.5) -> None:

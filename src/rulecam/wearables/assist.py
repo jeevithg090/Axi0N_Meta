@@ -64,6 +64,7 @@ HISTORY: Final = 6  # earlier answers of the walk shown to Spark
 DEFAULT_GLIMMER_TIMEOUT_S: Final = 25.0
 GLIMMER_RETRY_S: Final = 120.0  # after a failed look, Spark looks at once for this long
 PROBE_EVERY_S: Final = 60.0
+GLIMMER_GRACE_S: Final = 6.0  # how long a racing Spark look waits for Glimmer's
 SUFFIXES: Final = {"image/jpeg": ".jpg", "image/png": ".png"}
 NOT_HEARD: Final = "Sorry, I didn't catch that. Hold the button and ask again."
 GAPS_CAPTION: Final = "The same frame with the shelf gaps numbered:"
@@ -364,10 +365,11 @@ class PovAssistant:
             ),
             self._glimmer_timeout_s,
         )
-        self._mark_glimmer(up=reply is not None)
+        self.mark_glimmer(up=reply is not None)
         _log.info("wearables_glimmer_probe", up=reply is not None, error=error)
 
-    def _mark_glimmer(self, *, up: bool) -> None:
+    def mark_glimmer(self, *, up: bool) -> None:
+        """Record whether Glimmer just answered; when down, Spark looks at once for a while."""
         self._glimmer_state = "up" if up else "down"
         self._glimmer_down_until = 0.0 if up else self._monotonic() + GLIMMER_RETRY_S
 
@@ -449,7 +451,14 @@ class PovAssistant:
         return text
 
     async def _look(self, run: _Run) -> tuple[GlimmerLook | None, str]:
-        """Glimmer looks; Spark looks when Glimmer fails, at once while Glimmer is down lately."""
+        """Glimmer looks first; Spark looks too when Glimmer may be slow, or when it fails.
+
+        Glimmer known up (or a patrol frame while it is not known down): wait for Glimmer, and
+        let Spark look only if it fails. Otherwise (a question while Glimmer is cold or being
+        checked, or any frame while it is down): both look at once, and Glimmer's look is used
+        if it comes within `GLIMMER_GRACE_S` of Spark's. Glimmer always gets the frame, so a
+        cold worker keeps warming up.
+        """
         prompt = look_prompt(run.ask.mode, self._site)
         question = (
             f"The wearer asks: {run.ask.question}"
@@ -459,17 +468,21 @@ class PovAssistant:
         if self._glimmer is None:
             return await self._spark_look(run, prompt, question, "no Glimmer configured")
         glimmer = asyncio.create_task(self._glimmer_look(run, f"{prompt}\n{question}"))
-        if self._monotonic() < self._glimmer_down_until:
-            self._keep(glimmer)  # it still gets the frame, and warms Glimmer up
-            looked = await self._spark_look(run, prompt, question, "it failed in the last minutes")
-            if glimmer.done() and glimmer.result() is not None:
-                return glimmer.result(), self._glimmer_model
-            return looked
-        look = await glimmer
-        if look is not None:
-            return look, self._glimmer_model
-        reason = run.timer.stages[-1].note if run.timer.stages else ""
-        return await self._spark_look(run, prompt, question, reason)
+        down = self._monotonic() < self._glimmer_down_until
+        if not down and (self._glimmer_state == "up" or run.kind == "patrol"):
+            look = await glimmer
+            if look is not None:
+                return look, self._glimmer_model
+            reason = run.timer.stages[-1].note if run.timer.stages else ""
+            return await self._spark_look(run, prompt, question, reason)
+        state = "down lately" if down else f"not known to be up ({self._glimmer_state})"
+        looked = await self._spark_look(run, prompt, question, state)
+        if not glimmer.done():
+            await asyncio.wait({glimmer}, timeout=GLIMMER_GRACE_S)
+        if glimmer.done() and glimmer.result() is not None:
+            return glimmer.result(), self._glimmer_model
+        self._keep(glimmer)
+        return looked
 
     async def _glimmer_look(self, run: _Run, text: str) -> GlimmerLook | None:
         """Glimmer's look, or `None`; a failure makes the next looks start Spark at once."""
@@ -486,7 +499,7 @@ class PovAssistant:
         run.timer.add("look", model, since, ok=look is not None, note=reason)
         if look is None:
             _log.warning("wearables_glimmer_failed", error=reason)
-        self._mark_glimmer(up=look is not None)
+        self.mark_glimmer(up=look is not None)
         return look
 
     async def _spark_look(
@@ -507,7 +520,7 @@ class PovAssistant:
                     schema=GlimmerLook,
                 )
             )
-        note = f"Glimmer unavailable ({reason}); Muse Spark looked instead"
+        note = f"Muse Spark looked: Glimmer {reason}"
         run.timer.add("look", SPARK_MODEL, since, ok=look is not None, note=f"{note} {error}")
         return look, (f"{SPARK_MODEL} (Glimmer unavailable)" if look is not None else "")
 

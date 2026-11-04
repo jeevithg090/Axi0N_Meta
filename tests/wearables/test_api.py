@@ -34,6 +34,8 @@ def client(tmp_path: Path, *, ready: bool = True) -> tuple[TestClient, FakeLLM, 
         if ready
         else None
     )
+    if assistant is not None:
+        assistant.mark_glimmer(up=True)  # Glimmer looks first; Spark only composes
     reporter = WalkReporter(
         spark=spark,
         files=files,

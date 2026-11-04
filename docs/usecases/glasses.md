@@ -41,10 +41,14 @@ what they care about. Nothing is hard-coded: the models decide what matters and 
 the same frame with SAM's counts, confirmed it. A question is always answered aloud; a patrol frame
 (no question) is spoken only when its alert is verified. Unverified alerts are shown, not spoken.
 
-**When Glimmer is down.** If Glimmer does not answer within `RULECAM_WEARABLES_GLIMMER_TIMEOUT_S`
-(25 s by default), Muse Spark takes the look and the answer says "Glimmer unavailable". For the next
-two minutes Spark looks at once, while Glimmer still gets each frame in the background so it can
-come back. Answers made this way are never marked verified.
+**When Glimmer is cold or down.** Glimmer runs on serverless GPUs that scale to zero, so the page
+pings it when it opens (`GET /wearables/status`, at most once a minute) to start a worker early.
+While Glimmer is known to be up, it looks first and Spark looks only if Glimmer fails within
+`RULECAM_WEARABLES_GLIMMER_TIMEOUT_S` (25 s by default). While it is cold, being checked or down,
+a question is looked at by both at once, and Glimmer's look is used if it arrives within 6 s of
+Spark's; otherwise Spark's look is used and the answer says "Glimmer unavailable". A failed look or
+ping marks Glimmer down for two minutes. Glimmer still gets every frame in the background, so it
+can come back. Answers looked at only by Spark are never marked verified.
 
 **Patrol.** With patrol on, the page sends a frame every 5 seconds whenever nothing is in flight.
 A frame where Glimmer sees nothing worth a warning costs one Glimmer call and nothing else.

@@ -13,7 +13,9 @@ import pytest
 from pydantic import BaseModel
 
 from rulecam.contracts import Detection, Mask
+from rulecam.shelf.gaps import ShelfScanner
 from rulecam.wearables.assist import (
+    GAPS_CAPTION,
     NOT_HEARD,
     Ask,
     PovAssistant,
@@ -106,24 +108,24 @@ def assistant(
     sam: Sam | None = None,
     transcriber: FakeTranscriber | None = None,
     timeout_s: float = 5.0,
+    glimmer_up: bool = False,
 ) -> tuple[PovAssistant, Files, FakeTTS]:
     files, tts = Files(), FakeTTS()
-    return (
-        PovAssistant(
-            spark=spark,
-            files=files,
-            sam=sam or Sam({}),
-            out_dir=tmp_path,
-            clock=FakeClock(),
-            glimmer=glimmer,
-            glimmer_model=GLIMMER,
-            transcriber=transcriber,
-            voice=Voice(tts, "test voice"),
-            glimmer_timeout_s=timeout_s,
-        ),
-        files,
-        tts,
+    svc = PovAssistant(
+        spark=spark,
+        files=files,
+        sam=sam or Sam({}),
+        out_dir=tmp_path,
+        clock=FakeClock(),
+        glimmer=glimmer,
+        glimmer_model=GLIMMER,
+        transcriber=transcriber,
+        voice=Voice(tts, "test voice"),
+        glimmer_timeout_s=timeout_s,
     )
+    if glimmer_up:
+        svc.mark_glimmer(up=True)
+    return svc, files, tts
 
 
 def test_concepts_are_cleaned_deduplicated_and_capped() -> None:
@@ -143,7 +145,7 @@ async def test_question_looks_counts_composes_and_speaks(tmp_path: Path) -> None
     glimmer = FakeLLM([look(alert=True, hazards=["forklift ahead"], count=["forklift", "person"])])
     spark = FakeLLM([composed()])
     sam = Sam({"forklift": 1})
-    svc, files, tts = assistant(tmp_path, glimmer=glimmer, spark=spark, sam=sam)
+    svc, files, tts = assistant(tmp_path, glimmer=glimmer, spark=spark, sam=sam, glimmer_up=True)
 
     answer = await svc.answer(Ask(image=jpeg(), mode="warehouse", question="Safe to walk?"))
 
@@ -227,7 +229,9 @@ async def test_push_to_talk_audio_becomes_the_question(tmp_path: Path) -> None:
     )
     glimmer = FakeLLM([look()])
     spark = FakeLLM([composed(alert=False, spoken="Moderately busy ahead.")])
-    svc, _, _ = assistant(tmp_path, glimmer=glimmer, spark=spark, transcriber=transcriber)
+    svc, _, _ = assistant(
+        tmp_path, glimmer=glimmer, spark=spark, transcriber=transcriber, glimmer_up=True
+    )
 
     answer = await svc.answer(Ask(image=jpeg(), mode="crowd", audio=b"RIFF", lang="es"))
 
@@ -268,10 +272,78 @@ async def test_only_jpeg_or_png(tmp_path: Path) -> None:
         await svc.answer(Ask(image=b"GIF89a", content_type="image/gif"))
 
 
+async def test_aisle_question_shows_spark_the_confirmed_gaps(tmp_path: Path) -> None:
+    shelf_spark = FakeLLM(
+        [
+            {
+                "gaps": [
+                    {
+                        "box": [100, 100, 600, 600],
+                        "section": "left bay, shelf 2",
+                        "neighbours": "sourdough loaves",
+                        "facings": 4,
+                    }
+                ]
+            }
+        ]
+    )
+    files = Files()
+    sam = Sam({})
+    spark = FakeLLM([composed(alert=False, spoken="One gap, left shelf two, by the sourdough.")])
+    svc = PovAssistant(
+        spark=spark,
+        files=files,
+        sam=sam,
+        out_dir=tmp_path,
+        clock=FakeClock(),
+        glimmer=FakeLLM([look(count=["bread loaf"])]),
+        glimmer_model=GLIMMER,
+        shelf=ShelfScanner(spark=shelf_spark, files=files, sam=sam, out_dir=tmp_path / "frames"),
+    )
+    svc.mark_glimmer(up=True)
+
+    answer = await svc.answer(Ask(image=jpeg(), mode="aisle", question="Any gaps?"))
+
+    assert [(g.number, g.section, g.facings) for g in answer.gaps] == [(1, "left bay, shelf 2", 4)]
+    assert answer.marked is not None
+    assert (svc.frames_dir / answer.marked).is_file()
+    assert sorted(sam.calls) == ["bread loaf", "product package"]
+    content = spark.calls[0]["messages"][1]["content"]  # type: ignore[index]
+    assert content[2] == {"type": "input_text", "text": GAPS_CAPTION}
+    assert content[3] == {"type": "input_image", "file_id": answer.marked}
+    shelf_stage = next(s for s in answer.stages if s.name == "shelf")
+    assert shelf_stage.note == "1 gaps confirmed, 0 rejected by SAM 3.1"
+
+
+async def test_a_cold_glimmer_races_spark_and_wins_when_quick(tmp_path: Path) -> None:
+    glimmer = FakeLLM([look(alert=True, hazards=["forklift"], count=["forklift"])])
+    spark = FakeLLM([look(), composed()])
+    svc, _, _ = assistant(tmp_path, glimmer=glimmer, spark=spark, sam=Sam({"forklift": 1}))
+
+    answer = await svc.answer(Ask(image=jpeg(), question="Safe?"))
+
+    assert answer.looked_by == GLIMMER
+    assert answer.verified
+    looks = [(s.model, s.ok) for s in answer.stages if s.name == "look"]
+    assert sorted(looks) == [(GLIMMER, True), ("muse-spark-1.3", True)]
+    assert svc.glimmer_state == "up"
+
+
+async def test_a_cold_slow_glimmer_does_not_hold_the_answer(tmp_path: Path) -> None:
+    spark = FakeLLM([look(), composed(alert=False, spoken="Clear.")])
+    svc, _, _ = assistant(tmp_path, glimmer=SlowLLM(), spark=spark)
+    started = time.perf_counter()
+    answer = await svc.answer(Ask(image=jpeg(), question="Clear?"))
+    assert answer.spoken == "Clear."
+    assert answer.looked_by.startswith("muse-spark-1.3")
+    assert time.perf_counter() - started < 2.0  # not the 5 s Glimmer timeout
+    assert svc.glimmer_state == "down"
+
+
 async def test_warm_pings_glimmer_once_a_minute(tmp_path: Path) -> None:
     glimmer = FakeLLM([{"ok": True}])
     svc, _, _ = assistant(tmp_path, glimmer=glimmer, spark=FakeLLM([]))
-    assert svc.glimmer_state == "unknown"
+    assert str(svc.glimmer_state) == "unknown"
     assert svc.warm() == "checking"
     await asyncio.sleep(0.05)
     assert svc.glimmer_state == "up"

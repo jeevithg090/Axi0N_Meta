@@ -57,8 +57,17 @@ fetch() {  # fetch <file name>: download one file into $DIR unless it is there i
     return 0
   fi
   log "downloading $name ($size bytes)"
-  curl -fsSL --retry 5 --retry-delay 5 -C - -o "$DIR/$name.part" "$url"
-  [[ "$(stat -c %s "$DIR/$name.part")" == "$size" ]] || { log "ERROR: $name is incomplete"; return 1; }
+  # Hugging Face's CDN links expire and long transfers get cut: resume (-C -) with a fresh link
+  # until the part has its full size.
+  local attempt have
+  for attempt in $(seq 1 30); do
+    curl -fsSL --retry 3 --retry-delay 5 -C - -o "$DIR/$name.part" "$url" || true
+    have="$(stat -c %s "$DIR/$name.part" 2>/dev/null || echo 0)"
+    [[ "$have" == "$size" ]] && break
+    log "$name: $have of $size bytes after attempt $attempt; resuming"
+    sleep 2
+  done
+  [[ "$have" == "$size" ]] || { log "ERROR: $name is incomplete"; return 1; }
   mv "$DIR/$name.part" "$DIR/$name"
 }
 export -f fetch log

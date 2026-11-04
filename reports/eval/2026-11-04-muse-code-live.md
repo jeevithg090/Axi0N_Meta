@@ -146,7 +146,9 @@ The API pod runs `p1/final-integration` as a code-only release that reuses the s
    answered in 6.4 s with the releasable proof, four store fits and the scorecard labelled
    `simulated`. All three saved crowd watches (`phone-101`, `phone-102`, `phone-103`) survived:
    `watches.json` is byte-identical (md5 `e830ee24…`) and `/crowd/status` shows all three watched.
-   Later commits on the branch were shipped the same way.
+   The commits after `0b35805` on this branch add only these reports and a script option, so
+   the live API was not restarted for them. CI (`check`, `guardrails`, `ml-cpu`, `images`) was
+   green on `0b35805` (also `ui`, `eval-replay`, `golden-verify`).
 
 Rollback to the release before this integration (on the pod):
 

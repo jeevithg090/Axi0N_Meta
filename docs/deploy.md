@@ -1,5 +1,40 @@
 # Deployment: Vercel UI + RunPod API + RunPod Glimmer
 
+## Meta API only (since 4 Nov 2026)
+
+We no longer run any RunPod servers. Every model call goes to the Meta API
+(`https://api.meta.ai/v1`), and the Rulecam API runs on any machine with Python and ffmpeg.
+The RunPod sections below are kept as the record of how the GPU setup worked.
+
+| Job | Before (RunPod) | Now (Meta API) |
+|---|---|---|
+| Tier 1 check of each alert | Muse Glimmer 30B on llama-server | Muse Spark 1.3, through the same Glimmer client |
+| Tier 2 review, plan audit, Ask review | Muse Spark Open on 8 x H100 | Muse Wonder 1.0, through the same Spark Open client |
+| Segmenting and tracking | Self-hosted SAM 3.1 (+ DINOv2, OSNet, MoGe-2) | Hosted SAM 3.1; ByteTrack; floor calibration from reference objects |
+| Plan-time rule screen | Llama Guard 4 | Not run. The planner's own guardrails still decline banned requests (`planner/guardrails.py`: a fixed pattern check, then Muse Spark; in prototype mode only the profiling check) |
+| Planner, Ask, voice, images | Meta API | Meta API (unchanged) |
+
+The Meta API speaks OpenAI chat completions, so only settings change: the "Meta API only"
+block at the top of `.env.example`. Two settings matter. `GLIMMER_STRICT_SCHEMA=false` and
+`SPARK_OPEN_STRICT_SCHEMA=false`, because the Meta API applies OpenAI's strict-schema rules and
+rejects our schemas otherwise (replies are still validated by Rulecam). The Tier 1 health check
+falls back to `GET /models` with the key, because the Meta API has no open `/health`.
+
+Run it. Keep these settings in `.env.live`, not `.env`: the tests read `.env`, and
+`RULECAM_PROTOTYPE_MODE=true` or `RULECAM_MODE=live` there changes what they expect.
+
+```bash
+uv sync
+set -a; . ./.env.live; set +a
+ulimit -n 65536; uv run uvicorn rulecam.api.app:app --host 127.0.0.1 --port 8000
+uv run python scripts/ops/model_proofs.py          # Tier 1, Tier 2, plan audit, Ask review
+uv run python scripts/ops/preflight_usecases.py --api http://127.0.0.1:8000
+```
+
+Requests from the same machine (loopback, no `Origin` header) count as the owner. To log in
+from the web UI, set `PUBLIC_UI_URL` (and `RULECAM_UI_EXTRA_ORIGINS` for any other UI host) to
+the UI's origin.
+
 A public deployment for showing the product. Visitors can watch; everything that changes state
 (mode switch, planning, plan approval, answering the planner, pairing, corrections, runtime plan)
 and the full evidence log are owner-only: from the API pod itself (loopback, over SSH) or from a

@@ -5,6 +5,11 @@ description: What runs where in Rulecam's live stack (RunPod API pod, serverless
 
 # Rulecam ops
 
+**Since 4 Nov 2026 we run on the Meta API only: no RunPod.** Tier 1 is Muse Spark 1.3 and Tier 2
+is Muse Wonder 1.0, both at `https://api.meta.ai/v1` through the existing Glimmer and Spark Open
+clients; SAM 3.1 is hosted. The API runs on a laptop or any host (`docs/deploy.md` "Meta API
+only"). Everything below about pods, endpoints and volumes is history, kept for reference.
+
 The live stack as of 2 Nov 2026. `docs/deploy.md` has the long form; this is the cheat sheet.
 No keys or key values live here or anywhere in the repo: they are files with mode 600 on the
 API pod or RunPod secrets, and scripts read them from env vars.

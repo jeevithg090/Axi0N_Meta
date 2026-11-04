@@ -1,11 +1,13 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { HeatmapView, NearMissPanel } from "./NearMissPanel";
-import { StoryPanel } from "./StoryPanel";
 import { ApiError } from "@/lib/api";
 
+import { HeatmapView, NearMissPanel } from "./NearMissPanel";
+import WarehousePage from "./page";
+import { StoryPanel } from "./StoryPanel";
 import {
+  accessOf,
   fresh,
   heatFill,
   metres,
@@ -107,6 +109,44 @@ describe("long model calls through the proxy", () => {
   it("only accepts a saved item made after the call started", async () => {
     const old = fresh(async () => ({ created_at: "2020-01-01T00:00:00Z" }));
     expect(await old()).toBeNull();
+  });
+});
+
+describe("visitors and servers without the warehouse routes", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function answer(status: number, detail: string) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ detail }), { status })),
+    );
+  }
+
+  it("shows the owner-only notice and the recorded run, never the raw refusal", async () => {
+    answer(403, "owner login required");
+    render(<WarehousePage />);
+    expect(await screen.findByTestId("notice-owner")).toBeTruthy();
+    expect(screen.queryByText(/owner login required/)).toBeNull();
+    expect(screen.queryByText("Loading the story…")).toBeNull();
+    const replay = screen.getByRole("link", { name: /recorded run/ });
+    expect(replay.getAttribute("href")).toBe("/demo?demo=worker_passes_4m");
+  });
+
+  it("stops loading when the API lacks the route or is down", async () => {
+    answer(404, "Not Found");
+    const { unmount } = render(<WarehousePage />);
+    expect(await screen.findByTestId("notice-missing")).toBeTruthy();
+    expect(screen.queryByText("Not Found")).toBeNull();
+    unmount();
+    answer(502, "Bad Gateway");
+    render(<WarehousePage />);
+    expect(await screen.findByTestId("notice-down")).toBeTruthy();
+  });
+
+  it("maps errors to access states", () => {
+    expect(accessOf(new ApiError(401, "x"))).toBe("owner");
+    expect(accessOf(new ApiError(404, "x"))).toBe("missing");
+    expect(accessOf(new DOMException("t", "TimeoutError"))).toBe("down");
   });
 });
 

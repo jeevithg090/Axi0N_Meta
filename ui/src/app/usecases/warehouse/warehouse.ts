@@ -217,8 +217,23 @@ export const PRESETS: { label: string; text: string; lang: string }[] = [
 
 const BASE = `${API_PROXY}/warehouse`;
 
+/** How the page can show the story: loading, shown, owner-only, not on this server, or down. */
+export type Access = "loading" | "ok" | "owner" | "missing" | "down";
+
+/** A GET that hangs longer than this counts as the API being down (model POSTs are exempt). */
+export const GET_TIMEOUT_MS = 15_000;
+
+/** What a failed story call means for a visitor. */
+export function accessOf(error: unknown): Exclude<Access, "loading" | "ok"> {
+  if (error instanceof ApiError && (error.status === 401 || error.status === 403)) return "owner";
+  if (error instanceof ApiError && error.status === 404) return "missing";
+  return "down";
+}
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, withCsrf(init));
+  const read = (init?.method ?? "GET").toUpperCase() === "GET";
+  const signal = init?.signal ?? (read ? AbortSignal.timeout(GET_TIMEOUT_MS) : undefined);
+  const response = await fetch(`${BASE}${path}`, withCsrf({ ...init, signal }));
   if (!response.ok) {
     let detail = response.statusText;
     try {

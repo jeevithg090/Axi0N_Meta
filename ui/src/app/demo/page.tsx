@@ -155,12 +155,14 @@ function GoldenStory({ run }: { run: GoldenRun }) {
         </p>
       </section>
 
-      {PENDING_RUNS.map((p) => (
-        <section key={p.name} className="pending" aria-label={`Pending: ${p.name}`}>
-          <h2>Next golden run · {p.title}</h2>
-          <p className="muted">Not recorded yet. Needs: {p.needs}</p>
-        </section>
-      ))}
+      {PENDING_RUNS.length > 0 && (
+        <p className="muted" data-testid="pending-note">
+          {PENDING_RUNS.length === 1
+            ? "One more recorded run is coming"
+            : `${PENDING_RUNS.length} more recorded runs are coming`}
+          : {PENDING_RUNS.map((p) => p.title).join("; ")}.
+        </p>
+      )}
     </div>
   );
 }

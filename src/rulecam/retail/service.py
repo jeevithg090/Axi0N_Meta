@@ -451,6 +451,7 @@ class RetailService:
             recorded=recorded,
             limits=limits,
             now=now,
+            since=start,
         )
         fit = store_fit(store, self._profile or store, cameras_by_rule(observed), limits)
         begin = window_start(observed, start)

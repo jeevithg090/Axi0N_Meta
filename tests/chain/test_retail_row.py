@@ -101,6 +101,7 @@ def test_store_row_on_the_scorecard() -> None:
         },
         limits=LIMITS,
         now=NOW,
+        since=NOW - timedelta(hours=24),
     )
     fit = store_fit("demo", "A supermarket", cameras_by_rule(observed), LIMITS)
     begin = window_start(observed, NOW - timedelta(hours=24))
@@ -126,6 +127,7 @@ def test_unrecorded_cameras_are_blind() -> None:
         recorded={},
         limits=LIMITS,
         now=NOW,
+        since=NOW - timedelta(hours=24),
     )
     fit = store_fit("demo", "A supermarket", {HAZARD: ["aisle"]}, LIMITS)
     card = chain_scorecard([fit], observations("demo", observed, NOW - timedelta(hours=2), NOW))
@@ -137,7 +139,13 @@ def test_unrecorded_cameras_are_blind() -> None:
 def test_staff_photos_count_as_watched() -> None:
     photo_task = task("hazard", 60, 5).model_copy(update={"camera_id": "upload"})
     observed = store_observations(
-        [photo_task], [], answered={}, recorded={}, limits=LIMITS, now=NOW
+        [photo_task],
+        [],
+        answered={},
+        recorded={},
+        limits=LIMITS,
+        now=NOW,
+        since=NOW - timedelta(hours=2),
     )
     assert observed.coverage["upload"][0].watched is True
     assert cameras_by_rule(observed) == {HAZARD: ["upload"]}

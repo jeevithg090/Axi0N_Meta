@@ -150,6 +150,7 @@ def store_observations(
     recorded: Mapping[str, tuple[datetime, datetime]],
     limits: RetailLimits,
     now: datetime,
+    since: datetime,
 ) -> StoreObservations:
     """One store's retail outcomes and its cameras' recorded-video coverage.
 
@@ -160,6 +161,7 @@ def store_observations(
         recorded: Camera id -> (first, last) recorded instant.
         limits: The HQ's knobs.
         now: The end of the window.
+        since: The earliest the window can start.
 
     Returns:
         The observations.
@@ -170,11 +172,10 @@ def store_observations(
         cam: (CoverageSegment(start=first, end=last, watched=True),)
         for cam, (first, last) in recorded.items()
     }
-    # Staff photos are not a camera that can go blind: `upload` counts as watched from its
-    # first task on, and each photo task is judged on its own seen and fixed times.
-    photo_starts = [o.start for o in outcomes if o.camera_id == UPLOAD]
-    if photo_starts:
-        coverage[UPLOAD] = (CoverageSegment(start=min(photo_starts), end=now, watched=True),)
+    # Staff photos are not a camera that can go blind: `upload` counts as watched for the whole
+    # window, and each photo task is judged on its own seen and fixed times.
+    if any(o.camera_id == UPLOAD for o in outcomes):
+        coverage[UPLOAD] = (CoverageSegment(start=since, end=now, watched=True),)
     return StoreObservations(outcomes=tuple(outcomes), coverage=coverage)
 
 
@@ -190,7 +191,10 @@ def cameras_by_rule(observed: StoreObservations) -> dict[str, list[str]]:
 def window_start(observed: StoreObservations, earliest: datetime) -> datetime:
     """The window starts at the first outcome or recorded video, not before `earliest`."""
     starts = [o.start for o in observed.outcomes] + [
-        s.start for segments in observed.coverage.values() for s in segments
+        s.start
+        for camera, segments in observed.coverage.items()
+        if camera != UPLOAD
+        for s in segments
     ]
     return max(earliest, min(starts)) if starts else earliest
 

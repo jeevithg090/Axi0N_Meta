@@ -17,6 +17,7 @@ def test_unknowns_name_every_gap_in_plain_words() -> None:
             "check": None,
             "check_note": "Glimmer had no warm worker",
             "route_checks": [{"to": "Hall", "measured": False, "note": "no camera sees it"}],
+            "audio": [{"lang": "hi", "meaning": "different", "meaning_note": "gate became crowd"}],
         }
     ]
     readings: list[dict[str, object]] = [
@@ -35,9 +36,10 @@ def test_unknowns_name_every_gap_in_plain_words() -> None:
     assert "without Muse Glimmer's look at the frames (Glimmer had no warm worker)" in text
     assert "sent people to Hall, which no camera measured" in text
     assert "told: stewards, safety_officer" in text
+    assert "The hi announcement of the critical alert did not survive" in text
     assert "No steward was seen on camera in gate" in text
     assert "No readings for 44 s, from 00:45:56 to 00:46:40." in text
-    assert "owner (±0.0 m) floor calibration" in text
+    assert "owner (±0.00 m) floor calibration" in text
     assert found[-1].startswith("No ground truth")
 
 

@@ -530,7 +530,7 @@ class CrowdWarden:
             try:
                 self._tts.synth(".", lang)
             except Exception as exc:  # a language without a voice still shows its text
-                _log.info("crowd_voice_unavailable", lang=lang, error=repr(exc)[:200])
+                _log.info("crowd_voice_warm_up_failed", lang=lang, error=repr(exc)[:200])
 
     def _start(self, watch: Watch) -> None:
         if watch.floor is not None:

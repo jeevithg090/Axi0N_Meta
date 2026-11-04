@@ -100,7 +100,8 @@ def _match(event: TimelineEvent, records: Sequence[dict[str, object]]) -> dict[s
         wanted = [
             r
             for r in mine
-            if r.get("action") == "speak" and event.text.split("] ", 1)[-1] in str(r.get("detail"))
+            if r.get("action") == "speak"
+            and event.text.split("] ", 1)[-1].split(" · heard back")[0] in str(r.get("detail"))
         ]
     elif event.kind == "tap":
         wanted = [
@@ -131,45 +132,16 @@ def unknowns(
     """
     out: list[str] = []
     for alert in alerts:
-        when = _clock(alert.get("ts"))
-        level = alert.get("level")
-        if alert.get("sent") and not isinstance(alert.get("check"), dict):
-            note = alert.get("check_note") or "no check"
-            out.append(
-                f"The {level} alert from the {when} reading went out without Muse "
-                f"Glimmer's look at the frames ({note})."
-            )
-        checks = alert.get("route_checks")
-        for check in checks if isinstance(checks, list) else []:
-            if isinstance(check, dict) and not check.get("measured") and not check.get("replaced"):
-                out.append(
-                    f"The {level} alert sent people to {check.get('to')}, which no camera "
-                    f"measured ({check.get('note')})."
-                )
-        state = acks.get(str(alert.get("alert_id")), {})
-        if alert.get("sent") and state.get("status") == "open":
-            roles = state.get("notified")
-            told = ", ".join(
-                str(n.get("role"))
-                for n in (roles if isinstance(roles, list) else [])
-                if isinstance(n, dict)
-            )
-            out.append(
-                f"Nobody acknowledged the {level} alert from the {when} reading "
-                f"(told: {told or 'nobody'})."
-            )
-        arrival = state.get("arrival")
-        if isinstance(arrival, dict) and not arrival.get("seen_at"):
-            out.append(
-                f"No steward was seen on camera in {arrival.get('zone')} after the "
-                f"{level} alert was acknowledged ({arrival.get('checks')} looks for "
-                f"'{arrival.get('concept')}')."
-            )
+        out += _alert_unknowns(alert, acks.get(str(alert.get("alert_id")), {}))
     out += _gaps(readings)
     sources = sorted(
         {
             f"{r.get('calibration')}"
-            + (f" (±{r['calibration_err_m']} m)" if r.get("calibration_err_m") is not None else "")
+            + (
+                f" (±{_float(r['calibration_err_m']):.2f} m)"
+                if r.get("calibration_err_m") is not None
+                else ""
+            )
             for r in readings
         }
     )
@@ -182,6 +154,57 @@ def unknowns(
     if not scored:
         out.append("No ground truth was registered for this camera: the counts are not scored.")
     return out
+
+
+def _alert_unknowns(alert: dict[str, object], state: dict[str, object]) -> list[str]:
+    """What one alert went out without: a frame check, a measured route, a tap, a steward seen."""
+    out = []
+    when = _clock(alert.get("ts"))
+    level = alert.get("level")
+    if alert.get("sent") and not isinstance(alert.get("check"), dict):
+        note = alert.get("check_note") or "no check"
+        out.append(
+            f"The {level} alert from the {when} reading went out without Muse "
+            f"Glimmer's look at the frames ({note})."
+        )
+    checks = alert.get("route_checks")
+    for check in checks if isinstance(checks, list) else []:
+        if isinstance(check, dict) and not check.get("measured") and not check.get("replaced"):
+            out.append(
+                f"The {level} alert sent people to {check.get('to')}, which no camera "
+                f"measured ({check.get('note')})."
+            )
+    audio = alert.get("audio")
+    for spoken in audio if isinstance(audio, list) else []:
+        if isinstance(spoken, dict) and spoken.get("meaning") == "different":
+            out.append(
+                f"The {spoken.get('lang')} announcement of the {level} alert did not survive "
+                f"being heard back ({spoken.get('meaning_note')}); the page does not play it "
+                "by itself."
+            )
+    roles = state.get("notified")
+    told = ", ".join(
+        str(n.get("role"))
+        for n in (roles if isinstance(roles, list) else [])
+        if isinstance(n, dict)
+    )
+    if alert.get("sent") and state.get("status") == "open":
+        out.append(
+            f"Nobody acknowledged the {level} alert from the {when} reading "
+            f"(told: {told or 'nobody'})."
+        )
+    arrival = state.get("arrival")
+    if isinstance(arrival, dict) and not arrival.get("seen_at"):
+        out.append(
+            f"No steward was seen on camera in {arrival.get('zone')} after the "
+            f"{level} alert was acknowledged ({arrival.get('checks')} looks for "
+            f"'{arrival.get('concept')}')."
+        )
+    return out
+
+
+def _float(value: object) -> float:
+    return float(value) if isinstance(value, int | float) else 0.0
 
 
 def _gaps(readings: Sequence[dict[str, object]]) -> list[str]:

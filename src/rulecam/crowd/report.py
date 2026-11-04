@@ -412,7 +412,7 @@ def _timeline(
         when = note.get("at")
         when = datetime.fromisoformat(when) if isinstance(when, str) else when
         if isinstance(when, datetime):
-            text = f"notified {note.get('role')} ({note.get('status')})"
+            text = f"notified {note.get('role')}"
             out.append(
                 TimelineEvent(
                     at=when,
@@ -431,6 +431,14 @@ def _verdict(row: dict[str, object]) -> str:
         seen = "confirmed" if check.get("agrees") else "did not see it"
         return f"Glimmer {seen}: {check.get('seen')}"
     return str(row.get("check_note") or "no check")
+
+
+def _heard(spoken: dict[str, object]) -> str:
+    """How an announcement was heard back, for its timeline line ('' when not checked)."""
+    meaning = spoken.get("meaning")
+    if meaning is None:
+        return ""
+    return f" · heard back: {meaning} meaning ({spoken.get('meaning_note')})"
 
 
 def _alert_events(row: dict[str, object]) -> list[TimelineEvent]:
@@ -455,7 +463,7 @@ def _alert_events(row: dict[str, object]) -> list[TimelineEvent]:
                 TimelineEvent(
                     at=at,
                     kind="announcement",
-                    text=f"[{spoken.get('lang')}] {spoken.get('text')}",
+                    text=f"[{spoken.get('lang')}] {spoken.get('text')}" + _heard(spoken),
                     ref=str(spoken.get("audio")) if spoken.get("audio") else None,
                     alert_id=str(row.get("alert_id")),
                 )

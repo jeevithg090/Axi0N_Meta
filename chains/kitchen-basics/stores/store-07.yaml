@@ -1,0 +1,31 @@
+# Harbour Rd: its own zone names, mapped with `bindings`. It tries to shorten the hand wash to
+# 10 s and to lower the fire-exit rule to low severity; HQ refuses both and the pack's values run.
+store_id: store-07
+name: Harbour Rd
+region: south
+frames: {line-cam: [1920, 1080], dock-cam: [1920, 1080]}
+bindings:
+  handwash-before-line: {line_entry: hot_line, sink_zone: line-cam}
+  fire-exit-clear: {egress: dock-cam}
+  delivery-to-cold-storage: {receiving: dock_floor}
+knobs:
+  handwash-before-line: {wash_seconds: 10}
+severity:
+  fire-exit-clear: low
+site:
+  site_name: Harbour Rd kitchen
+  privacy_mode: anonymous
+  roles: {shift_lead: web_push, facilities: web_push, store_manager: web_push, kitchen_lead: web_push}
+  cameras:
+    line-cam:
+      calibration:
+        image_px: [[500, 600], [1000, 600], [1060, 820], [440, 830]]
+        ground_m: [[0, 0], [3, 0], [3, 2], [0, 2]]
+      zones:
+        hot_line: [[1000, 300], [1600, 300], [1600, 700], [1000, 700]]
+    dock-cam:
+      calibration:
+        image_px: [[300, 700], [900, 690], [960, 960], [260, 980]]
+        ground_m: [[0, 0], [4, 0], [4, 2.5], [0, 2.5]]
+      zones:
+        dock_floor: [[100, 450], [800, 450], [800, 1000], [100, 1000]]

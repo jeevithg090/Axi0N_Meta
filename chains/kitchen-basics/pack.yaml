@@ -1,0 +1,95 @@
+# Chain Mode demo: one rule pack that head office writes once for every kitchen.
+# `rulecam chain prove chains/kitchen-basics/pack.yaml` lints it and runs Rule CI at each rule's
+# default and at both ends of every knob's range. Zones are slots: each store maps them to its
+# own cameras in chains/kitchen-basics/stores/<store>.yaml.
+pack_id: kitchen-basics
+version: 3
+title: Kitchen basics
+publisher: Head office food safety
+vertical: kitchen
+privacy_floor: standard
+
+templates:
+  - concern: Cooks wash their hands for 20 seconds before they start work on the line.
+    slots:
+      line_entry: {kind: polygon, describe: Where cooks step onto the cooking line}
+      sink_zone:
+        kind: buffer
+        describe: The hand sink nearest the line
+        buffer_of: sink
+        buffer_m: 0.6
+    knobs:
+      - {name: wash_seconds, path: [requirement, total_s_gte], low: 20, high: 40, stricter: higher, unit: s}
+      - {name: wash_window, path: [require_within_s], low: 120, high: 300, stricter: lower, unit: s}
+    rule:
+      id: handwash-before-line
+      source:
+        kind: plan
+        text: Cooks wash their hands for 20 seconds before they start work on the line.
+        standard: ["Food Code 2026 §2-301.12"]
+      concepts:
+        person: {prompt: person}
+        sink: {prompt: sink, static: true}
+      predicate:
+        op: sequence
+        semantics: past
+        trigger: {op: inside, object: person, zone: line_entry}
+        require_within_s: 300
+        requirement: {op: dwell, object: person.hands, zone: sink_zone, total_s_gte: 20, max_gap_s: 3}
+      severity: medium
+      actions:
+        - {kind: coach_station, lang: crew}
+        - {kind: notify, role: shift_lead}
+        - {kind: log}
+      verify: {tier1: glimmer, tier2: spark-open-on-dispute}
+
+  - concern: Keep the fire exit clear. Nothing may block it for more than a minute.
+    slots:
+      egress:
+        kind: buffer
+        describe: The floor in front of the fire exit door
+        buffer_of: door
+        buffer_m: 1.5
+    knobs:
+      - {name: blocked_seconds, path: [seconds], low: 30, high: 60, stricter: lower, unit: s}
+    rule:
+      id: fire-exit-clear
+      source:
+        kind: plan
+        text: Keep the fire exit clear. Nothing may block it for more than a minute.
+        standard: ["OSHA 1910.37(a)(3)"]
+      concepts:
+        obstruction: {prompt: box or cart or pallet}
+        door: {prompt: fire exit door, static: true}
+      predicate:
+        op: persist
+        seconds: 60
+        of: {op: inside, object: obstruction, zone: egress}
+      severity: high
+      actions:
+        - {kind: notify, role: facilities}
+        - {kind: escalate, role: store_manager, after_s: 180}
+        - {kind: log}
+      verify: {tier1: glimmer, tier2: spark-open-on-disagree}
+
+  - concern: Deliveries go into cold storage within 15 minutes of arriving.
+    slots:
+      receiving: {kind: polygon, describe: The floor where deliveries are put down}
+    knobs:
+      - {name: dock_seconds, path: [seconds], low: 300, high: 900, stricter: lower, unit: s}
+    rule:
+      id: delivery-to-cold-storage
+      source:
+        kind: plan
+        text: Deliveries go into cold storage within 15 minutes of arriving.
+      concepts:
+        delivery: {prompt: delivery box or crate}
+      predicate:
+        op: persist
+        seconds: 900
+        of: {op: inside, object: delivery, zone: receiving}
+      severity: medium
+      actions:
+        - {kind: notify, role: kitchen_lead}
+        - {kind: log}
+      verify: {tier1: glimmer, tier2: spark-open-on-disagree}

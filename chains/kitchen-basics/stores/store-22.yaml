@@ -1,0 +1,24 @@
+# Airport: the back-door camera was never calibrated, so the fire-exit rule cannot measure 1.5 m
+# yet. The delivery slot was mapped to a camera zone in the staff break room: a guardrail blocks
+# that for good (no cameras in break rooms).
+store_id: store-22
+name: Airport
+region: east
+frames: {kitchen-cam: [1920, 1080], back-cam: [1920, 1080]}
+bindings:
+  fire-exit-clear: {egress: back-cam}
+  delivery-to-cold-storage: {receiving: staff_break_room}
+site:
+  site_name: Airport kitchen
+  privacy_mode: standard
+  roles: {shift_lead: web_push, facilities: web_push, store_manager: web_push, kitchen_lead: web_push}
+  cameras:
+    kitchen-cam:
+      calibration:
+        image_px: [[412, 610], [868, 604], [930, 812], [355, 820]]
+        ground_m: [[0, 0], [3, 0], [3, 2], [0, 2]]
+      zones:
+        line_entry: [[1100, 380], [1700, 380], [1700, 760], [1100, 760]]
+    back-cam:
+      zones:
+        staff_break_room: [[0, 500], [640, 500], [640, 1080], [0, 1080]]

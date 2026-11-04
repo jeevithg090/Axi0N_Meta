@@ -1,0 +1,18 @@
+# Station Sq: one camera sees both the line and the delivery floor. Nobody is set up to receive
+# the kitchen lead's alerts, so the delivery rule cannot go live until a channel is added.
+store_id: store-14
+name: Station Sq
+region: north
+frames: {kitchen-cam: [1920, 1080]}
+site:
+  site_name: Station Sq kitchen
+  privacy_mode: standard
+  roles: {shift_lead: web_push, facilities: web_push, store_manager: web_push}
+  cameras:
+    kitchen-cam:
+      calibration:
+        image_px: [[412, 610], [868, 604], [930, 812], [355, 820]]
+        ground_m: [[0, 0], [3, 0], [3, 2], [0, 2]]
+      zones:
+        line_entry: [[1100, 380], [1700, 380], [1700, 760], [1100, 760]]
+        receiving: [[0, 700], [500, 700], [500, 1080], [0, 1080]]

@@ -1,0 +1,28 @@
+# Main St: set up the way the pack expects. Zones are named like the pack's slots, so they
+# bind themselves; the store asks for a longer hand wash than HQ's minimum (allowed: stricter).
+store_id: store-01
+name: Main St
+region: north
+frames: {kitchen-cam: [1920, 1080], back-cam: [1920, 1080]}
+knobs:
+  handwash-before-line: {wash_seconds: 25}
+bindings:
+  fire-exit-clear: {egress: back-cam}
+site:
+  site_name: Main St kitchen
+  privacy_mode: standard
+  languages: [en, es]
+  roles: {shift_lead: web_push, facilities: web_push, store_manager: whatsapp, kitchen_lead: web_push}
+  cameras:
+    kitchen-cam:
+      calibration:
+        image_px: [[412, 610], [868, 604], [930, 812], [355, 820]]
+        ground_m: [[0, 0], [3, 0], [3, 2], [0, 2]]
+      zones:
+        line_entry: [[1100, 380], [1700, 380], [1700, 760], [1100, 760]]
+    back-cam:
+      calibration:
+        image_px: [[300, 700], [900, 690], [960, 960], [260, 980]]
+        ground_m: [[0, 0], [4, 0], [4, 2.5], [0, 2.5]]
+      zones:
+        receiving: [[0, 500], [640, 500], [640, 1080], [0, 1080]]

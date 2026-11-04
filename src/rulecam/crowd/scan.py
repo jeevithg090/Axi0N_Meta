@@ -275,6 +275,7 @@ class CrowdScanner:
         heat = _heatmap(
             image, cells, feet=feet, flow_px=flow_px, shape=self._cells, view=readings[0]
         )
+        _zones(heat, zones, readings[1:])
         name = f"crowd-{frame.camera_id}-{frame.at.strftime('%Y%m%dT%H%M%S%f')}.jpg"
         self._out_dir.mkdir(parents=True, exist_ok=True)
         cv2.imwrite(str(self._out_dir / name), heat)
@@ -477,6 +478,20 @@ def _heatmap(
         summary += f"  {view.speed_mps:.2f} m/s"
     _label(out, summary, (8, height - 10), scale=0.7)
     return out
+
+
+def _zones(out: MatLike, zones: Sequence[CrowdZone], readings: Sequence[ZoneReading]) -> None:
+    """Each named zone's outline with its people and density, as Glimmer and the owner see it."""
+    for zone, reading in zip(zones, readings, strict=False):
+        points = np.round(np.asarray(zone.polygon_px, dtype=np.float64)).astype(np.int32)
+        cv2.polylines(out, [points.reshape(-1, 1, 2)], True, (0, 235, 255), 2, cv2.LINE_AA)
+        height, width = out.shape[:2]
+        x = int(min(max(points[:, 0].min(), 4), width - 260))
+        y = int(min(max(points[:, 1].min() + 18, 18), height - 30))
+        text = f"{zone.name}: {reading.people}"
+        if reading.density_ppm2 is not None:
+            text += f", {reading.density_ppm2:.1f}/m2"
+        _label(out, text, (x, y), scale=0.55)
 
 
 def _arrows(

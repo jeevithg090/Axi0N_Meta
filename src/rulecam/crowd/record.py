@@ -167,6 +167,12 @@ def _alert_unknowns(alert: dict[str, object], state: dict[str, object]) -> list[
             f"The {level} alert from the {when} reading went out without Muse "
             f"Glimmer's look at the frames ({note})."
         )
+    seen = alert.get("check")
+    if alert.get("sent") and isinstance(seen, dict) and not seen.get("agrees"):
+        out.append(
+            f"The {level} alert from the {when} reading went out although Muse Glimmer did not "
+            f"confirm it in the frames ({alert.get('check_note')})."
+        )
     checks = alert.get("route_checks")
     for check in checks if isinstance(checks, list) else []:
         if isinstance(check, dict) and not check.get("measured") and not check.get("replaced"):

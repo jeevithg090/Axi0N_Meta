@@ -62,6 +62,7 @@
   --color-on-scene-2: oklch(76% 0.01 250);
   --color-scene-cool: oklch(77% 0.12 245);
   --color-scene-accent: oklch(82% 0.15 80);
+  --color-scene-ok: oklch(76% 0.15 150);
   --color-scrim: oklch(16% 0.01 250 / 0.55);
   --color-qr-ground: oklch(99% 0.003 85); /* a QR code needs a light ground in both themes */
   /* graphite, fixed in both themes: the staff app stays dark on the floor */
@@ -1139,6 +1140,20 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
    Screens that carried no styles of their own
    ------------------------------------------------------------------------------------------ */
 .page-pad { padding: var(--space-xl) var(--gut) var(--space-2xl); max-width: var(--container); margin: 0 auto; }
+
+/* Ask: Spark's visible reasoning between the tool steps, said as an instrument's note */
+.ask-reasoning {
+  margin: var(--space-2xs) 0;
+  padding: var(--space-xs) var(--space-sm);
+  border-left: 2px solid var(--color-cool);
+  background: var(--color-cool-soft);
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--color-ink-2);
+  max-width: 80ch;
+}
+.ask-reasoning em { font-style: normal; font-weight: 500; color: var(--color-cool); margin-right: var(--space-2xs); }
 
 /* simple screens (extensions, site tools, ask, cards): a page title, then panels */
 .site-page, .ask-page { padding: var(--space-xl) var(--gut) var(--space-2xl); max-width: 1120px; }

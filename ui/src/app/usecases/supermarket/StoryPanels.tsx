@@ -289,7 +289,7 @@ export function FindingCard({ finding }: { finding: Finding }) {
       )}
       {typeof finding.detail.announcement === "string" && finding.detail.announcement && (
         <div>
-          📢 <em>{finding.detail.announcement}</em>
+          Announced: <em>{finding.detail.announcement}</em>
         </div>
       )}
       {finding.chain_seq != null && (
@@ -627,7 +627,7 @@ export function BriefPanel({
             className={styles.ghost}
             onClick={() => speak(brief.text, brief.lang)}
           >
-            🔊 Read aloud
+            Read aloud
           </button>
         )}
       </div>

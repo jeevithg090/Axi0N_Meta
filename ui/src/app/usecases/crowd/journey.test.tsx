@@ -2,6 +2,7 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { CrowdJourney, crowdJourney } from "./CrowdJourney";
+import { CrowdProof } from "./CrowdProof";
 import recorded from "./recorded-run.json";
 
 afterEach(cleanup);
@@ -17,6 +18,20 @@ describe("CrowdJourney", () => {
     expect(text).toContain(`ratio ${recorded.report.truth[0]!.count_ratio.toFixed(3)}`);
     expect(text).toContain(`${recorded.report.evidence.records.length} records`);
     expect(text).toContain(recorded.alert.chain_hash.slice(0, 10));
+  });
+
+  it("leads with the proof: the peak reading and the alert loop in time order", () => {
+    render(<CrowdProof />);
+    const proof = screen.getByTestId("crowd-proof");
+    const gate = recorded.report.zones.find((z) => z.zone.startsWith("gate"))!;
+    expect(proof.textContent).toContain(gate.peak_density_ppm2.toFixed(1));
+    const times = Array.from(
+      within(screen.getByRole("list", { name: "The crowd alert, minute by minute" })).getAllByRole("listitem"),
+      (li) => li.querySelector("time")!.getAttribute("dateTime") ?? "",
+    );
+    expect(times).toEqual([...times].sort());
+    expect(times.length).toBeGreaterThanOrEqual(5);
+    cleanup();
   });
 
   it("is labelled as a recorded run, never as live", () => {

@@ -8,6 +8,8 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ApiError, errorText } from "@/lib/api";
 import type { AskAnswer } from "@/lib/ask";
 
+import { UseCaseJourney } from "@/components/usecases/UseCaseJourney";
+
 import { AskPanel } from "./AskPanel";
 import { AdvicePanel, BriefPanel, StoreRowPanel, TasksPanel, WatchPanel } from "./StoryPanels";
 import {
@@ -18,6 +20,7 @@ import {
   retail,
   type RetailCard,
 } from "./api";
+import { SupermarketProof } from "./SupermarketProof";
 import styles from "./supermarket.module.css";
 
 const POLL_MS = 5000;
@@ -134,9 +137,9 @@ export default function SupermarketPage() {
   const tasks = overview?.tasks ?? [];
 
   return (
-    <main className={styles.page}>
-      <header>
-        <h1>Supermarket</h1>
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <h2 className={styles.pageTitle}>Supermarket</h2>
         <p className={styles.lead}>
           Your cameras already see the queue, the empty shelf and the spill. Ask anything in your
           own language; Muse Spark answers from what SAM 3.1 tracked and Muse Glimmer saw, turns the
@@ -152,6 +155,20 @@ export default function SupermarketPage() {
         {!overview && !error && <p className={styles.muted}>Connecting to the store’s cameras…</p>}
         {checkReceipt && <ReceiptCheck sha={checkReceipt} />}
       </header>
+      <SupermarketProof />
+      <UseCaseJourney
+        id="sm-journey"
+        title="From a question to a fixed problem"
+        label="The supermarket story, step by step"
+        columns={5}
+        steps={[
+          { name: "Ask", text: "Typed or spoken, any language; the answer is read aloud.", state: answer !== null ? "done" : "todo" },
+          { name: "Advice", text: "A card with a pre-registered check; its numbers must be in the answer's evidence.", state: shownCard !== null ? "done" : "todo" },
+          { name: "Watch", text: "Queue, hazard and shelf checks tell the right person, with the photo.", state: alerted.length > 0 ? "done" : "todo" },
+          { name: "Fixed", text: "A staff photo checked by Spark and Glimmer closes the task; the time goes on the chain.", state: tasks.some((t) => t.status === "done") ? "done" : "todo" },
+          { name: "Brief", text: "Muse Spark writes the owner's brief from the stored checks and tasks.", state: (brief ?? overview?.brief) != null ? "done" : "todo" },
+        ]}
+      />
       <div className={styles.steps}>
         <Step
           n={1}
@@ -219,6 +236,6 @@ export default function SupermarketPage() {
           <StoreRowPanel />
         </Step>
       </div>
-    </main>
+    </div>
   );
 }

@@ -15,6 +15,7 @@ import { reportNearMiss, staffApi } from "../_lib/client";
 import type { Words } from "../_lib/i18n";
 import type { AskReply, Lang, StaffConfig, StaffItem } from "../_lib/types";
 import styles from "../staff.module.css";
+import { icons } from "@/components/icons";
 
 type Phase = "idle" | "listening" | "thinking";
 type Purpose = "ask" | "report";
@@ -239,7 +240,7 @@ export function AskDock({
               onClick={() => shelfInput.current?.click()}
               aria-label={words.scanShelf}
             >
-              📷
+              {icons.camera}
               <br />
               {words.scanShelf}
             </button>

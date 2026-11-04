@@ -6,6 +6,7 @@ import { OwnerOnly } from "@/components/OwnerOnly";
 
 import { AlertsPanel } from "./AlertsPanel";
 import { CrowdJourney } from "./CrowdJourney";
+import { CrowdProof } from "./CrowdProof";
 import styles from "./crowd.module.css";
 import type { Access, CrowdStatus, Link } from "./crowdApi";
 import { LEVEL_COLOUR, useCrowdStatus } from "./crowdApi";
@@ -52,6 +53,7 @@ export default function CrowdPage() {
           {linkText(link, access)}
         </span>
       </header>
+      <CrowdProof />
       <CrowdJourney />
       {access === "owner" && (
         <OwnerOnly checking={false} what="The live crowd watch (cameras, alerts and controls)" />

@@ -15,7 +15,7 @@ export function HeatmapView({ heat, frameUrl }: { heat: Heatmap; frameUrl: strin
         // eslint-disable-next-line @next/next/no-img-element
         <img src={frameUrl} alt={`Recorded frame of ${heat.camera_id}`} />
       ) : (
-        <svg viewBox={`0 0 ${heat.width} ${heat.height}`} style={{ position: "static" }} />
+        <svg viewBox={`0 0 ${heat.width} ${heat.height}`} style={{ position: "static" }} aria-hidden="true" />
       )}
       <svg viewBox={`0 0 ${heat.width} ${heat.height}`} role="img" aria-label="Near-miss heatmap">
         {heat.cells.map((row, r) =>

@@ -34,7 +34,7 @@ function TruthChart({ zone }: { zone: TruthZone }) {
           </text>
         </g>
       ))}
-      <path d={truth} fill="none" stroke="#2e7d32" strokeWidth={2} />
+      <path d={truth} fill="none" stroke="var(--color-ok)" strokeWidth={2} />
       {zone.clip_s.map((s, k) => {
         const v = zone.sys_density[k];
         return v == null ? null : <circle key={k} cx={x(s)} cy={y(v)} r={4} fill="#e65100" />;
@@ -167,9 +167,9 @@ export function ReportView({ report }: { report: EventReport }) {
           style={{
             background:
               report.evidence.chain_ok == null
-                ? "#757575"
+                ? "var(--color-muted)"
                 : report.evidence.chain_ok
-                  ? "#2e7d32"
+                  ? "var(--color-ok)"
                   : "#c62828",
           }}
         >

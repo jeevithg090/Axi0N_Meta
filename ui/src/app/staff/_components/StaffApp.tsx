@@ -16,6 +16,7 @@ import { ItemCard } from "./ItemCard";
 import { Onboarding, type Setup } from "./Onboarding";
 import { DoneSheet, EscalateSheet } from "./Sheets";
 import { StatsView } from "./StatsView";
+import { icons } from "@/components/icons";
 
 const SETUP_KEY = "rulecam.staff.setup";
 const MAX_TRANSLATED = 6;
@@ -236,7 +237,7 @@ export function StaffApp() {
         </span>
         {push === "on" ? (
           <span className={styles.chip} title={words.pushOn} aria-label={words.pushOn}>
-            🔔
+            {icons.bell}
           </span>
         ) : null}
         <span className={styles.chip} aria-live="polite">

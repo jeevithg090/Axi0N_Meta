@@ -681,10 +681,11 @@ class StaffFeed:
         return ActionResult(item=after or card.item, did=did)
 
     def _escalate(self, card: _Card, request: StaffActionRequest) -> str:
-        record = self._escalation.escalate_now(card.item.item_id)
-        if record is not None:
-            return f"escalated to {record.role}"
+        """Send it to the role the person picked, else move the open chain on now."""
         if request.to_role is None:
+            record = self._escalation.escalate_now(card.item.item_id)
+            if record is not None:
+                return f"escalated to {record.role}"
             msg = "nothing left to escalate to: choose who to send it to"
             raise StaffError(msg)
         self._escalation.start(

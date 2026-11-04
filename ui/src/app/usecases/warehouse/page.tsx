@@ -15,6 +15,7 @@ import { NearMissPanel } from "./NearMissPanel";
 import { ShiftPanel, VoiceReportPanel } from "./ReportsPanel";
 import { RequestPanel } from "./RequestPanel";
 import { StoryPanel } from "./StoryPanel";
+import { WarehouseProof } from "./WarehouseProof";
 import {
   accessOf,
   warehouse,
@@ -90,27 +91,29 @@ export default function WarehousePage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <h1>Warehouse forklift safety</h1>
+        <h2>Warehouse forklift safety</h2>
         <p className={styles.muted}>
           Every step below is read from what Rulecam recorded on this site today. Other safety
           cameras ask you to trust their numbers; Rulecam proves every rule before it goes live and
           lets the crew check every alert.
         </p>
       </header>
+      <WarehouseProof />
       {access === "loading" && <p className={styles.muted}>Loading the story…</p>}
       {access !== "ok" && access !== "loading" && <Notice access={access} />}
+      {access === "ok" && <StoryPanel story={story} onApproved={() => void refresh()} />}
       {access === "ok" && (
         <div className={styles.grid}>
-          <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
+          <div className={styles.column}>
             <RequestPanel onPlan={setPlanId} />
-            <StoryPanel story={story} onApproved={() => void refresh()} />
+            <VoiceReportPanel onPlan={setPlanId} />
           </div>
-          <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
+          <div className={styles.column}>
             {followed ? (
               <IncidentPanel key={followed.event_id} near={followed} planId={followed.plan_id} />
             ) : (
               <section className={styles.card}>
-                <h2>3. The near miss, and what happens next</h2>
+                <h2>The near miss, and what happens next</h2>
                 <p className={styles.muted}>
                   Waiting for a near miss on a live camera (pair a phone or feed a clip).
                 </p>
@@ -123,7 +126,6 @@ export default function WarehousePage() {
               selected={followedId}
               onSelect={setSelected}
             />
-            <VoiceReportPanel onPlan={setPlanId} />
             <ShiftPanel />
           </div>
         </div>

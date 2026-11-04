@@ -27,6 +27,8 @@ export interface CameraInfo {
   label: string;
   source: string;
   last_chunk_at?: string | null;
+  /** Muse Spark's first look at the camera (camera connectors). */
+  description?: string | null;
 }
 
 /** `GET /auth/me` and `POST /auth/login`. */

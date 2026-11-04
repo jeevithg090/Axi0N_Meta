@@ -81,6 +81,9 @@
 .flowStep { display: grid; gap: var(--space-xs); align-content: start; padding-top: var(--space-md); border-top: 2px solid var(--color-rule); min-width: 0; }
 .flowStep[data-state="done"] { border-top-color: var(--color-cool); }
 .flowStep[data-state="current"] { border-top-color: var(--color-accent-text); }
+.flowStep[data-state="failed"] { border-top-color: var(--color-bad); }
+.flowStep[data-state="failed"] .flowNum, .flowStep[data-state="failed"] .flowName { color: var(--color-bad); }
+.flowStep[data-state="todo"] .flowName { color: var(--color-ink-2); }
 .flow[data-orientation="column"] .flowStep { grid-template-columns: 2rem minmax(0, 1fr); border-top: 0; border-left: 2px solid var(--color-rule); padding: 0 0 var(--space-lg) var(--space-md); }
 .flow[data-orientation="column"] .flowStep[data-state="done"] { border-left-color: var(--color-cool); }
 .flow[data-orientation="column"] .flowStep[data-state="current"] { border-left-color: var(--color-accent-text); }
@@ -123,7 +126,7 @@
 .evidenceCaption { color: var(--color-muted); font-size: var(--text-sm); }
 .evidenceMeta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-2xs) var(--space-md); font-size: var(--text-sm); }
 .evidenceMeta dt { color: var(--color-muted); }
-.evidenceMeta dd { margin: 0; font-family: var(--font-outlier); overflow-wrap: anywhere; }
+.evidenceMeta dd { margin: 0; overflow-wrap: anywhere; }
 .hashRow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); padding-top: var(--space-xs); border-top: var(--rule-hair) solid var(--color-rule); font-size: var(--text-sm); }
 .hashLabel { color: var(--color-muted); }
 .hash { font-family: var(--font-outlier); color: var(--color-cool); background: var(--color-paper-3); padding: 0 var(--space-2xs); border-radius: var(--radius-chip); }

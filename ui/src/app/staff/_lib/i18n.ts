@@ -74,6 +74,8 @@ export interface Words {
   notChecked: string;
   measured: string;
   sentTo: string;
+  pushOn: string;
+  proofHint: string;
 }
 
 const en: Words = {
@@ -166,6 +168,8 @@ const en: Words = {
   notChecked: "not checked (verifier down)",
   measured: "Measured",
   sentTo: "Sent to",
+  pushOn: "Alerts reach this phone even when the app is closed",
+  proofHint: "Muse Spark and Glimmer check the photo before the task closes.",
 };
 
 const es: Words = {
@@ -258,6 +262,8 @@ const es: Words = {
   notChecked: "sin verificar (verificador caído)",
   measured: "Medido",
   sentTo: "Enviado a",
+  pushOn: "Las alertas llegan aunque la app esté cerrada",
+  proofHint: "Muse Spark y Glimmer revisan la foto antes de cerrar la tarea.",
 };
 
 const hi: Words = {
@@ -350,6 +356,8 @@ const hi: Words = {
   notChecked: "जाँच नहीं हुई (वेरिफ़ायर बंद)",
   measured: "माप",
   sentTo: "भेजा गया",
+  pushOn: "ऐप बंद होने पर भी अलर्ट इस फ़ोन पर आएँगे",
+  proofHint: "काम बंद होने से पहले Muse Spark और Glimmer फ़ोटो जाँचते हैं।",
 };
 
 export const WORDS: Record<Lang, Words> = { en, es, hi };

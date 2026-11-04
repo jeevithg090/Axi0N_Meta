@@ -5,7 +5,14 @@
 import { ApiError, withCsrf } from "./api";
 import { API_PROXY } from "./config";
 
-export type AskActionKind = "sql" | "count_objects" | "look" | "watch" | "answer";
+export type AskActionKind =
+  | "sql"
+  | "count_objects"
+  | "look"
+  | "watch"
+  | "crowd_scan"
+  | "cross_count"
+  | "answer";
 
 /** One action of a turn: a tool call, or the final answer. */
 export interface AskAction {
@@ -72,6 +79,7 @@ export interface AskAnswer {
 export type AskEventType =
   | "start"
   | "thinking"
+  | "reasoning"
   | "actions"
   | "step"
   | "reviewing"
@@ -109,6 +117,8 @@ export interface TurnView {
   status: "thinking" | "running" | "done";
   seconds: number | null;
   actions: ActionView[];
+  /** Spark's reasoning summary for the turn, when the API sends one. */
+  reasoning?: string;
 }
 
 /** One question and everything that happened while answering it. */
@@ -162,6 +172,8 @@ export function askReducer(exchange: Exchange, event: AskEvent): Exchange {
           { turn, status: "thinking", seconds: null, actions: [] },
         ],
       };
+    case "reasoning":
+      return updateTurn(exchange, turn, (t) => ({ ...t, reasoning: event.detail ?? "" }));
     case "actions": {
       const actions = (event.actions ?? []).map((action) => ({ action, step: null }));
       return updateTurn(exchange, turn, (t) => ({
@@ -273,6 +285,8 @@ const TOOL_LABEL: Record<AskActionKind, string> = {
   count_objects: "Count (SAM 3.1)",
   look: "Look (Glimmer)",
   watch: "Watch (Spark video)",
+  crowd_scan: "Crowd scan (SAM 3.1)",
+  cross_count: "Cross-count (SAM 3.1 · Spark points · Glimmer)",
   answer: "Answer",
 };
 
@@ -302,5 +316,13 @@ export function stepSummary(step: AskStep): string {
     return `counts ${counts.join(", ")}`;
   }
   if (typeof result.answer === "string") return result.answer;
+  if (isRecord(result.counts)) {
+    const counts = Object.entries(result.counts).map(([model, n]) => `${model} ${String(n)}`);
+    const tracked = isRecord(result.tracked)
+      ? Object.entries(result.tracked).map(([c, n]) => `${c} ${String(n)}`)
+      : [];
+    const verdict = result.all_equal === true ? "agree" : "DISAGREE";
+    return `${counts.join(" · ")} (${verdict}); tracker: ${tracked.join(", ") || "none"}`;
+  }
   return "";
 }

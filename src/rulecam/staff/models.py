@@ -112,6 +112,8 @@ class StaffItem(Frozen):
         timeline: The loop from camera to action, oldest first.
         ack_s: Seconds from the first role being told to the first acknowledgement.
         fix_s: Seconds from raised to *Done*.
+        retail_task_id: The supermarket restock or hazard task behind this alert; a *Done* photo
+            is sent to its proof check (`POST /retail/tasks/{id}/proof`).
     """
 
     item_id: str
@@ -139,6 +141,7 @@ class StaffItem(Frozen):
     timeline: tuple[TimelineStep, ...] = ()
     ack_s: float | None = None
     fix_s: float | None = None
+    retail_task_id: str | None = None
 
 
 class StaffActionRequest(Frozen):

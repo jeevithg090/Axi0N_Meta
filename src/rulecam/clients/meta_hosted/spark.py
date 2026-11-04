@@ -368,6 +368,39 @@ class SparkClient:
             msg = f"Spark output failed validation twice against {schema.__name__}: {second}"
             raise StructuredOutputError(msg) from second
 
+    def structured_reasoned(
+        self,
+        *,
+        model: str = DEFAULT_MODEL,
+        messages: list[dict[str, object]],
+        schema: type[M],
+        reasoning_effort: Effort = "low",
+        summary: Literal["auto", "concise", "detailed"] = "concise",
+    ) -> tuple[M, list[str]]:
+        """Like `structured`, plus the reasoning summary (`reasoning.summary`) Spark returns.
+
+        The summary is a few sentences on how Spark is approaching the step; it rides on the same
+        call (checked live on 4 Nov 2026: it combines with `json_schema` output). A reply that
+        fails validation is retried by `structured`, without a summary.
+
+        Returns:
+            The validated model and the summary's sentences (empty when Spark sent none).
+        """
+        body = build_request(
+            model=model,
+            messages=messages,
+            schema=schema,
+            reasoning_effort=reasoning_effort,
+            background=False,
+        )
+        body["reasoning"] = {"effort": reasoning_effort, "summary": summary}
+        final = self._call_body(body, model, None)
+        try:
+            return _validate(schema, output_text(final)), reasoning_summary(final)
+        except ValidationError:
+            _log.warning("spark_reasoned_validation_retry", model=model)
+        return self.structured(model=model, messages=messages, schema=schema), []
+
     def grounded(
         self,
         *,
@@ -494,3 +527,17 @@ class SparkClient:
             recorded_ms += reply.latency_ms
             body = response_body(reply.body)
         return body, attempts, recorded_ms
+
+
+def reasoning_summary(body: Mapping[str, object]) -> list[str]:
+    """The `summary_text` parts of a reply's `reasoning` items, in order."""
+    out: list[str] = []
+    items = body.get("output")
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, Mapping) or item.get("type") != "reasoning":
+            continue
+        parts = item.get("summary")
+        for part in parts if isinstance(parts, list) else []:
+            if isinstance(part, Mapping) and isinstance(part.get("text"), str):
+                out.append(str(part["text"]))
+    return out

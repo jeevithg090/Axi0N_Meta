@@ -94,6 +94,7 @@ from rulecam.api.prometheus import (
 )
 from rulecam.api.site_tools import build_site_tools
 from rulecam.api.validation import install_validation_handler
+from rulecam.api.wearables import build_wearables
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
     AskAgent,
@@ -119,7 +120,7 @@ from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
 from rulecam.compliance.api import build_proof_router
 from rulecam.config import Settings, get_settings
-from rulecam.connectors import build_connectors, connectors_router
+from rulecam.connectors import ConnectorManager, build_connectors, connectors_router
 from rulecam.contracts import TTS, Calibration, Chunk, Clock, PrivacyMode, SitePlan
 from rulecam.crowd.memory import Calibrations, CrowdMemory, ModelCalibration
 from rulecam.crowd.scan import CrowdScanner
@@ -154,6 +155,7 @@ from rulecam.planner.standards import StandardsLibrary
 from rulecam.planner.steps.audit import audit_hook
 from rulecam.planner.survey_cache import SurveyCache
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
+from rulecam.retail import build_retail
 from rulecam.rule_ci import prove_plan_hook
 from rulecam.rule_ci.hard_negatives import HardNegatives
 from rulecam.runtime.activate import Activation, PlanActivator, restore_activation
@@ -228,6 +230,7 @@ class AppServices:
         verify_base: The verify page's public URL in incident reports' QR codes (e.g.
             `<PUBLIC_UI_URL>/rulecam-api/verify/`); default the API's own `/verify/`.
         pdf_printer: Prints a report to PDF (`evidence.packs.render_pdf`).
+        connectors: Camera connectors; their names and first looks label `GET /cameras`.
     """
 
     bus: Bus
@@ -262,6 +265,7 @@ class AppServices:
     stills_root: Path | None = None
     verify_base: str | None = None
     pdf_printer: PdfPrinter = render_pdf
+    connectors: ConnectorManager | None = None  # names and first looks in `GET /cameras`
 
 
 class RuntimeReport(LoopMetrics):
@@ -352,6 +356,7 @@ class CameraInfo(BaseModel):
     label: str
     source: str
     last_chunk_at: datetime | None = None
+    description: str | None = None  # Muse Spark's first look (`rulecam.connectors`)
 
 
 class Health(BaseModel):
@@ -449,7 +454,8 @@ def _cameras(services: AppServices) -> list[CameraInfo]:
             camera_id,
             CameraInfo(camera_id=camera_id, label=camera_id, source="capture", last_chunk_at=last),
         )
-    return list(rows.values())
+    found = list(rows.values())
+    return services.connectors.label(found, CameraInfo) if services.connectors else found
 
 
 def _chain_days(folder: Path) -> list[date]:
@@ -986,10 +992,37 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     ask_agent, ask_tickers = build_ask(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, crowd=(crowd, warden)
     )
+    advice = AdviceStore()
+    retail, retail_tickers = build_retail(
+        settings,
+        cache=cache,
+        clock=clock,
+        bus=bus,
+        perception=perception,
+        response=response,
+        chain=chain,
+        advice=advice,
+        ask=ask_agent,
+        dependencies=_OWNER,
+    )
     connectors = build_connectors(
         settings, cache=cache, clock=clock, bus=bus, sam=perception.hosted, chunks=perception.chunks
     )
-    origins = viewer_origins(settings.public_ui_url)
+    staff = build_staff(
+        settings,
+        cache=cache,
+        clock=clock,
+        bus=bus,
+        response=response,
+        chain_root=chain_root,
+        segmenter=perception.hosted,
+        ask_agent=ask_agent,
+        false_alarm=false_alarm,
+        plans_dir=PLANS_DIR,
+        camera_labels=lambda: {c.camera_id: c.label for c in pair.registry.cameras()},
+        dependencies=_OWNER,
+    )
+    origins = viewer_origins(settings.public_ui_url, settings.rulecam_ui_extra_origins)
     auth = OwnerAuth.from_settings(settings, clock=clock, allowed_origins=origins)
     client_address = ClientAddress(
         settings.ui_proxy_secret.get_secret_value() if settings.ui_proxy_secret else None
@@ -1020,12 +1053,15 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             else None
         ),
         auth=auth,
+        connectors=connectors,
         health_probes=probes,
         tickers=(
             *response.tickers,
             *((watch.tick,) if watch is not None else ()),
             *ask_tickers,
             *crowd_tickers,
+            *retail_tickers,
+            *staff.tickers,
         ),
         pollers=(
             *response.pollers(false_alarm),
@@ -1037,6 +1073,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         ),
         response=response.status,
         cost=watch.report if watch is not None else None,
+        advice=advice,
         routers=(
             build_worker_router(
                 settings,
@@ -1069,6 +1106,9 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 dependencies=_OWNER,
             ),
             extensions.router(_OWNER),
+            retail,
+            chain_router(settings.rulecam_chains_dir, dependencies=_OWNER),
+            connectors_router(connectors, dependencies=_OWNER),
             *build_warehouse(
                 settings,
                 cache=cache,
@@ -1083,8 +1123,15 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 client_address=client_address,
                 dependencies=_OWNER,
             ),
-            chain_router(settings.rulecam_chains_dir, dependencies=_OWNER),
-            connectors_router(connectors, dependencies=_OWNER),
+            build_wearables(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                perception=perception,
+                chain=chain,
+                dependencies=_OWNER,
+            ),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
             build_proof_router(
@@ -1100,20 +1147,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 dependencies=_OWNER,
                 plans_dir=PLANS_DIR,
             ),
-            build_staff(
-                settings,
-                cache=cache,
-                clock=clock,
-                bus=bus,
-                response=response,
-                chain_root=chain_root,
-                segmenter=perception.hosted,
-                ask_agent=ask_agent,
-                false_alarm=false_alarm,
-                plans_dir=PLANS_DIR,
-                camera_labels=lambda: {c.camera_id: c.label for c in pair.registry.cameras()},
-                dependencies=_OWNER,
-            ),
+            staff.router,
         ),
     )
 
@@ -1232,6 +1266,7 @@ def build_ask(
         files=spark,
         watch_model=settings.rulecam_ask_watch_model,
         crowd=crowd[0],
+        reasoning=cache.mode != "replay",  # a reasoning summary changes the replayed request
     )
     return agent, tuple(m.tick for m in (memory, identity) if m is not None)
 
@@ -1428,15 +1463,26 @@ def owner_alerts_router(
     return router
 
 
-def viewer_origins(public_ui_url: str | None) -> frozenset[str]:
-    """Return the origin of the public web UI (scheme://host[:port]) as the only viewer origin."""
-    if not public_ui_url:
-        return frozenset()
-    parts = urlsplit(public_ui_url)
-    if parts.scheme not in {"http", "https"} or not parts.netloc:
-        msg = f"PUBLIC_UI_URL must be an http(s) URL, got {public_ui_url!r}"
-        raise ValueError(msg)
-    return frozenset({f"{parts.scheme}://{parts.netloc}"})
+def viewer_origins(public_ui_url: str | None, extra: str = "") -> frozenset[str]:
+    """Return the web UI origins (scheme://host[:port]) owner sessions may act from.
+
+    Args:
+        public_ui_url: The public web UI (`PUBLIC_UI_URL`).
+        extra: More UI hosts, comma-separated (`RULECAM_UI_EXTRA_ORIGINS`), e.g. a fallback
+            UI host while the main one cannot deploy.
+
+    Raises:
+        ValueError: If any of them is not an http(s) URL.
+    """
+    urls = [u.strip() for u in [public_ui_url or "", *extra.split(",")] if u.strip()]
+    origins: set[str] = set()
+    for url in urls:
+        parts = urlsplit(url)
+        if parts.scheme not in {"http", "https"} or not parts.netloc:
+            msg = f"PUBLIC_UI_URL and RULECAM_UI_EXTRA_ORIGINS must be http(s) URLs, got {url!r}"
+            raise ValueError(msg)
+        origins.add(f"{parts.scheme}://{parts.netloc}")
+    return frozenset(origins)
 
 
 def openapi_json(app: FastAPI) -> str:

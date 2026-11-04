@@ -65,6 +65,7 @@ export interface StaffItem {
   timeline: TimelineStep[];
   ack_s: number | null;
   fix_s: number | null;
+  retail_task_id?: string | null;
 }
 
 export interface StaffConfig {
@@ -75,6 +76,7 @@ export interface StaffConfig {
   shelf: boolean;
   speech: string[];
   near_miss_voice: boolean;
+  push: boolean;
 }
 
 export interface RoleInfo {

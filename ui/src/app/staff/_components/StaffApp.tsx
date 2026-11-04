@@ -7,6 +7,7 @@ import { errorText } from "@/lib/api";
 import { buzz, notifyInBackground, readAloud, tone } from "../_lib/alerting";
 import { staffApi } from "../_lib/client";
 import { ordered, useStaffFeed } from "../_lib/feed";
+import { enablePush, type PushState } from "../_lib/push";
 import { LANG_NAMES, WORDS, roleWords } from "../_lib/i18n";
 import type { RoleInfo, StaffAction, StaffConfig, StaffItem } from "../_lib/types";
 import styles from "../staff.module.css";
@@ -52,10 +53,19 @@ export function StaffApp() {
   const [translated, setTranslated] = useState<Record<string, string>>({});
   const [sheet, setSheet] = useState<Sheet>(null);
   const asked = useRef<Set<string>>(new Set());
+  const [push, setPush] = useState<PushState>("off");
+  // A notification's deep link: `/staff?item=<id>` opens the item, `&ack=1` also acknowledges it.
+  const deepLink = useRef<{ item: string | null; ack: boolean; done: boolean }>({
+    item: null,
+    ack: false,
+    done: false,
+  });
 
   useEffect(() => {
     setSetup(loadSetup());
     setReady(true);
+    const query = new URLSearchParams(window.location.search);
+    deepLink.current = { item: query.get("item"), ack: query.get("ack") === "1", done: false };
     staffApi
       .config()
       .then(setConfig)
@@ -98,6 +108,40 @@ export function StaffApp() {
   );
 
   const feed = useStaffFeed(everyone ? null : role, Boolean(setup) && !editing, onNew);
+
+  // Web Push: once notifications are allowed, this phone receives its role's alerts when closed.
+  useEffect(() => {
+    if (!role || editing || !config?.push) return;
+    void enablePush(role, lang).then(setPush);
+  }, [config?.push, editing, lang, role]);
+
+  // Open (and, from the notification's Acknowledge button, acknowledge) the linked item.
+  useEffect(() => {
+    const link = deepLink.current;
+    if (link.done || !link.item || !role) return;
+    const item = feed.items.find((i) => i.item_id === link.item);
+    if (!item) return;
+    link.done = true;
+    window.history.replaceState(null, "", "/staff");
+    if (link.ack && item.status === "open") {
+      setBusy(item.item_id);
+      staffApi
+        .act(item.item_id, "acknowledge", role)
+        .then((result) => {
+          feed.upsert(result.item);
+          setMessages((m) => ({ ...m, [item.item_id]: result.did }));
+        })
+        .catch(() => {})
+        .finally(() => setBusy(null));
+    }
+    setFresh((f) => new Set(f).add(item.item_id));
+    window.setTimeout(() => {
+      document.querySelector(`[data-item="${CSS.escape(item.item_id)}"]`)?.scrollIntoView({
+        block: "start",
+        behavior: "smooth",
+      });
+    }, 50);
+  }, [feed, role]);
 
   // Each open card's line in the chosen language (Muse Spark writes it; cached on the server).
   useEffect(() => {
@@ -190,6 +234,11 @@ export function StaffApp() {
           </span>
           {words.appName}
         </span>
+        {push === "on" ? (
+          <span className={styles.chip} title={words.pushOn} aria-label={words.pushOn}>
+            🔔
+          </span>
+        ) : null}
         <span className={styles.chip} aria-live="polite">
           <span className={`${styles.dot} ${dot}`} />
           {feed.connection === "live"

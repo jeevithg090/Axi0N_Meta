@@ -135,6 +135,16 @@ export interface OnvifDevice {
   profiles: OnvifProfile[];
 }
 
+/** A public live webcam for one-click demos (`GET /connectors/presets`). */
+export interface LivePreset {
+  preset_id: string;
+  title: string;
+  url: string;
+  source: string;
+  shows: string;
+  label: string;
+}
+
 export interface BrandTemplate {
   brand: string;
   main: string;
@@ -189,6 +199,7 @@ export const cameras = {
       post({ target, username: username || null, password: password || null }),
     ),
   brands: () => call<BrandTemplate[]>("/connectors/brands"),
+  presets: () => call<LivePreset[]>("/connectors/presets"),
 };
 
 /** The newest frame of any camera; `t` busts the browser cache so tiles refresh. */

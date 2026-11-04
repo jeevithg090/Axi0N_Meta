@@ -1076,11 +1076,13 @@ could not start, SAM calls waited 120 s and fell back to hosted SAM. Now:
   `scripts/sam_pod/setup.sh --stage`, `scripts/sam_pod/install_moge.sh` and
   `scripts/glimmer_pod/stage.sh` (about 6 minutes each). They have no `sam.env`, so SAM runs with
   the code defaults. Volumes do not sync: ship code to every one.
-- **Standby Glimmer** `kkj76vah84y5uj` (`rulecam-glimmer-standby`): the same llama.cpp build
-  with no volume (`scripts/glimmer_pod/anywhere.sh` downloads the weights on a cold start, about
-  6 minutes), so it can run in any data center with stock. The API tries it when the primary
-  gives no usable answer (`GLIMMER_STANDBY_BASE_URL=https://kkj76vah84y5uj.api.runpod.ai/v1`,
-  same keys), then the hosted fallback. Keep it warm for demos (`demo_warm.sh` does).
+- **Standby Glimmer** `kkj76vah84y5uj` (`rulecam-glimmer-standby`): the same image and start
+  script as the primary, on its own volumes in Europe, EU-RO-1 `qccfs4txfz` and EUR-IS-1
+  `8ig412l4r2` (30 GB each, staged from CPU pods with `scripts/glimmer_pod/stage.sh` after
+  untarring the code), so it never competes with the primary for US GPUs. The API tries it when
+  the primary gives no usable answer (`GLIMMER_STANDBY_BASE_URL=https://kkj76vah84y5uj.api.runpod.ai/v1`,
+  same keys), then the hosted fallback. A first try with no volume (weights downloaded on each
+  cold start) was dropped: the downloads stalled and RunPod restarted the workers.
 - **Shorter wait before hosted SAM.** `SAM_HTTP_TIMEOUT_S` (default 60) and `SAM_HTTP_ATTEMPTS`
   (default 2) bound one self-hosted SAM call; with `25` and `1` the runtime falls back to hosted
   SAM after 25 s instead of 2 minutes.
@@ -1099,7 +1101,7 @@ with 8-GPU stock that night), and a 520 GB high-performance network volume `uhe0
 - The start script is `scripts/spark_open_pod/serverless.sh`. The endpoint has no code volume,
   so the script and `llama_edge` reach the worker as env vars (`scripts/spark_open_pod/
   endpoint_env.sh` prints them). The first start downloads the weights onto the volume
-  (resumable); later cold starts only load them, about 10 minutes.
+  (resumable); later cold starts only load them, about 18 minutes (measured 4 Nov).
 - Same key scheme as Glimmer: the RunPod key in `Authorization`, the model key (the RunPod
   secret `rulecam_glimmer_api_key`) in `X-Rulecam-Key`.
 - API settings: `SPARK_OPEN_BASE_URL=https://hljmhlgjyaacyv.api.runpod.ai/v1`,

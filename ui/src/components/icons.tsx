@@ -171,6 +171,13 @@ export const icons = {
       <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />
     </Icon>
   ),
+  glasses: (
+    <Icon>
+      <circle cx="6.5" cy="14" r="3.5" />
+      <circle cx="17.5" cy="14" r="3.5" />
+      <path d="M10 14h4M3 14 4.5 7.5A2 2 0 0 1 6.4 6H8M21 14l-1.5-6.5A2 2 0 0 0 17.6 6H16" />
+    </Icon>
+  ),
   plug: (
     <Icon>
       <path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0Z" />

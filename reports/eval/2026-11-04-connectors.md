@@ -87,10 +87,35 @@ and found no cameras, which is correct: there are none.
 - The deployed RunPod API: nothing was deployed. A scan from a cloud pod finds nothing by design.
 - Accuracy of SAM 3.1's counts and of Spark's use-case ratings against human labels.
 
+## Follow-up the same night (01:35 to 01:55 UTC)
+
+**No orphan ffmpeg after a crash.** ffmpeg now runs in its own process group, with a
+parent-death signal on Linux and a pipe watchdog elsewhere, and a previous run's ffmpeg for the
+same camera is killed on start. Checked on macOS (the watchdog path): with a YouTube camera live,
+`kill -9` of the API left its ffmpeg running at 2 s and gone by 6 s (ffmpeg finishes its current
+segment on SIGTERM). A test does the same on every CI run (Linux, the parent-death path): it
+SIGKILLs a process that owns a camera and requires its ffmpeg to be gone within 10 s. After the
+restart the camera came back by itself and, because the crash had cut its first look short, got
+a new one (named "Shibuya Scramble Crossing", crowd: strong).
+
+**Public live webcam presets.** Four candidates were connected and surveyed; three became
+presets. Times are first chunk / first look.
+
+| Webcam (publisher) | First chunk (s) | First look (s) | Fit the models gave |
+|---|---|---|---|
+| Shibuya Scramble Crossing (ANN News, TV Asahi) | 1.5 | 28.4 | crowd: strong |
+| Times Square Crossroads (EarthCam) | 1.3 (0.5 from the page) | 26.8 (27.8 from the page) | crowd: possible, other: strong |
+| Fisherman's Village shop street, Koh Samui (The Real Samui Webcam) | 1.6 | 30.2 | supermarket: possible, crowd: possible |
+| Leavenworth main street (Kris Kringl shop), not kept | 1.2 | 24.5 | crowd: possible (night, few people) |
+
+Clicking the Times Square preset in the page (headless browser) showed the tile in under a
+second and the finished first look 27.8 s later. At night SAM 3.1 found 0 "pedestrians" on Times
+Square from that height while Shibuya, in daytime, showed 10, which is why the fits differ.
+
 ## Known limits
 
-- A normal stop of the API stops every camera's ffmpeg (checked: none left running). If the API
-  process is killed outright (`kill -9`, a crash), its ffmpeg processes keep running until they
-  are stopped by hand, and would write chunks next to the restarted API's ones.
+- A crash now stops ffmpeg, but a camera that was mid-first-look loses that look until the new
+  one finishes (about 30 s after the restart).
+- Public webcam links can end without notice; the presets will need checking before a demo.
 - The 10-second fps reading jumps on HLS and YouTube streams (segment bursts); the long-run rate
   is right.

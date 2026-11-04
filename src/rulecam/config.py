@@ -184,6 +184,9 @@ class Settings(BaseSettings):
     spark_open_edge_key: SecretStr | None = None
     spark_open_model: str = "muse-spark-open"
     spark_open_hardware: str = "runpod-8xH100-llama.cpp-Q4_K_S"
+    # State the JSON schema in a system message too: llama-server's Muse Spark template does not
+    # enforce `response_format` (checked 4 Nov 2026). Applies to SPARK_OPEN_BASE_URL only.
+    spark_open_schema_in_prompt: bool = True
     # Hosted Spark Open used only when the server above gives no usable answer (e.g. Routeway,
     # https://api.routeway.ai/v1, model `muse-spark-open`; its key is the bearer).
     spark_open_fallback_base_url: str | None = None
@@ -260,6 +263,8 @@ class Settings(BaseSettings):
     rulecam_webhook_secret: SecretStr | None = None
     public_tunnel_url: str | None = None
     public_ui_url: str | None = None  # public origin of the web UI (worker page QR on posters)
+    # More web UI hosts owner sessions may act from, comma-separated (e.g. a fallback UI host).
+    rulecam_ui_extra_origins: str = ""
     # Owner login (docs/deploy.md "Owner login"): `rulecam owner set-passphrase` prints the hash.
     owner_passphrase_hash: SecretStr | None = None
     session_secret: SecretStr | None = None  # signs owner session cookies; 32+ characters
@@ -272,12 +277,6 @@ class Settings(BaseSettings):
     planner_survey_window_s: float = (
         60.0  # seconds of recent chunks the planner samples frames from
     )
-    # Without Tier 2 (Spark Open), Muse Spark 1.3 reviews worker disputes with the evidence
-    # frames instead of leaving every one pending for a person (`worker.spark_review`).
-    rulecam_dispute_spark_fallback: bool = True
-    # Chain a `coverage` record when a camera goes BLIND or recovers (`runtime.coverage_log`).
-    # Off by default: moving-camera stock clips flap `moved`; turn it on for fixed site cameras.
-    rulecam_coverage_log: bool = False
     # Reuse a camera's survey (inventory, calibration) for this long when its scene is unchanged
     # (`planner.survey_cache`); 0 surveys every time. The probe and Rule CI always run.
     planner_survey_reuse_s: float = Field(default=1800.0, ge=0)
@@ -288,6 +287,14 @@ class Settings(BaseSettings):
     rulecam_connectors_fps: float = Field(default=10.0, gt=0, le=30)
     rulecam_connectors_max_width: int = Field(default=1280, ge=320, le=3840)
     rulecam_connectors_keep_chunks: int = Field(default=1200, ge=10)
+    # Without Tier 2 (Spark Open), Muse Spark 1.3 reviews worker disputes with the evidence
+    # frames instead of leaving every one pending for a person (`worker.spark_review`).
+    rulecam_dispute_spark_fallback: bool = True
+    # Chain a `coverage` record when a camera goes BLIND or recovers (`runtime.coverage_log`).
+    # Off by default: moving-camera stock clips flap `moved`; turn it on for fixed site cameras.
+    rulecam_coverage_log: bool = False
+    # Smart glasses (`/wearables`): how long a look waits for Glimmer before Muse Spark looks.
+    rulecam_wearables_glimmer_timeout_s: float = Field(default=25.0, gt=0.0, le=300.0)
 
     @property
     def replay_dir(self) -> Path:

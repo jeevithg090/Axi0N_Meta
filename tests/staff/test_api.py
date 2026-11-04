@@ -8,12 +8,14 @@ import json
 from pathlib import Path
 
 import pytest
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.testclient import TestClient
 
+from rulecam.act.notify import for_event
 from rulecam.ask.trace import AskAnswer
+from rulecam.capture.pair_phone import require_owner
 from rulecam.shelf.gaps import ShelfGap, ShelfReport
-from rulecam.staff.api import StaffConfig, staff_router, stream_feed
+from rulecam.staff.api import StaffConfig, retail_proof, staff_router, stream_feed
 from rulecam.staff.asking import NothingHeardError, VoiceAsk, framed
 from rulecam.staff.chainview import ChainView
 from rulecam.staff.speech import Engine, Speaker
@@ -279,3 +281,83 @@ def test_config_offers_the_near_miss_report_where_the_api_serves_it(rig: Rig) ->
     assert isinstance(app, FastAPI)
     app.add_api_route("/warehouse/reports/voice", lambda: {}, methods=["POST"])
     assert http.get("/staff/config").json()["near_miss_voice"] is True
+
+
+def _retail_alert(rig: Rig) -> None:
+    """A supermarket finding as the retail desk sends it: an advice record, then the alert."""
+    rig.chain.append(
+        "advice",
+        {"type": "retail_finding", "finding_id": "f-1", "task_id": "t-9", "kind": "shelf"},
+    )
+    with for_event("f-1", "watch-1"):
+        rig.notifier.send("stock", "Restock: Aisle 3", "Gap next to oat milk", buttons=())
+
+
+def test_a_done_photo_on_a_retail_task_goes_to_its_proof_check(rig: Rig) -> None:
+    _retail_alert(rig)
+    http = client(rig)
+    app = http.app
+    assert isinstance(app, FastAPI)
+    seen: list[tuple[str, int]] = []
+
+    async def proof(task_id: str, request: Request) -> dict[str, object]:
+        form = await request.form()
+        image = form["image"]
+        assert not isinstance(image, str)
+        seen.append((task_id, len(await image.read())))
+        return {"id": task_id, "status": "done", "closed_by": "photo", "minutes_to_fix": 3.5}
+
+    app.add_api_route("/retail/tasks/{task_id}/proof", proof, methods=["POST"])
+    assert http.get("/staff/items/f-1").json()["retail_task_id"] == "t-9"
+    done = http.post(
+        "/staff/items/f-1/done",
+        data={"role": "stock"},
+        files={"photo": ("p.jpg", JPEG, "image/jpeg")},
+    ).json()
+    assert seen == [("t-9", len(JPEG))]
+    assert done["did"] == "done; the models confirmed the fix from the photo in 3.5 min"
+    chained = rig.records()[-1].payload
+    assert chained["retail_proof"] == {
+        "task_id": "t-9",
+        "http_status": 200,
+        "status": "done",
+        "closed_by": "photo",
+        "minutes_to_fix": 3.5,
+        "detail": "",
+    }
+
+
+def test_a_done_photo_when_the_retail_check_is_not_there(rig: Rig) -> None:
+    _retail_alert(rig)
+    done = (
+        client(rig)
+        .post(
+            "/staff/items/f-1/done",
+            data={"role": "stock"},
+            files={"photo": ("p.jpg", JPEG, "image/jpeg")},
+        )
+        .json()
+    )
+    assert done["item"]["status"] == "done"
+    assert done["did"].startswith("done; the photo could not be checked (")
+
+
+async def test_the_proof_check_is_called_as_the_owner_on_this_machine(tmp_path: Path) -> None:
+    app = FastAPI()
+
+    def proof(task_id: str) -> dict[str, object]:
+        return {"id": task_id, "status": "open"}
+
+    app.add_api_route(
+        "/retail/tasks/{task_id}/proof",
+        proof,
+        methods=["POST"],
+        dependencies=[Depends(require_owner)],
+    )
+    photo = tmp_path / "p.jpg"
+    photo.write_bytes(JPEG)
+    outside = TestClient(app).post("/retail/tasks/t-1/proof", files={"image": ("p.jpg", JPEG)})
+    assert outside.status_code == 403
+    checked = await retail_proof(app, "t-1", photo)
+    assert (checked.http_status, checked.status) == (200, "open")
+    assert checked.words().startswith("the models did not confirm")

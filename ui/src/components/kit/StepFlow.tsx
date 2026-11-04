@@ -5,7 +5,9 @@ import { ModelChip, type ModelChipProps } from "./ModelChip";
 import styles from "./kit.module.css";
 import { cx } from "./cx";
 
-export type StepState = "done" | "current" | "todo";
+export type StepState = "done" | "current" | "todo" | "failed";
+
+const STATE_WORDS: Record<StepState, string> = { done: "done", current: "in progress", todo: "not yet", failed: "failed" };
 
 export interface FlowStep {
   /** The step's name: "Describe", "Plan", "Prove", "Trust". */
@@ -78,6 +80,7 @@ export function StepFlow({
               <span className={styles.flowNum} aria-hidden="true">
                 {i + 1}
               </span>
+              <span className="visually-hidden">{`Step ${i + 1}, ${STATE_WORDS[state]}: `}</span>
               <Name className={styles.flowName}>
                 {step.href ? (
                   <Link href={step.href} className={styles.flowLink}>

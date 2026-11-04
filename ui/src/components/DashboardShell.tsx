@@ -76,6 +76,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/streams", label: "Camera fleet", icon: "video", badgeTone: "count" },
       { href: "/cameras", label: "Connect cameras", icon: "plug" },
       { href: "/staff", label: "Staff app", icon: "phone" },
+      { href: "/glasses", label: "Glasses mode", icon: "glasses" },
       { href: "/alerts", label: "Alerts", icon: "bell" },
       { href: "/ask", label: "Ask", icon: "chat" },
       { href: "/advice", label: "Advice", icon: "bars" },
@@ -136,13 +137,14 @@ function isPhone(): boolean {
 
 /**
  * Routes for people outside the owner's console, framed bare (the wordmark and the badge, no
- * sidebar): the worker QR page, the station tablet, the staff companion PWA, and the proof
- * portal's inspector view for outside recipients.
+ * sidebar): the worker QR page, the station tablet, the staff companion PWA, glasses mode, and
+ * the proof portal's inspector view for outside recipients.
  */
 const BARE_ROUTES: RegExp[] = [
   /^\/worker\/[^/]+\/[^/]+/,
   /^\/station\//,
   /^\/staff(\/|$)/,
+  /^\/glasses(\/|$)/,
   /^\/inspector\/view(\/|$)/,
 ];
 

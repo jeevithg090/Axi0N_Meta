@@ -271,7 +271,9 @@ def test_services_from_settings_with_runtime(tmp_path: Path) -> None:
         assert metrics["verifier_down"] is False
         assert metrics["verifier"]["state"] == "closed"  # Tier 1 behind its circuit breaker
         assert "rulecam_runtime_verifier_down 0.0" in client.get("/metrics").text
-    assert len(services.tickers) == 3  # escalation timers, Tier 1 health probe, the cost watch
+    # Escalation timers, Tier 1 health probe, the cost watch, the supermarket watches, the staff
+    # app's Web Push relay.
+    assert len(services.tickers) == 5
 
 
 def test_alert_routes_are_owner_only(tmp_path: Path) -> None:
@@ -516,6 +518,19 @@ def test_public_ui_can_watch_ws_but_not_change_state(services: AppServices) -> N
 )
 def test_viewer_origins_from_public_ui_url(url: str | None, expected: frozenset[str]) -> None:
     assert viewer_origins(url) == expected
+
+
+def test_viewer_origins_take_extra_ui_hosts() -> None:
+    extra = " https://ui-3000.proxy.runpod.net/x , http://localhost:3000"
+    assert viewer_origins(PUBLIC_UI, extra) == viewer_origins(PUBLIC_UI) | {
+        "https://ui-3000.proxy.runpod.net",
+        "http://localhost:3000",
+    }
+    assert viewer_origins(None, "https://ui-3000.proxy.runpod.net") == {
+        "https://ui-3000.proxy.runpod.net"
+    }
+    with pytest.raises(ValueError, match="http"):
+        viewer_origins(None, "ftp://x")
 
 
 def test_viewer_origins_rejects_non_http_urls() -> None:

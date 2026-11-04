@@ -116,8 +116,12 @@ class CameraStore:
     def put(self, record: CameraRecord, credentials: Credentials | None = None) -> None:
         """Add or replace a camera (and its credentials, when given)."""
         with self._lock:
-            others = [c for c in self._saved.cameras if c.camera_id != record.camera_id]
-            self._saved = self._saved.model_copy(update={"cameras": [*others, record]})
+            cameras = [
+                record if c.camera_id == record.camera_id else c for c in self._saved.cameras
+            ]
+            if record not in cameras:  # a new camera goes last; a renamed one keeps its place
+                cameras.append(record)
+            self._saved = self._saved.model_copy(update={"cameras": cameras})
             if credentials is not None:
                 self._secrets[record.camera_id] = credentials
                 self._flush_secrets()

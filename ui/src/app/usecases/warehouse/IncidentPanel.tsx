@@ -118,7 +118,7 @@ export function IncidentPanel({ near, planId }: { near: NearMiss; planId: string
   const day = near.ts.slice(0, 10);
   return (
     <section className={styles.card} aria-labelledby="wh-incident">
-      <h2 id="wh-incident">3. The near miss, and what happens next</h2>
+      <h2 id="wh-incident">The near miss, and what happens next</h2>
       <p>
         <strong>{metres(near.separation_m)}</strong> from a moving vehicle (limit{" "}
         {metres(near.limit_m)}, closest {metres(near.closest_m)} within a second

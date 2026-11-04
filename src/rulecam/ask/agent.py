@@ -50,10 +50,11 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Final, Protocol
+from typing import TYPE_CHECKING, Final, Protocol, runtime_checkable
 
 import yaml
 
+from rulecam.ask.crosscount import CrossCounter
 from rulecam.ask.data import DEFAULT_MAX_ROWS, CrowdFiles, QueryResult, SqlError, TrackTables
 from rulecam.ask.results import DEFAULT_MAX_RESULT_CHARS, fit_results
 from rulecam.ask.review import REVIEW_PROMPT, AnswerReviewer, AnswerVerdict, sent_back
@@ -83,6 +84,7 @@ from rulecam.ask.watch import (
     spaced,
     watch,
 )
+from rulecam.clients.errors import ModelClientError
 from rulecam.contracts import Clock, StructuredLLM
 from rulecam.crowd.zones import CrowdZone
 from rulecam.errors import RulecamError
@@ -98,6 +100,7 @@ SPARK_MODEL: Final = "muse-spark-1.3"
 SAM_MODEL: Final = "sam-3.1"
 MAX_STEPS: Final = 8
 REVIEW_STEPS: Final = 3
+GLIMMER_PAUSE_S: Final = 300.0  # after a failed look, skip looks this long instead of re-waiting
 DEFAULT_MAX_ACTIONS: Final = 6
 MAX_CONVERSATIONS: Final = 64
 STOPPED: Final = "Stopped before an answer: the request went away."
@@ -106,6 +109,21 @@ _FRAME_NAME: Final = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}\.jpg$")
 
 Emit = Callable[[AskEvent], None]
 """Receives each `AskEvent` as it happens (called from worker threads too)."""
+
+
+@runtime_checkable
+class Reasoned(Protocol):
+    """A Spark client that also returns its reasoning summary (`SparkClient`)."""
+
+    def structured_reasoned(
+        self,
+        *,
+        model: str,
+        messages: list[dict[str, object]],
+        schema: type[AskTurn],
+    ) -> tuple[AskTurn, list[str]]:
+        """The validated turn and Spark's reasoning summary."""
+        ...
 
 
 class CrowdMeasure(Protocol):
@@ -188,8 +206,10 @@ keyframe (keyframes_per_s in the data stats); boxes in pixels of a {width}x{heig
 foot point is the bottom centre, foot_m_* in metres when the camera is calibrated. Each concept \
 is a separate SAM 3.1 prompt and concepts can overlap: a cashier can also be tracked as a \
 person. One real object can be split into several track_ids (occlusion, re-entering), so \
-distinct track_id counts over a period are an upper bound; the count present at one ts is \
-reliable. To ask about an area (a lane, a door, a shelf), find its box with count_objects or \
+distinct track_id counts over a period are an upper bound. The count present at one ts is \
+close on a sparse view, but on a busy view SAM can put two boxes on one person (a live test \
+read 22 `customer` tracks where about 12 people stood), so check busy instants with \
+cross_count. To ask about an area (a lane, a door, a shelf), find its box with count_objects or \
 look and filter on the foot point yourself.
 - track_spans(track_id, camera_id, concept, first_seen, last_seen, seconds, points): one row per \
 track.
@@ -215,6 +235,13 @@ crowd watch is off. crowd_assessments(camera_id, ts, level, zones, why, forecast
 minutes_to_danger, alert, staff_actions, announce, check) are the crowd warden's judgements and \
 crowd_alerts(alert_id, camera_id, ts, level, sent, held_reason, check, assessment, audio) the \
 warnings it sent or held (held: Muse Glimmer did not see it in the frames).
+- retail_findings(id, kind, camera_id, camera_name, seen_at, checked_at, watch_id, act, \
+headline, staff_message, metric, alert_id, task_id): every supermarket check (kind queue, \
+hazard or shelf): what the models judged (headline), whether staff should act (act) and were \
+alerted (alert_id), and its number (metric: customers waiting, confirmed hazards, shelf gaps). \
+retail_tasks(id, kind, camera_id, place, items, seen_at, created_at, status, done_at, \
+closed_by, minutes_to_fix, role) are the staff jobs they opened (restock a gap, make a hazard \
+safe), each with when it was seen and fixed and how the fix was checked (photo, camera, staff).
 
 Tools:
 1. sql: one or more DuckDB SELECT/WITH statements over those tables, separated by ';' (each \
@@ -235,7 +262,14 @@ counts `concept` (default person; "head" can work better in a packed crowd) on g
 enlarged tiles (default 2), and returns per zone people, area, density per square metre, speed, \
 coherence, counterflow and pressure, plus the grid cells and the densest one. Give `zones` as \
 named image polygons [[x, y], ...] in pixels to measure areas such as a gate or a stairway.
-6. answer: the final reply in the owner's language, with the numbers, the time range they cover \
+6. cross_count: three independent counts of `concept` on the recorded frame of camera_id at \
+times[0] (one instant): SAM 3.1's boxes, Muse Spark pointing at each one, Muse Glimmer's own \
+count, plus the tracker's count of every tracked concept at the nearest keyframe. Use it for \
+any "how many at that moment" on a busy view: the tracker can split one person into several \
+boxes. When the counts disagree, reconcile them yourself and say which you trust and why. \
+The result also says how SAM's boxes and Spark's points line up (boxes with no point inside \
+may be duplicates or things Spark left out; points outside every box are people SAM missed).
+7. answer: the final reply in the owner's language, with the numbers, the time range they cover \
 and one short sentence on how you got them and how sure you are. Also list the numbers the \
 reply gives in `numbers`, in the order the question asks for them.
 
@@ -286,6 +320,7 @@ class AskAgent:
         files: FileAttacher | None = None,
         watch_model: str = WATCH_MODEL,
         crowd: CrowdMeasure | None = None,
+        reasoning: bool = False,
     ) -> None:
         """Create the agent.
 
@@ -312,6 +347,7 @@ class AskAgent:
             files: Uploads a clip for Spark (`SparkClient.attach`; `None`: watch unavailable).
             watch_model: The Spark model that takes video.
             crowd: Measures the crowd at an instant (`None`: crowd_scan unavailable).
+            reasoning: Ask Spark for its reasoning summary each turn and stream it.
         """
         self._spark = spark
         self._segmenter = segmenter
@@ -334,8 +370,10 @@ class AskAgent:
         self._files = files
         self._watch_model = watch_model
         self._crowd = crowd
+        self._reasoning = reasoning
         self._conversations: OrderedDict[str, list[AskAnswer]] = OrderedDict()
         self._lock = threading.Lock()
+        self._glimmer_down: tuple[float, str] | None = None  # (monotonic until, why)
 
     def ask(
         self,
@@ -469,10 +507,18 @@ class AskAgent:
                 messages.append({"role": "user", "content": "Steps used up: answer now."})
             emit(AskEvent(type="thinking", turn=turn))
             started = time.perf_counter()
-            actions = self._next(messages)
+            actions, reasoning = self._next(messages)
             seconds = round(time.perf_counter() - started, 1)
+            if reasoning:
+                emit(AskEvent(type="reasoning", turn=turn, detail=" ".join(reasoning)))
             trace.turns.append(
-                AskTurnTiming(turn=turn, model=SPARK_MODEL, seconds=seconds, actions=len(actions))
+                AskTurnTiming(
+                    turn=turn,
+                    model=SPARK_MODEL,
+                    seconds=seconds,
+                    actions=len(actions),
+                    reasoning=reasoning,
+                )
             )
             emit(AskEvent(type="actions", turn=turn, actions=actions, seconds=seconds))
             final = _final(actions, last=last)
@@ -502,10 +548,16 @@ class AskAgent:
             while len(self._conversations) > MAX_CONVERSATIONS:
                 self._conversations.popitem(last=False)
 
-    def _next(self, messages: list[dict[str, object]]) -> list[AskAction]:
-        """Spark's next actions; a reply that is not a valid turn ends with an apology."""
+    def _next(self, messages: list[dict[str, object]]) -> tuple[list[AskAction], list[str]]:
+        """Spark's next actions and its reasoning summary; an invalid turn ends with an apology."""
+        reasoning: list[str] = []
         try:
-            turn = self._spark.structured(model=SPARK_MODEL, messages=messages, schema=AskTurn)
+            if self._reasoning and isinstance(self._spark, Reasoned):
+                turn, reasoning = self._spark.structured_reasoned(
+                    model=SPARK_MODEL, messages=messages, schema=AskTurn
+                )
+            else:
+                turn = self._spark.structured(model=SPARK_MODEL, messages=messages, schema=AskTurn)
         except RulecamError as exc:
             _log.warning("ask_spark_failed", error=str(exc)[:200])
             return [
@@ -514,8 +566,8 @@ class AskAgent:
                     action="answer",
                     answer=APOLOGY,
                 )
-            ]
-        return turn.actions
+            ], []
+        return turn.actions, reasoning
 
     def _run_all(
         self, turn: int, actions: Sequence[AskAction], tables: TrackTables, emit: Emit
@@ -624,9 +676,13 @@ class AskAgent:
         try:
             if action.action == "sql":
                 return _Outcome(_sql_result(tables.run_sql(action.sql or "")))
-            if action.action in ("watch", "crowd_scan"):
-                run = self._watch if action.action == "watch" else self._crowd_scan
-                return run(action)
+            own: dict[str, Callable[[AskAction], _Outcome]] = {
+                "watch": self._watch,
+                "crowd_scan": self._crowd_scan,
+                "cross_count": lambda a: self._cross_count(a, tables),
+            }
+            if action.action in own:
+                return own[action.action](action)
             asked = _instants(action.times)
             used = asked[: self._limits.max_frames]
             frames = self._frames.frames(action.camera_id or "", used)
@@ -638,18 +694,76 @@ class AskAgent:
                 counts = count_objects(self._segmenter, frames, action.concept or "person")
                 found = [c.model_dump(mode="json") for c in counts]
                 return _Outcome({"frames": found, **_notes(notes)}, SAM_MODEL, shown)
-            labels: dict[str, str] = {}
-            if action.marks and self._marks_dir is not None:
-                frames = [self._mark(f, tables, labels) for f in frames]
-            answer = look(self._glimmer, self._glimmer_model, frames, action.question or "")
-            return _Outcome(
-                {**answer.model_dump(), "marks": labels, **_notes(notes)},
-                self._glimmer_model,
-                tuple(f.path for f in frames),
-            )
+            return self._look(action, frames, notes, tables)
         except (SqlError, ValueError, RulecamError, OSError) as exc:
             _log.info("ask_step_failed", action=action.action, error=str(exc))
             return _Outcome({"error": str(exc)})
+
+    def _look(
+        self, action: AskAction, frames: list[Frame], notes: Sequence[str], tables: TrackTables
+    ) -> _Outcome:
+        """Glimmer answers the question about the frames (skipped while Glimmer is paused)."""
+        skipped = self._glimmer_skipped()
+        if skipped is not None:
+            return _Outcome({"error": skipped})
+        labels: dict[str, str] = {}
+        if action.marks and self._marks_dir is not None:
+            frames = [self._mark(f, tables, labels) for f in frames]
+        try:
+            answer = look(self._glimmer, self._glimmer_model, frames, action.question or "")
+        except ModelClientError as exc:
+            self._glimmer_failed(exc)
+            raise
+        return _Outcome(
+            {**answer.model_dump(), "marks": labels, **_notes(notes)},
+            self._glimmer_model,
+            tuple(f.path for f in frames),
+        )
+
+    def _cross_count(self, action: AskAction, tables: TrackTables) -> _Outcome:
+        """Three independent counts on one frame, with the tracker's, for Spark to reconcile."""
+        asked = _instants(action.times)[:1]
+        frames = self._frames.frames(action.camera_id or "", asked)
+        if not frames or self._files is None:
+            return _Outcome({"error": "no recorded frame at that instant on that camera"})
+        frame = frames[0]
+        counter = CrossCounter(
+            segmenter=self._segmenter,
+            spark=self._spark,
+            files=self._files,
+            glimmer=None if self._glimmer_skipped() else self._glimmer,
+            glimmer_model=self._glimmer_model,
+            out_dir=self._marks_dir or self._frames.out_dir,
+        )
+        result = counter.count(frame, action.concept or "person", tracked_at(tables, frame))
+        if result.glimmer.error and "within" in result.glimmer.error:
+            self._glimmer_failed(ModelClientError(result.glimmer.error))
+        shown = (frame.path,) if result.marked is None else (frame.path, Path(result.marked))
+        models = ", ".join(sorted(result.counts)) or SAM_MODEL
+        return _Outcome(result.model_dump(mode="json"), models, shown)
+
+    def _glimmer_failed(self, error: ModelClientError) -> None:
+        """Remember that Glimmer did not answer, so the next looks fail at once.
+
+        A serverless Glimmer that is scaling up takes minutes; without this every look of a
+        question would wait out its own full timeout.
+        """
+        why = f"{type(error).__name__}: {error}"[:200]
+        with self._lock:
+            self._glimmer_down = (time.monotonic() + GLIMMER_PAUSE_S, why)
+        _log.warning("ask_glimmer_paused", seconds=GLIMMER_PAUSE_S, error=why)
+
+    def _glimmer_skipped(self) -> str | None:
+        """Why a look is skipped (Glimmer failed in the last few minutes), else `None`."""
+        with self._lock:
+            down = self._glimmer_down
+        if down is None or time.monotonic() >= down[0]:
+            return None
+        left = round(down[0] - time.monotonic())
+        return (
+            f"Muse Glimmer is not answering ({down[1]}); looks are skipped for another {left} s. "
+            "Use watch (Muse Spark watches the clip) or count_objects (SAM 3.1) instead."
+        )
 
     def _crowd_scan(self, action: AskAction) -> _Outcome:
         """The crowd at each asked instant, with its heatmap as the step's frame."""
@@ -810,6 +924,20 @@ def _frame_notes(
     if missing:
         notes.append(f"no recorded frame at: {', '.join(missing)}")
     return notes
+
+
+def tracked_at(tables: TrackTables, frame: Frame) -> dict[str, int]:
+    """The tracker's count per concept at the keyframe nearest `frame` (within a second)."""
+    at = frame.at.astimezone(UTC).replace(tzinfo=None)
+    rows = tables.query_params(
+        "WITH k AS (SELECT ts FROM track_points WHERE camera_id = ? "
+        "AND ts BETWEEN ? - INTERVAL 1 SECOND AND ? + INTERVAL 1 SECOND "
+        "ORDER BY abs(epoch(ts) - epoch(CAST(? AS TIMESTAMP))) LIMIT 1) "
+        "SELECT concept, count(*) FROM track_points WHERE camera_id = ? "
+        "AND ts = (SELECT ts FROM k) GROUP BY concept ORDER BY concept",
+        [frame.camera_id, at, at, at, frame.camera_id],
+    )
+    return {str(concept): int(str(n)) for concept, n in rows}
 
 
 def open_tables(

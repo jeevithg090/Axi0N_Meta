@@ -1,0 +1,29 @@
+# An example store for the deli pack (SAMPLE set-up: made-up zones and calibrations, not a real
+# store's cameras). The prep counter is a zone on the deli camera; the hand sink and the fire
+# exit are buffers around objects the cameras find, bound to their cameras here.
+store_id: store-03
+name: Harbour Rd deli
+region: south
+frames: {deli-cam: [1920, 1080], back-cam: [1920, 1080]}
+knobs:
+  deli-raw-meat-out: {out_seconds: 1200}
+bindings:
+  deli-hand-sink-clear: {sink_front: deli-cam}
+  fire-exit-clear: {egress: back-cam}
+site:
+  site_name: Harbour Rd deli
+  privacy_mode: standard
+  languages: [en, es]
+  roles: {deli_lead: web_push, facilities: web_push, store_manager: whatsapp}
+  cameras:
+    deli-cam:
+      calibration:
+        image_px: [[420, 640], [880, 630], [940, 830], [360, 845]]
+        ground_m: [[0, 0], [3, 0], [3, 2], [0, 2]]
+      zones:
+        prep_counter: [[980, 420], [1620, 420], [1620, 700], [980, 700]]
+    back-cam:
+      calibration:
+        image_px: [[300, 700], [900, 690], [960, 960], [260, 980]]
+        ground_m: [[0, 0], [4, 0], [4, 2.5], [0, 2.5]]
+      zones: {}

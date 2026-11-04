@@ -33,9 +33,11 @@ from collections.abc import AsyncGenerator, Sequence
 from pathlib import Path
 from typing import Annotated, Any, Final
 
+import httpx
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
+from starlette.types import ASGIApp
 
 from rulecam.bus import Bus, Topic
 from rulecam.clients.errors import ModelClientError
@@ -58,12 +60,22 @@ from rulecam.staff.models import (
     StaffItem,
     StaffStats,
 )
+from rulecam.staff.push import (
+    PushError,
+    PushMessage,
+    PushRelay,
+    Subscriber,
+    SubscribeRequest,
+    check_endpoint,
+)
 from rulecam.staff.speech import Speaker
 from rulecam.staff.store import ShelfTask
 
 _log = get_logger(__name__)
 
 HEARTBEAT_S: Final = 15.0
+HTTP_OK: Final = 200
+PROOF_TIMEOUT_S: Final = 180.0  # Spark and Glimmer look at the photo
 # The warehouse's spoken near-miss reports; the phone offers them where the API serves them.
 NEAR_MISS_ROUTE: Final = "/warehouse/reports/voice"
 RECHECK_S: Final = 2.0
@@ -90,6 +102,7 @@ class StaffConfig(Frozen):
         listen: Voice Transcribe is configured.
         shelf: Shelf photo scans are on.
         speech: Speech engines, in order (`mms-tts` is Meta's; `system-tts` is not).
+        push: Web Push is on (`GET /staff/push/key`): alerts reach phones with the app closed.
         near_miss_voice: The API serves the warehouse's spoken near-miss reports
             (`POST /warehouse/reports/voice`), checked on each request.
     """
@@ -101,6 +114,92 @@ class StaffConfig(Frozen):
     shelf: bool
     speech: tuple[str, ...]
     near_miss_voice: bool = False
+    push: bool = False
+
+
+class RetailProof(BaseModel):
+    """What the supermarket's proof check said about a *Done* photo.
+
+    Attributes:
+        task_id: The retail task.
+        http_status: The check's HTTP status (0: it could not be reached).
+        status: The task's status after the check (`done` when the models confirmed the fix).
+        closed_by: `photo` when the photo closed it.
+        minutes_to_fix: From the camera seeing it to the fix, when closed.
+        detail: The check's error, when it failed.
+    """
+
+    task_id: str
+    http_status: int
+    status: str | None = None
+    closed_by: str | None = None
+    minutes_to_fix: float | None = None
+    detail: str = ""
+
+    def words(self) -> str:
+        """One line for the person who tapped *Done*."""
+        if self.status == "done":
+            fixed = f" in {self.minutes_to_fix:.1f} min" if self.minutes_to_fix else ""
+            return f"the models confirmed the fix from the photo{fixed}"
+        if self.http_status == HTTP_OK:
+            return "the models did not confirm the fix from the photo; the task stays open"
+        return f"the photo could not be checked ({self.detail or self.http_status})"
+
+
+async def retail_proof(app: ASGIApp, task_id: str, photo: Path) -> RetailProof:
+    """Send a *Done* photo to the supermarket's proof check, inside this process.
+
+    The check (`POST /retail/tasks/{task_id}/proof`, multipart `image`) is owner-only, so it is
+    called on this app directly as a loopback request: no network hop, no public URL. Muse Spark
+    looks at the photo against the task and Glimmer checks it; the task closes, and
+    `gap_refilled` or `hazard_cleared` is chained, only when they agree.
+
+    Returns:
+        What the check said, or why it could not run (it is not mounted, it failed).
+    """
+    media = "image/png" if photo.suffix == ".png" else "image/jpeg"
+    transport = httpx.ASGITransport(app=app, client=("127.0.0.1", 0))
+    try:
+        async with httpx.AsyncClient(transport=transport, base_url="http://127.0.0.1") as client:
+            reply = await client.post(
+                f"/retail/tasks/{task_id}/proof",
+                files={"image": (photo.name, photo.read_bytes(), media)},
+                timeout=PROOF_TIMEOUT_S,
+            )
+    except (httpx.HTTPError, OSError) as exc:
+        return RetailProof(task_id=task_id, http_status=0, detail=str(exc)[:200])
+    if reply.status_code != HTTP_OK:
+        return RetailProof(task_id=task_id, http_status=reply.status_code, detail=reply.text[:200])
+    body = (
+        reply.json() if reply.headers.get("content-type", "").startswith("application/json") else {}
+    )
+    minutes = body.get("minutes_to_fix")
+    return RetailProof(
+        task_id=task_id,
+        http_status=reply.status_code,
+        status=str(body.get("status") or "") or None,
+        closed_by=str(body.get("closed_by") or "") or None,
+        minutes_to_fix=float(minutes) if isinstance(minutes, int | float) else None,
+    )
+
+
+class PushKey(BaseModel):
+    """`GET /staff/push/key`: the VAPID public key and how many phones each role subscribed."""
+
+    public_key: str
+    roles: dict[str, int]
+
+
+class Unsubscribe(BaseModel):
+    """`POST /staff/push/unsubscribe`."""
+
+    endpoint: str = Field(min_length=10, max_length=2000)
+
+
+class PushTest(BaseModel):
+    """`POST /staff/push/test`: send a test notification to a role's phones."""
+
+    role: str = Field(min_length=1, max_length=MAX_ROLE, pattern=ROLE_PATTERN)
 
 
 class SeenResult(BaseModel):
@@ -257,20 +356,28 @@ def _item_routes(router: APIRouter, feed: StaffFeed, photos_dir: Path) -> None:
     @router.post("/items/{item_id}/done")
     async def done(
         item_id: ItemId,
+        http: Request,
         role: RoleForm,
         note: Annotated[str, Form(max_length=500)] = "",
         photo: Annotated[UploadFile | None, File()] = None,
     ) -> ActionResult:
-        _item_or_404(feed, item_id)
+        item = _item_or_404(feed, item_id)
         saved = None
         if photo is not None and photo.filename:
             data = await _read_upload(photo, MAX_UPLOAD_BYTES)
             saved = _save_photo(data, photo.content_type, photos_dir, f"done-{item_id}")
+        proof: RetailProof | None = None
+        if saved is not None and item.retail_task_id:
+            proof = await retail_proof(http.app, item.retail_task_id, saved)
         request = StaffActionRequest(action="done", role=role, note=note)
+        extra = {"retail_proof": proof.model_dump(mode="json")} if proof is not None else None
         try:
-            return await asyncio.to_thread(feed.act, item_id, request, photo=saved)
+            result = await asyncio.to_thread(feed.act, item_id, request, photo=saved, extra=extra)
         except UnknownItemError as exc:
             raise HTTPException(404, str(exc)) from exc
+        if proof is None:
+            return result
+        return result.model_copy(update={"did": f"{result.did}; {proof.words()}"})
 
 
 def _evidence_routes(router: APIRouter, feed: StaffFeed) -> None:
@@ -376,6 +483,51 @@ def _task_routes(
         return made
 
 
+def _push_routes(router: APIRouter, push: PushRelay | None, clock: Clock) -> None:
+    """Web Push: the VAPID key, subscribing a phone for its role, and a test send."""
+
+    def relay() -> PushRelay:
+        if push is None:
+            raise HTTPException(503, "Web Push is off")
+        return push
+
+    @router.get("/push/key")
+    def push_key() -> PushKey:
+        found = relay()
+        return PushKey(public_key=found.public_key, roles=found.store.roles())
+
+    @router.post("/push/subscribe")
+    def subscribe(body: SubscribeRequest) -> PushKey:
+        found = relay()
+        try:
+            check_endpoint(body.subscription.endpoint)
+        except PushError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        found.store.put(
+            Subscriber(
+                role=body.role, lang=body.lang, subscription=body.subscription, since=clock.now()
+            )
+        )
+        return PushKey(public_key=found.public_key, roles=found.store.roles())
+
+    @router.post("/push/unsubscribe")
+    def unsubscribe(body: Unsubscribe) -> dict[str, bool]:
+        return {"removed": relay().store.drop(body.endpoint)}
+
+    @router.post("/push/test")
+    def push_test(body: PushTest) -> dict[str, list[int]]:
+        found = relay()
+        message = PushMessage(
+            item_id="push-test",
+            title="Rulecam Staff: test alert",
+            body=f"Web Push works for {body.role}.",
+            role=body.role,
+            url="/staff",
+            ts=clock.now(),
+        )
+        return {"statuses": [found.send(sub, message) for sub in found.store.for_role(body.role)]}
+
+
 def staff_router(
     feed: StaffFeed,
     *,
@@ -386,6 +538,7 @@ def staff_router(
     photos_dir: Path,
     asker: VoiceAsk | None = None,
     shelf: ShelfScanner | None = None,
+    push: PushRelay | None = None,
     dependencies: Sequence[Any] = (),
 ) -> APIRouter:
     """The `/staff` routes.
@@ -399,6 +552,7 @@ def staff_router(
         photos_dir: Where *Done* photos and shelf photos are stored.
         asker: Push-to-talk Ask (`None`: `POST /staff/ask` answers 503).
         shelf: The shelf-gap scanner (`None`: `POST /staff/shelf` answers 503).
+        push: Web Push (`None`: the `/staff/push` routes answer 503).
         dependencies: Authentication applied to every route.
 
     Returns:
@@ -410,4 +564,5 @@ def staff_router(
     _evidence_routes(router, feed)
     _voice_routes(router, feed, speaker, asker)
     _task_routes(router, feed, clock, shelf, photos_dir)
+    _push_routes(router, push, clock)
     return router

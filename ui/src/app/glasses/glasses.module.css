@@ -1,0 +1,268 @@
+/* Hallmark · component: glasses mode (/glasses) · genre: modern-minimal · theme: Console (deal 1/3) · states: 8 · contrast: pass · v2.0.0 */
+/* Glasses mode, phone first: one column, the point-of-view on the scene step, then one huge
+   hold-to-talk target between two quieter controls. Amber is the person talking; cool is an
+   instrument's state; red only while listening or for a verified alert. */
+
+.wrap {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--space-md) var(--space-md) var(--space-2xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--space-xs); }
+
+.title { font-size: var(--text-2xl); letter-spacing: -0.025em; line-height: 1.1; margin: 0; }
+
+.sub { margin: var(--space-2xs) 0 0; color: var(--color-muted); font-size: var(--text-sm); line-height: 1.5; }
+
+/* "the phone stands in for the glasses": said plainly, first thing */
+.standIn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: var(--rule-hair) dashed var(--color-cool);
+  border-radius: var(--radius-pill);
+  background: var(--color-cool-soft);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+.standIn svg { width: 22px; height: 22px; flex-shrink: 0; color: var(--color-cool); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-3xs) var(--space-xs);
+  border: var(--rule-hair) solid var(--color-scene-rule);
+  border-radius: var(--radius-chip);
+  font: 500 var(--text-xs) / 1.4 var(--font-outlier);
+  background: color-mix(in oklab, var(--color-scene) 82%, transparent);
+  color: var(--color-on-scene);
+}
+.chipWarn { composes: chip; border-color: var(--color-scene-accent); color: var(--color-scene-accent); }
+.chipAlert { composes: chip; background: var(--color-bad); border-color: var(--color-bad); color: var(--color-on-signal); }
+.chipOk { composes: chip; background: var(--color-ok-soft); border-color: var(--color-ok); color: var(--color-ok); }
+/* outside the camera view the source chip sits on the page, not the scene */
+.head .chipWarn { background: var(--color-cool-soft); border: var(--rule-hair) dashed var(--color-cool); color: var(--color-ink); font: 500 var(--text-sm) / 1.4 var(--font-body); padding: var(--space-2xs) var(--space-sm); border-radius: var(--radius-pill); }
+
+.view {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  max-height: 62dvh;
+  background: var(--color-scene);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.video, .still { width: 100%; height: 100%; object-fit: cover; display: block; }
+.still { object-fit: contain; }
+
+.start {
+  min-height: 52px;
+  padding: 0 var(--space-lg);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-scene-accent);
+  color: var(--color-accent-ink);
+  font: 500 var(--text-lg) / 1.1 var(--font-body);
+  cursor: pointer;
+}
+.start:active { transform: translateY(1px); }
+.start:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.viewEmpty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  text-align: center;
+  color: var(--color-on-scene);
+}
+.viewEmpty .sub { color: var(--color-on-scene-2); }
+.viewEmpty input[type="file"] { color: var(--color-on-scene-2); max-width: 100%; }
+
+.hud { position: absolute; top: var(--space-xs); left: var(--space-xs); right: var(--space-xs); display: flex; flex-wrap: wrap; gap: var(--space-2xs); pointer-events: none; }
+
+.caption {
+  position: absolute;
+  left: var(--space-xs);
+  right: var(--space-xs);
+  bottom: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-pill);
+  background: color-mix(in oklab, var(--color-scene) 86%, transparent);
+  color: var(--color-on-scene);
+  font: 500 var(--text-lg) / 1.35 var(--font-body);
+}
+.captionAlert { composes: caption; background: color-mix(in oklab, var(--color-bad) 92%, var(--color-scene)); color: var(--color-on-signal); }
+
+.modes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3xs);
+  padding: var(--space-3xs);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-3);
+}
+
+.mode {
+  min-height: 44px;
+  padding: var(--space-2xs);
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: transparent;
+  color: var(--color-muted);
+  font: 500 var(--text-sm) / 1.15 var(--font-body);
+  cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+}
+.mode:hover { color: var(--color-ink); }
+.mode:disabled { opacity: 0.55; cursor: not-allowed; }
+.modeOn { composes: mode; background: var(--color-paper-2); color: var(--color-ink); box-shadow: 0 0 0 1px var(--color-rule-2); }
+
+.controls { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--space-sm); }
+
+.side {
+  min-height: 52px;
+  padding: var(--space-xs);
+  border: var(--rule-hair) solid var(--color-rule-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  font: 500 var(--text-sm) / 1.2 var(--font-body);
+  cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+.side:hover { background: var(--color-paper-3); }
+.side:disabled { opacity: 0.55; cursor: not-allowed; }
+.sideOn { composes: side; background: var(--color-accent-soft); border-color: var(--color-accent-text); }
+
+/* the one big target: hold to talk */
+.ptt {
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font: 500 var(--text-lg) / 1.15 var(--font-body);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow: 0 0 0 6px var(--color-accent-soft);
+  transition: transform var(--dur-micro) var(--ease-out), background-color var(--dur-micro) var(--ease-out);
+}
+.ptt:active { transform: scale(0.98); }
+.pttRec { composes: ptt; background: var(--color-bad); color: var(--color-on-signal); box-shadow: 0 0 0 6px var(--color-bad-soft); transform: scale(1.04); }
+/* before the camera starts the target stays in place, dimmed, so the screen keeps its shape */
+.ptt:disabled { opacity: 0.5; cursor: not-allowed; filter: saturate(0.6); box-shadow: 0 0 0 6px var(--color-paper-3); }
+
+.ask { display: flex; gap: var(--space-xs); }
+
+.input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 var(--space-sm);
+  border: var(--rule-hair) solid var(--color-rule-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-3);
+  color: var(--color-ink);
+  font: 400 var(--text-md) / 1.3 var(--font-body);
+}
+
+.btn {
+  min-height: 48px;
+  padding: 0 var(--space-lg);
+  border: var(--rule-hair) solid var(--color-rule-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  font: 500 var(--text-md) / 1.1 var(--font-body);
+  cursor: pointer;
+}
+.btn:hover { background: var(--color-paper-3); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.card {
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+.card .chip, .card .chipWarn, .card .chipOk, .card .chipAlert { align-self: flex-start; }
+
+.spoken { font: 500 var(--text-xl) / 1.3 var(--font-body); letter-spacing: -0.01em; margin: 0; }
+
+.muted { color: var(--color-muted); font-size: var(--text-sm); margin: 0; }
+
+.mono { font: 400 var(--text-xs) / 1.5 var(--font-outlier); color: var(--color-ink-2); overflow-wrap: anywhere; margin: 0; }
+
+.list { margin: 0; padding-left: var(--space-lg); }
+
+.marked { width: 100%; height: auto; border-radius: var(--radius-pill); display: block; background: var(--color-scene); }
+
+.error {
+  border: var(--rule-hair) solid var(--color-bad);
+  border-radius: var(--radius-pill);
+  background: var(--color-bad-soft);
+  color: var(--color-bad);
+  padding: var(--space-xs) var(--space-sm);
+  margin: 0;
+}
+
+.history { display: flex; flex-direction: column; gap: 0; border-top: var(--rule-hair) solid var(--color-rule); }
+
+.histItem {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-xs) 0;
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+  font-size: var(--text-sm);
+}
+
+.thumb { width: 64px; height: 64px; object-fit: cover; display: block; border-radius: var(--radius-chip); background: var(--color-scene); }
+
+.note { font-size: var(--text-sm); color: var(--color-muted); border-top: var(--rule-hair) solid var(--color-rule); padding-top: var(--space-sm); margin: 0; line-height: 1.55; }
+
+.toggles { display: flex; flex-wrap: wrap; gap: var(--space-sm); font-size: var(--text-sm); }
+.toggles label { display: inline-flex; align-items: center; gap: var(--space-xs); min-height: 44px; }
+
+.start:focus-visible, .mode:focus-visible, .side:focus-visible, .ptt:focus-visible, .input:focus-visible, .btn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+@media (max-width: 40rem) {
+  /* the view gives way so the talk target sits on the first screen of a phone */
+  .view { max-height: 40dvh; aspect-ratio: 4 / 5; }
+  .title { font-size: var(--text-xl); }
+}
+
+@media (max-width: 380px) {
+  .ptt { width: 132px; height: 132px; }
+  .controls { gap: var(--space-xs); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ptt, .pttRec, .mode, .side { transition: none; }
+  .pttRec { transform: none; }
+}

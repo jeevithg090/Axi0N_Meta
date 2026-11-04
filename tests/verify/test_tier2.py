@@ -210,15 +210,31 @@ def test_devil_advocate(tmp_path: Path) -> None:
 
 
 def test_malformed_answer_raises_from_client(tmp_path: Path) -> None:
-    _, _, client = make(tmp_path, spark_reply({"wrong": 1}))
+    _, transport, client = make(tmp_path, spark_reply({"wrong": 1}), spark_reply({"wrong": 1}))
     from rulecam.verify.tier2 import DevilAnswer  # noqa: PLC0415
 
-    with pytest.raises(ModelResponseError, match="DevilAnswer"):
+    with pytest.raises(ModelResponseError, match="DevilAnswer twice"):
         client.reason([], DevilAnswer)
+    assert len(transport.requests) == 2, "a malformed answer is asked for once more"
     numeric = {"status": 200, "json": {"choices": [{"message": {"content": 1}}]}}
     _, _, client = make(tmp_path, numeric)
     with pytest.raises(ModelResponseError, match="not text"):
         client.reason([], DevilAnswer)
+
+
+def test_malformed_answer_is_asked_for_again_with_the_schema(tmp_path: Path) -> None:
+    good = {"alternatives": ["shift change", "dock 3 forklift down"]}
+    _, transport, client = make(tmp_path, spark_reply({"wrong": 1}), spark_reply(good))
+    client._config = SparkOpenConfig(schema_in_prompt=True)
+    from rulecam.verify.tier2 import DevilAnswer  # noqa: PLC0415
+
+    reply = client.reason([{"role": "user", "content": "why?"}], DevilAnswer)
+    assert reply.answer.alternatives == good["alternatives"]
+    second = transport.requests[1]["json"]
+    assert isinstance(second, dict)
+    assert second["messages"][0]["role"] == "system"
+    assert "JSON Schema" in second["messages"][0]["content"]
+    assert "validation errors" in second["messages"][-1]["content"]
 
 
 def test_reasoning_store_rejects_paths(tmp_path: Path) -> None:

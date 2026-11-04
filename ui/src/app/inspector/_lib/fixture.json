@@ -690,6 +690,54 @@
           "value": 3
         },
         {
+          "id": "rule:keep-people-2m-from-moving-forklift:training_done",
+          "label": "Refresher training recorded done",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": [],
+          "section": "forklift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": "keep-people-2m-from-moving-forklift",
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "label",
+              "payload.label": "refresher_training_done"
+            }
+          },
+          "unit": "count",
+          "value": 0
+        },
+        {
+          "id": "rule:keep-people-2m-from-moving-forklift:time_to_training_median",
+          "label": "Median time from near miss to training recorded",
+          "previous": null,
+          "previous_refs": [],
+          "refs": [],
+          "section": "forklift",
+          "spec": {
+            "camera": null,
+            "op": "median_s",
+            "prefix": {},
+            "rule": "keep-people-2m-from-moving-forklift",
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "label",
+                "payload.label": "refresher_training_done"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": null
+        },
+        {
           "id": "shift:early:alerts_raised",
           "label": "Alerts raised, early shift",
           "previous": 0,
@@ -2024,7 +2072,7 @@
       "summaries": [],
       "title": "Proof pack 2026-11-01 01:40 to 2026-11-01 02:31 UTC"
     },
-    "pack_hash": "657fb70589837ebd33e400f2934fbc7415621bb39dd68b64b78be07db8af875b"
+    "pack_hash": "94e204474383ed2ab65238bf95fc909d71448d503f1ae683f995dbdb4446ee7a"
   },
   "synthetic": {
     "expires_at": "2026-11-05T00:00:00Z",
@@ -2038,11 +2086,11 @@
           "committed_n": null,
           "committed_root": null,
           "day": "2026-11-02",
-          "n": 18,
+          "n": 19,
           "reason": "",
-          "root": "6a2054b0b7f6b584a90d80210cf218059240212b527bcec58926272a6a7cc140",
+          "root": "d34e1a455c0aebdd929c582355bc8afe8d6863764f8776dd5b133263259d0dea",
           "window_first": 1,
-          "window_last": 18
+          "window_last": 19
         }
       ],
       "disclaimer": "Evidence for the period shown, computed from the site's tamper-evident log. It is not a certificate of legal compliance: an inspector, insurer or court decides what it proves.",
@@ -2507,7 +2555,7 @@
           "label": "Protected privacy settings proposed",
           "previous": 0,
           "previous_refs": [],
-          "refs": ["2026-11-02#14"],
+          "refs": ["2026-11-02#15"],
           "section": "governance",
           "spec": {
             "camera": null,
@@ -2530,7 +2578,7 @@
           "label": "Protected settings changed (both keys)",
           "previous": 0,
           "previous_refs": [],
-          "refs": ["2026-11-02#17", "2026-11-02#18"],
+          "refs": ["2026-11-02#18", "2026-11-02#19"],
           "section": "governance",
           "spec": {
             "camera": null,
@@ -2576,7 +2624,7 @@
           "label": "Protected settings changed without both keys",
           "previous": 0,
           "previous_refs": [],
-          "refs": ["2026-11-02#18"],
+          "refs": ["2026-11-02#19"],
           "section": "governance",
           "spec": {
             "camera": null,
@@ -2593,11 +2641,11 @@
         },
         {
           "id": "rule:dock:alerts_raised",
-          "label": "Alerts raised",
+          "label": "Near misses recorded",
           "previous": 0,
           "previous_refs": [],
           "refs": ["2026-11-02#10"],
-          "section": "rule",
+          "section": "forklift",
           "spec": {
             "camera": null,
             "op": "count",
@@ -2615,11 +2663,11 @@
         },
         {
           "id": "rule:dock:glimmer_verified",
-          "label": "Confirmed by Muse Glimmer",
+          "label": "Confirmed by Muse Glimmer (near miss to follow up)",
           "previous": 0,
           "previous_refs": [],
           "refs": [],
-          "section": "rule",
+          "section": "forklift",
           "spec": {
             "camera": null,
             "op": "count",
@@ -2643,7 +2691,7 @@
           "previous": 0,
           "previous_refs": [],
           "refs": ["2026-11-02#11"],
-          "section": "rule",
+          "section": "forklift",
           "spec": {
             "camera": null,
             "op": "count",
@@ -2660,6 +2708,54 @@
           },
           "unit": "count",
           "value": 1
+        },
+        {
+          "id": "rule:dock:training_done",
+          "label": "Refresher training recorded done",
+          "previous": 0,
+          "previous_refs": [],
+          "refs": ["2026-11-02#14"],
+          "section": "forklift",
+          "spec": {
+            "camera": null,
+            "op": "count",
+            "prefix": {},
+            "rule": "dock",
+            "shift": null,
+            "state": null,
+            "to": [],
+            "where": {
+              "kind": "label",
+              "payload.label": "refresher_training_done"
+            }
+          },
+          "unit": "count",
+          "value": 1
+        },
+        {
+          "id": "rule:dock:time_to_training_median",
+          "label": "Median time from near miss to training recorded",
+          "previous": null,
+          "previous_refs": [],
+          "refs": ["2026-11-02#10", "2026-11-02#14"],
+          "section": "forklift",
+          "spec": {
+            "camera": null,
+            "op": "median_s",
+            "prefix": {},
+            "rule": "dock",
+            "shift": null,
+            "state": null,
+            "to": [
+              {
+                "kind": "label",
+                "payload.label": "refresher_training_done"
+              }
+            ],
+            "where": {}
+          },
+          "unit": "seconds",
+          "value": 615.0
         },
         {
           "id": "rule:spill:alerts_raised",
@@ -3044,10 +3140,10 @@
           "key": "2026-11-02#1",
           "proof": [
             ["61b65a7136d1bc5dc2bb52f168d5cc85b928d4c525fc654d7210082cd2a5c5e8", "R"],
-            ["6478167960f857208a81b2e57f8cc5e226861b69bb643f638197ea085b624d2c", "R"],
-            ["ff6a618c29a11b07afe12fa5b04c653b24b455381ac6ff0164d824176acab1ce", "R"],
-            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["5057472f496c330dcc24ff0fd46f9a0ab7fafc98ec476ef9ed3e187f392eba1a", "R"],
+            ["7f644bd243c5ab56f00a294c5dc11ff77de312dcd8a4596f16b6a57b07131542", "R"],
+            ["c1b038bbe96e7e1d44c8514b5ad7495dd2317797b469baefd234ee1ad882658b", "R"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
             "hash": "74a648a8735cbea8f389ad7ab04ee6d67febb198a776a243472b063db9a7e6b1",
@@ -3080,10 +3176,10 @@
           "key": "2026-11-02#2",
           "proof": [
             ["74a648a8735cbea8f389ad7ab04ee6d67febb198a776a243472b063db9a7e6b1", "L"],
-            ["6478167960f857208a81b2e57f8cc5e226861b69bb643f638197ea085b624d2c", "R"],
-            ["ff6a618c29a11b07afe12fa5b04c653b24b455381ac6ff0164d824176acab1ce", "R"],
-            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["5057472f496c330dcc24ff0fd46f9a0ab7fafc98ec476ef9ed3e187f392eba1a", "R"],
+            ["7f644bd243c5ab56f00a294c5dc11ff77de312dcd8a4596f16b6a57b07131542", "R"],
+            ["c1b038bbe96e7e1d44c8514b5ad7495dd2317797b469baefd234ee1ad882658b", "R"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
             "hash": "61b65a7136d1bc5dc2bb52f168d5cc85b928d4c525fc654d7210082cd2a5c5e8",
@@ -3103,14 +3199,14 @@
           "day": "2026-11-02",
           "key": "2026-11-02#3",
           "proof": [
-            ["a9e31126700187b08235dcbbc69035459b75a0a6284e6ce6af4fb71780107684", "R"],
+            ["0ed42d28bfd25572f7194d66e4345dd92dc84b18500d3a792f5971bf696d49b5", "R"],
             ["9fa03b1547d1fc07fc0b73f79d0f9e6515b3dc7aed16f8ed83bbcc96e1f55173", "L"],
-            ["ff6a618c29a11b07afe12fa5b04c653b24b455381ac6ff0164d824176acab1ce", "R"],
-            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["7f644bd243c5ab56f00a294c5dc11ff77de312dcd8a4596f16b6a57b07131542", "R"],
+            ["c1b038bbe96e7e1d44c8514b5ad7495dd2317797b469baefd234ee1ad882658b", "R"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "8cbd2aef86dd5d1798afa1a371c800e4eeb741218f1eefb6cbdd2e45645609fc",
+            "hash": "d8b8cbca3f30feab5f374f5d4138fe8c60af4552af5759028af9f6997910c66e",
             "kind": "candidate",
             "payload": {
               "candidate": {
@@ -3123,6 +3219,7 @@
               "context": {
                 "rule": {
                   "id": "spill",
+                  "predicate": {},
                   "source": {
                     "standard": [],
                     "text": "Rule spill"
@@ -3140,14 +3237,14 @@
           "day": "2026-11-02",
           "key": "2026-11-02#4",
           "proof": [
-            ["8cbd2aef86dd5d1798afa1a371c800e4eeb741218f1eefb6cbdd2e45645609fc", "L"],
+            ["d8b8cbca3f30feab5f374f5d4138fe8c60af4552af5759028af9f6997910c66e", "L"],
             ["9fa03b1547d1fc07fc0b73f79d0f9e6515b3dc7aed16f8ed83bbcc96e1f55173", "L"],
-            ["ff6a618c29a11b07afe12fa5b04c653b24b455381ac6ff0164d824176acab1ce", "R"],
-            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["7f644bd243c5ab56f00a294c5dc11ff77de312dcd8a4596f16b6a57b07131542", "R"],
+            ["c1b038bbe96e7e1d44c8514b5ad7495dd2317797b469baefd234ee1ad882658b", "R"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "a9e31126700187b08235dcbbc69035459b75a0a6284e6ce6af4fb71780107684",
+            "hash": "0ed42d28bfd25572f7194d66e4345dd92dc84b18500d3a792f5971bf696d49b5",
             "kind": "verdict",
             "payload": {
               "event_id": "ev-1",
@@ -3155,7 +3252,7 @@
               "tier": "glimmer",
               "verdict": "violation"
             },
-            "prev_hash": "8cbd2aef86dd5d1798afa1a371c800e4eeb741218f1eefb6cbdd2e45645609fc",
+            "prev_hash": "d8b8cbca3f30feab5f374f5d4138fe8c60af4552af5759028af9f6997910c66e",
             "seq": 4,
             "site": "demo",
             "ts": "2026-11-02T07:01:20Z"
@@ -3165,21 +3262,21 @@
           "day": "2026-11-02",
           "key": "2026-11-02#5",
           "proof": [
-            ["27627e35f029aa5b628c6b0d3fd695346cb59395450ba2ced681bb006b11199b", "R"],
-            ["023f769a149826d776d37ea2a76cfa748ab5d8f04453bd6706d45cf8b5feff4d", "R"],
-            ["6a1b3810b5b052033965d8b11ee051e0b0af19846d22e275e9b692ec4566f89f", "L"],
-            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["526e4f4722ca506c66efb20ca779e81e740737c4fcd769a6d1c9e985babf179c", "R"],
+            ["4c50a27054b70f61c0eaef65528b083c93ab45dd058b843fb704c69cde09bf92", "R"],
+            ["55ccf991259f42abe8fced69dbc329f83db78fde251144df89240f3720fb44e5", "L"],
+            ["c1b038bbe96e7e1d44c8514b5ad7495dd2317797b469baefd234ee1ad882658b", "R"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "59170e06a2e60cd994257d79ea6bbd92ff9b9afb8e2cad1e3962039a55b9890d",
+            "hash": "636af723045c230762c2250448833e345e2bcf7ba144ca16cdf47d75360f0648",
             "kind": "action",
             "payload": {
               "detail": "sent to staff",
               "event_id": "ev-1",
               "kind": "notify"
             },
-            "prev_hash": "a9e31126700187b08235dcbbc69035459b75a0a6284e6ce6af4fb71780107684",
+            "prev_hash": "0ed42d28bfd25572f7194d66e4345dd92dc84b18500d3a792f5971bf696d49b5",
             "seq": 5,
             "site": "demo",
             "ts": "2026-11-02T07:01:30Z"
@@ -3189,20 +3286,20 @@
           "day": "2026-11-02",
           "key": "2026-11-02#6",
           "proof": [
-            ["59170e06a2e60cd994257d79ea6bbd92ff9b9afb8e2cad1e3962039a55b9890d", "L"],
-            ["023f769a149826d776d37ea2a76cfa748ab5d8f04453bd6706d45cf8b5feff4d", "R"],
-            ["6a1b3810b5b052033965d8b11ee051e0b0af19846d22e275e9b692ec4566f89f", "L"],
-            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["636af723045c230762c2250448833e345e2bcf7ba144ca16cdf47d75360f0648", "L"],
+            ["4c50a27054b70f61c0eaef65528b083c93ab45dd058b843fb704c69cde09bf92", "R"],
+            ["55ccf991259f42abe8fced69dbc329f83db78fde251144df89240f3720fb44e5", "L"],
+            ["c1b038bbe96e7e1d44c8514b5ad7495dd2317797b469baefd234ee1ad882658b", "R"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "27627e35f029aa5b628c6b0d3fd695346cb59395450ba2ced681bb006b11199b",
+            "hash": "526e4f4722ca506c66efb20ca779e81e740737c4fcd769a6d1c9e985babf179c",
             "kind": "ack",
             "payload": {
               "event_id": "ev-1",
               "role": "staff"
             },
-            "prev_hash": "59170e06a2e60cd994257d79ea6bbd92ff9b9afb8e2cad1e3962039a55b9890d",
+            "prev_hash": "636af723045c230762c2250448833e345e2bcf7ba144ca16cdf47d75360f0648",
             "seq": 6,
             "site": "demo",
             "ts": "2026-11-02T07:02:00Z"
@@ -3212,20 +3309,20 @@
           "day": "2026-11-02",
           "key": "2026-11-02#7",
           "proof": [
-            ["c245ab3a2f8970bc7c08a36293a4792c3246b8298b5301341db721fb3e0cd65c", "R"],
-            ["dd9e4c49de72b17780691b0d507df21bee3b449066aacdfdb42faa76d88581cf", "L"],
-            ["6a1b3810b5b052033965d8b11ee051e0b0af19846d22e275e9b692ec4566f89f", "L"],
-            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["674ad9b70c5bed21f829d7a1a42c8c55616042398d0bd39c5e83d63676ff99b8", "R"],
+            ["eff94a77c2937312d269c11c466c994063eaf23b7dc0d092b5e47ff064141bb6", "L"],
+            ["55ccf991259f42abe8fced69dbc329f83db78fde251144df89240f3720fb44e5", "L"],
+            ["c1b038bbe96e7e1d44c8514b5ad7495dd2317797b469baefd234ee1ad882658b", "R"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "6047228eb07fa818fe697caa6ec386b1b349e8b21d1c4d6cdae5e997e56f276b",
+            "hash": "7385a3aa39e8527dfe133e7c847309a254ca3c0929fd317bc1c1212df059325a",
             "kind": "label",
             "payload": {
               "event_id": "ev-1",
               "label": "hazard_cleared"
             },
-            "prev_hash": "27627e35f029aa5b628c6b0d3fd695346cb59395450ba2ced681bb006b11199b",
+            "prev_hash": "526e4f4722ca506c66efb20ca779e81e740737c4fcd769a6d1c9e985babf179c",
             "seq": 7,
             "site": "demo",
             "ts": "2026-11-02T07:06:00Z"
@@ -3235,21 +3332,21 @@
           "day": "2026-11-02",
           "key": "2026-11-02#8",
           "proof": [
-            ["6047228eb07fa818fe697caa6ec386b1b349e8b21d1c4d6cdae5e997e56f276b", "L"],
-            ["dd9e4c49de72b17780691b0d507df21bee3b449066aacdfdb42faa76d88581cf", "L"],
-            ["6a1b3810b5b052033965d8b11ee051e0b0af19846d22e275e9b692ec4566f89f", "L"],
-            ["a9bfd39ee5a5409464ea480dae6248852ef7b8b29b8f301f9d11eaadc7f32d0f", "R"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["7385a3aa39e8527dfe133e7c847309a254ca3c0929fd317bc1c1212df059325a", "L"],
+            ["eff94a77c2937312d269c11c466c994063eaf23b7dc0d092b5e47ff064141bb6", "L"],
+            ["55ccf991259f42abe8fced69dbc329f83db78fde251144df89240f3720fb44e5", "L"],
+            ["c1b038bbe96e7e1d44c8514b5ad7495dd2317797b469baefd234ee1ad882658b", "R"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "c245ab3a2f8970bc7c08a36293a4792c3246b8298b5301341db721fb3e0cd65c",
+            "hash": "674ad9b70c5bed21f829d7a1a42c8c55616042398d0bd39c5e83d63676ff99b8",
             "kind": "coverage",
             "payload": {
               "camera_id": "cam-a",
               "reason": "dark",
               "state": "blind"
             },
-            "prev_hash": "6047228eb07fa818fe697caa6ec386b1b349e8b21d1c4d6cdae5e997e56f276b",
+            "prev_hash": "7385a3aa39e8527dfe133e7c847309a254ca3c0929fd317bc1c1212df059325a",
             "seq": 8,
             "site": "demo",
             "ts": "2026-11-02T07:16:00Z"
@@ -3259,21 +3356,21 @@
           "day": "2026-11-02",
           "key": "2026-11-02#9",
           "proof": [
-            ["3bb544c7eb410e621a24218afbaf7fc07d63646831205a7b33b50321c58f6ca0", "R"],
-            ["3ec03c0a3b6d7ee386691e90bb4cea9286df502df410abf843bf4137224bf2ee", "R"],
-            ["7aa27ef1e9bc65d6428266ac9ecb872899bc66868c66d4763008d2f6558b704d", "R"],
-            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["2d34444b408fc48f0d21c05d428b6f3c27d03982c30ce3a2496673adce5997eb", "R"],
+            ["3b085e7239bda1e2a6ecb7ad08b412832ec84b9018c66cfb0d836d824d699c48", "R"],
+            ["47cfb750c7b04e84e706f74280e4ca77d5bf144f51e1ff4d13dbf633fcda45fb", "R"],
+            ["ddd0ea4a5b739d3632cebe1a6d3ca06300e76d1fdd093599321c6dfd345e8a06", "L"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "31132defa6373d3169d4c93f90ad2643352d53525f010280b81112439914534a",
+            "hash": "30e96ef453041227902449931c5ecf18507e320636e5bfa5e7e3dfb40fc17cbc",
             "kind": "coverage",
             "payload": {
               "camera_id": "cam-a",
               "reason": null,
               "state": "ok"
             },
-            "prev_hash": "c245ab3a2f8970bc7c08a36293a4792c3246b8298b5301341db721fb3e0cd65c",
+            "prev_hash": "674ad9b70c5bed21f829d7a1a42c8c55616042398d0bd39c5e83d63676ff99b8",
             "seq": 9,
             "site": "demo",
             "ts": "2026-11-02T07:46:00Z"
@@ -3283,14 +3380,14 @@
           "day": "2026-11-02",
           "key": "2026-11-02#10",
           "proof": [
-            ["31132defa6373d3169d4c93f90ad2643352d53525f010280b81112439914534a", "L"],
-            ["3ec03c0a3b6d7ee386691e90bb4cea9286df502df410abf843bf4137224bf2ee", "R"],
-            ["7aa27ef1e9bc65d6428266ac9ecb872899bc66868c66d4763008d2f6558b704d", "R"],
-            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["30e96ef453041227902449931c5ecf18507e320636e5bfa5e7e3dfb40fc17cbc", "L"],
+            ["3b085e7239bda1e2a6ecb7ad08b412832ec84b9018c66cfb0d836d824d699c48", "R"],
+            ["47cfb750c7b04e84e706f74280e4ca77d5bf144f51e1ff4d13dbf633fcda45fb", "R"],
+            ["ddd0ea4a5b739d3632cebe1a6d3ca06300e76d1fdd093599321c6dfd345e8a06", "L"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "3bb544c7eb410e621a24218afbaf7fc07d63646831205a7b33b50321c58f6ca0",
+            "hash": "2d34444b408fc48f0d21c05d428b6f3c27d03982c30ce3a2496673adce5997eb",
             "kind": "candidate",
             "payload": {
               "candidate": {
@@ -3303,6 +3400,12 @@
               "context": {
                 "rule": {
                   "id": "dock",
+                  "predicate": {
+                    "a": "person",
+                    "b": "forklift",
+                    "lt": 2,
+                    "op": "distance_m"
+                  },
                   "source": {
                     "standard": [],
                     "text": "Rule dock"
@@ -3310,7 +3413,7 @@
                 }
               }
             },
-            "prev_hash": "31132defa6373d3169d4c93f90ad2643352d53525f010280b81112439914534a",
+            "prev_hash": "30e96ef453041227902449931c5ecf18507e320636e5bfa5e7e3dfb40fc17cbc",
             "seq": 10,
             "site": "demo",
             "ts": "2026-11-02T15:46:00Z"
@@ -3320,14 +3423,14 @@
           "day": "2026-11-02",
           "key": "2026-11-02#11",
           "proof": [
-            ["8e2b03784caa69e15a37617f9806c8738e00e319f48dc2efe484e4cf535094af", "R"],
-            ["eb1bc772a209323b0d8f8c40c0a964a7f3b85425fae31bb3fd10f3bce50efc07", "L"],
-            ["7aa27ef1e9bc65d6428266ac9ecb872899bc66868c66d4763008d2f6558b704d", "R"],
-            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["7ea89c994cfdaa54c137d2eab9281f9fe1022529b216f3c8beaf3fb98b8e5635", "R"],
+            ["c653dee3bc017ec066c8e56c53095207005991a3f43d2d275e6280d41dbff1e0", "L"],
+            ["47cfb750c7b04e84e706f74280e4ca77d5bf144f51e1ff4d13dbf633fcda45fb", "R"],
+            ["ddd0ea4a5b739d3632cebe1a6d3ca06300e76d1fdd093599321c6dfd345e8a06", "L"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "3ef2e787f378b0777c56e856a68c69af6a0660f3064be74db281d6730b34d61d",
+            "hash": "a09d5c0f3b209f2f7bf0cf570db8a786b192707be8516e253654c70b910cb3f4",
             "kind": "verdict",
             "payload": {
               "event_id": "ev-2",
@@ -3335,7 +3438,7 @@
               "tier": "glimmer",
               "verdict": "no_violation"
             },
-            "prev_hash": "3bb544c7eb410e621a24218afbaf7fc07d63646831205a7b33b50321c58f6ca0",
+            "prev_hash": "2d34444b408fc48f0d21c05d428b6f3c27d03982c30ce3a2496673adce5997eb",
             "seq": 11,
             "site": "demo",
             "ts": "2026-11-02T15:46:05Z"
@@ -3345,14 +3448,14 @@
           "day": "2026-11-02",
           "key": "2026-11-02#12",
           "proof": [
-            ["3ef2e787f378b0777c56e856a68c69af6a0660f3064be74db281d6730b34d61d", "L"],
-            ["eb1bc772a209323b0d8f8c40c0a964a7f3b85425fae31bb3fd10f3bce50efc07", "L"],
-            ["7aa27ef1e9bc65d6428266ac9ecb872899bc66868c66d4763008d2f6558b704d", "R"],
-            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["a09d5c0f3b209f2f7bf0cf570db8a786b192707be8516e253654c70b910cb3f4", "L"],
+            ["c653dee3bc017ec066c8e56c53095207005991a3f43d2d275e6280d41dbff1e0", "L"],
+            ["47cfb750c7b04e84e706f74280e4ca77d5bf144f51e1ff4d13dbf633fcda45fb", "R"],
+            ["ddd0ea4a5b739d3632cebe1a6d3ca06300e76d1fdd093599321c6dfd345e8a06", "L"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "8e2b03784caa69e15a37617f9806c8738e00e319f48dc2efe484e4cf535094af",
+            "hash": "7ea89c994cfdaa54c137d2eab9281f9fe1022529b216f3c8beaf3fb98b8e5635",
             "kind": "dispute",
             "payload": {
               "dispute": {
@@ -3363,7 +3466,7 @@
               "dispute_id": "d1",
               "event_id": "ev-2"
             },
-            "prev_hash": "3ef2e787f378b0777c56e856a68c69af6a0660f3064be74db281d6730b34d61d",
+            "prev_hash": "a09d5c0f3b209f2f7bf0cf570db8a786b192707be8516e253654c70b910cb3f4",
             "seq": 12,
             "site": "demo",
             "ts": "2026-11-02T15:46:10Z"
@@ -3373,14 +3476,14 @@
           "day": "2026-11-02",
           "key": "2026-11-02#13",
           "proof": [
-            ["b34e9829647f2375a06a82f6127fb24d9c7a793f16449064d3b34529b41375ca", "R"],
-            ["4603fc58d2d9f428e7354d88bbaec1ef4eef2afc6d4f8245c21814610b1926fb", "R"],
-            ["b30b3035f00a9a31e5cbd43904e30213ce07294600582d588148d76b2c79e177", "L"],
-            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["39292ed87f38c4b2493a5a6691f8c5617d440a839a8ebe6be276365f3e6ad701", "R"],
+            ["30f07020a8ecf0202b528a0947c596582d8c36b2bb0127f7897ac224d028d925", "R"],
+            ["90463b9c69f626dba542804625aceb1915fc9ea210935f9f1a7a0754abb3ac36", "L"],
+            ["ddd0ea4a5b739d3632cebe1a6d3ca06300e76d1fdd093599321c6dfd345e8a06", "L"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "854d170e9ce968b7b14e38c335341c7816c4039e831da9c997d4750120d167a8",
+            "hash": "e0b391a3755a4c7cc47dd69b639f9f7f743213bf9ba5eacecfc0488a6f0b9607",
             "kind": "dispute",
             "payload": {
               "dispute": {
@@ -3391,7 +3494,7 @@
               "dispute_id": "d1",
               "event_id": "ev-2"
             },
-            "prev_hash": "8e2b03784caa69e15a37617f9806c8738e00e319f48dc2efe484e4cf535094af",
+            "prev_hash": "7ea89c994cfdaa54c137d2eab9281f9fe1022529b216f3c8beaf3fb98b8e5635",
             "seq": 13,
             "site": "demo",
             "ts": "2026-11-02T15:46:15Z"
@@ -3401,119 +3504,144 @@
           "day": "2026-11-02",
           "key": "2026-11-02#14",
           "proof": [
-            ["854d170e9ce968b7b14e38c335341c7816c4039e831da9c997d4750120d167a8", "L"],
-            ["4603fc58d2d9f428e7354d88bbaec1ef4eef2afc6d4f8245c21814610b1926fb", "R"],
-            ["b30b3035f00a9a31e5cbd43904e30213ce07294600582d588148d76b2c79e177", "L"],
-            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["e0b391a3755a4c7cc47dd69b639f9f7f743213bf9ba5eacecfc0488a6f0b9607", "L"],
+            ["30f07020a8ecf0202b528a0947c596582d8c36b2bb0127f7897ac224d028d925", "R"],
+            ["90463b9c69f626dba542804625aceb1915fc9ea210935f9f1a7a0754abb3ac36", "L"],
+            ["ddd0ea4a5b739d3632cebe1a6d3ca06300e76d1fdd093599321c6dfd345e8a06", "L"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "b34e9829647f2375a06a82f6127fb24d9c7a793f16449064d3b34529b41375ca",
-            "kind": "rule_change",
+            "hash": "39292ed87f38c4b2493a5a6691f8c5617d440a839a8ebe6be276365f3e6ad701",
+            "kind": "label",
             "payload": {
-              "action": "setting_proposal",
-              "proposal_id": "p-1",
-              "setting_name": "retention_days"
+              "event_id": "ev-2",
+              "label": "refresher_training_done",
+              "role": "lead",
+              "rule_id": "dock"
             },
-            "prev_hash": "854d170e9ce968b7b14e38c335341c7816c4039e831da9c997d4750120d167a8",
+            "prev_hash": "e0b391a3755a4c7cc47dd69b639f9f7f743213bf9ba5eacecfc0488a6f0b9607",
             "seq": 14,
             "site": "demo",
-            "ts": "2026-11-02T15:47:15Z"
+            "ts": "2026-11-02T15:56:15Z"
           }
         },
         {
           "day": "2026-11-02",
           "key": "2026-11-02#15",
           "proof": [
-            ["d85506359076ff41d4bc6c0210249d6c07e673a1adf3c20c91b697513863ef20", "R"],
-            ["e664855dc64718e1c86c592cfe51240e0dd7d91f0cb39a4e4bfc7199da77aef1", "L"],
-            ["b30b3035f00a9a31e5cbd43904e30213ce07294600582d588148d76b2c79e177", "L"],
-            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["8057d45a5cf4dd8ece3709c8d67dd5731d72c9a5668389cbf4368113f15a4978", "R"],
+            ["68c9f4f548219851dea43d881d0c795b6bb3319dd4fe0a0a5423d7f31f7464cd", "L"],
+            ["90463b9c69f626dba542804625aceb1915fc9ea210935f9f1a7a0754abb3ac36", "L"],
+            ["ddd0ea4a5b739d3632cebe1a6d3ca06300e76d1fdd093599321c6dfd345e8a06", "L"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "df1711a199d50f4016ce180022919278fc828f1e7770f72af95d7c75056c5f67",
+            "hash": "532de780ce96759897a6bc3fd89bb2100f3ed6788790f887fec02a873871a981",
             "kind": "rule_change",
             "payload": {
-              "action": "setting_approval",
+              "action": "setting_proposal",
               "proposal_id": "p-1",
-              "role": "owner"
+              "setting_name": "retention_days"
             },
-            "prev_hash": "b34e9829647f2375a06a82f6127fb24d9c7a793f16449064d3b34529b41375ca",
+            "prev_hash": "39292ed87f38c4b2493a5a6691f8c5617d440a839a8ebe6be276365f3e6ad701",
             "seq": 15,
             "site": "demo",
-            "ts": "2026-11-02T15:48:15Z"
+            "ts": "2026-11-02T15:57:15Z"
           }
         },
         {
           "day": "2026-11-02",
           "key": "2026-11-02#16",
           "proof": [
-            ["df1711a199d50f4016ce180022919278fc828f1e7770f72af95d7c75056c5f67", "L"],
-            ["e664855dc64718e1c86c592cfe51240e0dd7d91f0cb39a4e4bfc7199da77aef1", "L"],
-            ["b30b3035f00a9a31e5cbd43904e30213ce07294600582d588148d76b2c79e177", "L"],
-            ["d9b8109d1cc4846f77ab1fcd916d053dfd1802b652e933ac21bec79479deb555", "L"],
-            ["6fe3ddfb9229aec20d0a3301efbb0bd5800ada67d45d5388e424a15fcae1fbb0", "R"]
+            ["532de780ce96759897a6bc3fd89bb2100f3ed6788790f887fec02a873871a981", "L"],
+            ["68c9f4f548219851dea43d881d0c795b6bb3319dd4fe0a0a5423d7f31f7464cd", "L"],
+            ["90463b9c69f626dba542804625aceb1915fc9ea210935f9f1a7a0754abb3ac36", "L"],
+            ["ddd0ea4a5b739d3632cebe1a6d3ca06300e76d1fdd093599321c6dfd345e8a06", "L"],
+            ["0622e96313f2c8725e94767090b975609e3cb45d0431f34486f05c2a7230f015", "R"]
           ],
           "record": {
-            "hash": "d85506359076ff41d4bc6c0210249d6c07e673a1adf3c20c91b697513863ef20",
+            "hash": "8057d45a5cf4dd8ece3709c8d67dd5731d72c9a5668389cbf4368113f15a4978",
             "kind": "rule_change",
             "payload": {
               "action": "setting_approval",
               "proposal_id": "p-1",
-              "role": "crew_representative"
+              "role": "owner"
             },
-            "prev_hash": "df1711a199d50f4016ce180022919278fc828f1e7770f72af95d7c75056c5f67",
+            "prev_hash": "532de780ce96759897a6bc3fd89bb2100f3ed6788790f887fec02a873871a981",
             "seq": 16,
             "site": "demo",
-            "ts": "2026-11-02T15:49:15Z"
+            "ts": "2026-11-02T15:58:15Z"
           }
         },
         {
           "day": "2026-11-02",
           "key": "2026-11-02#17",
           "proof": [
-            ["a145b89a68b3f961b6b162fa22f7699340fdad8aa3e5c4968a6afbf1042b783a", "R"],
-            ["d5010595f5fe46c9e46d7819c004d73b245e77d78cddb43e4a9bb7c9122b7f52", "R"],
-            ["f7eb3cb5a5b160d6ec83da97184e9170300e11affb6363a5b969b73f12e2c572", "R"],
-            ["580fb1cedcf0c1c4d31ae86324911325d561656fa9afa80ae4c185f1f69e91c9", "R"],
-            ["99711f1c130f7d1f58056fe63b947544b67ae96366087afbd35129a0802b39dd", "L"]
+            ["55560085f1c1c8212dd984b04ce9123c1eb3cfa58b14fa1dc12b7b183ec67a3b", "R"],
+            ["0c62e0324d447ed3db4f3e03dd067ad6e626fc0d384b6241f340edfaf3a9489e", "R"],
+            ["d4c377d373704f96346600f475efdad90ac0c2759a73534aa020370f988e8815", "R"],
+            ["31076cb571e2957bd90a3b6e4a2ac24f3915f5be1c0d3ad8e13954322e54bf05", "R"],
+            ["806f9961dacec7ed0f1e0bc0061d31793319fa100e95431dd9fb178f94da7502", "L"]
           ],
           "record": {
-            "hash": "e5acf8b3d225de55987b2a96d40edf28b6e60eaac9eac362e091b4a59e1a9117",
+            "hash": "044ee994252774b11ae52227ecd79f975e8a3f92c27ae7a4378cc4c78c5c5f3c",
             "kind": "rule_change",
             "payload": {
-              "action": "setting_applied",
+              "action": "setting_approval",
               "proposal_id": "p-1",
-              "setting_name": "retention_days"
+              "role": "crew_representative"
             },
-            "prev_hash": "d85506359076ff41d4bc6c0210249d6c07e673a1adf3c20c91b697513863ef20",
+            "prev_hash": "8057d45a5cf4dd8ece3709c8d67dd5731d72c9a5668389cbf4368113f15a4978",
             "seq": 17,
             "site": "demo",
-            "ts": "2026-11-02T15:50:15Z"
+            "ts": "2026-11-02T15:59:15Z"
           }
         },
         {
           "day": "2026-11-02",
           "key": "2026-11-02#18",
           "proof": [
-            ["e5acf8b3d225de55987b2a96d40edf28b6e60eaac9eac362e091b4a59e1a9117", "L"],
-            ["d5010595f5fe46c9e46d7819c004d73b245e77d78cddb43e4a9bb7c9122b7f52", "R"],
-            ["f7eb3cb5a5b160d6ec83da97184e9170300e11affb6363a5b969b73f12e2c572", "R"],
-            ["580fb1cedcf0c1c4d31ae86324911325d561656fa9afa80ae4c185f1f69e91c9", "R"],
-            ["99711f1c130f7d1f58056fe63b947544b67ae96366087afbd35129a0802b39dd", "L"]
+            ["044ee994252774b11ae52227ecd79f975e8a3f92c27ae7a4378cc4c78c5c5f3c", "L"],
+            ["0c62e0324d447ed3db4f3e03dd067ad6e626fc0d384b6241f340edfaf3a9489e", "R"],
+            ["d4c377d373704f96346600f475efdad90ac0c2759a73534aa020370f988e8815", "R"],
+            ["31076cb571e2957bd90a3b6e4a2ac24f3915f5be1c0d3ad8e13954322e54bf05", "R"],
+            ["806f9961dacec7ed0f1e0bc0061d31793319fa100e95431dd9fb178f94da7502", "L"]
           ],
           "record": {
-            "hash": "a145b89a68b3f961b6b162fa22f7699340fdad8aa3e5c4968a6afbf1042b783a",
+            "hash": "55560085f1c1c8212dd984b04ce9123c1eb3cfa58b14fa1dc12b7b183ec67a3b",
+            "kind": "rule_change",
+            "payload": {
+              "action": "setting_applied",
+              "proposal_id": "p-1",
+              "setting_name": "retention_days"
+            },
+            "prev_hash": "044ee994252774b11ae52227ecd79f975e8a3f92c27ae7a4378cc4c78c5c5f3c",
+            "seq": 18,
+            "site": "demo",
+            "ts": "2026-11-02T16:00:15Z"
+          }
+        },
+        {
+          "day": "2026-11-02",
+          "key": "2026-11-02#19",
+          "proof": [
+            ["c7a55879662c1d75e00d032e1963e363a1a47f5bc71a8737d52e85bce5f89484", "R"],
+            ["7b80840464f52108b93953f69a0c8cd4aafe5136d26e79abd1db1e5cfafd6915", "L"],
+            ["d4c377d373704f96346600f475efdad90ac0c2759a73534aa020370f988e8815", "R"],
+            ["31076cb571e2957bd90a3b6e4a2ac24f3915f5be1c0d3ad8e13954322e54bf05", "R"],
+            ["806f9961dacec7ed0f1e0bc0061d31793319fa100e95431dd9fb178f94da7502", "L"]
+          ],
+          "record": {
+            "hash": "c7a55879662c1d75e00d032e1963e363a1a47f5bc71a8737d52e85bce5f89484",
             "kind": "rule_change",
             "payload": {
               "action": "setting_applied",
               "proposal_id": "p-2"
             },
-            "prev_hash": "e5acf8b3d225de55987b2a96d40edf28b6e60eaac9eac362e091b4a59e1a9117",
-            "seq": 18,
+            "prev_hash": "55560085f1c1c8212dd984b04ce9123c1eb3cfa58b14fa1dc12b7b183ec67a3b",
+            "seq": 19,
             "site": "demo",
-            "ts": "2026-11-02T15:51:15Z"
+            "ts": "2026-11-02T16:01:15Z"
           }
         }
       ],
@@ -3539,7 +3667,7 @@
           "ci_detail": null,
           "clause": null,
           "clause_note": "",
-          "distance_rule": false,
+          "distance_rule": true,
           "gate": "amber",
           "gate_reasons": ["ci_green failed"],
           "plan_ids": ["plan-000000000001"],
@@ -3563,6 +3691,6 @@
       ],
       "title": "Proof pack 2026-11-02 00:00 to 2026-11-03 00:00 UTC"
     },
-    "pack_hash": "fdd0cc00ea89988efe52b95963f2e44ef7595351392068ef158a9c1e9cd8b860"
+    "pack_hash": "467d1c9383ad19d7a8b5b730cd9bca99652de90e2640b7a7a97f2775353f8249"
   }
 }

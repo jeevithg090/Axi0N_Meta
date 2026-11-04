@@ -22,11 +22,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from rulecam.clients.meta_hosted.grounding import Grounded
+from rulecam.clients.meta_hosted.grounding import Grounded, normal_url
 from rulecam.compliance.engine import Located, get_path, micros, micros_of
 from rulecam.compliance.engine import Period as PackPeriod
 from rulecam.compliance.models import Clause, RuleInForce
 from rulecam.contracts import SitePlan
+from rulecam.evidence.packs import LEAD_CLAUSES
 from rulecam.log import get_logger
 from rulecam.planner.pipeline import PlanStore
 from rulecam.planner.standards import (
@@ -47,7 +48,20 @@ from rulecam.planner.standards import (
 _log = get_logger(__name__)
 
 CitationChecker = Callable[[Citation], CitationCheck]
-CONCERN_VERSION = "v3"
+FORKLIFT_TEMPLATE = "osha_pit"
+MAX_OTHER_PAGES = 3
+
+
+def template_leads() -> tuple[str, ...]:
+    """The forklift evidence template's lead clauses (`evidence.packs`), when it has one.
+
+    They are only a hint for Spark's search: the clause a pack shows is still the one Spark
+    cites and the quote is still checked; the template adds no text of its own here.
+    """
+    return tuple(LEAD_CLAUSES.get(FORKLIFT_TEMPLATE, ()))
+
+
+CONCERN_VERSION = "v4"
 # The rule is the owner's words; the clause is whatever published requirement its alerts give
 # evidence about (a general duty counts), so Spark is asked for that, not for a clause that
 # repeats the rule's own number.
@@ -252,9 +266,11 @@ class ClauseFinder:
 
     def find(self, rule: RuleInForce) -> tuple[Clause | None, str]:
         """The rule's clause and a note on where it came from (or why there is none)."""
-        key = hashlib.sha256(
-            f"{CONCERN_VERSION}|{rule.text}|{','.join(rule.standards)}".encode()
-        ).hexdigest()
+        hint = f" The owner's plan names: {', '.join(rule.standards)}." if rule.standards else ""
+        leads = template_leads() if rule.distance_rule else ()
+        if leads:
+            hint += f" The site's forklift evidence template leads with: {', '.join(leads)}."
+        key = hashlib.sha256(f"{CONCERN_VERSION}|{rule.text}|{hint}".encode()).hexdigest()
         cached = self._cache.get(key)
         if cached is not None:
             clause = cached.get("clause")
@@ -264,7 +280,6 @@ class ClauseFinder:
             )
         if self._spark is None or self._check is None:
             return None, "no clause: the plan cites none and model grounding is off for this pack"
-        hint = f" The owner's plan names: {', '.join(rule.standards)}." if rule.standards else ""
         try:
             citation, found = self._ask(CONCERN.format(text=rule.text, hint=hint))
         except Exception as exc:  # a model failure must not fail the pack
@@ -306,18 +321,19 @@ class ClauseFinder:
     def _checked(
         self, citation: Citation, found: Grounded[GroundedCitation] | None, rule: RuleInForce
     ) -> Clause:
-        """Check the quote on the fetched page, else in the search result of that page."""
+        """Check the quote on the cited page, else on a page Spark's own search returned.
+
+        The cited page is fetched first (`check_citation`). When it refuses (an HTTP 403, a
+        PDF) or lacks the quote, the search result for that URL (title and snippet) is checked,
+        then up to `MAX_OTHER_PAGES` other pages the search returned are fetched: a quote found
+        on any of them is text that really is on the web, and the detail names that page.
+        """
         assert self._check is not None  # noqa: S101 - find() returns early without a checker
         result = self._check(citation)
         check: Literal["page", "search", "none"] = "page" if result.matched else "none"
         detail = result.detail
-        source = found.retrieved(citation.url) if found is not None else None
-        if not result.matched and source is not None:
-            seen = normalize_text(f"{source.title} {source.snippet}")
-            needle = normalize_text(citation.quoted_text).rstrip(" .;:,")
-            if len(needle) >= MIN_QUOTE_CHARS and needle in seen:
-                check = "search"
-                detail = f"quote found in the search result for the cited page; {detail}"
+        if not result.matched and found is not None:
+            check, detail = self._search_check(citation, found, detail)
         return Clause(
             ref=citation.ref,
             url=citation.url,
@@ -327,6 +343,25 @@ class ClauseFinder:
             detail=detail,
             source="plan" if rule.standards else "muse-spark-1.3",
         )
+
+    def _search_check(
+        self, citation: Citation, found: Grounded[GroundedCitation], detail: str
+    ) -> tuple[Literal["search", "none"], str]:
+        assert self._check is not None  # noqa: S101 - only called from _checked
+        needle = normalize_text(citation.quoted_text).rstrip(" .;:,")
+        source = found.retrieved(citation.url)
+        snippet = normalize_text(f"{source.title} {source.snippet}") if source else ""
+        if len(needle) >= MIN_QUOTE_CHARS and needle in snippet:
+            return "search", f"quote found in the search result for the cited page; {detail}"
+        cited = normal_url(citation.url)
+        others = [s for s in found.sources if normal_url(s.url) != cited][:MAX_OTHER_PAGES]
+        for other in others:
+            if self._check(citation.model_copy(update={"url": other.url})).matched:
+                return "search", (
+                    f"quote found on {other.url}, a page Spark's search returned; "
+                    f"the cited page: {detail}"
+                )
+        return "none", detail
 
 
 def with_clauses(

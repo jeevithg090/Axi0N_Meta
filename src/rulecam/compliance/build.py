@@ -76,6 +76,11 @@ DEFAULT_SHIFTS: Final = (
 )
 MAX_STILLS: Final = 6
 STILLS_PER_INCIDENT: Final = 2
+# Written by the warehouse duty tracker (`warehouse/duty.py`) when a refresher is marked done.
+TRAINING_DONE: Final[dict[str, Scalar]] = {
+    "kind": "label",
+    "payload.label": "refresher_training_done",
+}
 CLEARED: Final[tuple[dict[str, Scalar], ...]] = (
     {"kind": "label", "payload.label": "hazard_cleared"},
     {"kind": "action", "payload.kind": "cleared"},
@@ -430,6 +435,22 @@ def _scoped_metrics(
                 _count(REJECTED, rule=rule_id),
             ),
         ]
+        if rule_id in distance:
+            defs += [
+                _Def(
+                    f"rule:{rule_id}:training_done",
+                    section,
+                    "Refresher training recorded done",
+                    _count(TRAINING_DONE, rule=rule_id),
+                ),
+                _Def(
+                    f"rule:{rule_id}:time_to_training_median",
+                    section,
+                    "Median time from near miss to training recorded",
+                    MetricSpec(op="median_s", rule=rule_id, to=(TRAINING_DONE,)),
+                    "seconds",
+                ),
+            ]
     for shift in period.shifts:
         defs += [
             _Def(

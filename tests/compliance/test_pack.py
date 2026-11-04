@@ -133,6 +133,9 @@ def test_synthetic_recipes(synthetic_chain: Path, tmp_path: Path) -> None:
     assert m["shift:early:alerts_raised"] == 1
     assert m["shift:late:alerts_raised"] == 1
     assert m["rule:spill:glimmer_verified"] == 1
+    assert m["rule:dock:training_done"] == 1  # the warehouse duty tracker's chained label
+    assert m["rule:dock:time_to_training_median"] == 615.0
+    assert "rule:spill:training_done" not in m  # not a distance rule
     gates = {r.rule_id: (r.gate, r.gate_reasons) for r in pack.rules}
     assert gates["dock"] == ("amber", ("ci_green failed",))
     assert not any("No camera coverage" in n for n in pack.notes)
@@ -259,7 +262,8 @@ class _SearchGrounder:
                 {
                     "type": "web_search_call",
                     "results": [
-                        {"url": self.citation.url, "title": "1910.178", "snippet": self.snippet}
+                        {"url": self.citation.url, "title": "1910.178", "snippet": self.snippet},
+                        {"url": OTHER_PAGE, "title": "Forklift rules explained", "snippet": ""},
                     ],
                 }
             ]
@@ -267,15 +271,19 @@ class _SearchGrounder:
         return grounded(GroundedCitation(citation=self.citation), [body])
 
 
+OTHER_PAGE = "https://example.org/forklift-rules"
+
+
 @pytest.mark.parametrize(
-    ("snippet", "check"),
+    ("snippet", "other_has_quote", "check"),
     [
-        ("... The driver shall be required to slow down and sound the horn ...", "search"),
-        ("", "none"),
+        ("... The driver shall be required to slow down and sound the horn ...", False, "search"),
+        ("", True, "search"),
+        ("", False, "none"),
     ],
 )
 def test_clause_falls_back_to_the_search_result(
-    golden_chain: Path, tmp_path: Path, snippet: str, check: str
+    golden_chain: Path, tmp_path: Path, snippet: str, other_has_quote: bool, check: str
 ) -> None:
     citation = Citation(
         ref="29 CFR 1910.178(n)(4)",
@@ -284,7 +292,11 @@ def test_clause_falls_back_to_the_search_result(
     )
     finder = ClauseFinder(
         _SearchGrounder(citation, snippet),  # type: ignore[arg-type]
-        lambda c: CitationCheck(citation=c, matched=False, detail="unverifiable: HTTP 403"),
+        lambda c: CitationCheck(
+            citation=c,
+            matched=other_has_quote and c.url == OTHER_PAGE,
+            detail="unverifiable: HTTP 403",
+        ),
     )
     request = PackRequest(
         start=datetime(2026, 11, 1, tzinfo=UTC), end=datetime(2026, 11, 2, tzinfo=UTC)
@@ -293,6 +305,7 @@ def test_clause_falls_back_to_the_search_result(
     assert clause is not None
     assert clause.check == check
     assert clause.checked is (check == "search")
+    assert (OTHER_PAGE in clause.detail) is other_has_quote
 
 
 def _fixture_pack(pack: ProofPack) -> dict[str, object]:

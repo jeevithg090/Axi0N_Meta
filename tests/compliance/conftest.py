@@ -31,6 +31,9 @@ def golden_chain(tmp_path: Path) -> Path:
 
 
 def _candidate(event: str, rule: str, camera: str) -> dict[str, object]:
+    predicate = (
+        {"op": "distance_m", "a": "person", "b": "forklift", "lt": 2} if rule == "dock" else {}
+    )
     return {
         "candidate": {
             "event_id": event,
@@ -39,7 +42,13 @@ def _candidate(event: str, rule: str, camera: str) -> dict[str, object]:
             "severity": "high",
             "strip_paths": [],
         },
-        "context": {"rule": {"id": rule, "source": {"text": f"Rule {rule}", "standard": []}}},
+        "context": {
+            "rule": {
+                "id": rule,
+                "predicate": predicate,
+                "source": {"text": f"Rule {rule}", "standard": []},
+            }
+        },
     }
 
 
@@ -103,6 +112,11 @@ def write_synthetic(root: Path) -> Path:
             "event_id": "ev-2",
             "dispute": {"channel": "tap", "reason_text": "not me", "outcome": "upheld"},
         },
+    )
+    at(600)
+    chain.append(
+        "label",
+        {"event_id": "ev-2", "rule_id": "dock", "label": "refresher_training_done", "role": "lead"},
     )
     for action, extra in (
         ("setting_proposal", {"setting_name": "retention_days"}),

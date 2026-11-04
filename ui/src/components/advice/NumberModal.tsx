@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 
 import { formatNumber, type NumberCheck } from "@/lib/advice";
 
-/** What a clickable number opens: Glimmer's own SQL, its result, and whether it matched. */
+/** What a clickable number opens: the Tier 1 model's own SQL, its result, and whether it matched. */
 export function NumberModal({
   check,
   hidden,
@@ -27,13 +27,13 @@ export function NumberModal({
         <strong>{hidden ? "hidden" : formatNumber(check.catalogue_value, check.unit)}</strong>
       </p>
       <p>
-        Glimmer recomputed:{" "}
+        Tier 1 model recomputed:{" "}
         <strong>
           {check.recomputed === null ? "no value" : formatNumber(check.recomputed, check.unit)}
         </strong>{" "}
         {check.ok ? "✓ reproduced" : `✗ ${check.error || "not reproduced"}`}
       </p>
-      <p className="muted">Glimmer&apos;s own SQL, run read-only on the process log:</p>
+      <p className="muted">The Tier 1 model&apos;s own SQL, run read-only on the process log:</p>
       <pre>{check.sql || "(none)"}</pre>
       <button type="button" onClick={onClose}>
         Close

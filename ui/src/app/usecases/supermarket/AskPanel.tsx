@@ -1,7 +1,7 @@
 "use client";
 
 // Step 1: the owner asks, by typing or speaking in any language. The answer streams in step by
-// step (SQL, SAM 3.1 counts, Glimmer looks, Spark watching video), then comes with a receipt the
+// step (SQL, SAM 3.1 counts, Tier 1 model looks, Spark watching video), then comes with a receipt the
 // browser re-hashes itself and a QR code for the same check on a phone.
 
 import { useRef, useState } from "react";

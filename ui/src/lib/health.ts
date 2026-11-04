@@ -7,14 +7,9 @@ import { createContext, createElement, useContext, useEffect, useState, type Rea
 
 import { API_PROXY } from "./config";
 
-export interface GpuHealth {
-  state?: string;
-  up?: boolean;
-  serverless?: boolean;
-  workers_max?: number;
-  workers?: { running?: number; idle?: number; initializing?: number };
-  error?: string | null;
-}
+import type { GpuHealth, ModelsInUse } from "./models";
+
+export { gpuLine, type GpuHealth } from "./models";
 
 /** `GET /health`, as the API sends it (only the fields the UI shows are typed). */
 export interface Health {
@@ -24,25 +19,14 @@ export interface Health {
   runtime?: boolean;
   revision?: string;
   gpus?: Record<string, GpuHealth | string>;
+  /** The model each job runs on now (`models_in_use`); older APIs do not send it. */
+  models?: ModelsInUse | null;
 }
 
 export type HealthLoad =
   | { phase: "loading" }
   | { phase: "error"; at: Date }
   | { phase: "ok"; health: Health; at: Date };
-
-/** A GPU line: its state as the API wrote it, and its workers when it is serverless. */
-export function gpuLine(entry: GpuHealth | string | undefined): { state: string; workers: string | null } {
-  if (entry === undefined) return { state: "unknown", workers: null };
-  if (typeof entry === "string") return { state: entry, workers: null };
-  // The serverless counts exactly as the API reports them (they can exceed workers_max while
-  // RunPod scales), never added up into a figure the API did not give.
-  const w = entry.workers;
-  const workers = w
-    ? [`${w.running ?? 0} running`, `${w.idle ?? 0} idle`, ...(w.initializing ? [`${w.initializing} starting`] : [])].join(", ")
-    : null;
-  return { state: entry.state ?? (entry.up ? "up" : "down"), workers };
-}
 
 /** The header badge's words: the API's own badge strings, plus OFFLINE and "…" (not known yet). */
 export type SystemBadge = "LIVE" | "REPLAY" | "OFFLINE" | "…";

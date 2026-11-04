@@ -339,7 +339,7 @@ export function PlansSignage() {
                         {plan.back_translation && (
                           <div style={{ marginTop: "var(--s3)" }}>
                             <h4 className="h3" style={{ fontSize: "18px", marginBottom: "8px" }}>
-                              Glimmer Independent Back-Translation ([en] &amp; [es])
+                              Independent Back-Translation by the Tier 1 model ([en] &amp; [es])
                             </h4>
                             <pre className="code" style={{ whiteSpace: "pre-wrap", fontSize: "13px" }}>
                               {plan.back_translation}

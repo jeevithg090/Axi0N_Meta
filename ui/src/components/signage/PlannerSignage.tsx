@@ -144,7 +144,7 @@ export function PlannerSignage() {
     { n: "06", name: "Compile IR", ms: "Muse Spark" },
     { n: "07", name: "Lint", ms: "plan linter" },
     { n: "08", name: "Accept", ms: "acceptance checks" },
-    { n: "09", name: "Audit & BT", ms: "Spark Open · Glimmer" },
+    { n: "09", name: "Audit & BT", ms: "Tier 2 · Tier 1 model" },
     { n: "10", name: "Prove (CI)", ms: "Rule CI" },
   ];
 

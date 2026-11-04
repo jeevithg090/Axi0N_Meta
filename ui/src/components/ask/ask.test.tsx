@@ -97,7 +97,7 @@ describe("AskTimeline", () => {
       advice: "explain the difference",
       draft: "Ten people.",
       turn: 0,
-      model: "muse-spark-open",
+      model: "muse-wonder-1.0",
       seconds: 3.1,
     };
     const evts: AskEvent[] = [
@@ -111,10 +111,10 @@ describe("AskTimeline", () => {
     ];
     const running = evts.reduce(askReducer, newExchange("How many?"));
     const { rerender } = render(<AskTimeline exchange={running} />);
-    expect(screen.getByTestId("ask-reviewing").textContent).toContain("Spark Open");
+    expect(screen.getByTestId("ask-reviewing").textContent).toContain("Tier 2 model is checking");
     rerender(<AskTimeline exchange={askReducer(running, { type: "review", turn: 0, review })} />);
     const row = screen.getByTestId("ask-review").textContent ?? "";
-    expect(row).toContain("sent the answer back");
+    expect(row).toContain("Muse Wonder 1.0 sent the answer back"); // named from the review's model
     expect(row).toContain("contradicts the earlier answer");
     expect(row).toContain("Ten people.");
     expect(screen.queryByTestId("ask-reviewing")).toBeNull();

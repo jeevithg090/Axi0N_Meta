@@ -1,13 +1,17 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { GOLDEN_RUNS } from "@/fixtures/golden";
 import { CAMPAIGN, campaignTest, firstEvent, SERVERLESS_LOAD } from "@/fixtures/live-campaign";
 
 import { headlines, Landing, MODELS, PITCH, STEPS, WORLDS } from "./Landing";
 import { LiveAlerts, seconds, verdictWords } from "./LiveAlerts";
+import { ModelMap } from "./ModelMap";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("Landing", () => {
   it("leads with the pitch, the no-login demo and the verify page", () => {
@@ -30,6 +34,42 @@ describe("Landing", () => {
       const row = within(table).getByText(m.model).closest("tr")!;
       expect(within(row).getByText(m.status)).toBeTruthy();
     }
+  });
+
+  it("names the Tier 1, Tier 2 and SAM models from /health, and keeps Glimmer for the recorded runs", async () => {
+    const models = {
+      tier1: "muse-spark-1.3",
+      tier1_host: "meta-api",
+      tier2: "muse-wonder-1.0",
+      tier2_host: "meta-api",
+      sam: "sam-3.1",
+      sam_host: "meta-api",
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ ok: true, mode: "live", models }))));
+    render(<ModelMap fixed={MODELS} />);
+    const row = (key: string) => screen.getByTestId(`model-row-${key}`).textContent ?? "";
+    await waitFor(() => expect(row("tier1")).toContain("Muse Spark 1.3 (Tier 1 check)"));
+    expect(row("tier1")).toContain("Live (Meta API)");
+    expect(row("tier2")).toContain("Muse Wonder 1.0 (Tier 2 review)");
+    expect(row("tier2")).toContain("Live (Meta API)");
+    expect(row("sam")).toContain("Live (Meta API)");
+    expect(screen.getByTestId("model-map").textContent).not.toContain("Glimmer");
+    expect(document.body.textContent).toContain("checked by Muse Glimmer 30B (open weights) on our own GPUs");
+  });
+
+  it("says Tier 2 is not configured, and names only roles when the API does not answer", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ ok: true, models: { tier1: "muse-spark-1.3", tier1_host: "meta-api", tier2: null } }))),
+    );
+    render(<ModelMap fixed={MODELS} />);
+    await waitFor(() => expect(screen.getByTestId("model-row-tier2").textContent).toContain("Not configured"));
+    expect(screen.getByTestId("model-row-tier2").textContent).toContain("Tier 2 review");
+    cleanup();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 503 })));
+    render(<ModelMap fixed={MODELS} />);
+    await waitFor(() => expect(screen.getByTestId("model-row-tier1").textContent).toContain("the API did not say"));
+    expect(screen.getByTestId("model-row-tier1").textContent).toContain("Tier 1 check");
   });
 
   it("links the three worlds, each with a labelled still from its own footage", () => {
@@ -87,7 +127,8 @@ describe("LiveAlerts", () => {
       expect(text).toContain(`${event.measurement!.value.toFixed(2)} m`);
       expect(text).toContain(seconds(event.event_to_decision_s));
       for (const action of event.actions) expect(text).toContain(action);
-      expect(text).toContain(event.decision.alert ? "Verified alert" : "Rejected by Glimmer");
+      expect(text).toContain(event.decision.alert ? "Verified alert" : "Rejected by Muse Glimmer 30B");
+      expect(text).toContain(`Muse Glimmer 30B (${event.verdict.model_version})`); // the model that ran
     }
     expect(screen.getByTestId("live-T02").textContent).toContain("(the rule says under 4 m)");
     expect(screen.getByTestId("live-T03").textContent).toContain("carretilla elevadora");

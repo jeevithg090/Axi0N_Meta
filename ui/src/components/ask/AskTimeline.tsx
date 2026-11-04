@@ -13,6 +13,7 @@ import {
   type Exchange,
   type TurnView,
 } from "@/lib/ask";
+import { modelLabel } from "@/lib/models";
 
 const ROWS_SHOWN = 50;
 
@@ -250,7 +251,7 @@ const REVIEW_LABEL: Record<AskReview["verdict"], string> = {
   error: "could not review (the answer stands)",
 };
 
-/** Muse Spark Open's check of a draft: its verdict, problems and advice, and the draft itself. */
+/** The Tier 2 model's check of a draft: its verdict, problems and advice, and the draft itself. */
 function ReviewRow({ review }: { review: AskReview }) {
   return (
     <li className={`ask-review ask-review-${review.verdict}`} data-testid="ask-review">
@@ -258,7 +259,7 @@ function ReviewRow({ review }: { review: AskReview }) {
         <strong>Review</strong>
         <span className="muted">
           {" "}
-          · {review.model || "second model"} {REVIEW_LABEL[review.verdict]} ·{" "}
+          · {modelLabel(review.model) || "Tier 2 model"} {REVIEW_LABEL[review.verdict]} ·{" "}
           {review.seconds.toFixed(1)} s
         </span>
       </div>
@@ -298,7 +299,7 @@ export function AskTimeline({ exchange }: { exchange: Exchange }) {
             {exchange.reviewing === turn.turn && (
               <li className="ask-review ask-review-running" data-testid="ask-reviewing">
                 <span className="muted">
-                  Muse Spark Open is checking the answer against the steps…
+                  The Tier 2 model is checking the answer against the steps…
                 </span>
               </li>
             )}

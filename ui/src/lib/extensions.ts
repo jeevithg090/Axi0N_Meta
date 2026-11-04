@@ -5,6 +5,7 @@
 
 import { ApiError, withCsrf } from "./api";
 import { API_PROXY } from "./config";
+import { modelLabel } from "./models";
 
 export type StepStatus = "passed" | "failed" | "skipped";
 export type ExtensionStatus = "proposed" | "rejected" | "approved" | "retired";
@@ -145,9 +146,10 @@ export function generatorNote(record: ExtensionRecord): string {
 
 /** Who reviewed it, in words. */
 export function reviewerNote(review: ReviewResult): string {
-  if (review.reviewer === "spark-open") return `Reviewed by Muse Spark Open (${review.model})`;
+  if (review.reviewer === "spark-open")
+    return `Reviewed by ${modelLabel(review.model) || "the Tier 2 model"} (Tier 2, ${review.model})`;
   if (review.reviewer === "spark-1.3-fallback")
-    return `Reviewed by Muse Spark 1.3 (no Spark Open key on this deployment)`;
+    return `Reviewed by Muse Spark 1.3 (no Tier 2 model on this deployment)`;
   return "Not reviewed";
 }
 

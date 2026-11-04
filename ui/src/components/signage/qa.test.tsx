@@ -63,6 +63,42 @@ describe("SystemSignage (QA-B19)", () => {
     expect(candidates.textContent).toBe("Candidates0");
   });
 
+  it("names the models the API runs now, and a Meta API endpoint as no GPU of ours", async () => {
+    const health = {
+      ok: true,
+      site: "demo",
+      mode: "live",
+      runtime: true,
+      revision: null,
+      gpus: {
+        glimmer: { state: "warm", up: true, serverless: false, workers_min: null, workers_max: null, workers: null, error: null },
+      },
+      models: {
+        tier1: "muse-spark-1.3",
+        tier1_host: "meta-api",
+        tier2: "muse-wonder-1.0",
+        tier2_host: "meta-api",
+        sam: "sam-3.1",
+        sam_host: "meta-api",
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url.endsWith("/health") ? new Response(JSON.stringify(health)) : new Response("", { status: 404 }),
+      ),
+    );
+    render(<SystemSignage />);
+    await waitFor(() => expect(document.body.textContent).toContain("Tier 1 alert check · Muse Spark 1.3"));
+    const models = screen.getByTestId("models-in-use").textContent ?? "";
+    expect(models).toContain("Muse Spark 1.3 (muse-spark-1.3) · Meta API");
+    expect(models).toContain("Muse Wonder 1.0 (muse-wonder-1.0) · Meta API");
+    expect(models).toContain("SAM 3.1 (sam-3.1) · Meta API");
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("Meta API (no GPU of ours)");
+    expect(text).not.toMatch(/Glimmer|RunPod|Autoscaling/);
+  });
+
   it("says unknown, not LIVE, when the API does not answer", async () => {
     vi.stubGlobal(
       "fetch",

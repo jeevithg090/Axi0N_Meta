@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation";
 import { GOLDEN_RUNS } from "@/fixtures/golden";
 import { useAuth, type AuthPhase } from "@/lib/auth";
 import { API_PROXY } from "@/lib/config";
-import { gpuLine, healthBadge, HealthProvider, useSharedHealth, type HealthLoad, type SystemBadge } from "@/lib/health";
+import { healthBadge, HealthProvider, useSharedHealth, type HealthLoad, type SystemBadge } from "@/lib/health";
+import { modelRows } from "@/lib/models";
 import { useDemo, useDemoQuery, useStream } from "@/lib/stream";
 import type { UiState } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
@@ -96,7 +97,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
   {
     group: "System",
-    items: [{ href: "/system", label: "System and GPUs", icon: "cpu" }],
+    items: [{ href: "/system", label: "System and models", icon: "cpu" }],
   },
 ];
 
@@ -350,9 +351,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   }
 
   const crumb = pageName(pathname, mounted);
-  const gpus = health.phase === "ok" ? health.health.gpus : undefined;
-  const samGpu = gpus ? gpuLine(gpus.sam).state : "unknown";
-  const glimmerGpu = gpus ? gpuLine(gpus.glimmer).state : "unknown";
+  const models = modelRows(health.phase === "ok" ? health.health : null);
   const toggleNav = () => (isPhone() ? setMobileOpen((o) => !o) : setCollapsed((c) => !c));
 
   return (
@@ -415,15 +414,14 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="side-foot">
-          <dl className="gpu-list" aria-label="GPU state from the API">
-            <div className="gpu-row">
-              <dt>SAM 3.1 GPU</dt>
-              <dd data-state={samGpu}>{samGpu}</dd>
-            </div>
-            <div className="gpu-row">
-              <dt>Glimmer GPU</dt>
-              <dd data-state={glimmerGpu}>{glimmerGpu}</dd>
-            </div>
+          <dl className="gpu-list" aria-label="Models in use, from the API">
+            {models.map((m) => (
+              <div className="gpu-row" key={m.key} data-testid={`model-${m.key}`}>
+                <dt>{m.role}</dt>
+                <dd data-state={m.status === "unknown" ? "unknown" : undefined}>{m.status}</dd>
+                {m.model && m.model !== m.role && <dd className="gpu-model">{m.model}</dd>}
+              </div>
+            ))}
           </dl>
           <ThemeSwitch compact={collapsed} />
           <div className="session-line">

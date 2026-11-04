@@ -85,7 +85,7 @@ export function AdviceCardView({
         </h3>
         <span className={`pill src-${rec.provenance}`}>{rec.provenance}</span>
         <span className="pill" data-testid="reproduced">
-          {rec.numbers_reproduced}/{rec.numbers_total} numbers reproduced by Glimmer
+          {rec.numbers_reproduced}/{rec.numbers_total} numbers reproduced by the Tier 1 model
         </span>
       </header>
       {card.flagged && (

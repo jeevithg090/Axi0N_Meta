@@ -131,6 +131,7 @@
 .models thead th { font-size: var(--text-sm); font-weight: 500; color: var(--color-muted); border-bottom-color: var(--color-rule-2); padding-top: 0; white-space: nowrap; }
 .models tbody th { font-weight: 500; white-space: nowrap; }
 .models td { color: var(--color-ink-2); }
+.modelsNote { margin-top: var(--space-md); font-size: var(--text-sm); color: var(--color-muted); }
 td.modelStatus { font-size: var(--text-sm); color: var(--color-muted); white-space: nowrap; }
 td.modelStatus[data-live="true"] { color: var(--color-ok); font-weight: 500; }
 

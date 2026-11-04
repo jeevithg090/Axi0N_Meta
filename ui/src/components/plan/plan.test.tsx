@@ -115,7 +115,7 @@ describe("plan screens", () => {
     expect(screen.getByTestId("audit-findings").textContent).toContain("so_3f1a9c2b7d4e6a01");
     cleanup();
     render(<AuditFindings findings={[]} />);
-    expect(screen.getByText("Spark Open found no gaps.")).toBeTruthy();
+    expect(screen.getByText("The Tier 2 audit found no gaps.")).toBeTruthy();
   });
 
   it("tiles cameras with what the survey saw on each", () => {

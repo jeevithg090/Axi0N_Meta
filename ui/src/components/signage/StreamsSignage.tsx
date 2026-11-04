@@ -318,7 +318,7 @@ export function StreamsSignage() {
             style={{ display: "flex", flexWrap: "wrap", gap: "var(--s1) var(--s3)", justifyContent: "flex-end" }}
           >
             <span>SAM 3.1 Keyframes · 38 ms</span>
-            <span>Glimmer 30B · 412 ms</span>
+            <span>Tier 1 check · 412 ms</span>
             <Link href="/monitor" style={{ textDecoration: "underline", fontWeight: 700 }}>
               Open 7-Act Master Wall →
             </Link>

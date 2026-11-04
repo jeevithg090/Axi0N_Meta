@@ -3,7 +3,7 @@ import { cx } from "./cx";
 
 export type Verdict = "yes" | "no" | "unsure";
 
-/** Glimmer's verdict strings (and plain yes/no) folded onto yes, no and unsure. */
+/** The verifier's verdict strings (and plain yes/no) folded onto yes, no and unsure. */
 export function normaliseVerdict(verdict: string | boolean | null | undefined): Verdict {
   if (verdict === true) return "yes";
   if (verdict === false) return "no";
@@ -16,11 +16,14 @@ export function normaliseVerdict(verdict: string | boolean | null | undefined): 
 const WORDS: Record<Verdict, string> = { yes: "Violation", no: "No violation", unsure: "Unsure" };
 
 export interface VerdictPillProps {
-  /** `yes` / `no` / `unsure`, or Glimmer's own `violation` / `no_violation` / `uncertain`. */
+  /** `yes` / `no` / `unsure`, or the verifier's own `violation` / `no_violation` / `uncertain`. */
   verdict: Verdict | string | boolean | null;
-  /** The model's score in 0..1 (Glimmer reports P(violation)); omitted when there is none. */
+  /** The model's score in 0..1 (Tier 1 reports P(violation)); omitted when there is none. */
   confidence?: number | null;
-  /** Who gave the verdict; shown as the pill's first segment. */
+  /**
+   * Who gave the verdict, shown as the pill's first segment: the model that ran (e.g.
+   * `modelLabel(verdict.model_version)`), else the role. Default "Tier 1".
+   */
   model?: string;
   /** What the score means, for the tooltip and screen readers. */
   scoreLabel?: string;
@@ -31,7 +34,7 @@ export interface VerdictPillProps {
 export function VerdictPill({
   verdict,
   confidence,
-  model = "Glimmer",
+  model = "Tier 1",
   scoreLabel = "P(violation)",
   className,
 }: VerdictPillProps) {

@@ -117,7 +117,7 @@ describe("advice card", () => {
     for (const part of ["Saw", "Why", "Do", "Gain", "Check", "Safety"]) {
       expect(screen.getByRole("region", { name: part })).toBeTruthy();
     }
-    expect(screen.getByTestId("reproduced").textContent).toBe("2/2 numbers reproduced by Glimmer");
+    expect(screen.getByTestId("reproduced").textContent).toBe("2/2 numbers reproduced by the Tier 1 model");
     expect(card.textContent).toContain("14 min");
     expect(card.textContent).toContain(
       "Considered and not recommended: add a second forklift at the docks",
@@ -126,7 +126,7 @@ describe("advice card", () => {
     expect(card.textContent).toContain("recorded");
   });
 
-  it("opens Glimmer's SQL when a number is clicked", () => {
+  it("opens the Tier 1 model's SQL when a number is clicked", () => {
     render(<AdviceCardView card={CARD} seals={[]} busy={false} onAccept={() => undefined} />);
     fireEvent.click(screen.getByRole("button", { name: "14 min" }));
     const modal = screen.getByTestId("number-modal");
@@ -136,7 +136,7 @@ describe("advice card", () => {
     expect(screen.queryByTestId("number-modal")).toBeNull();
   });
 
-  it("hides a number Glimmer could not reproduce and flags the card", () => {
+  it("hides a number the Tier 1 model could not reproduce and flags the card", () => {
     render(<AdviceCardView card={flagged} seals={[]} busy={false} onAccept={() => undefined} />);
     expect(screen.getByRole("alert").textContent).toContain("could not be reproduced");
     expect(screen.queryByRole("button", { name: "14 min" })).toBeNull();

@@ -229,7 +229,7 @@ export function PackView({ pack }: { pack: ProofPack }) {
                 <th>When</th>
                 <th>Rule</th>
                 <th>Camera</th>
-                <th>Glimmer</th>
+                <th>Tier 1 verdict</th>
                 <th>Route</th>
                 <th>Record</th>
               </tr>

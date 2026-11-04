@@ -172,7 +172,7 @@ export function IncidentsSignage() {
                 GET /incidents (
                 {access === "ok" ? `${incidents.length} events` : access === "forbidden" ? "owner only" : "no answer"})
               </b>
-              {access === "ok" && ` ${violationsCount} confirmed breaches, ${suppressedCount} suppressed by Glimmer`}
+              {access === "ok" && ` ${violationsCount} confirmed breaches, ${suppressedCount} suppressed by the Tier 1 check`}
             </div>
             <h1 className="h1">
               {access === "ok" ? `${violationsCount} confirmed breaches.` : "Every incident, with its proof."}
@@ -243,7 +243,7 @@ export function IncidentsSignage() {
                 </EmptyState>
               ) : incidents.length === 0 ? (
                 <EmptyState title="No incidents yet" icon="alert">
-                  An incident appears here when an approved rule fires and Glimmer has checked it.
+                  An incident appears here when an approved rule fires and the Tier 1 check has looked at it.
                 </EmptyState>
               ) : (
                 filtered.map((it) => {

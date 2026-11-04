@@ -8,7 +8,7 @@ export function formatMs(ms: number): string {
 }
 
 export interface ModelChipProps {
-  /** The model's name as Meta ships it, e.g. "Muse Spark 1.3", "SAM 3.1", "Muse Glimmer 30B". */
+  /** The model's name as Meta ships it, e.g. "Muse Spark 1.3", "SAM 3.1" (`modelLabel(id)`). */
   model: string;
   /** What it did in this step, in a few words: "measured the gap", "checked the frames". */
   job?: string;

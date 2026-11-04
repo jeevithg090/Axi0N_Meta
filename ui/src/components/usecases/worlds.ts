@@ -22,8 +22,8 @@ export const WORLDS = [
     slug: "warehouse",
     name: "Warehouse",
     promise: "Forklift rules that prove themselves",
-    line: "SAM 3.1 measures the gap between a person and a moving forklift, Rule CI attacks the rule, and Glimmer checks every alert on the frames.",
-    models: ["SAM 3.1", "Muse Glimmer 30B"],
+    line: "SAM 3.1 measures the gap between a person and a moving forklift, Rule CI attacks the rule, and the Tier 1 check looks at every alert on the frames.",
+    models: ["SAM 3.1", "Tier 1 check"],
     icon: "forklift",
     still: {
       src: "/usecases/warehouse.jpg",

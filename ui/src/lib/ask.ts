@@ -1,5 +1,5 @@
 // Ask: the owner's free-form questions about what the cameras saw, answered by Spark with SQL,
-// SAM 3.1 and Glimmer (`POST /ask/stream`, owner-only, prototype mode). The API streams each
+// SAM 3.1 and the Tier 1 model (`POST /ask/stream`, owner-only, prototype mode). The API streams each
 // step as a server-sent event the moment it happens; `askReducer` folds them into a timeline.
 
 import { ApiError, withCsrf } from "./api";
@@ -45,7 +45,7 @@ export interface AskTurnTiming {
   actions: number;
 }
 
-/** A second model's check of a draft answer (Muse Spark Open; `revise` sends it back once). */
+/** The Tier 2 model's check of a draft answer (`model` says which; `revise` sends it back once). */
 export interface AskReview {
   verdict: "accept" | "revise" | "error";
   problems: string[];
@@ -283,10 +283,10 @@ export function frameUrl(name: string): string {
 const TOOL_LABEL: Record<AskActionKind, string> = {
   sql: "SQL",
   count_objects: "Count (SAM 3.1)",
-  look: "Look (Glimmer)",
+  look: "Look (Tier 1 model)",
   watch: "Watch (Spark video)",
   crowd_scan: "Crowd scan (SAM 3.1)",
-  cross_count: "Cross-count (SAM 3.1 · Spark points · Glimmer)",
+  cross_count: "Cross-count (SAM 3.1 · Spark points · Tier 1 model)",
   answer: "Answer",
 };
 

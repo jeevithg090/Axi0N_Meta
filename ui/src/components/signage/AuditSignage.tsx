@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { API_PROXY } from "../../lib/config";
+import { tierRole } from "../../lib/models";
 
 const GENESIS = "0".repeat(64);
 
@@ -92,8 +93,8 @@ function summarizeRecord(r: ChainRecord): { what: string; who: string; category:
       };
     }
     return {
-      what: `Verifier (${String(p.tier ?? "glimmer")}) on ${evId}: ${String(p.verdict ?? "").toUpperCase()} — ${String(p.reason ?? "").slice(0, 95)}`,
-      who: String(p.model_version ?? "muse-glimmer-30b"),
+      what: `Verifier (${tierRole(typeof p.tier === "string" ? p.tier : null)}) on ${evId}: ${String(p.verdict ?? "").toUpperCase()} — ${String(p.reason ?? "").slice(0, 95)}`,
+      who: typeof p.model_version === "string" ? p.model_version : "model not recorded",
       category: "trip",
     };
   }

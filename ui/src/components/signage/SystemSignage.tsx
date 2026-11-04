@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { API_PROXY } from "../../lib/config";
 import { withCsrf } from "../../lib/api";
+import { hostLabel, modelLabel, modelLine, ROLES, type ModelHost, type ModelsInUse } from "../../lib/models";
 
 interface GpuWorkerPool {
   running: number;
@@ -30,6 +31,7 @@ interface HealthReport {
   runtime: boolean;
   revision: string | null;
   gpus: Record<string, GpuHealth>;
+  models?: ModelsInUse | null;
 }
 
 interface RuntimeTelemetry {
@@ -77,6 +79,20 @@ interface PromMetric {
   name: string;
   labels: string;
   value: string;
+}
+
+/** Where an endpoint probe's service runs, from `models` (the probes are named `glimmer`, `sam`). */
+function probeHost(service: string, models: ModelsInUse | null | undefined): ModelHost | null {
+  if (service === "glimmer") return models?.tier1_host ?? null;
+  if (service === "sam") return models?.sam_host ?? null;
+  return null;
+}
+
+/** An endpoint probe's title: the job and the model the API says it runs. */
+function probeTitle(service: string, models: ModelsInUse | null | undefined): string {
+  if (service === "glimmer") return `Tier 1 alert check · ${modelLabel(models?.tier1) || "model not reported"}`;
+  if (service === "sam") return models?.sam_host === "self-hosted" ? "SAM 3.1 + MoGe-2 perception pod" : "SAM 3.1";
+  return service.toUpperCase();
 }
 
 function parsePrometheus(raw: string): PromMetric[] {
@@ -182,7 +198,7 @@ export function SystemSignage() {
         <div className="grid">
           <div className="s8">
             <div className="ctx">
-              System &amp; GPU Infrastructure &nbsp;·&nbsp; site{" "}
+              System &amp; models &nbsp;·&nbsp; site{" "}
               <b>{health?.site ?? "demo"}</b> &nbsp;·&nbsp;{" "}
               <span className="dm">
                 {lastUpdated ? `polled ${lastUpdated}` : "connecting to /health…"}
@@ -191,7 +207,7 @@ export function SystemSignage() {
             <h1 className="h1">
               {health?.ok ? (
                 <>
-                  Runtime loop <span className="hi">online</span> · Serverless GPUs{" "}
+                  Runtime loop <span className="hi">online</span> · Model endpoints{" "}
                   {gpuEntries.every(([, g]) => g.up) ? "ready." : "degraded."}
                 </>
               ) : loading ? (
@@ -300,7 +316,47 @@ export function SystemSignage() {
         </div>
       </section>
 
-      {/* RunPod Serverless GPU Endpoints */}
+      {/* The model each job runs on now, as GET /health says it */}
+      <section className="wrap sec" data-testid="models-in-use">
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "baseline",
+            marginBottom: "var(--s3)",
+          }}
+        >
+          <h2 className="h3">Models in use</h2>
+          <span className="mono">GET /health → models · as configured on the API</span>
+        </div>
+        <div style={{ borderTop: "1px solid var(--color-rule)" }}>
+          {health?.models ? (
+            [
+              { role: `${ROLES.tier1} (every alert)`, id: health.models.tier1, host: health.models.tier1_host },
+              {
+                role: `${ROLES.tier2} (disputes, plan audit, Ask answers)`,
+                id: health.models.tier2,
+                host: health.models.tier2_host,
+              },
+              { role: "Segmentation", id: health.models.sam, host: health.models.sam_host },
+            ].map((m) => (
+              <div className="kv" key={m.role}>
+                <span>{m.role}</span>
+                <b className="dm">
+                  {m.id ? `${modelLabel(m.id)} (${m.id})${m.host ? ` · ${hostLabel(m.host)}` : ""}` : "not configured"}
+                </b>
+              </div>
+            ))
+          ) : (
+            <div className="kv">
+              <span>Models</span>
+              <b className="dm">{health ? "not reported by this API" : "unknown"}</b>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Endpoint probes: the Meta API, or our own (serverless) GPUs */}
       <section className="wrap sec">
         <div
           style={{
@@ -310,21 +366,17 @@ export function SystemSignage() {
             marginBottom: "var(--s3)",
           }}
         >
-          <h2 className="h3">RunPod Serverless GPU Cluster (Live Probes)</h2>
+          <h2 className="h3">Endpoint probes (live)</h2>
           <span className="mono">
-            Scale-to-zero cold-ready state counts as UP · Auto-wakes on candidate frame
+            A serverless GPU scaled to zero (cold-ready) counts as up
           </span>
         </div>
 
         <div className="grid">
           {gpuEntries.map(([service, gpu]) => {
             const w = gpu.workers;
-            const title =
-              service === "glimmer"
-                ? "Glimmer-30B VLM Verifier (Tier 1)"
-                : service === "sam"
-                  ? "SAM 3.1 + MoGe-2 Perception Pod"
-                  : service.toUpperCase();
+            const title = probeTitle(service, health?.models);
+            const onMetaApi = probeHost(service, health?.models) === "meta-api";
             return (
               <div
                 key={service}
@@ -360,15 +412,21 @@ export function SystemSignage() {
                 <div className="kv">
                   <span>Architecture</span>
                   <b className="dm">
-                    {gpu.serverless ? "RunPod Serverless (Scale-to-Zero)" : "Dedicated HTTP Pod"}
+                    {onMetaApi
+                      ? "Meta API (no GPU of ours)"
+                      : gpu.serverless
+                        ? "RunPod Serverless (Scale-to-Zero)"
+                        : "Dedicated HTTP Pod"}
                   </b>
                 </div>
-                <div className="kv">
-                  <span>Autoscaling Bounds</span>
-                  <b className="dm">
-                    min {gpu.workers_min ?? "unknown"}, max {gpu.workers_max ?? "unknown"} GPU workers
-                  </b>
-                </div>
+                {gpu.serverless && (
+                  <div className="kv">
+                    <span>Autoscaling Bounds</span>
+                    <b className="dm">
+                      min {gpu.workers_min ?? "unknown"}, max {gpu.workers_max ?? "unknown"} GPU workers
+                    </b>
+                  </div>
+                )}
 
                 {w && (
                   <div
@@ -482,7 +540,9 @@ export function SystemSignage() {
                 <b className="dm">
                   {responseCfg?.tier2 === "absent"
                     ? "Absent: Tier 1 decides, unsure cases go to a person"
-                    : responseCfg?.tier2 ?? "unknown"}
+                    : responseCfg?.tier2
+                      ? `${responseCfg.tier2}${health?.models?.tier2 ? ` · ${modelLine(health.models.tier2, health.models.tier2_host, "")}` : ""}`
+                      : "unknown"}
                 </b>
               </div>
               <div className="kv">

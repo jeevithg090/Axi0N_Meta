@@ -79,6 +79,37 @@ describe("DashboardShell", () => {
     for (const text of MADE_UP) expect(document.body.textContent).not.toContain(text);
   });
 
+  it("names each job's model from /health, and where it runs, instead of GPU lines", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url === "/rulecam-api/health"
+          ? respond({
+              ok: true,
+              mode: "live",
+              gpus: { glimmer: { state: "warm", up: true } },
+              models: {
+                tier1: "muse-spark-1.3",
+                tier1_host: "meta-api",
+                tier2: "muse-wonder-1.0",
+                tier2_host: "meta-api",
+                sam: "sam-3.1",
+                sam_host: "meta-api",
+              },
+            })
+          : respond({}, 403),
+      ),
+    );
+
+    render(<DashboardShell>page</DashboardShell>);
+
+    await waitFor(() => expect(screen.getByTestId("model-tier1").textContent).toContain("Muse Spark 1.3"));
+    expect(screen.getByTestId("model-tier1").textContent).toBe("Tier 1 checkMeta APIMuse Spark 1.3");
+    expect(screen.getByTestId("model-tier2").textContent).toBe("Tier 2 reviewMeta APIMuse Wonder 1.0");
+    expect(screen.getByTestId("model-sam").textContent).toBe("SAM 3.1Meta API");
+    expect(document.body.textContent).not.toMatch(/Glimmer|GPU/);
+  });
+
   it("names the current page in the breadcrumb, and shows none on the landing page or replay", () => {
     vi.stubGlobal("fetch", vi.fn(async () => respond({}, 404)));
     pathname = "/ci";

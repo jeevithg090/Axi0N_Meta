@@ -114,7 +114,7 @@ export function AskSignage() {
           <div className="s8">
             <div className="ctx">
               Ask (`POST /ask`) &nbsp;·&nbsp;{" "}
-              <b>Muse Spark 1.3 + SQL on SAM 3.1 tracks + Glimmer + Spark video</b>
+              <b>Muse Spark 1.3 + SQL on SAM 3.1 tracks + Tier 1 model looks + Spark video</b>
             </div>
             <h1 className="h1">
               Ask anything about what your <span className="hi">cameras saw</span>.
@@ -123,7 +123,7 @@ export function AskSignage() {
               Each question gets a fresh read-only DuckDB snapshot of the track store
               (`track_points`, `track_spans`, `captions`, identities, the supermarket checks and
               staff tasks). Muse Spark chooses its own tools step by step (SQL, SAM 3.1 counts,
-              Glimmer looks, watching the recorded clip) and every answer gets a SHA-256 run
+              Tier 1 model looks, watching the recorded clip) and every answer gets a SHA-256 run
               receipt. Answers stream live from the API; nothing on this page is scripted.
             </p>
           </div>

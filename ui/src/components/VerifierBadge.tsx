@@ -6,7 +6,7 @@ export function VerifierBadge({ metrics }: { metrics: RuntimeMetrics | null }) {
   const health = metrics.verifier;
   const failed = metrics.verifications_failed ?? 0;
   const detail = [
-    "Tier 1 (Glimmer) is unavailable: every candidate goes to the human queue.",
+    "The Tier 1 check is unavailable: every candidate goes to the human queue.",
     health?.last_error ? `Last error: ${health.last_error}.` : "",
     `${failed} candidate${failed === 1 ? "" : "s"} decided without a verdict.`,
   ]

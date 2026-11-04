@@ -35,7 +35,7 @@ describe("rule extensions", () => {
       /Muse Code CLI was not available/,
     );
     expect(reviewerNote({ ...record.review, reviewer: "spark-1.3-fallback" })).toMatch(
-      /no Spark Open key/,
+      /no Tier 2 model/,
     );
     expect(reviewerNote({ ...record.review, reviewer: "none" })).toBe("Not reviewed");
   });

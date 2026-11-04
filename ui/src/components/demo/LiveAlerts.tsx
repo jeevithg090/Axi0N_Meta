@@ -8,6 +8,7 @@ import {
   repoFile,
   type CampaignTest,
 } from "@/fixtures/live-campaign";
+import { modelLabel } from "@/lib/models";
 
 import styles from "./demo.module.css";
 
@@ -30,13 +31,17 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-/** One recorded test: the request, what the engine measured, Glimmer's verdict and the outcome. */
+/**
+ * One recorded test: the request, what the engine measured, the Tier 1 verdict and the outcome.
+ * The checker is named from the verdict's own `model_version` (Muse Glimmer 30B on 1 Nov).
+ */
 export function LiveTestCard({ test }: { test: CampaignTest }) {
   const event = firstEvent(test);
   const rule = test.rules[0];
   const limit = rule ? distanceLimit(rule.predicate) : null;
   const clip = CAMPAIGN.clips[test.clip];
   const alert = event.decision.alert;
+  const checker = modelLabel(event.verdict.model_version);
   return (
     <article
       className={`${styles.card} ${alert ? styles.alertCard : styles.rejectCard}`}
@@ -46,7 +51,7 @@ export function LiveTestCard({ test }: { test: CampaignTest }) {
         {test.id} · {test.started_at.slice(0, 10)} {test.started_at.slice(11, 16)} UTC ·{" "}
         {test.camera_id}
       </p>
-      <p className={styles.step}>{alert ? "Verified alert" : "Rejected by Glimmer · no alert"}</p>
+      <p className={styles.step}>{alert ? "Verified alert" : `Rejected by ${checker} · no alert`}</p>
       <p className={styles.quote}>“{test.request}”</p>
       {event.measurement && (
         <Row label="Distance the engine measured">
@@ -54,17 +59,17 @@ export function LiveTestCard({ test }: { test: CampaignTest }) {
           {limit !== null ? ` (the rule says under ${limit} m)` : ""}
         </Row>
       )}
-      <Row label={`Glimmer (${event.verdict.model_version})`}>
+      <Row label={`${checker} (${event.verdict.model_version})`}>
         {verdictWords(event.verdict.verdict)} · P(violation) {event.verdict.score.toFixed(2)}
       </Row>
-      <Row label="Glimmer's reasoning">
+      <Row label={`${checker}'s reasoning`}>
         <span className={styles.quote}>“{event.verdict.reason}”</span>
       </Row>
       <Row label="Decision">
         {alert ? "alert" : "no alert"} ({event.decision.reason})
       </Row>
       <Row label="Event → checked decision">
-        {seconds(event.event_to_decision_s)} (Glimmer took {seconds(event.verdict.latency_ms, "ms")}
+        {seconds(event.event_to_decision_s)} ({checker} took {seconds(event.verdict.latency_ms, "ms")}
         )
       </Row>
       <Row label="Actions recorded (dry run, nothing was sent)">{event.actions.join("; ")}</Row>
@@ -92,7 +97,8 @@ export function LiveAlerts() {
       <p>
         These three tests ran on the deployed stack on 1 Nov 2026 (the campaign&apos;s run 2, in
         prototype mode): a real stock video played into Rulecam as a phone camera, the planner built
-        the rule, and Glimmer checked every candidate on the video frames. Every value below is
+        the rule, and Muse Glimmer 30B, on our own GPUs, checked every candidate on the video
+        frames. Every value below is
         copied from the run&apos;s own records.
       </p>
       <div className={styles.cards}>

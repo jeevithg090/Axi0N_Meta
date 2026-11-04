@@ -158,7 +158,7 @@ const MASTER_ACTS: ActSpec[] = [
     camLabel: "CAM-03 · Storage Aisle 4",
     ruleId: "workplace-anomaly-person-down",
     ruleText: "Escalate sudden physical altercations, kinetic spikes (>3.5G), or person-down events.",
-    calibration: "Optical-Flow Kinetic Energy + Glimmer Multi-Frame Action Reasoning",
+    calibration: "Optical-Flow Kinetic Energy + Tier-1 Multi-Frame Action Reasoning",
     statusBadge: "CRITICAL · PHYSICAL ALTERCATION",
     isBreach: true,
     glimmerScore: "0.99",
@@ -247,7 +247,7 @@ export function MonitorSignage() {
 
   return (
     <div style={{ padding: "var(--s3) var(--gut) var(--s6)" }}>
-      <SampleDataTag what="This monitor is a scripted walkthrough: its acts, Glimmer scores, distances, interlock timings and frame hashes are written into the page." />
+      <SampleDataTag what="This monitor is a scripted walkthrough: its acts, Tier 1 scores, distances, interlock timings and frame hashes are written into the page." />
       {/* Dashboard Cockpit Control Strip */}
       <div
         style={{
@@ -436,7 +436,7 @@ export function MonitorSignage() {
               </span>
               <span style={{ color: isBreach ? "var(--color-bad)" : "var(--color-scene-cool)", fontWeight: 700 }}>
                 {viewMode === "video"
-                  ? `${currentAct.statusBadge} · GLIMMER ${currentAct.glimmerScore}`
+                  ? `${currentAct.statusBadge} · TIER 1 ${currentAct.glimmerScore}`
                   : `${isBreach ? "BREACH ACTIVE · EXCLUSION 2.0 m" : "CLEAR"} · T ${
                       t > 0 ? `+${t.toFixed(2)}` : t.toFixed(2)
                     } s`}
@@ -775,7 +775,7 @@ export function MonitorSignage() {
           </div>
         </div>
 
-        {/* Right Column: 4 Cols (Live Telemetry + Glimmer VLM Verdict + Merkle Hash Chain) */}
+        {/* Right Column: 4 Cols (Live Telemetry + Tier-1 VLM Verdict + Merkle Hash Chain) */}
         {inspectorOpen && (
         <div className="s4" style={{ display: "flex", flexDirection: "column", gap: "var(--s3)" }}>
           {/* Panel: Live Measurements */}
@@ -791,7 +791,7 @@ export function MonitorSignage() {
               Live Telemetry · {currentAct.camId}
             </div>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", borderBottom: "1px solid var(--color-rule)", paddingBottom: "12px", marginBottom: "12px" }}>
-              <span className="small">Glimmer VLM Score</span>
+              <span className="small">Tier-1 VLM Score</span>
               <div className="num" style={{ fontSize: "48px", color: wc }}>
                 {currentAct.glimmerScore}
               </div>
@@ -821,7 +821,7 @@ export function MonitorSignage() {
             </div>
           </div>
 
-          {/* Panel: Tier-1 Glimmer VLM Verification Reasoning */}
+          {/* Panel: Tier-1 VLM Verification Reasoning */}
           <div
             style={{
               border: "1px solid var(--color-rule)",
@@ -832,7 +832,7 @@ export function MonitorSignage() {
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
               <h3 className="h3" style={{ fontSize: "20px" }}>
-                Tier-1 Glimmer VLM Review
+                Tier-1 VLM Review
               </h3>
               <span className={`state ${isBreach ? "bad" : "ok"}`} style={{ fontSize: "12px", padding: "2px 8px" }}>
                 {currentAct.glimmerVerdict}
@@ -893,7 +893,7 @@ export function MonitorSignage() {
               Cryptographic Evidence Log
             </h3>
             <p className="small" style={{ marginBottom: "14px" }}>
-              Every perception window, Glimmer strip verdict, and PLC interlock action is chained with SHA-256.
+              Every perception window, Tier-1 strip verdict, and PLC interlock action is chained with SHA-256.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <Link href="/audit" className="btn" style={{ width: "100%" }}>

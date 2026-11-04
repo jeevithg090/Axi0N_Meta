@@ -32,7 +32,7 @@ function linkText(link: Link, access: Access): string {
 
 /**
  * Crowd early warning: set up from plain words, watch live (density, flow, the measured
- * countdown, Muse Spark's judgement with venue-tied actions, Glimmer's check, the three-way
+ * countdown, Muse Spark's judgement with venue-tied actions, the Tier 1 check, the three-way
  * count, steward acks and announcements), then the report with its evidence and the ground
  * truth. Visitors, and anyone while no crowd camera is live, see a recorded run.
  */
@@ -45,7 +45,7 @@ export default function CrowdPage() {
         <div>
           <h2 className={styles.title}>Crowd early warning</h2>
           <span className={styles.small}>
-            SAM 3.1 counts. Muse Spark judges and plans. Muse Glimmer checks the frames. Voice
+            SAM 3.1 counts. Muse Spark judges and plans. The Tier 1 model checks the frames. Voice
             Transcribe hears the announcements back. Every alert is chained.
           </span>
         </div>

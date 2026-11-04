@@ -2,16 +2,16 @@
 
 import type { AuditFinding } from "@/lib/plan";
 
-/** Spark Open's plan audit. Each finding links to its stored reasoning, shown word for word. */
+/** The Tier 2 model's plan audit. Each finding links to its stored reasoning, shown word for word. */
 export function AuditFindings({ findings }: { findings: AuditFinding[] }) {
   if (findings.length === 0) {
-    return <p className="muted">Spark Open found no gaps.</p>;
+    return <p className="muted">The Tier 2 audit found no gaps.</p>;
   }
   return (
     <ul className="audit" data-testid="audit-findings">
       {findings.map((f, i) => (
         <li key={`${f.reasoning_ref ?? "f"}-${i}`}>
-          <strong>Spark Open:</strong> {f.text}
+          <strong>Tier 2 audit:</strong> {f.text}
           {f.reasoning_ref && (
             <details>
               <summary>Reasoning</summary>

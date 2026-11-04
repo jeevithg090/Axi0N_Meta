@@ -239,7 +239,7 @@ const INITIAL_ADVICE_CARDS: AdviceCard[] = [
       saw: [
         {
           template:
-            "Station 3 on Prep Line A triggered {m1} head-covering false alarms suppressed by Tier-1 Glimmer, while draft advisor claimed {m2} prep cycle delay.",
+            "Station 3 on Prep Line A triggered {m1} head-covering false alarms suppressed by the Tier 1 check, while draft advisor claimed {m2} prep cycle delay.",
           slots: { m1: "mr_kitchen_suppressed", m2: "mr_hallucinated_delay" },
           grade: "B",
         },
@@ -302,7 +302,7 @@ const INITIAL_ADVICE_CARDS: AdviceCard[] = [
         recomputed: 48.2,
         sql: "SELECT ROUND(AVG(cycle_s) / 60.0, 1) FROM kitchen_station_spans WHERE station = 'prep_a3';",
         ok: false,
-        error: "Catalogue value (11.4 min) differs from Glimmer SQL recomputation (48.2 min); claim automatically redacted.",
+        error: "Catalogue value (11.4 min) differs from the Tier 1 model's SQL recomputation (48.2 min); claim automatically redacted.",
       },
     ],
     hidden: ["mr_hallucinated_delay"],
@@ -396,13 +396,13 @@ export function AdviceSignage() {
             </h1>
             <p className="lead" style={{ marginTop: "var(--s2)", maxWidth: "66ch" }}>
               Click any highlighted number in a card below to inspect the exact DuckDB/SQL query
-              Glimmer ran to verify it. Any number that does not reproduce is automatically redacted
+              the Tier 1 model ran to verify it. Any number that does not reproduce is automatically redacted
               and flagged. Accepting a recommendation hashes a switchback measurement plan onto the
               SHA-256 chain before the change starts.
             </p>
           </div>
           <div className="s4" style={{ borderLeft: "1px solid var(--color-rule-2)", paddingLeft: "var(--s3)" }}>
-            <div className="small">Glimmer SQL Verification Rate</div>
+            <div className="small">Tier 1 SQL Verification Rate</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
               {reproducedNumbers}/{totalNumbers}
             </div>
@@ -593,7 +593,7 @@ export function AdviceSignage() {
                       marginBottom: "var(--s3)",
                     }}
                   >
-                    ⚠ GLIMMER SQL AUDIT FLAG: One or more numbers in this card did not match
+                    ⚠ TIER 1 SQL AUDIT FLAG: One or more numbers in this card did not match
                     independent DuckDB recomputation and have been redacted below. Click the
                     redacted badge to inspect the discrepancy.
                   </div>
@@ -651,7 +651,7 @@ export function AdviceSignage() {
                                 key={j}
                                 type="button"
                                 onClick={() => setOpenCheck({ check: part.check, hidden: false })}
-                                title="Click to inspect Glimmer SQL query & recomputed value"
+                                title="Click to inspect the Tier 1 model's SQL query & recomputed value"
                                 style={{
                                   background: "var(--color-accent-soft)",
                                   color: "var(--color-ink)",
@@ -853,7 +853,7 @@ export function AdviceSignage() {
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Glimmer SQL Recomputation Proof"
+          aria-label="Tier 1 SQL Recomputation Proof"
           style={{
             position: "fixed",
             inset: 0,
@@ -878,7 +878,7 @@ export function AdviceSignage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span className="dm small">GLIMMER INDEPENDENT SQL RECOMPUTATION PROOF</span>
+              <span className="dm small">TIER 1 INDEPENDENT SQL RECOMPUTATION PROOF</span>
               <span className={`state ${openCheck.check.ok ? "ok" : "bad"}`}>
                 {openCheck.check.ok ? "✓ REPRODUCED EXACTLY" : "✗ MISMATCH — REDACTED"}
               </span>

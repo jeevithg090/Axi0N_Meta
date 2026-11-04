@@ -493,7 +493,7 @@ export function TasksPanel({ tasks, onChange }: { tasks: StaffTask[]; onChange: 
             <div className={styles.muted}>Spark: {t.proof.spark.summary}</div>
           )}
           {t.proof?.glimmer?.summary && (
-            <div className={styles.muted}>Glimmer: {t.proof.glimmer.summary}</div>
+            <div className={styles.muted}>Tier 1 model: {t.proof.glimmer.summary}</div>
           )}
           <div className={styles.thumbs}>
             {t.marked && (

@@ -110,11 +110,13 @@ describe("glasses helpers", () => {
     expect(verdictLabel(answer({ alert: false, severity: "info" }))).toBe("Noted, no alert");
     expect(modelName("muse-voice-transcribe-1.0")).toBe("Voice Transcribe");
     expect(modelName("other")).toBe("other");
-    expect(glimmerLabel("down")).toBe("Glimmer down · Spark looks");
-    expect(glimmerLabel("up")).toBe("Glimmer up");
-    expect(glimmerLabel("checking")).toBe("Waking Glimmer…");
-    expect(glimmerLabel("none")).toBe("No Glimmer · Spark looks");
-    expect(glimmerLabel("unknown")).toBe("Glimmer ?");
+    // The chip names the model the API says runs the first look (`look`), else the role.
+    expect(glimmerLabel("down", "muse-spark-1.3")).toBe("Muse Spark 1.3 down · Spark looks");
+    expect(glimmerLabel("up", "muse-spark-1.3")).toBe("Muse Spark 1.3 up");
+    expect(glimmerLabel("up", "muse-glimmer-30b")).toBe("Muse Glimmer 30B up");
+    expect(glimmerLabel("checking", null)).toBe("Checking the first-look model…");
+    expect(glimmerLabel("none")).toBe("No first-look model · Spark looks");
+    expect(glimmerLabel("unknown")).toBe("First look ?");
   });
 
   it("says the first line once, then the checked line", () => {

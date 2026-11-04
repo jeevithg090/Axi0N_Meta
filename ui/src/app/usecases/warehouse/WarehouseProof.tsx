@@ -11,6 +11,7 @@ import { UseCaseProof } from "@/components/usecases/UseCaseProof";
 import { goldenRun, type GoldenRun, type GoldenVerification } from "@/fixtures/golden";
 import { campaignTest, distanceLimit, firstEvent } from "@/fixtures/live-campaign";
 import { decisionText, goldenCandidates } from "@/lib/golden";
+import { modelLabel } from "@/lib/models";
 
 /** One recorded verification and the strip Glimmer looked at for it. */
 function strip(run: GoldenRun, pick: (v: GoldenVerification) => boolean) {
@@ -28,6 +29,7 @@ export function WarehouseProof() {
   const driver = goldenRun("driver_only_4m");
   const alert = passes ? strip(passes, (v) => v.tier1.verdict === "violation") : null;
   const excluded = driver ? strip(driver, (v) => v.tier1.verdict === "no_violation") : null;
+  const checker = modelLabel(reading.verdict.model_version); // the model that ran on 1 Nov
 
   return (
     <UseCaseProof
@@ -42,13 +44,13 @@ export function WarehouseProof() {
           limit !== null ? `; the rule says under ${limit} m` : ""
         }. Live run, 1 Nov (${t02.id}).`,
       }}
-      verdict={<VerdictPill verdict={reading.verdict.verdict} confidence={reading.verdict.score} />}
+      verdict={<VerdictPill verdict={reading.verdict.verdict} confidence={reading.verdict.score} model={checker} />}
       reason={reading.verdict.reason}
       chips={[
         { model: "SAM 3.1", job: "measured the gap" },
-        { model: "Muse Glimmer 30B", job: "checked the frames", ms: reading.verdict.latency_ms },
+        { model: checker, job: "checked the frames", ms: reading.verdict.latency_ms },
       ]}
-      footnote={`Event to checked decision ${formatMs(reading.event_to_decision_s * 1000)}.`}
+      footnote={`Event to checked decision ${formatMs(reading.event_to_decision_s * 1000)}. These runs were checked by ${checker} on our own GPUs.`}
       after={
         <>
           Replay both runs with no model calls:{" "}

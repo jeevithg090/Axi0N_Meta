@@ -38,7 +38,7 @@ export function LiveFrame({
             className={mode === m ? styles.tabActive : styles.tab}
             onClick={() => setMode(m)}
           >
-            {m === "frame" ? "Frame + overlay" : "Heatmap (as Glimmer sees it)"}
+            {m === "frame" ? "Frame + overlay" : "Heatmap (as the Tier 1 model sees it)"}
           </button>
         ))}
         <span className={styles.small}>

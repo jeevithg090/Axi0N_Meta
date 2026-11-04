@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 
+import { verifierLabel } from "@/lib/models";
 import type { EventView } from "@/lib/store";
 
 const VERDICT_TEXT = {
@@ -52,7 +53,10 @@ export function StripFrames({ paths }: { paths: readonly string[] }) {
   );
 }
 
-/** Predicate trace plus each verifier tier's verdict, with Spark Open's reasoning expandable. */
+/**
+ * Predicate trace plus each verifier tier's verdict, named by its role and the model that ran it
+ * (`model_version`), with the reasoning expandable.
+ */
 export function VerifierPanel({ view }: { view: EventView }) {
   const { candidate } = view;
   const error = verifierError(view);
@@ -83,7 +87,7 @@ export function VerifierPanel({ view }: { view: EventView }) {
       {view.verdicts.map((v, index) => (
         <div key={`${v.tier}-${index}`} className={`tier tier-${v.verdict}`}>
           <p>
-            <strong>{v.tier === "glimmer" ? "Tier 1 · Glimmer" : "Tier 2 · Spark Open"}</strong>{" "}
+            <strong>{verifierLabel(v.tier, v.model_version)}</strong>{" "}
             {VERDICT_TEXT[v.verdict]} ({Math.round(v.score * 100)}%) · {v.latency_ms} ms
             {v.tamper && <span className="pill pill-warn">tamper attempt</span>}
           </p>

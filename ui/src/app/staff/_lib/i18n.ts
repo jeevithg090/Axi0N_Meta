@@ -169,7 +169,7 @@ const en: Words = {
   measured: "Measured",
   sentTo: "Sent to",
   pushOn: "Alerts reach this phone even when the app is closed",
-  proofHint: "Muse Spark and Glimmer check the photo before the task closes.",
+  proofHint: "Muse Spark and the Tier 1 model check the photo before the task closes.",
 };
 
 const es: Words = {
@@ -263,7 +263,7 @@ const es: Words = {
   measured: "Medido",
   sentTo: "Enviado a",
   pushOn: "Las alertas llegan aunque la app esté cerrada",
-  proofHint: "Muse Spark y Glimmer revisan la foto antes de cerrar la tarea.",
+  proofHint: "Muse Spark y el modelo de Tier 1 revisan la foto antes de cerrar la tarea.",
 };
 
 const hi: Words = {
@@ -357,7 +357,7 @@ const hi: Words = {
   measured: "माप",
   sentTo: "भेजा गया",
   pushOn: "ऐप बंद होने पर भी अलर्ट इस फ़ोन पर आएँगे",
-  proofHint: "काम बंद होने से पहले Muse Spark और Glimmer फ़ोटो जाँचते हैं।",
+  proofHint: "काम बंद होने से पहले Muse Spark और Tier 1 मॉडल फ़ोटो जाँचते हैं।",
 };
 
 export const WORDS: Record<Lang, Words> = { en, es, hi };

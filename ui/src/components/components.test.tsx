@@ -74,14 +74,15 @@ describe("screens", () => {
           scene_text: "",
           tamper: true,
           latency_ms: 2200,
-          model_version: "meta-models/muse-spark-open-1026",
+          model_version: "muse-wonder-1.0",
         },
       ],
     };
     render(<VerifierPanel view={withSpark} />);
     const panel = screen.getByTestId("verifier-panel");
-    expect(panel.textContent).toContain("Tier 1 · Glimmer");
-    expect(panel.textContent).toContain("Tier 2 · Spark Open");
+    // Each tier is named by the model its verdict says ran (`model_version`).
+    expect(panel.textContent).toContain("Tier 1 · Muse Glimmer 30B");
+    expect(panel.textContent).toContain("Tier 2 · Muse Wonder 1.0");
     expect(panel.textContent).toContain("The trace says 8 of 20 seconds.");
     expect(panel.textContent).toContain("tamper attempt");
     expect(panel.textContent).toContain("WASH HANDS");

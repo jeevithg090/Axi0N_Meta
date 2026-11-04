@@ -30,7 +30,7 @@ const mono = localFont({
 export const metadata: Metadata = {
   title: "Rulecam: camera rules in plain words, verified by Meta models",
   description:
-    "Describe a safety rule in your own words; Rulecam plans it, proves it with Rule CI, and has Muse Glimmer check every alert.",
+    "Describe a safety rule in your own words; Rulecam plans it, proves it with Rule CI, and has a second model check every alert.",
 };
 
 export const viewport: Viewport = {

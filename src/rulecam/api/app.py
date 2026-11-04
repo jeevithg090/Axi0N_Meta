@@ -115,6 +115,7 @@ from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
 from rulecam.chain.api import chain_router
 from rulecam.clients.errors import ClientConfigError
 from rulecam.clients.meta_hosted import SparkClient, VoiceTranscribeClient
+from rulecam.clients.meta_hosted.sam_wire import SAM_MODEL
 from rulecam.clients.open_weights.glimmer import GlimmerClient, glimmer_headers
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
@@ -267,6 +268,7 @@ class AppServices:
     verify_base: str | None = None
     pdf_printer: PdfPrinter = render_pdf
     connectors: ConnectorManager | None = None  # names and first looks in `GET /cameras`
+    models: ModelsInUse | None = None  # the model each job runs on, in `GET /health`
 
 
 class RuntimeReport(LoopMetrics):
@@ -360,12 +362,79 @@ class CameraInfo(BaseModel):
     description: str | None = None  # Muse Spark's first look (`rulecam.connectors`)
 
 
+ModelHost = Literal["meta-api", "self-hosted", "hosted"]
+META_API_HOST = "api.meta.ai"
+
+
+class ModelsInUse(BaseModel):
+    """`models` in `GET /health`: the model each job runs on, as configured, and where.
+
+    The UI names models from here (or from a verdict's `model_version`), never from its own
+    copy. A host is `meta-api` (the Meta API), `self-hosted` (our own server or GPU) or `hosted`
+    (another provider, e.g. Baseten).
+
+    Attributes:
+        tier1: The Tier 1 alert check's model (`GLIMMER_MODEL`), e.g. `muse-spark-1.3`.
+        tier1_host: Where `GLIMMER_BASE_URL` points.
+        tier2: The Tier 2 model (dispute review, plan audit, Ask answer review); `None` when
+            Tier 2 is not configured.
+        tier2_host: Where Tier 2 runs; `None` when it is not configured.
+        sam: The segmenter's model.
+        sam_host: Where runtime SAM calls go: the Meta API unless our own SAM worker is set.
+    """
+
+    tier1: str
+    tier1_host: ModelHost
+    tier2: str | None = None
+    tier2_host: ModelHost | None = None
+    sam: str = SAM_MODEL
+    sam_host: ModelHost = "meta-api"
+
+
+def _model_host(base_url: str, meta_hosts: frozenset[str]) -> ModelHost:
+    return "meta-api" if urlsplit(base_url).hostname in meta_hosts else "self-hosted"
+
+
+def models_in_use(settings: Settings) -> ModelsInUse:
+    """The model each job runs on, from the same settings its client is built from.
+
+    Args:
+        settings: Application settings.
+
+    Returns:
+        The models and their hosts.
+    """
+    meta_hosts = frozenset(
+        {META_API_HOST, urlsplit(settings.meta_api_base_url or "").hostname or META_API_HOST}
+    )
+    tier2: str | None = None
+    tier2_host: ModelHost | None = None
+    if settings.spark_open_base_url:  # `spark_open_target`: an OpenAI-compatible server wins
+        tier2 = settings.spark_open_model
+        tier2_host = _model_host(settings.spark_open_base_url, meta_hosts)
+    elif settings.baseten_api_key is not None:
+        tier2, tier2_host = settings.baseten_spark_open_model, "hosted"
+    # `runtime.factory.self_hosted_worker`: our SAM pod, else Modal, else hosted SAM.
+    own_sam = (settings.sam_base_url and settings.sam_api_key is not None) or (
+        settings.modal_token_id is not None and settings.modal_token_secret is not None
+    )
+    return ModelsInUse(
+        tier1=settings.glimmer_model,
+        tier1_host=_model_host(settings.glimmer_base_url, meta_hosts),
+        tier2=tier2,
+        tier2_host=tier2_host,
+        sam=SAM_MODEL,
+        sam_host="self-hosted" if own_sam else "meta-api",
+    )
+
+
 class Health(BaseModel):
     """Body of `GET /health`.
 
     `gpus` is each GPU dependency's state (`runtime.serverless`): a serverless GPU scaled to
     zero is `cold-ready` (up; the UI says "GPU waking" while a request starts it), not down.
     `revision` is the git SHA deployed (`code_revision`), which `make ship-api` waits for.
+    `models` is the model each job runs on now (`models_in_use`); `None` when not known.
     """
 
     ok: bool
@@ -374,6 +443,7 @@ class Health(BaseModel):
     runtime: bool
     revision: str | None = None
     gpus: dict[str, GpuHealth] = {}
+    models: ModelsInUse | None = None
 
 
 def _chain_file(services: AppServices, day: date) -> Path:
@@ -403,6 +473,7 @@ def _core_router(services: AppServices, auth: OwnerAuth) -> APIRouter:
             runtime=services.runtime is not None,
             revision=services.revision,
             gpus={probe.service: probe.health() for probe in services.health_probes},
+            models=services.models,
         )
 
     @router.get("/mode")
@@ -1057,6 +1128,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         ),
         auth=auth,
         connectors=connectors,
+        models=models_in_use(settings),
         health_probes=probes,
         tickers=(
             *response.tickers,

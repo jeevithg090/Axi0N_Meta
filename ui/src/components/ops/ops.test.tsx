@@ -165,7 +165,7 @@ describe("Rule CI panel and card gallery", () => {
     render(<RuleCardTile rule={demoPlanV1.rules[0]!} ci={demoCiResults[0]} />);
     const card = screen.getByTestId("gallery-rule");
     expect(card.textContent).toContain("CI green · boundary 3/3, mutations 5/5");
-    expect(card.textContent).toContain("Checked by Glimmer + Spark Open");
+    expect(card.textContent).toContain("Checked by the Tier 1 and Tier 2 models");
     cleanup();
     render(
       <RuleCardTile rule={demoPlanV1.rules[0]!} ci={{ ...demoCiResults[0]!, ci_green: false }} />,

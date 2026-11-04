@@ -13,10 +13,11 @@ function secondsBetween(from: string | null | undefined, to: string | null | und
   return `${Math.round((new Date(to).getTime() - new Date(from).getTime()) / 1000)} s`;
 }
 
-function checkText(alert: CrowdAlert): string {
+/** The frame check in words; `checker` names the model that ran it (the role when unknown). */
+function checkText(alert: CrowdAlert, checker: string): string {
   if (alert.check) {
     const verdict = alert.check.agrees ? "confirmed" : "did not see it";
-    return `Muse Glimmer ${verdict} (${Math.round(alert.check.confidence * 100)}%): ${alert.check.seen}`;
+    return `${checker} ${verdict} (${Math.round(alert.check.confidence * 100)}%): ${alert.check.seen}`;
   }
   return alert.check_note ?? "No frame check";
 }
@@ -62,10 +63,13 @@ export function AlertsPanel({
   alerts,
   acks,
   readOnly = false,
+  checker = "The Tier 1 check",
 }: {
   alerts: CrowdAlert[];
   acks: Record<string, AckState>;
   readOnly?: boolean;
+  /** Who checked the frames: a recorded run's model, else the role. */
+  checker?: string;
 }) {
   const [role, setRole] = useState("stewards");
   const [autoplay, setAutoplay] = useState(false);
@@ -166,7 +170,7 @@ export function AlertsPanel({
             </span>
           </div>
           <span>{alert.assessment.why}</span>
-          <span className={styles.small}>{alert.held_reason ?? checkText(alert)}</span>
+          <span className={styles.small}>{alert.held_reason ?? checkText(alert, checker)}</span>
           {alert.sent && <AckLine ack={acks[alert.alert_id]} />}
           {alert.sent && !readOnly && (
             <div className={styles.row}>

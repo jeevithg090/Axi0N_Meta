@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 from starlette.websockets import WebSocketDisconnect
 
 from rulecam.api.app import (
@@ -21,6 +22,7 @@ from rulecam.api.app import (
     code_revision,
     create_app,
     find_plan,
+    models_in_use,
     openapi_json,
     services_from_settings,
     viewer_origins,
@@ -76,6 +78,7 @@ def test_health_and_mode(services: AppServices) -> None:
             "runtime": False,
             "revision": None,
             "gpus": {},
+            "models": None,
         }
         assert client.get("/mode").json() == {"mode": "replay", "badge": "REPLAY"}
         assert client.put("/mode", json={"mode": "live"}).json() == {
@@ -117,6 +120,63 @@ def test_health_serves_each_gpu_state(services: AppServices) -> None:
         "workers": None,
         "error": None,
     }
+
+
+def test_health_names_the_model_each_job_runs_on(services: AppServices) -> None:
+    on_meta_api = Settings(
+        _env_file=None,
+        meta_api_base_url="https://api.meta.ai/v1",
+        glimmer_base_url="https://api.meta.ai/v1",
+        glimmer_model="muse-spark-1.3",
+        spark_open_base_url="https://api.meta.ai/v1",
+        spark_open_model="muse-wonder-1.0",
+        sam_base_url=None,
+        modal_token_id=None,
+        modal_token_secret=None,
+    )
+    services.models = models_in_use(on_meta_api)
+    with TestClient(create_app(services), **TUNNEL) as client:  # type: ignore[arg-type]
+        assert client.get("/health").json()["models"] == {
+            "tier1": "muse-spark-1.3",
+            "tier1_host": "meta-api",
+            "tier2": "muse-wonder-1.0",
+            "tier2_host": "meta-api",
+            "sam": "sam-3.1",
+            "sam_host": "meta-api",
+        }
+
+
+def test_models_in_use_says_where_each_model_runs() -> None:
+    own_gpus = models_in_use(
+        Settings(
+            _env_file=None,
+            glimmer_base_url="https://g.api.runpod.ai/v1",
+            glimmer_model="muse-glimmer-30b",
+            spark_open_base_url="https://s.api.runpod.ai/v1",
+            spark_open_model="muse-spark-open",
+            sam_base_url="https://sam.api.runpod.ai",
+            sam_api_key=SecretStr("k"),
+        )
+    )
+    assert (own_gpus.tier1, own_gpus.tier1_host) == ("muse-glimmer-30b", "self-hosted")
+    assert (own_gpus.tier2, own_gpus.tier2_host) == ("muse-spark-open", "self-hosted")
+    assert own_gpus.sam_host == "self-hosted"
+    no_tier2 = models_in_use(
+        Settings(
+            _env_file=None,
+            spark_open_base_url=None,
+            baseten_api_key=None,
+            sam_base_url=None,
+            modal_token_id=None,
+            modal_token_secret=None,
+        )
+    )
+    assert (no_tier2.tier2, no_tier2.tier2_host) == (None, None)
+    assert no_tier2.sam_host == "meta-api"
+    baseten = models_in_use(
+        Settings(_env_file=None, spark_open_base_url=None, baseten_api_key=SecretStr("k"))
+    )
+    assert (baseten.tier2, baseten.tier2_host) == ("meta-models/muse-spark-open-1026", "hosted")
 
 
 def test_evidence_routes(services: AppServices) -> None:

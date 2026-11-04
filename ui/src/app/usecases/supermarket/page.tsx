@@ -142,7 +142,7 @@ export default function SupermarketPage() {
         <h2 className={styles.pageTitle}>Supermarket</h2>
         <p className={styles.lead}>
           Your cameras already see the queue, the empty shelf and the spill. Ask anything in your
-          own language; Muse Spark answers from what SAM 3.1 tracked and Muse Glimmer saw, turns the
+          own language; Muse Spark answers from what SAM 3.1 tracked and the Tier 1 model saw, turns the
           answer into a change you can test, watches for it, tells the right person with the photo,
           checks the fix twice and keeps a receipt. Everything below is live on this store’s
           cameras.
@@ -165,7 +165,7 @@ export default function SupermarketPage() {
           { name: "Ask", text: "Typed or spoken, any language; the answer is read aloud.", state: answer !== null ? "done" : "todo" },
           { name: "Advice", text: "A card with a pre-registered check; its numbers must be in the answer's evidence.", state: shownCard !== null ? "done" : "todo" },
           { name: "Watch", text: "Queue, hazard and shelf checks tell the right person, with the photo.", state: alerted.length > 0 ? "done" : "todo" },
-          { name: "Fixed", text: "A staff photo checked by Spark and Glimmer closes the task; the time goes on the chain.", state: tasks.some((t) => t.status === "done") ? "done" : "todo" },
+          { name: "Fixed", text: "A staff photo checked by Spark and the Tier 1 model closes the task; the time goes on the chain.", state: tasks.some((t) => t.status === "done") ? "done" : "todo" },
           { name: "Brief", text: "Muse Spark writes the owner's brief from the stored checks and tasks.", state: (brief ?? overview?.brief) != null ? "done" : "todo" },
         ]}
       />
@@ -216,7 +216,7 @@ export default function SupermarketPage() {
           n={4}
           title="Fixed, and proven fixed"
           done={tasks.some((t) => t.status === "done")}
-          note="a staff photo checked by Spark and Glimmer, or a clean camera re-check; time to fix goes on the evidence chain"
+          note="a staff photo checked by Spark and the Tier 1 model, or a clean camera re-check; time to fix goes on the evidence chain"
         >
           <TasksPanel tasks={tasks} onChange={() => void refresh()} />
         </Step>

@@ -15,7 +15,7 @@ export function RuleCardTile({ rule, ci }: { rule: Rule; ci?: CIResult }) {
       <p className="gallery-ci" data-green={ci?.ci_green}>
         {ci ? `${ci.ci_green ? "CI green" : "CI red"} · ${ci.summary}` : "Rule CI pending"}
       </p>
-      <p className="muted">Checked by Glimmer + Spark Open</p>
+      <p className="muted">Checked by the Tier 1 and Tier 2 models</p>
       <p className="visually-hidden">{ruleSentence(rule)}</p>
     </article>
   );

@@ -115,7 +115,7 @@ export function GlassesMode() {
   const source: Source = still ? "upload" : "phone-camera";
   const latest = answers[0] ?? null;
 
-  // Asking for the status also wakes Glimmer up, so a cold worker starts before the first question.
+  // Asking for the status also wakes the first-look model, so a cold worker starts early.
   useEffect(() => {
     if (!owner) return;
     const load = (): void => {
@@ -451,7 +451,7 @@ export function GlassesMode() {
           {busy && <span className={styles.chip}>{busy}</span>}
           {status && (
             <span className={status.glimmer === "down" ? styles.chipWarn : styles.chip}>
-              {glimmerLabel(status.glimmer)}
+              {glimmerLabel(status.glimmer, status.look)}
             </span>
           )}
         </div>

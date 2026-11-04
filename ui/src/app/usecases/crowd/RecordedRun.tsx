@@ -1,5 +1,7 @@
 "use client";
 
+import { modelLabel } from "@/lib/models";
+
 import { AlertsPanel } from "./AlertsPanel";
 import styles from "./crowd.module.css";
 import type {
@@ -34,6 +36,12 @@ interface Recorded {
 
 const run = recorded as unknown as Recorded;
 
+/** The model that checked this run's frames, as its chained verdict records it (Muse Glimmer 30B). */
+const checker =
+  modelLabel(
+    (run.report.evidence.records as { kind: string; tier?: string }[]).find((r) => r.kind === "verdict")?.tier,
+  ) || undefined;
+
 /**
  * A run the live system recorded (4 Nov 2026), shown to visitors and whenever no crowd camera is
  * live: Spark's decision with the route guard, the three-way count, the steward loop, the
@@ -57,7 +65,7 @@ export function RecordedRun() {
             readingAt={run.alert.at}
             seconds={null}
           />
-          <TallyCard tally={peak} />
+          <TallyCard tally={peak} checker={checker} />
           {run.phase.main && (
             <div className={styles.card}>
               <h3>Main gate approach</h3>
@@ -79,6 +87,7 @@ export function RecordedRun() {
             alerts={[run.alert, ...run.side_alerts]}
             acks={{ [run.alert.alert_id]: run.ack }}
             readOnly
+            checker={checker}
           />
         </div>
       </div>

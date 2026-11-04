@@ -61,6 +61,22 @@ describe("UseCaseFrame", () => {
     expect(screen.getByTestId("usecase-status").textContent).toContain("warm");
   });
 
+  it("names the Tier 1 check's model and host from /health", async () => {
+    const models = { tier1: "muse-spark-1.3", tier1_host: "meta-api", tier2: null, sam: "sam-3.1", sam_host: "meta-api" };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ ok: true, mode: "live", gpus: { glimmer: { state: "warm" } }, models }))),
+    );
+    render(
+      <UseCaseFrame>
+        <p>live data</p>
+      </UseCaseFrame>,
+    );
+    await waitFor(() => expect(screen.getByTestId("usecase-status").textContent).toContain("Muse Spark 1.3"));
+    expect(screen.getByTestId("usecase-status").textContent).toContain("Tier 1 · Muse Spark 1.3 Meta API");
+    expect(screen.getByTestId("usecase-status").textContent).not.toContain("GPU");
+  });
+
   it("says REPLAY on a golden replay and polls nothing", () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);

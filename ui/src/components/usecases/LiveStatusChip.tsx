@@ -1,14 +1,15 @@
 "use client";
 
 import { LiveBadge, Skeleton } from "@/components/kit";
-import { gpuLine, healthBadge, useSharedHealth } from "@/lib/health";
+import { healthBadge, useSharedHealth } from "@/lib/health";
+import { modelRows } from "@/lib/models";
 import { useDemo } from "@/lib/stream";
 
 import styles from "./usecases.module.css";
 
 /**
  * The system's state in one line for a use-case page: REPLAY on a golden replay (no polling),
- * otherwise LIVE or OFFLINE from `GET /health` with the verifier GPU's state.
+ * otherwise LIVE or OFFLINE from `GET /health` with the Tier 1 check's model and state.
  */
 export function LiveStatusChip() {
   const demo = useDemo();
@@ -28,7 +29,7 @@ export function LiveStatusChip() {
       </p>
     );
   }
-  const glimmer = load.phase === "ok" ? gpuLine(load.health.gpus?.glimmer) : null;
+  const tier1 = load.phase === "ok" ? modelRows(load.health)[0] : undefined;
   return (
     <p className={styles.status} data-testid="usecase-status">
       <LiveBadge mode={healthBadge(load) === "LIVE" ? "live" : healthBadge(load) === "REPLAY" ? "replay" : "offline"} />
@@ -37,7 +38,7 @@ export function LiveStatusChip() {
           "API not reachable just now"
         ) : (
           <>
-            Glimmer GPU <b>{glimmer?.state ?? "unknown"}</b>
+            {tier1?.model ? `Tier 1 · ${tier1.model}` : "Tier 1 check"} <b>{tier1?.status ?? "unknown"}</b>
           </>
         )}
       </span>

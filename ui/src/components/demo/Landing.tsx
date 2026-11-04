@@ -16,6 +16,9 @@ import {
 import { UseCaseStill } from "@/components/usecases/UseCaseStill";
 import { WORLDS } from "@/components/usecases/worlds";
 
+import { modelLabel, ROLES } from "@/lib/models";
+
+import { ModelMap, type FixedModel } from "./ModelMap";
 import { SystemStatus } from "./SystemStatus";
 import styles from "./landing.module.css";
 
@@ -39,34 +42,27 @@ export const STEPS = [
   },
   {
     name: "Trust",
-    text: "Glimmer checks every alert on the video frames. Every decision goes into a hash-chained log you can check yourself.",
+    text: "A second model checks every alert on the video frames. Every decision goes into a hash-chained log you can check yourself.",
   },
 ] as const;
 
-/** Which models carry each step, with the state the model map below gives them today. */
+/** Which models carry each step; Trust names its roles, and the model map below names their models. */
 const STEP_MODELS: Record<(typeof STEPS)[number]["name"], FlowStep["models"]> = {
   Describe: ["Muse Voice Transcribe", "Muse Spark 1.3"],
   Plan: ["Muse Spark 1.3", "SAM 3.1"],
   Prove: [{ model: "Rule CI", meta: false }, { model: "Muse Image", state: "off" }],
-  Trust: ["Muse Glimmer 30B", { model: "Muse Spark Open", state: "skipped" }],
+  Trust: [ROLES.tier1, ROLES.tier2],
 };
 
-/** Which Meta model does what, with the status the README's model map gives it today. */
-export const MODELS = [
+/**
+ * The Meta models whose job does not depend on the deployment. The Tier 1 check, the Tier 2 review
+ * and SAM 3.1 are named from `GET /health` by `ModelMap`, never from a copy here.
+ */
+export const MODELS: readonly FixedModel[] = [
   {
     model: "Muse Spark 1.3",
     job: "Plans the job, compiles the rule, answers the owner's questions (Ask)",
     status: "Live",
-  },
-  {
-    model: "SAM 3.1",
-    job: "Finds and tracks people and objects; probes what each camera can see",
-    status: "Live (Meta API + our serverless GPU)",
-  },
-  {
-    model: "Muse Glimmer 30B (open weights)",
-    job: "Checks every alert on the video frames before anyone is bothered",
-    status: "Live (our serverless GPU)",
   },
   { model: "Muse Voice Transcribe", job: "Spoken requests", status: "Live" },
   {
@@ -74,18 +70,13 @@ export const MODELS = [
     job: "Screens text seen in the scene before it reaches the checker",
     status: "Wired; degraded in this deployment",
   },
-  {
-    model: "Muse Spark Open (open weights)",
-    job: "Second opinion and plan audit",
-    status: "Wired; skipped here (no Baseten key)",
-  },
   { model: "Muse Image", job: "Test scenes for Rule CI", status: "Built; switched off in the app" },
   {
     model: "Muse Code",
     job: "Writes a new check when the rule language cannot say it; runs only after the owner approves",
     status: "Built; owner-only (Extensions)",
   },
-] as const;
+];
 
 export { WORLDS } from "@/components/usecases/worlds";
 
@@ -140,6 +131,7 @@ function AlertProof() {
   const limit = rule ? distanceLimit(rule.predicate) : null;
   const value = event.measurement?.value ?? null;
   const at = event.ts_start.slice(11, 19);
+  const checker = modelLabel(event.verdict.model_version); // the model that ran on 1 Nov
   return (
     <figure className={styles.proof} aria-labelledby="proof-caption" data-testid="alert-proof">
       <div className={styles.proofHead}>
@@ -173,7 +165,7 @@ function AlertProof() {
       </div>
 
       <div className={styles.proofVerdict}>
-        <VerdictPill verdict={event.verdict.verdict} confidence={event.verdict.score} model="Glimmer" />
+        <VerdictPill verdict={event.verdict.verdict} confidence={event.verdict.score} model={checker} />
         <p className={styles.proofReason}>{event.verdict.reason}</p>
       </div>
 
@@ -185,14 +177,14 @@ function AlertProof() {
           <ModelChip model="SAM 3.1" job="measured the gap" />
         </li>
         <li>
-          <ModelChip model="Muse Glimmer 30B" job="checked the frames" ms={event.verdict.latency_ms} />
+          <ModelChip model={checker} job="checked the frames" ms={event.verdict.latency_ms} />
         </li>
       </ul>
 
       <figcaption id="proof-caption" className={styles.proofCaption}>
         <span>
           Event to checked decision <b className="measured">{formatMs(event.event_to_decision_s * 1000)}</b>.
-          Recorded on the deployed stack; not live now.
+          Recorded on the deployed stack, checked by {checker} on our own GPUs; not live now.
         </span>
         <a href={repoFile(CAMPAIGN.source)} className={styles.proofSource}>
           The run&apos;s record
@@ -297,28 +289,7 @@ export function Landing() {
             </h2>
             <p className={styles.headLine}>What runs in the deployed app today, said plainly.</p>
           </div>
-          <div className="scroll-x">
-            <table className={styles.models}>
-              <thead>
-                <tr>
-                  <th scope="col">Model</th>
-                  <th scope="col">Job</th>
-                  <th scope="col">Today</th>
-                </tr>
-              </thead>
-              <tbody>
-                {MODELS.map((m) => (
-                  <tr key={m.model}>
-                    <th scope="row">{m.model}</th>
-                    <td>{m.job}</td>
-                    <td className={styles.modelStatus} data-live={m.status.startsWith("Live") ? "true" : "false"}>
-                      {m.status}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ModelMap fixed={MODELS} />
         </div>
       </section>
 

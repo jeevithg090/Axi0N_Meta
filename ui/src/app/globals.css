@@ -1030,10 +1030,11 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
 
 .side-foot { flex-shrink: 0; border-top: var(--rule-hair) solid var(--color-rule); padding: var(--space-sm); display: grid; gap: var(--space-sm); }
 .gpu-list { display: grid; gap: var(--space-2xs); margin: 0; font-size: var(--text-sm); }
-.gpu-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-xs); }
+.gpu-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0 var(--space-xs); }
 .gpu-row dt { color: var(--color-muted); }
 .gpu-row dd { font-family: var(--font-outlier); color: var(--color-cool); }
 .gpu-row dd[data-state="unknown"] { color: var(--color-muted); }
+.gpu-row dd.gpu-model { flex-basis: 100%; font-family: inherit; color: var(--color-ink); }
 .session-line { display: flex; justify-content: space-between; align-items: center; gap: var(--space-xs); font-size: var(--text-sm); color: var(--color-muted); }
 .session-line a { color: var(--color-ink); text-decoration: underline; text-decoration-color: var(--color-rule-2); text-underline-offset: 0.18em; }
 .shell-sidebar[data-collapsed="true"] .gpu-list,

@@ -1,10 +1,11 @@
 // Glasses mode (`/wearables`, owner-only): the wearer's point of view goes to Rulecam one frame at
-// a time, with a push-to-talk question or none (patrol). Muse Glimmer looks, SAM 3.1 counts and
-// Muse Spark answers; the answer comes back ready to speak. Safety walks collect the frames and
+// a time, with a push-to-talk question or none (patrol). The first-look model (the Tier 1 model,
+// named by `GET /wearables/status`) looks, SAM 3.1 counts and Muse Spark answers; the answer comes back ready to speak. Safety walks collect the frames and
 // end in a report chained as evidence.
 
 import { ApiError, withCsrf } from "@/lib/api";
 import { API_PROXY } from "@/lib/config";
+import { modelLabel } from "@/lib/models";
 import type { Alert } from "@/lib/ops";
 
 export type Mode = "aisle" | "warehouse" | "crowd" | "general";
@@ -123,19 +124,24 @@ export interface WearablesStatus {
 
 export type GlimmerState = "unknown" | "checking" | "up" | "down" | "none";
 
-/** The HUD chip for Glimmer's state. */
-export function glimmerLabel(state: GlimmerState): string {
+/**
+ * The HUD chip for the first-look model's state (`glimmer` in the status), named from `look`, the
+ * model the API runs it on; "First look" when the API did not say.
+ */
+export function glimmerLabel(state: GlimmerState, look?: string | null): string {
+  const name = modelLabel(look);
+  const who = name || "First look";
   switch (state) {
     case "up":
-      return "Glimmer up";
+      return `${who} up`;
     case "down":
-      return "Glimmer down · Spark looks";
+      return `${who} down · Spark looks`;
     case "checking":
-      return "Waking Glimmer…";
+      return `Checking ${name || "the first-look model"}…`;
     case "none":
-      return "No Glimmer · Spark looks";
+      return "No first-look model · Spark looks";
     default:
-      return "Glimmer ?";
+      return `${who} ?`;
   }
 }
 

@@ -45,7 +45,7 @@ describe("LiveBadge", () => {
 });
 
 describe("VerdictPill", () => {
-  it("folds Glimmer's verdicts onto yes, no and unsure", () => {
+  it("folds the verifier's verdicts onto yes, no and unsure", () => {
     expect(normaliseVerdict("violation")).toBe("yes");
     expect(normaliseVerdict("no_violation")).toBe("no");
     expect(normaliseVerdict("uncertain")).toBe("unsure");
@@ -53,18 +53,18 @@ describe("VerdictPill", () => {
     expect(normaliseVerdict(null)).toBe("unsure");
   });
 
-  it("names the model, the verdict and the score", () => {
+  it("names the role when no model is given, then the verdict and the score", () => {
     render(<VerdictPill verdict="violation" confidence={0.99} />);
     const pill = screen.getByTestId("verdict-pill");
     expect(pill.getAttribute("data-verdict")).toBe("yes");
-    expect(pill.textContent).toContain("Glimmer says violation, P(violation) 0.99");
+    expect(pill.textContent).toContain("Tier 1 says violation, P(violation) 0.99");
     expect(pill.textContent).toContain("0.99");
   });
 
   it("leaves the score out when there is none", () => {
-    render(<VerdictPill verdict="no" model="Spark Open" />);
+    render(<VerdictPill verdict="no" model="Muse Wonder 1.0" />);
     const pill = screen.getByTestId("verdict-pill");
-    expect(pill.textContent).toContain("Spark Open says no violation");
+    expect(pill.textContent).toContain("Muse Wonder 1.0 says no violation");
     expect(pill.textContent).not.toMatch(/\d\.\d\d/);
   });
 });

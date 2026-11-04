@@ -6,8 +6,11 @@ import styles from "./crowd.module.css";
 import type { ZoneTally } from "./crowdApi";
 import { clock, fileUrl } from "./crowdApi";
 
-/** The hottest zone counted three ways: SAM 3.1, Muse Spark pointing, Muse Glimmer. */
-export function TallyCard({ tally }: { tally: ZoneTally | null }) {
+/**
+ * The hottest zone counted three ways: SAM 3.1, Muse Spark pointing and the Tier 1 model
+ * (`checker`: a recorded run's model, else the role).
+ */
+export function TallyCard({ tally, checker = "Tier 1 model" }: { tally: ZoneTally | null; checker?: string }) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   if (!tally) {
     return (
@@ -20,7 +23,7 @@ export function TallyCard({ tally }: { tally: ZoneTally | null }) {
   const counts: [string, number | null][] = [
     ["SAM 3.1", tally.sam],
     ["Muse Spark (points)", tally.spark],
-    ["Muse Glimmer", tally.glimmer],
+    [checker, tally.glimmer],
   ];
   return (
     <div className={styles.card}>
@@ -71,7 +74,7 @@ export function TallyCard({ tally }: { tally: ZoneTally | null }) {
       )}
       <span className={styles.small}>
         Cyan dots: where Muse Spark pointed.{" "}
-        {tally.glimmer_note ? `Glimmer: ${tally.glimmer_note}` : ""}
+        {tally.glimmer_note ? `${checker}: ${tally.glimmer_note}` : ""}
         {tally.notes.length ? ` (${tally.notes.join("; ")})` : ""} Muse Spark weighs the range in
         its next assessment.
       </span>

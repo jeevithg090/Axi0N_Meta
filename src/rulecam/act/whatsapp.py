@@ -54,6 +54,7 @@ MAX_TITLE_CHARS = 20
 ID_SEPARATOR = "|"
 HEADER_TYPES = {"image/png": "image", "image/jpeg": "image", "video/mp4": "video"}
 GRAPH_TIMEOUT_S = 10.0
+VOICE_TYPE = "audio/ogg"
 REPLAY_WINDOW = timedelta(minutes=10)
 SEEN_CAPACITY = 4096
 
@@ -228,6 +229,55 @@ class WhatsAppNotifier:
         )
         media_id = reply.body.get("id") if isinstance(reply.body, dict) else None
         return (str(media_id), kind) if media_id else None
+
+    def voice_note(self, role: str, audio: bytes, *, filename: str) -> str | None:
+        """Send `role` a voice note (Ogg/Opus) when its 24-hour window is open.
+
+        Args:
+            role: The role; its number comes from `WHATSAPP_RECIPIENTS`, never from a caller.
+            audio: The Ogg/Opus voice note (WhatsApp plays it as a voice message).
+            filename: The upload's file name.
+
+        Returns:
+            The WhatsApp message id, or `None` when the role has no number or its window is
+            closed (nothing is sent then).
+
+        Raises:
+            WhatsAppError: When the Graph API refuses the upload or the message.
+        """
+        number = self._recipients.get(role)
+        if number is None or not self.window_open(role):
+            _log.info("whatsapp_voice_skipped", role=role, configured=number is not None)
+            return None
+        upload = self._call(
+            {
+                "method": "POST",
+                "path": f"/{self._phone_id}/media",
+                "form": {"messaging_product": "whatsapp", "type": VOICE_TYPE},
+                "file": {"filename": filename, "content_type": VOICE_TYPE, "content": audio},
+            }
+        )
+        media_id = upload.body.get("id") if isinstance(upload.body, dict) else None
+        if not media_id:
+            msg = "WhatsApp media upload returned no id"
+            raise WhatsAppError(msg)
+        reply = self._call(
+            {
+                "method": "POST",
+                "path": f"/{self._phone_id}/messages",
+                "json": {
+                    "messaging_product": "whatsapp",
+                    "to": number,
+                    "type": "audio",
+                    "audio": {"id": str(media_id), "voice": True},
+                },
+            }
+        )
+        messages = reply.body.get("messages") if isinstance(reply.body, dict) else None
+        first = messages[0] if isinstance(messages, list) and messages else {}
+        message_id = first.get("id") if isinstance(first, dict) else None
+        _log.info("whatsapp_voice_sent", role=role)
+        return str(message_id) if message_id else ""
 
     def send(
         self,

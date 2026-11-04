@@ -196,6 +196,25 @@ def test_inside_the_window_it_sends_buttons_with_the_clip(tmp_path: Path) -> Non
     assert not rig.wa.window_open("aide")
 
 
+def test_voice_note_goes_only_inside_the_window_as_a_voice_message(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    assert rig.wa.voice_note("aide", b"OggS", filename="w.ogg") is None  # window closed
+    assert rig.wa.voice_note("stranger", b"OggS", filename="w.ogg") is None
+    assert rig.graph.requests == []
+    rig.wa.opened("aide")
+    assert rig.wa.voice_note("aide", b"OggS", filename="w.ogg") == "wamid.1"
+    upload, message = rig.graph.requests
+    assert upload["form"] == {"messaging_product": "whatsapp", "type": "audio/ogg"}
+    body = message["json"]
+    assert isinstance(body, dict)
+    assert body["type"] == "audio"
+    assert body["audio"] == {"id": "media-123", "voice": True}
+    failing = Rig(tmp_path / "f", FakeGraph(status=500))
+    failing.wa.opened("aide")
+    with pytest.raises(WhatsAppError):
+        failing.wa.voice_note("aide", b"OggS", filename="w.ogg")
+
+
 def test_a_whatsapp_failure_never_loses_the_alert(tmp_path: Path) -> None:
     rig = Rig(tmp_path, FakeGraph(status=500))
     rig.wa.opened("aide")

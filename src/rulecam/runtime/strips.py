@@ -15,7 +15,8 @@ For every candidate the loop hands over, `EpisodeStrips.render`:
    estimated on the decoded keyframe, so the skeleton, the head blur and the `hands` PPE region
    follow the real body rather than a figure fitted to the box;
 4. draws boxes, the rule's polygon zones and, where the plan has a calibration for the camera, a
-   **distance ruler** from the subject's foot to the nearest other object's foot with a
+   **distance ruler** from the subject's foot to the nearest point of the nearest other object's
+   ground footprint (the geometry the rule measured) with a
    one-metre tick on the ground; every word (a caption with the frame, the offset from the
    episode start, the rule id and the measured value, and a colour legend with the concepts and
    the ground distance in metres) goes in Rulecam's **annotation band** below the frame, never
@@ -48,6 +49,7 @@ from typing import Final, Protocol
 
 import cv2
 import numpy as np
+import numpy.typing as npt
 
 from rulecam.contracts import (
     Calibration,
@@ -327,10 +329,29 @@ def unproject(calibration: Calibration, point_m: PointXY) -> PointXY | None:
     return (float(x / w), float(y / w))
 
 
+def footprint_point(
+    here: npt.NDArray[np.float64], other: TrackPoint, calibration: Calibration
+) -> npt.NDArray[np.float64]:
+    """The point of the other object's ground footprint nearest to `here` (metres).
+
+    The footprint is the projected bottom edge of its box: the geometry `distance_m` measures
+    with a calibration (`rules.scene.footprint_distance`), so the ruler shows the rule's number,
+    not the gap to the middle of a wide vehicle. Falls back to its foot point.
+    """
+    x1, _, x2, y2 = other.box_xyxy
+    ends = project(calibration, np.asarray([[x1, y2], [x2, y2]], dtype=np.float64))
+    if np.isnan(ends).any():
+        return np.asarray(ground(other, calibration), dtype=np.float64)
+    start, edge = ends[0], ends[1] - ends[0]
+    length_sq = float(edge @ edge)
+    t = 0.0 if length_sq == 0 else min(max(float((here - start) @ edge) / length_sq, 0.0), 1.0)
+    return np.asarray(start + t * edge, dtype=np.float64)
+
+
 def distance_ruler(
     subject: TrackPoint, others: Sequence[TrackPoint], calibration: Calibration, scale: float
 ) -> Ruler | None:
-    """The ruler from the subject's foot to the nearest other object's foot, in strip pixels.
+    """The ruler from the subject's foot to the nearest other object's footprint (strip px).
 
     Args:
         subject: The subject's point at this keyframe (chunk pixels).
@@ -343,17 +364,18 @@ def distance_ruler(
     """
     if not others:
         return None
-    here = np.asarray(ground(subject, calibration))
-    spots = [(other, np.asarray(ground(other, calibration))) for other in others]
+    here = np.asarray(ground(subject, calibration), dtype=np.float64)
+    spots = [(other, footprint_point(here, other, calibration)) for other in others]
     other, there = min(spots, key=lambda s: float(np.hypot(*(s[1] - here))))
     metres = float(np.hypot(*(there - here)))
     direction = (there - here) / metres if metres > 0 else np.asarray([1.0, 0.0])
     a = unproject(calibration, (float(here[0]), float(here[1])))
     b = unproject(calibration, (float(here[0] + direction[0]), float(here[1] + direction[1])))
     tick = None if a is None or b is None else (_scaled(a, scale), _scaled(b, scale))
+    end = unproject(calibration, (float(there[0]), float(there[1]))) or other.foot_px
     return Ruler(
         a=_scaled(subject.foot_px, scale),
-        b=_scaled(other.foot_px, scale),
+        b=_scaled(end, scale),
         metres=metres,
         tick=tick,
     )

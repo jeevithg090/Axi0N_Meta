@@ -1,7 +1,6 @@
-# PENDING golden run T02 (1 Nov campaign: Glimmer "violation" 0.99, a verified alert): the worker
-# walks past the moving forklift about 2.9 m away, inside the 4 m rule. Not under scenarios/ yet,
-# so `make golden-verify` skips it: record it (scenarios/README.md, "Recording T02 and T04"),
-# then `git mv scenarios/pending/worker_passes_4m.yaml scenarios/`.
+# Golden run T02 (1 Nov campaign), recorded live on 2 Nov (scenarios/README.md, "Recording T02 and
+# T04"): the worker walks past the moving forklift inside the 4 m rule, Glimmer confirms the
+# violation and a verified alert is raised.
 name: worker_passes_4m
 description: >-
   A worker walks past a moving forklift about 2.9 m from it. The planner compiles "keep people

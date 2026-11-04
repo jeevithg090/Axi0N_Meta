@@ -157,6 +157,7 @@ from rulecam.rule_ci import prove_plan_hook
 from rulecam.rule_ci.hard_negatives import HardNegatives
 from rulecam.runtime.activate import Activation, PlanActivator, restore_activation
 from rulecam.runtime.cost import CostMeter, CostReport, CostSettings, CostWatch
+from rulecam.runtime.coverage_log import CoverageLog
 from rulecam.runtime.factory import (
     ChainEventSource,
     ChunkIndex,
@@ -175,8 +176,10 @@ from rulecam.runtime.serverless import GpuHealth, RunPodServerless
 from rulecam.staff.factory import build_staff
 from rulecam.verify.tier2 import SparkOpenVerifier
 from rulecam.voice_out.tts import MmsTts
+from rulecam.warehouse.api import build_warehouse
 from rulecam.worker import DisputeService, worker_router
 from rulecam.worker.disputes import DisputeReviewer
+from rulecam.worker.spark_review import spark_dispute_reviewer
 
 _log = get_logger(__name__)
 
@@ -1022,7 +1025,14 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             *ask_tickers,
             *crowd_tickers,
         ),
-        pollers=response.pollers(false_alarm),
+        pollers=(
+            *response.pollers(false_alarm),
+            *(
+                (CoverageLog(perception.chunks, chain).poll,)
+                if settings.rulecam_coverage_log
+                else ()
+            ),
+        ),
         response=response.status,
         cost=watch.report if watch is not None else None,
         routers=(
@@ -1034,7 +1044,9 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 chain=chain,
                 plans=plans,
                 client_address=client_address,
-                reviewer=response.policy,
+                reviewer=spark_dispute_reviewer(
+                    settings, response.policy, cache=cache, clock=clock, bus=bus
+                ),
                 hard_negatives=hard_negatives,
             ),
             owner_alerts_router(response, on_false_alarm=false_alarm),
@@ -1057,6 +1069,19 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             extensions.router(_OWNER),
             chain_router(settings.rulecam_chains_dir, dependencies=_OWNER),
             connectors_router(connectors, dependencies=_OWNER),
+            build_warehouse(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                chain=chain,
+                plans=plans,
+                runtime=runtime,
+                perception=perception,
+                planner=planner,
+                whatsapp=response.whatsapp,
+                dependencies=_OWNER,
+            ),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
             build_proof_router(
@@ -1333,6 +1358,11 @@ def crowd_tts(bus: Bus) -> TTS | None:
         _log.info("crowd_tts_off", reason="the ml extra (transformers) is not installed")
         return None
     return MmsTts(bus)
+
+
+def coverage(settings: Settings, perception: Perception, chain: EventChain) -> CoverageLog | None:
+    """The coverage log that chains BLIND / OK changes, unless turned off."""
+    return CoverageLog(perception.chunks, chain) if settings.rulecam_coverage_log else None
 
 
 def cost_watch(

@@ -1,0 +1,317 @@
+{
+  "scenario": "driver_only_4m",
+  "steps": {
+    "evidence": {
+      "candidates": 3,
+      "event_ids": [
+        "ev-86f7d7c275e11b7b973364b3",
+        "ev-84a4e533761dfac1e7cfda25",
+        "ev-f9d284630ebca24022edff4b"
+      ],
+      "n": 149,
+      "ok": true,
+      "reason": "",
+      "reproduced": 3,
+      "root": "5331a1c8eb68dc365b13b9d831456c63526659d60afa1f2847b56263b249bb91",
+      "run_kinds": [
+        "candidate",
+        "action",
+        "candidate",
+        "action",
+        "candidate",
+        "action",
+        "verdict",
+        "verdict",
+        "verdict",
+        "verdict",
+        "verdict",
+        "verdict"
+      ],
+      "run_seqs": [
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149
+      ],
+      "site": "demo"
+    },
+    "plan": {
+      "acceptance": [
+        {
+          "check": "concern_covered",
+          "detail": "rule 'keep-people-4m-from-moving-forklift'",
+          "item": "Keep people at least 4 metres away from a moving forklift.",
+          "passed": true
+        },
+        {
+          "check": "zone_in_view",
+          "detail": "the rule uses no zones",
+          "item": "keep-people-4m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "detect_lb>=0.8",
+          "detail": "concept 'forklift' detect_lb=0.47 < 0.8 on 'phone-98'; concept 'person' detect_lb=0.69 < 0.8 on 'phone-98'",
+          "item": "keep-people-4m-from-moving-forklift",
+          "passed": false
+        },
+        {
+          "check": "calibration_err<=tol",
+          "detail": "camera 'phone-98' calibration error 0.23 m > 0.10 m",
+          "item": "keep-people-4m-from-moving-forklift",
+          "passed": false
+        },
+        {
+          "check": "privacy_consistent",
+          "detail": "consistent with standard mode",
+          "item": "keep-people-4m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "citation_text_match",
+          "detail": "the rule cites no standard",
+          "item": "keep-people-4m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "no_private_spaces",
+          "detail": "no private-space zones",
+          "item": "keep-people-4m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "ci_green",
+          "detail": "boundary 16/16, mutations 6/6",
+          "item": "keep-people-4m-from-moving-forklift",
+          "passed": true
+        },
+        {
+          "check": "nonvacuous",
+          "detail": "fires on its positive boundary trace and not on its negative one",
+          "item": "keep-people-4m-from-moving-forklift",
+          "passed": true
+        }
+      ],
+      "feasibility": [
+        {
+          "concern": "Keep people at least 4 metres away from a moving forklift.",
+          "verdict": "caveat"
+        }
+      ],
+      "plan_id": "plan-01307279465a",
+      "planner_steps": [
+        {
+          "detail": "1 concerns",
+          "status": "done",
+          "step": "understand"
+        },
+        {
+          "detail": "18 things seen",
+          "status": "done",
+          "step": "survey"
+        },
+        {
+          "detail": "2 probes; references on phone-98: wooden pallet (1 found in 3 frames), 1 m floor square (0 found in 3 frames); calibrated from pallet_48x40in (0.23 m)",
+          "status": "done",
+          "step": "probe"
+        },
+        {
+          "detail": "1 not_observable",
+          "status": "done",
+          "step": "gauge"
+        },
+        {
+          "detail": "3 questions",
+          "status": "done",
+          "step": "ask"
+        },
+        {
+          "detail": "1 rules",
+          "status": "done",
+          "step": "compile"
+        },
+        {
+          "detail": "no lint errors",
+          "status": "done",
+          "step": "lint"
+        },
+        {
+          "detail": "5/7 checks passed after 0 repair round(s), 1 question(s); ci_green and nonvacuous wait for Rule CI (P2-08)",
+          "status": "done",
+          "step": "accept"
+        },
+        {
+          "detail": "audit_skipped: not audited, Spark Open failed (ModelHTTPError); back-translated (en)",
+          "status": "done",
+          "step": "audit"
+        },
+        {
+          "detail": "Rule CI green for 1/1 rules",
+          "status": "done",
+          "step": "prove"
+        }
+      ],
+      "request": "Keep people at least 4 metres away from a moving forklift.",
+      "rule_hashes_match_run": true,
+      "rules": [
+        {
+          "canonical": true,
+          "canonical_rule_hash": "8adb922fb4ea8b040418d6fc33ee480db6c3ac244fedc3bb5a0539fc99fa0d5a",
+          "id": "keep-people-4m-from-moving-forklift",
+          "predicate": {
+            "of": [
+              {
+                "a": "person",
+                "b": "forklift",
+                "gt": null,
+                "lt": 4.0,
+                "op": "distance_m"
+              },
+              {
+                "object": "forklift",
+                "op": "moving",
+                "speed_mps_gt": 0.2
+              }
+            ],
+            "op": "all"
+          },
+          "rule_ir_hash": "e6093014989f14faabfc9e406940a40a8dfd522ae17199e8bf2e87771ff104be",
+          "severity": "high"
+        }
+      ],
+      "version": 1
+    },
+    "rule_ci": [
+      {
+        "ci_green": true,
+        "failures": [],
+        "matches_plan": true,
+        "nonvacuous": true,
+        "rule_id": "keep-people-4m-from-moving-forklift",
+        "summary": "boundary 16/16, mutations 6/6"
+      }
+    ],
+    "score": {
+      "alerts": 0,
+      "candidates": 3,
+      "clip": "pexels_32243653",
+      "decisive": 3,
+      "events": 0,
+      "false_alerts_on_negative": 0,
+      "fn": 0,
+      "fp": 0,
+      "outcome": "activated",
+      "rule": "forklift_4m",
+      "status": "unlabelled",
+      "tier1": [
+        "no_violation",
+        "no_violation",
+        "no_violation"
+      ],
+      "tp": 0
+    },
+    "verify": [
+      {
+        "act_first": true,
+        "decision": {
+          "act_first": true,
+          "alert": true,
+          "reason": "acted first; verifier did not confirm, so a person reviews it",
+          "route": "human_queue"
+        },
+        "decision_matches_chain": false,
+        "event_id": "ev-86f7d7c275e11b7b973364b3",
+        "measurement": {
+          "hi": null,
+          "lo": null,
+          "unit": "m",
+          "value": 0.001084
+        },
+        "rule_id": "keep-people-4m-from-moving-forklift",
+        "severity": "high",
+        "strip_frames": 8,
+        "tier1": {
+          "model_version": "muse-glimmer-30b",
+          "reason": "The red-boxed person is the forklift operator seated inside the moving forklift, not a separate pedestrian near it, so no bystander proximity violation is shown.",
+          "reasoning": null,
+          "scene_text": "HELI",
+          "score": 0.08,
+          "tamper": false,
+          "tier": "glimmer",
+          "verdict": "no_violation"
+        },
+        "tier1_matches_chain": true
+      },
+      {
+        "act_first": true,
+        "decision": {
+          "act_first": true,
+          "alert": true,
+          "reason": "acted first; verifier did not confirm, so a person reviews it",
+          "route": "human_queue"
+        },
+        "decision_matches_chain": false,
+        "event_id": "ev-84a4e533761dfac1e7cfda25",
+        "measurement": {
+          "hi": null,
+          "lo": null,
+          "unit": "m",
+          "value": 1.336366
+        },
+        "rule_id": "keep-people-4m-from-moving-forklift",
+        "severity": "high",
+        "strip_frames": 8,
+        "tier1": {
+          "model_version": "muse-glimmer-30b",
+          "reason": "The red-boxed person is the forklift operator seated inside the cabin, not a separate pedestrian near a moving forklift; the measured proximity is to the vehicle they are operating.",
+          "reasoning": null,
+          "scene_text": "HEL\nK 35",
+          "score": 0.05,
+          "tamper": false,
+          "tier": "glimmer",
+          "verdict": "no_violation"
+        },
+        "tier1_matches_chain": true
+      },
+      {
+        "act_first": true,
+        "decision": {
+          "act_first": true,
+          "alert": true,
+          "reason": "acted first; verifier did not confirm, so a person reviews it",
+          "route": "human_queue"
+        },
+        "decision_matches_chain": false,
+        "event_id": "ev-f9d284630ebca24022edff4b",
+        "measurement": {
+          "hi": null,
+          "lo": null,
+          "unit": "m",
+          "value": 2.33611
+        },
+        "rule_id": "keep-people-4m-from-moving-forklift",
+        "severity": "high",
+        "strip_frames": 4,
+        "tier1": {
+          "model_version": "muse-glimmer-30b",
+          "reason": "The only person visible is the forklift operator seated on/inside the moving forklift; no separate bystander is shown near the vehicle, so the 4 m separation rule for other people is not demonstrated as violated.",
+          "reasoning": null,
+          "scene_text": "L 35",
+          "score": 0.05,
+          "tamper": false,
+          "tier": "glimmer",
+          "verdict": "no_violation"
+        },
+        "tier1_matches_chain": true
+      }
+    ]
+  }
+}

@@ -268,9 +268,11 @@ def test_overlay_highlights_subject_and_measures_distance() -> None:
     ]
     assert overlay.items[0].box == (100.0, 100.0, 140.0, 180.0)
     assert overlay.ruler is not None
-    assert overlay.ruler.metres == pytest.approx(2.6)
+    # To the forklift's footprint (its box's bottom edge), the geometry `distance_m` measures,
+    # not to the middle of the 2 m-wide vehicle (2.6 m).
+    assert overlay.ruler.metres == pytest.approx(1.6)
     assert overlay.ruler.a == (120.0, 180.0)
-    assert overlay.ruler.b == (250.0, 180.0)
+    assert overlay.ruler.b == pytest.approx((200.0, 180.0))
     assert overlay.ruler.tick == ((120.0, 180.0), (170.0, 180.0))  # 1 m = 100 chunk px
     assert overlay.caption == "2/6  t+1.0s  forklift-proximity  measured 2.60 m"
     uncalibrated = keyframe_overlay(
@@ -310,8 +312,9 @@ def test_overlays_are_drawn_on_the_frame() -> None:
     raw = scene_frame((640, 360))
     (out,) = render_frames([raw], [overlay], PrivacyMode.STANDARD, NoFaceDetector())
     assert tuple(out[140, 100]) == SUBJECT_COLOUR  # left edge of the subject's box
-    assert tuple(out[180, 250]) == RULER_COLOUR  # the ruler's end at the forklift's foot
-    assert np.abs(out[180, 185].astype(int) - np.asarray(RULER_COLOUR)).sum() < 90  # its line
+    # the ruler's line up to the forklift's footprint (its box's bottom-left corner)
+    assert np.abs(out[180, 185].astype(int) - np.asarray(RULER_COLOUR)).sum() < 90
+    assert np.abs(out[180, 193].astype(int) - np.asarray(RULER_COLOUR)).sum() < 90
     band = band_height(overlay, 640, strict=False)
     assert out.shape == (360 + band, 640, 3)  # the band is appended, never drawn over the scene
     assert np.array_equal(out[:20], raw[:20])  # no caption bar on the scene any more
@@ -362,7 +365,7 @@ def test_the_band_lists_exactly_what_it_shows() -> None:
     assert [text for text, _ in legend(overlay, strict=False)] == [
         "subject: person",
         "forklift",
-        "distance 2.6 m",
+        "distance 1.6 m",
         TICK_LABEL,
     ]
     assert annotation_texts(overlay) == (
@@ -374,9 +377,9 @@ def test_the_band_lists_exactly_what_it_shows() -> None:
         "measured 2.60 m",
         "subject: person",
         "forklift",
-        "distance 2.6 m",
+        "distance 1.6 m",
         TICK_LABEL,
-        "2.6 m",
+        "1.6 m",
     )
     bare = Overlay(items=())
     assert annotation_texts(bare) == (BAND_HEADER,)
@@ -791,7 +794,7 @@ def test_distance_ruler_picks_the_nearest_object() -> None:
     far = track("f", "forklift", FORKLIFT_BOX).points[0]
     ruler = distance_ruler(subject, [far, near], CAL, 1.0)
     assert ruler is not None
-    assert ruler.metres == pytest.approx(0.8)
+    assert ruler.metres == pytest.approx(0.6)  # to the near forklift's footprint corner
     assert distance_ruler(subject, [], CAL, 1.0) is None
     same_spot = distance_ruler(subject, [subject], CAL, 1.0)
     assert same_spot is not None

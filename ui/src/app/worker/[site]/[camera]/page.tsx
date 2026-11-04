@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import { bucketLabel, STRINGS, uiLang, workerView, type WorkerPage } from "@/lib/worker";
 
 import { DisputeSheet } from "./DisputeSheet";
+import styles from "./worker.module.css";
 
 export default function WorkerRulesPage() {
   return (
@@ -61,7 +62,7 @@ function WorkerRules() {
   const view = workerView(page);
 
   return (
-    <section className="worker" lang={page.lang} aria-labelledby="worker-heading">
+    <section className={`worker ${styles.page}`} lang={page.lang} aria-labelledby="worker-heading">
       <header className="worker-header">
         <div>
           <h1 id="worker-heading">{strings.heading}</h1>
@@ -70,12 +71,16 @@ function WorkerRules() {
           </p>
         </div>
         {page.languages.length > 1 && (
-          <div role="group" aria-label={strings.language} className="lang-switch">
+          <div
+            role="group"
+            aria-label={strings.language}
+            className={`lang-switch ${styles.langSwitch}`}
+          >
             {page.languages.map((code) => (
               <button
                 key={code}
                 type="button"
-                className="tap"
+                className={`tap ${styles.tap}`}
                 aria-pressed={code === page.lang}
                 onClick={() => setLang(code)}
               >
@@ -123,7 +128,7 @@ function WorkerRules() {
       {view.events.length === 0 && <p className="muted">{strings.noEvents}</p>}
       <ul className="worker-events">
         {view.events.map((event) => (
-          <li key={event.code} className="worker-event">
+          <li key={event.code} className={`worker-event ${styles.event}`}>
             <div>
               <strong className="code">{event.code}</strong>{" "}
               <span className="muted">{bucketLabel(event.bucketStart, page.lang)}</span>
@@ -132,7 +137,7 @@ function WorkerRules() {
             </div>
             <button
               type="button"
-              className="tap"
+              className={`tap ${styles.tap}`}
               aria-label={`${strings.dispute} ${event.code}`}
               onClick={() => setDisputing(event.code)}
             >

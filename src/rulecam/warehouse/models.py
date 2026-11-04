@@ -45,6 +45,7 @@ class NearMiss(Frozen):
         acked_by: Roles that acknowledged it.
         disputes: Dispute outcomes, in order.
         regression: Whether a false-alarm label made it a permanent Rule CI regression.
+        training_done: Whether the refresher training it made due was marked done (chained).
         foot_px: Where the person stood in the frame at the firing time, when the track is kept.
     """
 
@@ -73,6 +74,7 @@ class NearMiss(Frozen):
     acked_by: tuple[str, ...] = ()
     disputes: tuple[str, ...] = ()
     regression: bool = False
+    training_done: bool = False
     foot_px: tuple[float, float] | None = None
 
 
@@ -342,3 +344,169 @@ class ShiftRequest(BaseModel):
 
     day: date | None = None
     lang: str = Field(default="en", pattern=r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
+
+
+class ClauseDraft(BaseModel):
+    """What Spark returns when it looks up the near-miss training clause (structured output)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    clause: str = Field(max_length=80)
+    title: str = Field(max_length=200)
+    text: str = Field(max_length=1500)
+    source_url: str = Field(max_length=500)
+
+
+class GroundedClause(Frozen):
+    """The regulation a forklift near miss triggers, as Spark found it on the web.
+
+    Attributes:
+        clause: The citation, e.g. `29 CFR 1910.178(l)(4)(ii)(B)`.
+        title: Its heading.
+        text: Its words as Spark quotes them.
+        source_url: The page Spark cites.
+        source_retrieved: Whether that page is one the search actually returned (else the
+            citation is unverified and the page says so).
+        source_title: The returned page's title, when retrieved.
+        model: The model that looked it up.
+        created_at: When.
+    """
+
+    clause: str
+    title: str
+    text: str
+    source_url: str
+    source_retrieved: bool
+    source_title: str = ""
+    model: str
+    created_at: datetime
+
+
+class DutyDraft(BaseModel):
+    """What Spark returns when it reads one incident for the training duty (structured output)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    applies: bool
+    why: str = Field(max_length=600)
+    vehicle_unit: str | None = Field(default=None, max_length=40)
+    unit_evidence: str = Field(default="", max_length=300)
+    training_focus: list[str] = Field(default_factory=list, max_length=5)
+    due: str = Field(max_length=200)
+
+
+DutyStatus = Literal["due", "done", "not_required"]
+
+
+class RefresherDuty(Frozen):
+    """The refresher training a near miss makes due, and whether someone has done it.
+
+    The forklift is named by what is painted on it (unit or fleet number), never by a person.
+
+    Attributes:
+        event_id: The near miss.
+        rule_id: Its rule.
+        camera_id: Its camera.
+        applies: Whether Spark judged the clause to apply to this incident.
+        why: Spark's reason.
+        clause: The clause, grounded on a web page.
+        vehicle_unit: The vehicle's painted unit number, when readable in the frames.
+        unit_evidence: Where in the frames Spark read it.
+        training_focus: What the refresher should cover.
+        due: When it is due, in Spark's words.
+        status: `due`, `done` or `not_required`.
+        done_by: The role that marked it done.
+        done_at: When.
+        done_hash: Hash of the chained `label` record that marked it done.
+        model: The model that read the incident.
+        created_at: When the duty was raised.
+    """
+
+    event_id: str
+    rule_id: str
+    camera_id: str
+    applies: bool
+    why: str
+    clause: GroundedClause
+    vehicle_unit: str | None
+    unit_evidence: str
+    training_focus: tuple[str, ...]
+    due: str
+    status: DutyStatus
+    done_by: str | None = None
+    done_at: datetime | None = None
+    done_hash: str | None = None
+    model: str
+    created_at: datetime
+
+
+class ReportDraft(BaseModel):
+    """What Spark returns for a spoken near-miss report (structured output)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    lang: str = Field(max_length=16)
+    summary_en: str = Field(max_length=600)
+    what_happened: str = Field(max_length=600)
+    where: str = Field(default="", max_length=200)
+    minutes_ago: float | None = Field(default=None, ge=0, le=24 * 60)
+    vehicle_unit: str | None = Field(default=None, max_length=40)
+    matches_event_id: str | None = Field(default=None, max_length=128)
+    match_reason: str = Field(default="", max_length=600)
+    proposed_rule: str = Field(max_length=300)
+    proposed_rule_en: str = Field(max_length=300)
+
+
+class VoiceReport(Frozen):
+    """A near miss a worker reported by voice, checked against what the cameras measured.
+
+    The audio is never kept; the transcript is. Nobody is identified: the report has no name,
+    address or device, and the vehicle is named by its painted unit number if the worker said it.
+
+    Attributes:
+        report_id: The report's id.
+        lang: The language the worker spoke.
+        transcript: What Muse Voice Transcribe heard.
+        summary_en: Spark's English summary for the owner.
+        what_happened: Spark's summary in the worker's language.
+        where: Where it happened, in the worker's words.
+        minutes_ago: When, as the worker said it.
+        vehicle_unit: The forklift's unit number, if said.
+        candidates: Event ids of the camera near misses Spark was shown (in the time window).
+        matches_event_id: The camera near miss Spark matched it to, if any.
+        match_reason: Why (or why none matched).
+        measured_m: The matched near miss's measured separation.
+        proposed_rule: The rule Spark proposes, in the worker's language.
+        proposed_rule_en: The same in English.
+        plan_id: The plan the proposal started (planner + Rule CI), once proposed.
+        chained_hash: Hash of the `label` record chained on the matched near miss.
+        model: The model that read it.
+        created_at: When.
+    """
+
+    report_id: str
+    lang: str
+    transcript: str
+    summary_en: str
+    what_happened: str
+    where: str
+    minutes_ago: float | None
+    vehicle_unit: str | None
+    candidates: tuple[str, ...]
+    matches_event_id: str | None
+    match_reason: str
+    measured_m: float | None
+    proposed_rule: str
+    proposed_rule_en: str
+    plan_id: str | None = None
+    chained_hash: str | None = None
+    model: str
+    created_at: datetime
+
+
+class DutyDone(BaseModel):
+    """Body of `POST /warehouse/incidents/{event_id}/duty/done`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: str = Field(default="owner", min_length=1, max_length=64, pattern=r"^[A-Za-z][\w-]*$")

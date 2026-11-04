@@ -23,10 +23,11 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Protocol
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi import Path as PathParam
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
 from rulecam.api.plans import PlanRegistry
@@ -37,26 +38,44 @@ from rulecam.clients.meta_hosted.image import MuseImageClient
 from rulecam.clients.meta_hosted.spark import SparkClient
 from rulecam.clients.meta_hosted.voice import VoiceTranscribeClient
 from rulecam.config import Settings
-from rulecam.contracts import TTS, Clock, EventRecord, SitePlan, Track, Transcriber
+from rulecam.contracts import (
+    TTS,
+    Clock,
+    EventRecord,
+    RequestItem,
+    SitePlan,
+    Track,
+    Transcriber,
+)
 from rulecam.errors import RulecamError
-from rulecam.evidence.chain import ChainReport, read_chain, verify_chain
+from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
 from rulecam.evidence.merkle import chain_root
 from rulecam.log import get_logger
 from rulecam.replay.cache import ReplayCache
 from rulecam.rule_ci.lookalikes import load_regressions
 from rulecam.runtime.factory import Perception
 from rulecam.runtime.loop import RuntimeLoop
+from rulecam.warehouse.duty import ChainWriter, DutyWriter, GroundedModel
 from rulecam.warehouse.models import (
+    DutyDone,
     Heatmap,
     NearMiss,
+    RefresherDuty,
     ShiftReport,
     ShiftRequest,
     SpokenWarning,
     TalkRequest,
     ToolboxTalk,
+    VoiceReport,
     WarehouseStory,
 )
 from rulecam.warehouse.near_misses import heatmap, measures_distance, near_misses
+from rulecam.warehouse.report import (
+    MAX_AUDIO_BYTES,
+    NearMissReporter,
+    NearMissWindow,
+    ReportError,
+)
 from rulecam.warehouse.story import build_story, followed_incident
 from rulecam.warehouse.talks import (
     Attacher,
@@ -111,6 +130,14 @@ def _has_distance(predicate: object) -> bool:
     return measures_distance({"predicate": dumped})
 
 
+class PlannerSubmit(Protocol):
+    """Starts the Site Planner on a request (`PlannerService.submit`)."""
+
+    def submit(self, items: Sequence[RequestItem]) -> str:
+        """Queue a planning run and return its plan id."""
+        ...
+
+
 TrackWindow = Callable[[str, datetime, datetime], Sequence[Track]]
 FrameAt = Callable[[str, datetime], Path | None]
 
@@ -129,6 +156,9 @@ class WarehouseService:
     warnings: WarningMaker | None = None
     talks: ToolboxTalkWriter | None = None
     shifts: ShiftReporter | None = None
+    duties: DutyWriter | None = None
+    reports: NearMissReporter | None = None
+    planner: PlannerSubmit | None = None
 
     def days(self) -> list[date]:
         """Days with a chain, oldest first."""
@@ -163,6 +193,25 @@ class WarehouseService:
             self.records(day), plan_id=plan_id, camera_id=camera_id, tracks=self.tracks
         )
 
+    def near_between(self, t0: datetime, t1: datetime) -> list[NearMiss]:
+        """Near misses whose episode ended between two instants (any camera, any plan)."""
+        days = {t0.date(), t1.date()}
+        rows = [n for day in sorted(days) for n in self.near(day)]
+        return [n for n in rows if t0 <= n.ts <= t1]
+
+    def propose(self, report_id: str) -> VoiceReport:
+        """Send a voice report's proposed rule to the Site Planner (once)."""
+        if self.reports is None or self.planner is None:
+            raise HTTPException(503, "the Site Planner is not running")
+        found = self.reports.get(report_id)
+        if found is None:
+            raise HTTPException(404, "no such report")
+        if found.plan_id is not None:
+            return found
+        item = RequestItem(kind="text", text=found.proposed_rule, lang=found.lang or None)
+        updated = self.reports.proposed(report_id, self.planner.submit([item]))
+        return updated or found
+
     def story(self, plan_id: str | None, day: date | None) -> WarehouseStory:
         """One plan's story for a day."""
         chosen_day = self.day(day)
@@ -176,10 +225,11 @@ class WarehouseService:
         active_ids = self.plans.active_rules()
         active = approved and bool(plan.rules) and all(r.id in active_ids for r in plan.rules)
         followed = followed_incident(near)
-        talk = warning = None
+        talk = warning = duty = None
         if followed is not None:
             talk = self._latest(ToolboxTalk, "talks", followed.event_id)
             warning = self._latest(SpokenWarning, "warnings", followed.event_id)
+            duty = self.duties.get(followed.event_id) if self.duties is not None else None
         regressions = sum(
             len(load_regressions(rule.id, self.regressions_dir)) for rule in plan.rules
         )
@@ -191,6 +241,7 @@ class WarehouseService:
             chain=self.chain_report(chosen_day),
             talk=talk,
             warning=warning,
+            duty=duty,
             regressions=regressions,
         )
 
@@ -264,16 +315,26 @@ def _model_call[T](call: Callable[[], T]) -> T:
         return call()
     except ClientConfigError as exc:
         raise HTTPException(503, f"model not configured: {exc}") from exc
+    except ReportError:
+        raise
     except (ModelClientError, RulecamError) as exc:
         _log.warning("warehouse_model_failed", error=str(exc))
         raise HTTPException(502, f"model call failed: {type(exc).__name__}") from exc
 
 
-def warehouse_router(  # noqa: C901 - one closure per route
-    service: WarehouseService, *, dependencies: Sequence[Any] = ()
-) -> APIRouter:
+def warehouse_router(service: WarehouseService, *, dependencies: Sequence[Any] = ()) -> APIRouter:
     """The `/warehouse` routes over `service`."""
     router = APIRouter(prefix="/warehouse", tags=["warehouse"], dependencies=list(dependencies))
+    _read_routes(router, service)
+    _talk_routes(router, service)
+    _duty_routes(router, service)
+    _report_routes(router, service)
+    _voice_report_routes(router, service)
+    return router
+
+
+def _read_routes(router: APIRouter, service: WarehouseService) -> None:
+    """Story, near misses and heatmap."""
 
     @router.get("/story")
     def story(plan_id: str | None = None, day: date | None = None) -> WarehouseStory:
@@ -297,6 +358,10 @@ def warehouse_router(  # noqa: C901 - one closure per route
         if found is None:
             raise HTTPException(404, "no recorded frame for that camera and day")
         return FileResponse(found, media_type="image/jpeg")
+
+
+def _talk_routes(router: APIRouter, service: WarehouseService) -> None:
+    """Spoken warning and toolbox talk of one incident."""
 
     @router.get("/incidents/{event_id}/warning")
     def get_warning(event_id: EventId, lang: Lang = "es") -> SpokenWarning:
@@ -328,6 +393,40 @@ def warehouse_router(  # noqa: C901 - one closure per route
         incident = service.incident(event_id)
         return _model_call(lambda: writer.write(incident, body.lang, illustrate=body.illustrate))
 
+
+def _duty_routes(router: APIRouter, service: WarehouseService) -> None:
+    """The refresher-training duty of one near miss."""
+
+    @router.get("/duties")
+    def duties() -> list[RefresherDuty]:
+        return service.duties.every() if service.duties is not None else []
+
+    @router.get("/incidents/{event_id}/duty")
+    def get_duty(event_id: EventId) -> RefresherDuty:
+        found = service.duties.get(event_id) if service.duties is not None else None
+        if found is None:
+            raise HTTPException(404, "no training duty raised for this near miss yet")
+        return found
+
+    @router.post("/incidents/{event_id}/duty")
+    def raise_duty(event_id: EventId) -> RefresherDuty:
+        writer = service.duties
+        if writer is None:
+            raise HTTPException(503, "Muse Spark is not configured")
+        incident = service.incident(event_id)
+        return _model_call(lambda: writer.raise_duty(incident))
+
+    @router.post("/incidents/{event_id}/duty/done")
+    def duty_done(event_id: EventId, body: DutyDone) -> RefresherDuty:
+        closed = service.duties.done(event_id, body.role) if service.duties is not None else None
+        if closed is None:
+            raise HTTPException(404, "no training duty raised for this near miss yet")
+        return closed
+
+
+def _report_routes(router: APIRouter, service: WarehouseService) -> None:
+    """Shift report and the files the writers made."""
+
     @router.get("/shift-report")
     def get_shift(day: date | None = None, lang: Lang = "en") -> ShiftReport:
         found = service.store.load("shifts", f"{service.day(day).isoformat()}.{lang}", ShiftReport)
@@ -356,7 +455,34 @@ def warehouse_router(  # noqa: C901 - one closure per route
         media = {".wav": "audio/wav", ".png": "image/png", ".jpg": "image/jpeg"}
         return FileResponse(found, media_type=media.get(found.suffix, "application/octet-stream"))
 
-    return router
+
+def _voice_report_routes(router: APIRouter, service: WarehouseService) -> None:
+    """A worker's spoken near-miss report, and the rule it proposes."""
+
+    @router.post("/reports/voice")
+    async def report_voice(request: Request, lang: Lang | None = None) -> VoiceReport:
+        reporter = service.reports
+        if reporter is None:
+            raise HTTPException(503, "Muse Spark or Voice Transcribe is not configured")
+        audio = await request.body()
+        if not audio:
+            raise HTTPException(400, "audio body required")
+        if len(audio) > MAX_AUDIO_BYTES:
+            raise HTTPException(413, "audio exceeds limit")
+        try:
+            return await run_in_threadpool(_model_call, lambda: reporter.report(audio, lang=lang))
+        except ReportError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @router.get("/reports")
+    def reports() -> list[VoiceReport]:
+        return service.reports.every() if service.reports is not None else []
+
+    @router.post("/reports/{report_id}/propose")
+    def propose(
+        report_id: Annotated[str, PathParam(pattern=r"^nr-[0-9a-f]{12}$")],
+    ) -> VoiceReport:
+        return service.propose(report_id)
 
 
 def speech_engines(bus: Bus) -> list[tuple[str, TTS]]:
@@ -378,10 +504,19 @@ class Writers:
     warnings: WarningMaker | None
     talks: ToolboxTalkWriter | None
     shifts: ShiftReporter | None
+    duties: DutyWriter | None = None
+    reports: NearMissReporter | None = None
 
 
 def build_writers(
-    settings: Settings, *, cache: ReplayCache, clock: Clock, bus: Bus, store: Store
+    settings: Settings,
+    *,
+    cache: ReplayCache,
+    clock: Clock,
+    bus: Bus,
+    store: Store,
+    chain: ChainWriter,
+    near: NearMissWindow,
 ) -> Writers:
     """Spark, Muse Image and Voice Transcribe writers from settings (missing ones are `None`)."""
     try:
@@ -403,12 +538,21 @@ def build_writers(
         transcriber = None
     model: StructuredModel = spark
     attach: Attacher = spark
+    search: GroundedModel = spark
     return Writers(
         warnings=WarningMaker(
             model, store=store, clock=clock, tts=speech_engines(bus), transcriber=transcriber
         ),
         talks=ToolboxTalkWriter(model, store=store, clock=clock, attach=attach, image=image),
         shifts=ShiftReporter(model, store=store, clock=clock),
+        duties=DutyWriter(
+            model, search=search, store=store, clock=clock, chain=chain, attach=attach
+        ),
+        reports=(
+            NearMissReporter(model, transcriber, store=store, clock=clock, chain=chain, near=near)
+            if transcriber is not None
+            else None
+        ),
     )
 
 
@@ -418,10 +562,11 @@ def build_warehouse(
     cache: ReplayCache,
     clock: Clock,
     bus: Bus,
-    chain_dir: Path,
+    chain: EventChain,
     plans: PlanRegistry,
     runtime: RuntimeLoop | None,
     perception: Perception,
+    planner: PlannerSubmit | None = None,
     dependencies: Sequence[Any] = (),
 ) -> APIRouter:
     """The `/warehouse` router, wired to the app's chain, plans, runtime and perception.
@@ -431,10 +576,11 @@ def build_warehouse(
         cache: The replay cache every model call goes through.
         clock: Time source.
         bus: For `relay.model_used`.
-        chain_dir: The site's chain folder (`<chain root>/<site>`).
+        chain: The site's evidence chain (read by day; "training done" records go to it).
         plans: The plan registry.
         runtime: The runtime loop (for the rules it enforces now).
         perception: The track store and recorded chunks.
+        planner: The Site Planner (a worker's proposed rule is planned and Rule CI-tested).
         dependencies: Route dependencies (owner login).
 
     Returns:
@@ -442,7 +588,13 @@ def build_warehouse(
     """
     data = settings.rulecam_data_dir
     store = Store(data / "warehouse")
-    writers = build_writers(settings, cache=cache, clock=clock, bus=bus, store=store)
+
+    def near_between(t0: datetime, t1: datetime) -> list[NearMiss]:
+        return service.near_between(t0, t1)
+
+    writers = build_writers(
+        settings, cache=cache, clock=clock, bus=bus, store=store, chain=chain, near=near_between
+    )
     grabber = FrameGrabber(perception.chunks, data / "warehouse" / "frames")
 
     def every_plan() -> list[tuple[SitePlan, bool]]:
@@ -457,7 +609,7 @@ def build_warehouse(
         return found[0].path if found else None
 
     service = WarehouseService(
-        chain_dir=chain_dir,
+        chain_dir=chain.path_for(clock.now().date()).parent,
         regressions_dir=settings.regressions_dir,
         stills_root=data / "strips",
         plans=PlanSource(every_plan, active_rules),
@@ -467,5 +619,8 @@ def build_warehouse(
         warnings=writers.warnings,
         talks=writers.talks,
         shifts=writers.shifts,
+        duties=writers.duties,
+        reports=writers.reports,
+        planner=planner,
     )
     return warehouse_router(service, dependencies=dependencies)

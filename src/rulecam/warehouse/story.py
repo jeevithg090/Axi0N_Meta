@@ -30,6 +30,7 @@ from rulecam.evidence.chain import ChainReport
 from rulecam.warehouse.models import (
     CantCheck,
     NearMiss,
+    RefresherDuty,
     SpokenWarning,
     StoryStep,
     ToolboxTalk,
@@ -88,6 +89,7 @@ def build_story(
     chain: ChainReport | None,
     talk: ToolboxTalk | None = None,
     warning: SpokenWarning | None = None,
+    duty: RefresherDuty | None = None,
     regressions: int = 0,
 ) -> WarehouseStory:
     """Build one plan's story.
@@ -100,6 +102,7 @@ def build_story(
         chain: The day's chain verification, if the day has a chain.
         talk: The toolbox talk of the followed incident, if written.
         warning: The spoken warning of the followed incident, if made.
+        duty: The refresher-training duty of the followed incident, if raised.
         regressions: Hard-negative regressions stored for its rules.
 
     Returns:
@@ -142,6 +145,7 @@ def build_story(
             chain=chain,
             talk=talk,
             warning=warning,
+            duty=duty,
             regressions=regressions,
             near=near,
         ),
@@ -193,6 +197,7 @@ def _incident_steps(
     chain: ChainReport | None,
     talk: ToolboxTalk | None,
     warning: SpokenWarning | None,
+    duty: RefresherDuty | None,
     regressions: int,
     near: Sequence[NearMiss],
 ) -> list[StoryStep]:
@@ -234,6 +239,7 @@ def _incident_steps(
             ),
             event_id=event,
         ),
+        _duty_step(followed, duty),
         _step(
             "toolbox_talk",
             "A two-minute toolbox talk in the worker's language",
@@ -261,6 +267,31 @@ def _incident_steps(
             else "No regression yet.",
         ),
     ]
+
+
+def _duty_step(n: NearMiss, duty: RefresherDuty | None) -> StoryStep:
+    title = "The near miss makes refresher training due (OSHA 1910.178(l)(4)(ii)(B))"
+    if duty is None:
+        return _step(
+            title=title,
+            key="duty",
+            status="not_yet",
+            detail="Not checked yet.",
+            event_id=n.event_id,
+        )
+    unit = f" Forklift unit {duty.vehicle_unit}." if duty.vehicle_unit else ""
+    if duty.status == "done":
+        detail = f"Done, marked by {duty.done_by}; chained as {duty.done_hash or ''}.{unit}"
+        status = "done"
+    elif duty.status == "due":
+        detail = f"Due {duty.due}.{unit} {duty.why}"
+        status = "waiting"
+    else:
+        detail = f"Not required: {duty.why}"
+        status = "done"
+    return _step(
+        "duty", title, status, detail.strip(), event_id=n.event_id, clause=duty.clause.clause
+    )
 
 
 def _violation_step(n: NearMiss) -> StoryStep:

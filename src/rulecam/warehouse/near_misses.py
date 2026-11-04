@@ -28,6 +28,7 @@ MOVING_NODE = ".moving"
 DEFAULT_COLS = 16
 DEFAULT_ROWS = 9
 TRACK_PAD = timedelta(seconds=1)
+TRAINING_DONE = "refresher_training_done"
 
 TrackWindow = Callable[[str, datetime, datetime], Sequence[Track]]
 
@@ -98,6 +99,7 @@ class _Joined:
     acked_by: list[str] = field(default_factory=list)
     disputes: dict[str, str] = field(default_factory=dict)  # dispute id -> latest outcome
     regression: bool = False
+    training_done: bool = False
 
 
 def _join(records: Sequence[EventRecord]) -> dict[str, _Joined]:
@@ -123,6 +125,8 @@ def _join(records: Sequence[EventRecord]) -> dict[str, _Joined]:
             entry.disputes[str(payload.get("dispute_id", record.seq))] = str(outcome)
         elif record.kind == "label" and payload.get("label") == "false_alarm":
             entry.regression = True
+        elif record.kind == "label" and payload.get("label") == TRAINING_DONE:
+            entry.training_done = True
     return joined
 
 
@@ -255,6 +259,7 @@ def _near_miss(
         acked_by=tuple(after.acked_by),
         disputes=tuple(after.disputes.values()),
         regression=after.regression,
+        training_done=after.training_done,
         foot_px=foot,
     )
 

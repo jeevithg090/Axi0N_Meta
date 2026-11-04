@@ -1058,6 +1058,63 @@ runs it once a day for 16 days (key from `/workspace/rulecam/.runpod_api_key`):
 `setsid nohup bash /workspace/rulecam/scripts/ops/keepalive_loop.sh >> /workspace/keepalive.log
 2>&1 < /dev/null &`.
 
+### A second GPU data center (US-NC-1)
+
+On the night of 3 to 4 Nov US-IL-1 had no RTX 4090 left for serverless workers, so SAM and
+Glimmer could not start at all. Both endpoints now list two data centers (`US-IL-1`, `US-NC-1`)
+and two network volumes, one per data center (`11ymk65bni`, `4q7tspgi9t`, 60 GB); a worker
+mounts the volume of the data center it lands in. The US-NC-1 volume was staged from a 4090 pod
+mounting it at `/runpod-volume`: the code of `p1/final-integration` (faf6039, with the re-ID
+autocast fix) untarred into `/runpod-volume/rulecam`, then `scripts/sam_pod/setup.sh --stage`,
+`scripts/sam_pod/install_moge.sh` and `scripts/glimmer_pod/stage.sh` with the paths above. It has
+no `sam.env`, so SAM runs with the code defaults there. Volumes do not sync: ship code to both
+(`make ship-gpu` per region, or `scripts/ops/volume_stager.sh`).
+
+### Serverless Muse Spark Open (Tier 2, plan audit, Ask review)
+
+Muse Spark Open is Meta's 816B-parameter mixture-of-experts model (about 42B active). Baseten,
+where the code first pointed, never gave us a key, so it runs on our own RunPod endpoint
+`hljmhlgjyaacyv` (`rulecam-spark-open`): llama.cpp `full-cuda-b12004` (the first build with the
+`muse-spark` architecture is b11681), the 4-bit GGUF `ggml-org/Muse-Spark-Open-816B-A42B-GGUF`
+(Q4_K_S, 470 GB in 22 parts), one worker with 8 x H100 80 GB in EUR-NO-2 (the only data center
+with 8-GPU stock that night), and a 520 GB high-performance network volume `uhe04aj7bm`.
+
+- The start script is `scripts/spark_open_pod/serverless.sh`. The endpoint has no code volume,
+  so the script and `llama_edge` reach the worker as env vars (`scripts/spark_open_pod/
+  endpoint_env.sh` prints them). The first start downloads the weights onto the volume
+  (resumable); later cold starts only load them, about 10 minutes.
+- Same key scheme as Glimmer: the RunPod key in `Authorization`, the model key (the RunPod
+  secret `rulecam_glimmer_api_key`) in `X-Rulecam-Key`.
+- API settings: `SPARK_OPEN_BASE_URL=https://hljmhlgjyaacyv.api.runpod.ai/v1`,
+  `SPARK_OPEN_API_KEY` (the Glimmer key) and `SPARK_OPEN_EDGE_KEY` (the RunPod key). They win
+  over `BASETEN_*`, which stays as an option. `SPARK_OPEN_MODEL` is `muse-spark-open`.
+- Cost: $5.39/h per H100, $43.12/h per running worker, plus the volume. Keep `workers.min` 0 and
+  warm it only for demos (`scripts/ops/demo_warm.sh`).
+- A hosted alternative: Routeway serves `muse-spark-open` ($1.25 / $4.25 per million tokens in /
+  out) through the same client (`SPARK_OPEN_BASE_URL=https://api.routeway.ai/v1`, its key as
+  `SPARK_OPEN_API_KEY`, no edge key), once the Routeway account has credit.
+
+### Serverless Llama Guard 4 (plan-time rule screen)
+
+`rulecam.clients.open_weights.llama_guard.screen_rule_text` sends an owner's rule request to
+Llama Guard 4 12B and refuses it when the model flags S7 Privacy or S10 Hate (rules about who
+people are). Endpoint `vzi5ij5gclndjc` (`rulecam-llama-guard`): vLLM `v0.32.0` serving
+`RedHatAI/Llama-Guard-4-12B-FP8-dynamic` (15 GB, downloaded to the container disk on a cold
+start, so no volume and any data center), pools ADA_24, AMPERE_24, AMPERE_48, ADA_48_PRO,
+$0.75 to $1.75/h per running worker, about 3 minutes cold. Start script:
+`scripts/llama_guard_pod/serverless.sh`. Settings: `LLAMA_GUARD_BASE_URL=https://vzi5ij5gclndjc.api.runpod.ai/v1`,
+`LLAMA_GUARD_API_KEY` (the Glimmer key), `LLAMA_GUARD_EDGE_KEY` (the RunPod key).
+
+### Hosted Glimmer fallback
+
+With `GLIMMER_FALLBACK_BASE_URL` set, a Glimmer call that gets no usable answer from our GPU (no
+HTTP answer, 404, 429 or 5xx) is sent to a hosted OpenAI-compatible Glimmer instead
+(`clients.transport.FailoverTransport`), with its own key, model name and the JSON schema in a
+system message. The API logs `model_failover`. For Routeway: `GLIMMER_FALLBACK_BASE_URL=https://api.routeway.ai/v1`,
+`GLIMMER_FALLBACK_API_KEY` (the Routeway key) and `GLIMMER_FALLBACK_MODEL=muse-glimmer-30b:free`
+(works without credit; `muse-glimmer-30b` needs credit). Measured on 4 Nov with our URL dead on
+purpose: the Tier 1 strip check answered through Routeway in 57 s.
+
 ## Checks
 
 - `curl https://rulecam.vercel.app/rulecam-api/mode` → `{"mode":"live","badge":"LIVE"}`.

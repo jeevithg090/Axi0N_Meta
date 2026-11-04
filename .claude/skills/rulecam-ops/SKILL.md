@@ -16,7 +16,9 @@ API pod or RunPod secrets, and scripts read them from env vars.
 | API (FastAPI + runtime loop) | RunPod CPU pod, code at `/workspace/rulecam` | pod `7nv0ifjo2tmk00` |
 | SAM 3.1 | RunPod serverless load balancer, RTX 4090, US-IL-1 | endpoint `imz4qu1vzwp4z6` |
 | Glimmer (llama.cpp `server-cuda-b11669`) | RunPod serverless load balancer, RTX 4090, US-IL-1 | endpoint `z000o8uch2wj4i` |
-| GPU code, venvs, weights | network volume, US-IL-1, mounted at `/runpod-volume` | volume `11ymk65bni` |
+| GPU code, venvs, weights | network volumes mounted at `/runpod-volume`: US-IL-1 and US-NC-1 (SAM and Glimmer run in both) | volumes `11ymk65bni`, `4q7tspgi9t` |
+| Muse Spark Open (llama.cpp `full-cuda-b12004`, Q4_K_S) | RunPod serverless load balancer, 8 x H100, EUR-NO-2, $43.12/h warm | endpoint `hljmhlgjyaacyv`, volume `uhe04aj7bm` |
+| Llama Guard 4 12B (vLLM, FP8) | RunPod serverless load balancer, any 24-48 GB GPU | endpoint `vzi5ij5gclndjc` |
 | UI | Vercel, `https://rulecam.vercel.app` (API behind `/rulecam-api`) | |
 
 - Both endpoints: workers min 0, idle timeout 300 s, $1.34/h per running worker. SAM max 2,
@@ -70,6 +72,10 @@ curl -s localhost:8000/health        # check "revision"
 dirs onto volume `11ymk65bni` via `https://s3api-us-il-1.runpod.io`. Running workers keep the old
 code; the next cold start loads the new one (`scripts/ops/warm.sh off`, wait 300 s). Roll back
 with `make ship-gpu REF=<old sha>`. `DRY_RUN=1` prints the writes.
+
+**Demo day**: `docs/demo-day.md` (T-60/T-15/T-0, what to do when each piece fails);
+`scripts/ops/demo_warm.sh at HH:MM` warms all four GPU endpoints and holds them;
+`scripts/ops/preflight_usecases.py` checks the three use cases against the live API.
 
 **Warm-up** (`scripts/ops/warm.sh`, needs `RUNPOD_API_KEY`): `on` (min 1 on both, waits for
 `/ping` 200), `off` (min 0; do it right after a demo), `status`, `keepalive` (one `/ping` each,

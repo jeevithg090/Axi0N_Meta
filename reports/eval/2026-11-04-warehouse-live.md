@@ -21,7 +21,7 @@ run records, the API log and the saved `/warehouse` results.
 | Evidence | chain intact (287 records), incident report and verify page links | – |
 | OSHA refresher duty | clause found by Spark web search; on the 3.28 m near miss Spark read the forklift's painted unit **"K 35"** ("white marking on side panel, frames 2–3"), said the clause applies; marked done, `refresher_training_done` chained | 17.5–31.8 s |
 | Toolbox talk | 2-minute Spanish talk from the records and 3 evidence frames, with a Muse Image drawing | 32.3–38.7 s |
-| Worker dispute | worker page dispute on the 3.996 m alert: **upheld by Muse Spark 1.3** looking at 4 frames; `false_alarm` label and a permanent Rule CI regression stored | 28.3 s |
+| Worker dispute | worker page dispute on the 3.996 m alert: **upheld by Muse Spark 1.3** looking at 4 frames; `false_alarm` label and a permanent Rule CI regression stored. Spark read the strip's ruler, which was wrong: fixed (finding 3) | 28.3 s |
 | Voice near-miss report | spoken Spanish report matched to the 3.28 m near miss (reported "about three metres"); proposed rule planned: Rule CI 16/16, 6/6 | 21.3 s report; 163 s plan |
 | Shift report | 9 near misses, 9 alerts, 4 to a person, 1 ack, 1 dispute upheld, closest 0.0 m (the driver clip) | 7.2–8.3 s |
 
@@ -34,6 +34,7 @@ run records, the API log and the saved `/warehouse` results.
 | 3 (00:49) | 32243653 driver only | EN 4 m | Routeway Glimmer | 1 candidate on the seated driver (0.0 m); Glimmer timed out → alerted first, queued for a person. In T04 (2 Nov) Glimmer rejected this driver; here it never answered |
 | 5 (01:07) | 32243654 | ES 4 m | RunPod SAM + Glimmer warm | 2 candidates (3.28, 3.996 m), both `violation` 0.99 (17.1 s, 12.5 s) |
 | 6 (01:22) | 32243654 | EN 4 m | RunPod | 2 candidates (3.45, 3.99 m), `violation` 0.98 / 0.99 (21.7 s, 14.0 s); phone alerts al-1, al-2 |
+| 7 (01:42) | 32243654 | EN 4 m, after the ruler fix | RunPod | 2 candidates (3.22, 3.99 m), `violation` 0.98 / 0.99; strip rulers 3.1–3.3 m and 3.9–4.2 m |
 
 Run 4 was stopped during its survey when the RunPod GPUs came back, to re-run on them.
 
@@ -50,12 +51,16 @@ Run 4 was stopped during its survey when the RunPod GPUs came back, to re-run on
    timed, segment 122–124 s; once warm, 1.8 s per chunk). Glimmer itself took 12.5–21.7 s. The
    1 Nov campaign, on a dedicated GPU pod, had 1.2–5.7 s. Recommendation for the ops agent: fail
    over to hosted SAM after the first timeout per chunk instead of retrying.
-3. **The worker was right about the 3.996 m alert.** Spark upheld the dispute: "the annotation
-   legend in the frames reports the yellow ruler distance as 5.1 m then 4.9 m … all > 4 m … The
-   IR measured value of 3.996 m is borderline by 4 mm". The camera was calibrated from a person's
-   height with a stated error of ±0.50 m on that run, so 3.996 m against a 4 m limit is inside
-   the error. The strip's ruler and the engine's separation disagree by about 1 m on this clip:
-   worth a look by whoever owns `runtime/strip_draw.py`.
+3. **A worker dispute exposed a ruler bug, now fixed.** Spark upheld the dispute on the 3.996 m
+   alert: "the annotation legend in the frames reports the yellow ruler distance as 5.1 m then
+   4.9 m … all > 4 m … The IR measured value of 3.996 m is borderline by 4 mm". The strip's ruler
+   measured from the person's foot to the middle of the forklift's bottom edge, while the rule
+   measures to the nearest point of its footprint: about 1 m apart on a wide forklift. The ruler
+   now ends at the footprint point the rule used (`runtime/strips.py`, e7a483d). Run 7 confirms
+   it: for a 3.989 m near miss the strip's ruler reads 3.9–4.2 m across the keyframes (it read
+   4.9–5.1 m for the same pass before), and Glimmer confirmed it at 0.99. The upheld dispute and
+   its regression stay on the chain as they happened; the calibration's stated error on that run
+   (±0.50 m) also covered the 4 mm margin.
 4. **Spark's OSHA judgement varies at the margin.** On 3.99 m near misses it said "due" three
    times and once "not required: a marginal 4-m separation breach rather than an accident or
    imminent-collision near miss"; on the 3.28 m one it said due. The model decides; a person marks

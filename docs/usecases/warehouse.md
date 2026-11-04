@@ -51,8 +51,8 @@ pair a phone (the "Pair a phone" button, or `/pair`), or play a clip in with
     records and the evidence frames, with a Muse Image drawing of the safe behaviour.
 11. **Worker dispute.** *Worker page (QR): rules and disputes* opens the anonymous worker page;
     a worker taps an alert and disputes it (tap or voice). Muse Spark 1.3 re-reviews it with the
-    evidence frames and upholds or rejects it (live on 4 Nov: upheld in 28 s, "the yellow ruler
-    reads 4.9–5.1 m, all above 4 m").
+    evidence frames and upholds or rejects it (live on 4 Nov: upheld in 28 s; that dispute
+    exposed a strip-ruler bug, since fixed).
 12. **Permanent regression.** An upheld dispute, or the owner's *False alarm* tap on the phone
     alert, adds the alert to the rule's permanent Rule CI regressions; the story's last step
     turns done.

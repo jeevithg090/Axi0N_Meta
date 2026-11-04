@@ -269,3 +269,13 @@ def test_the_chain_view_reads_only_whole_new_lines(tmp_path: Path) -> None:
     view.refresh()
     assert [v["verdict"] for v in entry.verdicts] == ["x", "y"]
     assert view.event_ids() == []
+
+
+def test_config_offers_the_near_miss_report_where_the_api_serves_it(rig: Rig) -> None:
+    http = client(rig)
+    assert http.get("/staff/config").json()["near_miss_voice"] is False
+
+    app = http.app
+    assert isinstance(app, FastAPI)
+    app.add_api_route("/warehouse/reports/voice", lambda: {}, methods=["POST"])
+    assert http.get("/staff/config").json()["near_miss_voice"] is True

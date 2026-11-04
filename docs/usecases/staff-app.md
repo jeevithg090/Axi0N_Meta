@@ -155,6 +155,8 @@ speech synthesis reads the text.
 - **Handing the retail agent's restock tasks a Done photo.** Its `/retail/tasks/{id}/proof`
   checks the photo with Spark and Glimmer. The staff app could forward the photo there when
   that branch lands.
-- **A voice near-miss report** for the warehouse role. The route (`/report/voice`) is not on the
-  warehouse branch yet. `GET /staff/config` already carries a `near_miss_voice` flag for it, but
-  the app has no button yet.
+- **The voice near-miss report has not been tried live.** The app shows a "Report a near miss"
+  hold button whenever the API serves the warehouse's `POST /warehouse/reports/voice`. That
+  route is on `p1/uc-warehouse`, and `GET /staff/config` checks for it on every request. The
+  button records a WAV, posts it there, and shows and speaks the report. It could not be tried
+  live because that route is not on this branch.

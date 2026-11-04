@@ -75,6 +75,35 @@ export const staffApi = {
   shelf: (role: string, photo: Blob) => call<StaffItem[]>("/shelf", form({ role, photo })),
 };
 
+/** A worker's spoken near-miss report (the warehouse's `POST /warehouse/reports/voice`). */
+export interface NearMissReport {
+  report_id: string;
+  transcript: string;
+  what_happened: string;
+  matches_event_id: string | null;
+  match_reason: string;
+  measured_m: number | null;
+  model: string;
+}
+
+export async function reportNearMiss(audio: Blob, lang: Lang): Promise<NearMissReport> {
+  const response = await fetch(
+    `${API_PROXY}/warehouse/reports/voice?lang=${lang}`,
+    withCsrf({ method: "POST", headers: { "Content-Type": "audio/wav" }, body: audio }),
+  );
+  if (!response.ok) {
+    let detail = response.statusText;
+    try {
+      const body = (await response.json()) as { detail?: unknown };
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      // keep the status text
+    }
+    throw new ApiError(response.status, detail);
+  }
+  return (await response.json()) as NearMissReport;
+}
+
 export const mediaUrl = (itemId: string, index: number): string =>
   `${STAFF_BASE}/media/${id(itemId)}/${index}`;
 export const audioUrl = (name: string): string => `${STAFF_BASE}/audio/${encodeURIComponent(name)}`;

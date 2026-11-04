@@ -33,7 +33,7 @@ from collections.abc import AsyncGenerator, Sequence
 from pathlib import Path
 from typing import Annotated, Any, Final
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -64,6 +64,8 @@ from rulecam.staff.store import ShelfTask
 _log = get_logger(__name__)
 
 HEARTBEAT_S: Final = 15.0
+# The warehouse's spoken near-miss reports; the phone offers them where the API serves them.
+NEAR_MISS_ROUTE: Final = "/warehouse/reports/voice"
 RECHECK_S: Final = 2.0
 MAX_UPLOAD_BYTES: Final = 15 * 1024 * 1024
 MAX_AUDIO_BYTES: Final = 8 * 1024 * 1024
@@ -88,7 +90,8 @@ class StaffConfig(Frozen):
         listen: Voice Transcribe is configured.
         shelf: Shelf photo scans are on.
         speech: Speech engines, in order (`mms-tts` is Meta's; `system-tts` is not).
-        near_miss_voice: A voice near-miss report route exists on this API.
+        near_miss_voice: The API serves the warehouse's spoken near-miss reports
+            (`POST /warehouse/reports/voice`), checked on each request.
     """
 
     langs: tuple[str, ...]
@@ -206,8 +209,9 @@ def _feed_routes(
     """Config, roles, the feed, its event stream and the stats."""
 
     @router.get("/config")
-    def get_config() -> StaffConfig:
-        return config
+    def get_config(request: Request) -> StaffConfig:
+        paths = {getattr(route, "path", "") for route in request.app.routes}
+        return config.model_copy(update={"near_miss_voice": NEAR_MISS_ROUTE in paths})
 
     @router.get("/roles")
     def roles() -> list[RoleInfo]:

@@ -2,6 +2,8 @@
 
 // Push-to-talk Ask: hold the button, speak, release. Only that recording is sent (Muse Voice
 // Transcribe), never ambient audio. The answer comes back from the Ask agent and is spoken.
+// Where the API serves the warehouse's spoken near-miss reports, a second hold button sends
+// the recording there instead (`POST /warehouse/reports/voice`).
 
 import { useRef, useState } from "react";
 
@@ -9,12 +11,13 @@ import { errorText } from "@/lib/api";
 import { recordingToWav } from "@/lib/wav";
 
 import { sayLine, unlockAudio } from "../_lib/alerting";
-import { staffApi } from "../_lib/client";
+import { reportNearMiss, staffApi } from "../_lib/client";
 import type { Words } from "../_lib/i18n";
 import type { AskReply, Lang, StaffConfig, StaffItem } from "../_lib/types";
 import styles from "../staff.module.css";
 
 type Phase = "idle" | "listening" | "thinking";
+type Purpose = "ask" | "report";
 
 export function AskDock({
   role,
@@ -37,6 +40,32 @@ export function AskDock({
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const shelfInput = useRef<HTMLInputElement>(null);
+  const purpose = useRef<Purpose>("ask");
+
+  const report = async (audio: Blob) => {
+    setPhase("thinking");
+    setNote("");
+    try {
+      const filed = await reportNearMiss(audio, lang);
+      const matched = filed.matches_event_id
+        ? ` (${filed.matches_event_id}${filed.measured_m ? `, ${filed.measured_m.toFixed(1)} m` : ""})`
+        : "";
+      setReply({
+        heard: filed.transcript,
+        answer: `${filed.what_happened}${matched}`,
+        lang,
+        audio: null,
+        engine: null,
+        seconds: 0,
+        models: filed.model ? [filed.model] : [],
+      });
+      void sayLine({ text: filed.what_happened, audio: null }, lang);
+    } catch (error) {
+      setNote(errorText(error, "Near-miss report not sent"));
+    } finally {
+      setPhase("idle");
+    }
+  };
 
   const send = async (audio: Blob | null, text = "") => {
     setPhase("thinking");
@@ -52,8 +81,9 @@ export function AskDock({
     }
   };
 
-  const start = async () => {
+  const start = async (why: Purpose = "ask") => {
     unlockAudio();
+    purpose.current = why;
     if (phase !== "idle" || !config?.listen) {
       setTyping(true);
       return;
@@ -71,7 +101,8 @@ export function AskDock({
           return;
         }
         try {
-          await send(await recordingToWav(blob));
+          const wav = await recordingToWav(blob);
+          await (purpose.current === "report" ? report(wav) : send(wav));
         } catch {
           setNote("Could not read the recording");
           setPhase("idle");
@@ -105,7 +136,7 @@ export function AskDock({
     }
   };
 
-  if (!config?.ask && !config?.shelf) return null;
+  if (!config?.ask && !config?.shelf && !config?.near_miss_voice) return null;
   return (
     <div className={styles.dock}>
       {reply || note || typing ? (
@@ -169,6 +200,22 @@ export function AskDock({
               : phase === "thinking"
                 ? words.thinking
                 : `🎙 ${words.holdToAsk}`}
+          </button>
+        ) : null}
+        {config?.near_miss_voice ? (
+          <button
+            type="button"
+            className={styles.dockSide}
+            disabled={phase === "thinking"}
+            onPointerDown={() => void start("report")}
+            onPointerUp={stop}
+            onPointerLeave={stop}
+            onContextMenu={(e) => e.preventDefault()}
+            aria-label={words.reportNearMiss}
+          >
+            ⚠
+            <br />
+            {words.reportNearMiss}
           </button>
         ) : null}
         {config?.shelf ? (

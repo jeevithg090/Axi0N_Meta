@@ -24,9 +24,9 @@ reply, not in post 1, so the post itself travels.
 
 > Same forklift rule. Two clips.
 >
-> Left: a worker walks inside 4 m. Meta's Muse Glimmer checks the frames: violation, 0.99.
+> Left: a worker walks inside 4 m. Meta's Muse Glimmer, on our GPU, checked the frames: violation, 0.99.
 >
-> Right: the rule flags the seated driver. Glimmer: "the forklift operator seated inside the cabin." 0.05. No alert.
+> Right: the rule flagged the seated driver. Glimmer: "the forklift operator seated inside the cabin." 0.05. No alert.
 >
 > This is Rulecam. Thread:
 
@@ -38,9 +38,11 @@ reply, not in post 1, so the post itself travels.
 
 **3/ Warehouse**
 
-> The rule was given in Spanish. Rule CI attacked it first: 16 of 16 edge cases, 6 of 6 broken copies caught.
+> A rule in Spanish. Rule CI attacked it first: 16 of 16 edge cases, 6 of 6 broken copies caught.
 >
-> Live, Glimmer confirmed 6 of 6 near misses. Spark wrote the warning in Spanish, Meta's MMS-TTS spoke it, and Voice Transcribe listened back to check it.
+> Earlier, on our GPU, Glimmer confirmed 6 of 6 live near misses. Now Muse Spark 1.3 checks each alert on the Meta API.
+>
+> MMS-TTS speaks the warning; Voice Transcribe hears it back.
 
 **4/ Crowd crush early warning**
 
@@ -52,7 +54,7 @@ reply, not in post 1, so the post itself travels.
 
 > On a busy checkout frame the tracker said 22 people.
 >
-> SAM 3.1, Muse Spark and Glimmer counted the same frame three ways, none seeing the others: 10. By hand: about 12.
+> SAM 3.1, Muse Spark and Glimmer counted the same frame three ways, none seeing the others: 10. By hand: about 12. (Recorded 4 Nov.)
 >
 > And a spill is closed only when a photo shows the floor is clean.
 
@@ -64,7 +66,9 @@ reply, not in post 1, so the post itself travels.
 
 **7/ Built on Meta's models**
 
-> Muse Spark plans. SAM 3.1 sees and counts. Glimmer and Spark Open, open weights on our own GPUs, check alerts. Llama Guard 4 refuses rules about who people are. Muse Code writes rule types; Z3 proves them.
+> Muse Spark plans and checks every alert. Muse Wonder reviews. SAM 3.1 sees and counts. Muse Code writes rule types; Z3 proves them. All on the Meta API.
+>
+> Our earlier runs used Glimmer and Spark Open, open weights, on our own GPUs.
 >
 > Built in 10 days for the @AIatMeta hackathon.
 
@@ -83,8 +87,10 @@ the T04 golden (`scenarios/driver_only_4m.expected.json`); post 3,
 [supermarket, 4 Nov](../../reports/eval/2026-11-04-supermarket-live.md); post 6,
 [proof portal](../../reports/eval/2026-11-04-proof-portal.md) and
 [staff app](../../reports/eval/2026-11-04-staff-app.md); post 7,
-[`docs/demo-day.md`](../demo-day.md) and the
-[Muse Code run](../../reports/eval/2026-11-04-muse-code-live.md).
+[`docs/deploy.md`](../deploy.md) ("Meta API only") and the
+[Muse Code run](../../reports/eval/2026-11-04-muse-code-live.md). Post 3's "Now" line
+is the 4 Nov Meta API run (no report yet): the Spanish rule planned in 146 s, Rule CI 16/16 and
+6/6, running on a looped Pexels clip with Tier 1 verdicts from `muse-spark-1.3`.
 
 **Team quote-posts (within 30 minutes):** each person quote-posts post 1 with one sentence about
 the part they built, in their own words. No numbers that are not in the thread.
@@ -111,8 +117,8 @@ the part they built, in their own words. No numbers that are not in the thread.
 >
 > One engine, three worlds:
 >
-> - **Warehouse.** A forklift rule given in Spanish. Rule CI attacked it before anyone could approve it (16 of 16 edge cases, 6 of 6 broken copies caught). Live, Meta's open-weight Muse Glimmer confirmed 6 of 6 near misses, and earlier rejected the seated driver the rule engine had flagged. The Spanish warning, spoken by Meta's MMS-TTS, was heard back by Voice Transcribe to check it was said right.
-> - **Crowd crush early warning.** On real footage from a Jülich crowd experiment, counts stayed within 0–4% of the truth. A route guard stopped a plan to send people toward a door that was already filling, and listening back caught a Hindi announcement that said "crowd" instead of "gate".
+> - **Warehouse.** A forklift rule given in Spanish. Rule CI attacked it before anyone could approve it (16 of 16 edge cases, 6 of 6 broken copies caught). In our earlier runs, Meta's open-weight Muse Glimmer, on our own GPU, confirmed 6 of 6 live near misses and rejected the seated driver the rule engine had flagged. The rule now runs live on the Meta API, with Muse Spark 1.3 checking each alert. The Spanish warning, spoken by Meta's MMS-TTS, was heard back by Voice Transcribe to check it was said right.
+> - **Crowd crush early warning.** In our recorded runs, on real footage from a Jülich crowd experiment, counts stayed within 0–4% of the truth. A route guard stopped a plan to send people toward a door that was already filling, and listening back caught a Hindi announcement that said "crowd" instead of "gate".
 > - **Supermarket.** The owner asks anything, by voice, in their language. On a busy frame where the tracker said 22 people, three Meta models counting the same frame said 10; by hand, about 12. A spill is closed only when a photo shows the floor is clean.
 >
 > What we care about most is trust. Every alert is checked by a second model. An inspector's own browser re-checks every record and number in a proof pack. Staff get alerts by role, never by name. Workers can dispute any alert. No face recognition, ever.
@@ -120,7 +126,7 @@ the part they built, in their own words. No numbers that are not in the thread.
 > Try the recorded run, no login: https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1
 > Code and every measured number: https://github.com/jeevithg090/Axi0N_Meta
 >
-> Built with Muse Spark, SAM 3.1, Muse Glimmer, Muse Spark Open, Muse Code, Voice Transcribe, Llama Guard 4, Prompt Guard 2 and MMS-TTS.
+> Built with Muse Spark, Muse Wonder, SAM 3.1, Muse Code, Voice Transcribe, Muse Image and MMS-TTS, all through the Meta API except MMS-TTS on our own CPU. Our earlier runs, on our own servers, also used Muse Glimmer, Muse Spark Open, Llama Guard 4 and Prompt Guard 2.
 >
 > Team: Jeevith, Nava, Raunak, Aris (tag each person once names are confirmed).
 
@@ -134,7 +140,8 @@ no voice; add music before posting.
 
 Most people watch muted, so the text carries the story. Big captions in the top third; the UI or
 footage in the middle; the LIVE / REPLAY / RESEARCH FOOTAGE / SAMPLE tag in the top-right corner
-of every shot.
+of every shot. Shots 2, 3 and 5 show Glimmer's verdicts and counts from recorded runs, made on our
+own GPU before the move to the Meta API; keep their REPLAY tag.
 
 | # | Time | On screen | Big caption | Tag | Source |
 |---|---|---|---|---|---|

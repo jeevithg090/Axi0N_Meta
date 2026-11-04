@@ -1,10 +1,108 @@
 # Demo day runbook
 
-What to do before and during a live demo of Rulecam, and what to do when a piece fails. The
-commands run from a clone of the repo with `RUNPOD_API_KEY` set (a RunPod key; never paste it
-into chat or a file in the repo). Times are counted back from the start of the demo (T-0).
+What to do before and during a live demo of Rulecam, and what to do when a piece fails. Since
+4 Nov 2026 (about 05:50 UTC) every model call goes to the Meta API, and the Rulecam API and the
+site run on the team's Mac, public through a Cloudflare tunnel. We run no GPUs of our own, so
+there is nothing to warm. The setup is in [`deploy.md`](deploy.md), "Meta API only". Times are
+counted back from the start of the demo (T-0).
 
-## What runs where (4 Nov 2026)
+## What runs where (since 4 Nov 2026)
+
+| Piece | Where | Job |
+|---|---|---|
+| Rulecam API and the site | The team's Mac, public at `https://preferred-florist-labeled-trace.trycloudflare.com` through a Cloudflare tunnel | Everything the live site does |
+| Muse Spark 1.3 | Meta API | Planner, Ask, the planner's guardrail pass, retail checks, and the Tier 1 check of every alert (through the Glimmer client) |
+| Muse Wonder 1.0 | Meta API | Tier 2: dispute review, plan audit, Ask answer review (through the Spark Open client) |
+| SAM 3.1 | Meta API (hosted) | Survey, probes, keyframes, counts |
+| Muse Voice Transcribe, Muse Image | Meta API | Speech in, hearing warnings back; SAMPLE images |
+| Muse Spark 1.2 | Meta API | Where the code uses it: video with narration |
+| Muse Code | The local `muse` CLI on the Mac | New rule types |
+| MMS-TTS | CPU on the Mac | Spoken warnings |
+
+Not running:
+
+- **Muse Glimmer 30B and Muse Spark Open.** Their clients now call Muse Spark 1.3 and Muse
+  Wonder 1.0.
+- **Llama Guard 4.** The planner's own guardrails still decline banned requests: a fixed
+  pattern check, then Muse Spark.
+- **Prompt Guard 2** is not loaded. `/runtime/metrics` shows `firewall: degraded`, and
+  candidates with scene text go to a person.
+- **Crowd watch.** The Jülich clips were only on the server we deleted, so `/usecases/crowd`
+  shows its recorded runs.
+
+## T-30 min
+
+1. On the Mac, start the API with the Meta API settings in `.env.live` (not `.env`: the tests
+   read `.env`, and `RULECAM_PROTOTYPE_MODE=true` or `RULECAM_MODE=live` there changes what they
+   expect):
+
+   ```bash
+   uv sync
+   set -a; . ./.env.live; set +a
+   ulimit -n 65536; uv run uvicorn rulecam.api.app:app --host 127.0.0.1 --port 8000
+   ```
+
+   The site (`ui/`) and `cloudflared` keep running on the Mac. Keep the Mac awake and on the
+   network for the whole demo.
+2. Check that the public address answers:
+
+   ```bash
+   curl -s https://preferred-florist-labeled-trace.trycloudflare.com/rulecam-api/health
+   ```
+
+   Expect `ok: true` and, under `models`, `muse-spark-1.3` (Tier 1), `muse-wonder-1.0` (Tier 2)
+   and `sam-3.1`, each on `meta-api`. If cloudflared restarted, the address changed: replace it
+   everywhere (the command is in [`SUBMISSION.md`](../SUBMISSION.md)).
+3. Prove the models answer through Rulecam's own clients, in a shell with `.env.live` loaded
+   (as above):
+
+   ```bash
+   uv run python scripts/ops/model_proofs.py          # Tier 1, Tier 2, plan audit, Ask review
+   ```
+
+   On 4 Nov, on this stack: Tier 1 on a warehouse strip 9.8 s (violation, p = 0.97), Tier 2
+   6.1 s, plan audit 19.9 s, Ask answer review 7.7 s, all passed.
+
+## T-15 min
+
+1. Run the use-case preflight from the Mac, in a shell with `.env.live` loaded (requests from
+   the same machine count as the owner):
+
+   ```bash
+   uv run python scripts/ops/preflight_usecases.py --api http://127.0.0.1:8000
+   ```
+
+   Green: works. Yellow: not deployed, or nothing to check. The metrics line is yellow while
+   Prompt Guard 2 is not loaded; that is expected. Red: fix or drop that part of the demo (see
+   below). For reference, on 4 Nov on this stack the warehouse verify chain (Tier 1 + Tier 2)
+   took 11.3 s and a supermarket Ask answer 57.4 s.
+2. Plan the warehouse rule beforehand. On 4 Nov the Spanish 4 m forklift rule took 146 s on
+   this stack (survey 50.6 s, probe 59.8 s, gauge 6.0 s, ask 10.3 s, compile 0.2 s, audit 19.2 s,
+   prove 0.1 s): too long to wait for on stage.
+3. Open the pages you will show once, so their first load is not on stage.
+
+## T-0
+
+- If a step stalls for more than 10 seconds, say "this is the recorded run" and switch to the
+  REPLAY page (`/demo?demo=1`).
+- Afterwards there are no GPUs to scale down. The Meta API is paid per call, and the runtime
+  keeps calling it while a camera or a looped clip feeds it.
+
+## When something fails
+
+| Symptom | What happens by itself | What to do |
+|---|---|---|
+| Meta API errors or is slow | Planning and Ask fail with a visible error. A Tier 1 check that gets no answer sends the candidate to the human queue | Say "it waits for a person" and show the queue, or show the recorded REPLAY demo (`/demo?demo=1`) |
+| Tier 2 (Muse Wonder 1.0) failing | Tier 2, plan audit and Ask review are skipped and logged: Tier 1 decides alone and anything unsure goes to a person; Ask answers without the second check | Do not wait for it on stage |
+| Prompt Guard 2 not loaded (the normal state now) | `/runtime/metrics` shows `firewall: degraded`; candidates with scene text go to a person | Nothing. To turn it on: `HF_TOKEN` with access to the model, and `uv sync --extra ml` ([`deploy.md`](deploy.md)) |
+| A banned request | Llama Guard 4 is not run; the planner's own guardrails decline it | Nothing |
+| Someone asks for crowd live | Crowd is not live now | Show the recorded runs on `/usecases/crowd` (REPLAY) |
+| The Mac or the tunnel is down | Nothing works from the public address | Restart them; if the address changed, replace it everywhere. Meanwhile run the replay offline: `cd ui && npm ci && npm run dev`, then `localhost:3000/demo?demo=1` |
+
+## Before 4 Nov: the RunPod setup (record)
+
+The recorded runs of 1–4 Nov used this. None of it runs now, and none of it is needed for a
+demo. The RunPod sections of [`deploy.md`](deploy.md) have the details.
 
 | Model | Where | Endpoint | Warm cost |
 |---|---|---|---|
@@ -22,66 +120,15 @@ SAM and Glimmer workers read their code and weights from one network volume per 
 often has no RTX 4090 left; the other data centers and GPU types are why the GPUs came back on
 the night of 3 to 4 Nov.
 
-## T-60 min
-
-1. `scripts/ops/demo_warm.sh status`: every endpoint shows `max` at least 1 (SAM 2, Glimmer 3).
-   If a `max` dropped to 0, raise it in the RunPod console (Serverless > endpoint > Edit).
-2. `curl -s https://rulecam.vercel.app/rulecam-api/health`: `ok: true`, `revision` is the commit
-   we meant to ship, `gpus.sam` and `gpus.glimmer` not `unhealthy`.
-3. Decide whether Spark Open is in the demo. It is the expensive one ($43.12/h) and needs about
-   18 minutes to load its weights (measured 4 Nov). If yes, warm everything now:
-
-   ```bash
-   scripts/ops/demo_warm.sh at 16:30        # the demo's start in UTC; warms 30 min before
-   # or: SPARK=0 scripts/ops/demo_warm.sh at 16:30   (no Spark Open)
-   ```
-
-   It keeps every endpoint at one warm worker, pings each once a minute, prints a loud line
-   with the fallback if one stops answering, and sets everything back to zero 2 hours after the
-   demo (`HOLD_MIN`) or on Ctrl-C. Leave it running in its own terminal.
-
-## T-15 min
-
-1. Every endpoint answered `/ping 200` in the `demo_warm.sh` output.
-2. Run the use-case preflight on the API pod (owner routes need the pod itself, or set
-   `RULECAM_OWNER_PASSPHRASE`):
-
-   ```bash
-   uv run python scripts/ops/preflight_usecases.py --api http://localhost:8000 --skip-models
-   ```
-
-   and, from a machine with the GPU keys in its environment, the model chain:
-
-   ```bash
-   uv run python scripts/ops/preflight_usecases.py --models-only
-   ```
-
-   Green: works. Yellow: not deployed or nothing to check (fine). Red: fix or drop that part of
-   the demo (see below).
-3. Optional: `uv run python scripts/ops/model_proofs.py` for the full Spark Open proof (Tier 2
-   on a strip, plan audit, Ask review, Llama Guard), about 2 to 3 minutes.
-4. Open the pages you will show once, so their first load is not on stage.
-
-## T-0
-
-- Keep the `demo_warm.sh` terminal visible to whoever runs the demo: a `!!!` line means a model
-  stopped answering, and it says what the product does about it.
-- After the demo: Ctrl-C in that terminal (or `scripts/ops/demo_warm.sh down`), then
-  `scripts/ops/demo_warm.sh status` shows `min=0` everywhere.
-
-## When something fails
-
-| Symptom | What happens by itself | What to do |
-|---|---|---|
-| SAM endpoint cold or out of GPUs | The runtime falls back to hosted SAM 3.1 per call after `SAM_HTTP_TIMEOUT_S` x `SAM_HTTP_ATTEMPTS` (set 25 x 1 for demos; `sam_fallback_to_hosted` in the API log, `sam_fallbacks` in `/runtime/metrics`) | Nothing for the demo. Afterwards check `demo_warm.sh status` for throttled workers |
-| Glimmer endpoint down | A Tier 1 call that gets no answer goes to the standby endpoint (`GLIMMER_STANDBY_BASE_URL`), then to hosted Glimmer (`GLIMMER_FALLBACK_*`; 10 to 60 s a call); `model_failover` in the API log. If all fail, unverified candidates go to the human queue | Say "it waits for a person" and show the queue |
-| Spark Open not warm or failing | Tier 2, plan audit and Ask review are skipped: Tier 1 decides alone and anything unsure goes to a person; Ask answers without the second check | Warm it 30 min earlier next time (`demo_warm.sh up`); do not wait for it on stage |
-| Llama Guard 4 down | The plan-time screen is skipped; the planner's own guardrails still decline identity rules | Nothing |
-| Prompt Guard 2 not loaded | `/runtime/metrics` shows `firewall: degraded`; candidates with scene text go to a person | Check `HF_TOKEN` on the API pod |
-| Meta Model API errors | Ask and planning fail with a visible error | Show the recorded REPLAY demo (`/demo?demo=1`) |
-| API pod down | Nothing works live | Restart is the cleanup agent's job (`/workspace/restart_api.sh`); meanwhile show REPLAY |
+Warm-up was `scripts/ops/demo_warm.sh` (a RunPod key in `RUNPOD_API_KEY`): it kept each
+endpoint at one warm worker, pinged it once a minute and set everything back to zero after the
+demo. Spark Open needed about 18 minutes to load its weights (measured 4 Nov). For demos the
+runtime's self-hosted SAM call was set to `SAM_HTTP_TIMEOUT_S` x `SAM_HTTP_ATTEMPTS` = 25 x 1
+before falling back to hosted SAM 3.1.
 
 ## Ship GPU code without S3 keys
+
+Record only: there are no GPUs of ours to ship code to now.
 
 `make ship-gpu` needs a RunPod S3 key. Without one, and when the volume's data center has no pod
 stock, `scripts/ops/volume_stager.sh` does the same from a throwaway serverless worker on that

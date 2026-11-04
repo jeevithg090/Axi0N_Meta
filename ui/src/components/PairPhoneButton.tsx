@@ -50,7 +50,7 @@ export function PairPhoneButton({
 
   return (
     <div className="pair-phone" data-testid="pair-phone">
-      <button type="button" onClick={() => void pair()} disabled={busy}>
+      <button type="button" className="btn" onClick={() => void pair()} disabled={busy}>
         {token ? "New pairing link" : "Pair a phone"}
       </button>
       {message && (

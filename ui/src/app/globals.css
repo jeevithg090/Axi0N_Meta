@@ -510,7 +510,7 @@ h1 .hi, h2 .hi, .h1 .hi, .h2 .hi, .quote .hi { background: none; padding: 0; col
 }
 .pipeline { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: var(--space-xs); }
 .step { padding: var(--space-xs) var(--space-xs) var(--space-xs) 0; border-top: 2px solid var(--color-rule-2); min-width: 0; }
-.step b { display: block; font-size: var(--text-md); font-weight: 500; margin-top: var(--space-3xs); overflow-wrap: anywhere; }
+.step b { display: block; font-size: var(--text-md); font-weight: 500; margin-top: var(--space-3xs); overflow-wrap: break-word; hyphens: auto; }
 .step .dm { font-size: var(--text-xs); color: var(--color-muted); }
 
 .u1 { border-bottom: 2px solid var(--color-cool); }
@@ -608,7 +608,7 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
 }
 @media (max-width: 700px) {
   :root { --gut: var(--space-md); }
-  .pipeline { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+  .pipeline { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; row-gap: var(--space-md); }
   .lead { font-size: var(--text-lg); }
 }
 
@@ -1260,3 +1260,4 @@ button.primary:not(.btn):disabled { opacity: 0.55; cursor: not-allowed; }
 .diff-remove { background: var(--color-bad-soft); text-decoration: line-through; }
 .diff-change { background: var(--color-accent-soft); }
 .badge[aria-label="Connecting"] { border-style: dashed; min-width: 2.75rem; justify-content: center; }
+.pair-phone { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); }

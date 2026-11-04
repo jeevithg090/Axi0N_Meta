@@ -266,3 +266,30 @@ async def test_only_jpeg_or_png(tmp_path: Path) -> None:
     svc, _, _ = assistant(tmp_path, glimmer=None, spark=FakeLLM([]))
     with pytest.raises(WearablesError):
         await svc.answer(Ask(image=b"GIF89a", content_type="image/gif"))
+
+
+async def test_warm_pings_glimmer_once_a_minute(tmp_path: Path) -> None:
+    glimmer = FakeLLM([{"ok": True}])
+    svc, _, _ = assistant(tmp_path, glimmer=glimmer, spark=FakeLLM([]))
+    assert svc.glimmer_state == "unknown"
+    assert svc.warm() == "checking"
+    await asyncio.sleep(0.05)
+    assert svc.glimmer_state == "up"
+    assert svc.warm() == "up"  # no second ping within the minute
+    assert len(glimmer.calls) == 1
+    assert glimmer.calls[0]["schema"] == "GlimmerPing"
+
+
+async def test_a_failed_ping_makes_spark_look_at_once(tmp_path: Path) -> None:
+    spark = FakeLLM([look(), composed(alert=False, spoken="Clear.")])
+    svc, _, _ = assistant(tmp_path, glimmer=SlowLLM(), spark=spark, timeout_s=0.05)
+    svc.warm()
+    await asyncio.sleep(0.1)
+    assert svc.glimmer_state == "down"
+    started = time.perf_counter()
+    answer = await svc.answer(Ask(image=jpeg(), question="Clear?"))
+    assert answer.spoken == "Clear."
+    assert time.perf_counter() - started < 0.3
+    await asyncio.sleep(0.35)
+    no_glimmer, _, _ = assistant(tmp_path, glimmer=None, spark=FakeLLM([]))
+    assert no_glimmer.warm() == "none"

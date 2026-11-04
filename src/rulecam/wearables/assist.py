@@ -31,14 +31,14 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Final, Literal
+from typing import Any, Final, Literal
 
 import cv2
 
 from rulecam.ask.vision import Frame, marked
 from rulecam.ask.watch import FileAttacher
 from rulecam.clients.open_weights.glimmer import user_message
-from rulecam.contracts import TTS, Clock, StructuredLLM, Transcriber
+from rulecam.contracts import TTS, Clock, Frozen, StructuredLLM, Transcriber
 from rulecam.log import get_logger
 from rulecam.planner.steps.survey import ImageSegmenter
 from rulecam.shelf.gaps import ShelfReport, ShelfScanner
@@ -63,13 +63,21 @@ MAX_CONCEPTS: Final = 3
 HISTORY: Final = 6  # earlier answers of the walk shown to Spark
 DEFAULT_GLIMMER_TIMEOUT_S: Final = 25.0
 GLIMMER_RETRY_S: Final = 120.0  # after a failed look, Spark looks at once for this long
+PROBE_EVERY_S: Final = 60.0
 SUFFIXES: Final = {"image/jpeg": ".jpg", "image/png": ".png"}
 NOT_HEARD: Final = "Sorry, I didn't catch that. Hold the button and ask again."
 GAPS_CAPTION: Final = "The same frame with the shelf gaps numbered:"
 NOT_CHECKED: Final = "Sorry, I couldn't check that right now. Please try again."
 
 Kind = Literal["question", "patrol"]
+GlimmerState = Literal["unknown", "checking", "up", "down", "none"]
 Part = dict[str, object]
+
+
+class GlimmerPing(Frozen):
+    """Glimmer's answer to a health check."""
+
+    ok: bool
 
 
 class WearablesError(ValueError):
@@ -295,7 +303,9 @@ class PovAssistant:
         self._site = site_profile
         self._monotonic = monotonic
         self._glimmer_down_until = 0.0
-        self._background: set[asyncio.Task[GlimmerLook | None]] = set()
+        self._glimmer_state: GlimmerState = "unknown"
+        self._probed_at: float | None = None
+        self._background: set[asyncio.Task[object]] = set()
 
     @property
     def frames_dir(self) -> Path:
@@ -321,6 +331,50 @@ class PovAssistant:
     def can_hear(self) -> bool:
         """Whether push-to-talk questions can be transcribed."""
         return self._transcriber is not None
+
+    @property
+    def glimmer_state(self) -> GlimmerState:
+        """Glimmer as last seen: `up`, `down` (Spark looks), `checking`, `unknown` or `none`."""
+        return self._glimmer_state if self._glimmer is not None else "none"
+
+    def warm(self) -> GlimmerState:
+        """Ping Glimmer in the background (at most once a minute) and return its last state.
+
+        Called when the page opens, so a cold serverless worker starts before the first question
+        and a Glimmer that is down is known before anyone waits for it.
+        """
+        now = self._monotonic()
+        recent = self._probed_at is not None and now - self._probed_at < PROBE_EVERY_S
+        if self._glimmer is None or recent or self._glimmer_state == "checking":
+            return self.glimmer_state
+        self._probed_at = now
+        self._glimmer_state = "checking"
+        self._keep(asyncio.create_task(self._probe()))
+        return self._glimmer_state
+
+    async def _probe(self) -> None:
+        if self._glimmer is None:
+            return
+        glimmer, model = self._glimmer, self._glimmer_model
+        reply, error = await timed(
+            lambda: glimmer.structured(
+                model=model,
+                messages=[{"role": "user", "content": "Health check: reply with ok true."}],
+                schema=GlimmerPing,
+            ),
+            self._glimmer_timeout_s,
+        )
+        self._mark_glimmer(up=reply is not None)
+        _log.info("wearables_glimmer_probe", up=reply is not None, error=error)
+
+    def _mark_glimmer(self, *, up: bool) -> None:
+        self._glimmer_state = "up" if up else "down"
+        self._glimmer_down_until = 0.0 if up else self._monotonic() + GLIMMER_RETRY_S
+
+    def _keep(self, task: asyncio.Task[Any]) -> None:
+        """Hold a background task until it ends."""
+        self._background.add(task)
+        task.add_done_callback(self._background.discard)
 
     async def answer(self, ask: Ask, history: Sequence[PovAnswer] = ()) -> PovAnswer:
         """Answer one frame.
@@ -406,8 +460,7 @@ class PovAssistant:
             return await self._spark_look(run, prompt, question, "no Glimmer configured")
         glimmer = asyncio.create_task(self._glimmer_look(run, f"{prompt}\n{question}"))
         if self._monotonic() < self._glimmer_down_until:
-            self._background.add(glimmer)  # it still gets the frame, and warms Glimmer up
-            glimmer.add_done_callback(self._background.discard)
+            self._keep(glimmer)  # it still gets the frame, and warms Glimmer up
             looked = await self._spark_look(run, prompt, question, "it failed in the last minutes")
             if glimmer.done() and glimmer.result() is not None:
                 return glimmer.result(), self._glimmer_model
@@ -433,9 +486,7 @@ class PovAssistant:
         run.timer.add("look", model, since, ok=look is not None, note=reason)
         if look is None:
             _log.warning("wearables_glimmer_failed", error=reason)
-            self._glimmer_down_until = self._monotonic() + GLIMMER_RETRY_S
-        else:
-            self._glimmer_down_until = 0.0
+        self._mark_glimmer(up=look is not None)
         return look
 
     async def _spark_look(

@@ -1,6 +1,7 @@
 """`/wearables`: smart glasses as a Rulecam camera (owner-only, like the other site tools).
 
-- `GET /wearables/status`: which models and voice answer, and the modes.
+- `GET /wearables/status`: which models and voice answer, the modes, and Glimmer's state (asking
+  pings Glimmer in the background, at most once a minute, so a cold worker starts early).
 - `POST /wearables/look`: one point-of-view frame (multipart `image`), with an optional typed
   `question` or a push-to-talk `audio` WAV, the `mode` (aisle, warehouse, crowd, general), the
   frame's `source` and an open `walk_id`. Returns a `PovAnswer` ready to speak.
@@ -8,17 +9,23 @@
   safety walk; finishing it writes the report and chains its hazards as evidence.
 - `GET /wearables/frames/{name}`, `GET /wearables/audio/{name}`: the frames, marked frames and
   spoken WAVs an answer names.
+- `GET /wearables/jobs/{job_id}`: a look or walk report sent with `wait=false`. A phone behind a
+  proxy (the UI's rewrite, a tunnel) cannot hold one request open for a slow model, so the page
+  starts the work and polls for it.
 
 Without a Muse Spark key `/wearables/look` and walk reports answer 503.
 """
 
 from __future__ import annotations
 
+import asyncio
 import importlib.util
 import shutil
-from collections.abc import Sequence
+import uuid
+from collections import OrderedDict
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
-from typing import Annotated, Any, Final
+from typing import Annotated, Any, Final, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -43,6 +50,7 @@ from rulecam.wearables.assist import (
     SPARK_MODEL,
     VOICE_MODEL,
     Ask,
+    GlimmerState,
     PovAssistant,
     Voice,
     WearablesError,
@@ -61,6 +69,7 @@ MAX_IMAGE_BYTES: Final = 8 * 1024 * 1024
 MAX_AUDIO_BYTES: Final = 10 * 1024 * 1024
 MODES: Final[tuple[Mode, ...]] = ("aisle", "warehouse", "crowd", "general")
 SOURCES: Final = ("phone-camera", "meta-glasses", "mock-device", "upload")
+MAX_JOBS: Final = 200
 UNAVAILABLE: Final = "the glasses assistant needs Muse Spark (META_API_KEY)"
 MMS_LABEL: Final = "Meta MMS-TTS (system voice if it fails)"
 SYSTEM_LABEL: Final = "system voice (not a Meta model)"
@@ -81,11 +90,62 @@ class WalkView(Frozen):
     report: WalkReport | None = None
 
 
+class Job(Frozen):
+    """Work started with `wait=false`: poll `GET /wearables/jobs/{job_id}` until it is done."""
+
+    job_id: str
+    status: Literal["running", "done", "failed"]
+    answer: PovAnswer | None = None
+    report: WalkReport | None = None
+    error: str | None = None
+
+
+class Jobs:
+    """The latest background looks and walk reports, by id (oldest dropped past `MAX_JOBS`)."""
+
+    def __init__(self) -> None:
+        """Create an empty job list."""
+        self._tasks: OrderedDict[str, asyncio.Task[PovAnswer | WalkReport]] = OrderedDict()
+
+    def start(self, work: Callable[[], Awaitable[PovAnswer | WalkReport]]) -> Job:
+        """Run `work` in the background and return its job."""
+        job_id = uuid.uuid4().hex[:16]
+
+        async def run() -> PovAnswer | WalkReport:
+            return await work()
+
+        self._tasks[job_id] = asyncio.create_task(run())
+        while len(self._tasks) > MAX_JOBS:
+            self._tasks.popitem(last=False)
+        return Job(job_id=job_id, status="running")
+
+    def get(self, job_id: str) -> Job:
+        """The job's state.
+
+        Raises:
+            HTTPException: 404 for an unknown job.
+        """
+        task = self._tasks.get(job_id)
+        if task is None:
+            raise HTTPException(HTTP_NOT_FOUND, "no such job")
+        if not task.done():
+            return Job(job_id=job_id, status="running")
+        error = task.exception()
+        if error is not None:
+            detail = error.detail if isinstance(error, HTTPException) else repr(error)
+            return Job(job_id=job_id, status="failed", error=str(detail)[:500])
+        result = task.result()
+        if isinstance(result, PovAnswer):
+            return Job(job_id=job_id, status="done", answer=result)
+        return Job(job_id=job_id, status="done", report=result)
+
+
 class WearablesStatus(Frozen):
     """What answers the glasses."""
 
     ready: bool
     look: str | None = Field(description="The first-look model; Spark looks when it is down.")
+    glimmer: GlimmerState = Field(description="Glimmer as last seen; asking pings it.")
     compose: str
     count: str
     transcribe: str | None
@@ -127,6 +187,7 @@ def wearables_router(  # noqa: C901 - one closure per route
 ) -> APIRouter:
     """The `/wearables` routes; 503 without the models."""
     router = APIRouter(prefix="/wearables", tags=["wearables"], dependencies=list(dependencies))
+    jobs = Jobs()
 
     def _assistant() -> PovAssistant:
         if assistant is None:
@@ -140,11 +201,12 @@ def wearables_router(  # noqa: C901 - one closure per route
             raise HTTPException(HTTP_NOT_FOUND, str(exc)) from exc
 
     @router.get("/status")
-    def status() -> WearablesStatus:
+    async def status() -> WearablesStatus:
         voice = assistant.voice if assistant is not None else None
         return WearablesStatus(
             ready=assistant is not None,
             look=assistant.glimmer_model if assistant is not None else None,
+            glimmer=assistant.warm() if assistant is not None else "none",
             compose=SPARK_MODEL,
             count=SAM_MODEL,
             transcribe=VOICE_MODEL if assistant is not None and assistant.can_hear else None,
@@ -164,7 +226,8 @@ def wearables_router(  # noqa: C901 - one closure per route
         walk_id: Annotated[str, Form(max_length=80)] = "",
         lang: Annotated[str, Form(pattern=r"^[a-z]{2,3}(-[A-Za-z]{2,4})?$")] = "en",
         speak: Annotated[bool, Form()] = True,
-    ) -> PovAnswer:
+        wait: Annotated[bool, Form()] = True,
+    ) -> PovAnswer | Job:
         svc = _assistant()
         if walk_id and _walk(walk_id).finished_at is not None:
             raise HTTPException(HTTP_CONFLICT, f"walk {walk_id} is finished")
@@ -180,13 +243,17 @@ def wearables_router(  # noqa: C901 - one closure per route
             source=source if source in SOURCES else "phone-camera",
             walk_id=walk_id or None,
         )
-        try:
-            answer = await svc.answer(ask, history)
-        except WearablesError as exc:
-            raise HTTPException(HTTP_UNPROCESSABLE, str(exc)) from exc
-        if walk_id:
-            walks.add(walk_id, answer)
-        return answer
+
+        async def work() -> PovAnswer:
+            try:
+                answer = await svc.answer(ask, history)
+            except WearablesError as exc:
+                raise HTTPException(HTTP_UNPROCESSABLE, str(exc)) from exc
+            if walk_id:
+                walks.add(walk_id, answer)
+            return answer
+
+        return await work() if wait else jobs.start(work)
 
     @router.post("/walks")
     def start_walk(body: WalkStart) -> Walk:
@@ -198,7 +265,7 @@ def wearables_router(  # noqa: C901 - one closure per route
         return WalkView(walk=walk, answers=walks.answers(walk_id), report=walks.report(walk_id))
 
     @router.post("/walks/{walk_id}/finish")
-    def finish_walk(walk_id: str) -> WalkReport:
+    async def finish_walk(walk_id: str, wait: bool = True) -> WalkReport | Job:
         _walk(walk_id)
         done = walks.report(walk_id)
         if done is not None:
@@ -206,9 +273,18 @@ def wearables_router(  # noqa: C901 - one closure per route
         if reporter is None:
             raise HTTPException(HTTP_UNAVAILABLE, UNAVAILABLE)
         walk = walks.finish(walk_id)
-        report = reporter.report(walk, walks.answers(walk_id))
-        walks.save_report(report)
-        return report
+        writer = reporter
+
+        async def work() -> WalkReport:
+            report = await asyncio.to_thread(writer.report, walk, walks.answers(walk_id))
+            walks.save_report(report)
+            return report
+
+        return await work() if wait else jobs.start(work)
+
+    @router.get("/jobs/{job_id}")
+    def job(job_id: str) -> Job:
+        return jobs.get(job_id)
 
     @router.get("/frames/{name}")
     def frame(name: str) -> FileResponse:

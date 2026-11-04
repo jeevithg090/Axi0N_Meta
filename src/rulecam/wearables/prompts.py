@@ -46,8 +46,9 @@ LOOK_PROMPT: Final = (
     "relative to the wearer (ahead, left, right, near, far). Set `alert` only if the wearer "
     "should be warned right now. In `count`, give up to 3 short noun phrases for SAM 3.1 (an "
     "open-vocabulary segmenter) to find and count in this frame so your answer can be checked: "
-    "the things the question is about, or the objects that make up a hazard. SAM 3.1 finds "
-    "things, not empty space: never ask it for gaps or empty shelf. " + PRIVACY
+    "the things the question is about, or the objects that make up a hazard. Give plain noun "
+    "phrases without positions ('person', not 'person ahead'): SAM 3.1 finds things, not "
+    "places or empty space, so never ask it for gaps or empty shelf. " + PRIVACY
 )
 
 COMPOSE_PROMPT: Final = (

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -51,8 +53,16 @@ def client(tmp_path: Path, *, ready: bool = True) -> tuple[TestClient, FakeLLM, 
 
 
 def test_status(tmp_path: Path) -> None:
-    api, _, _ = client(tmp_path)
-    body = api.get("/wearables/status").json()
+    api, glimmer, _ = client(tmp_path)
+    glimmer.queue({"ok": True})
+    with api:
+        body = api.get("/wearables/status").json()
+        assert body["glimmer"] == "checking"
+        for _ in range(100):
+            if api.get("/wearables/status").json()["glimmer"] != "checking":
+                break
+            time.sleep(0.02)
+        assert api.get("/wearables/status").json()["glimmer"] == "up"
     assert body["ready"] is True
     assert body["look"] == "muse-glimmer-30b"
     assert body["voice"] == "test voice"
@@ -62,7 +72,9 @@ def test_status(tmp_path: Path) -> None:
 
 def test_without_spark_looks_answer_503(tmp_path: Path) -> None:
     api, _, _ = client(tmp_path, ready=False)
-    assert api.get("/wearables/status").json()["ready"] is False
+    status = api.get("/wearables/status").json()
+    assert status["ready"] is False
+    assert status["glimmer"] == "none"
     reply = api.post("/wearables/look", files={"image": ("f.jpg", jpeg(), "image/jpeg")})
     assert reply.status_code == 503
 
@@ -122,3 +134,41 @@ def test_walk_lifecycle(tmp_path: Path) -> None:
     )
     assert late.status_code == 409
     assert api.get("/wearables/walks/walk-missing-000000").status_code == 404
+
+
+def poll(api: TestClient, job: dict[str, Any]) -> dict[str, Any]:
+    for _ in range(200):
+        state: dict[str, Any] = api.get(f"/wearables/jobs/{job['job_id']}").json()
+        if state["status"] != "running":
+            return state
+        time.sleep(0.02)
+    raise AssertionError("job still running")
+
+
+def test_background_jobs(tmp_path: Path) -> None:
+    api, glimmer, spark = client(tmp_path)
+    glimmer.queue(look())
+    spark.queue(composed(alert=False, spoken="All clear."))
+    with api:
+        started = api.post(
+            "/wearables/look",
+            files={"image": ("f.jpg", jpeg(), "image/jpeg")},
+            data={"question": "Clear?", "wait": "false"},
+        ).json()
+        assert started["status"] == "running"
+        done = poll(api, started)
+        assert done["status"] == "done"
+        assert done["answer"]["spoken"] == "All clear."
+        bad = api.post(
+            "/wearables/look",
+            files={"image": ("f.gif", b"GIF89a", "image/gif")},
+            data={"wait": "false"},
+        ).json()
+        failed = poll(api, bad)
+        assert failed["status"] == "failed"
+        assert "JPEG or PNG" in failed["error"]
+        walk = api.post("/wearables/walks", json={"mode": "aisle"}).json()
+        finish = api.post(f"/wearables/walks/{walk['walk_id']}/finish?wait=false").json()
+        report = poll(api, finish)["report"]
+        assert report["summary"]["summary"] == "No frames were sent during this walk."
+        assert api.get("/wearables/jobs/nope").status_code == 404

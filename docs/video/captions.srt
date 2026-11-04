@@ -1,191 +1,175 @@
 1
-00:00:00,000 --> 00:00:01,950
+00:00:00,000 --> 00:00:01,617
 A forklift passes a worker.
 
 2
-00:00:02,000 --> 00:00:04,350
+00:00:01,667 --> 00:00:03,617
 A crowd presses toward a gate.
 
 3
-00:00:04,400 --> 00:00:05,950
+00:00:03,667 --> 00:00:04,950
 A queue backs up.
 
 4
-00:00:06,000 --> 00:00:08,408
+00:00:05,000 --> 00:00:06,825
 The cameras saw it all.
 
 5
-00:00:08,458 --> 00:00:09,883
+00:00:06,875 --> 00:00:07,950
 Nobody was watching.
 
 6
-00:00:10,000 --> 00:00:11,800
+00:00:08,000 --> 00:00:09,800
 This is Rulecam.
 
 7
-00:00:12,000 --> 00:00:15,450
+00:00:10,000 --> 00:00:13,450
 A warehouse manager sets one rule, in Spanish:
 
 8
-00:00:15,500 --> 00:00:18,950
+00:00:13,500 --> 00:00:16,950
 keep people four metres from a moving forklift.
 
 9
-00:00:19,000 --> 00:00:20,664
-Muse Spark plans it.
+00:00:17,000 --> 00:00:22,677
+Muse Spark plans it, SAM 3.1 measures the floor, and Rule CI attacks it.
 
 10
-00:00:20,714 --> 00:00:25,379
-SAM 3.1 finds the forklift and measures the floor in metres.
-
-11
-00:00:25,429 --> 00:00:27,950
-What it can't see, it says.
-
-12
-00:00:28,000 --> 00:00:31,450
-Before anyone approves, Rule CI attacks the rule.
-
-13
-00:00:31,500 --> 00:00:34,950
+00:00:22,727 --> 00:00:25,950
 Sixteen edge cases, six broken copies. All caught.
 
+11
+00:00:26,000 --> 00:00:33,075
+On live video, Muse Glimmer, Meta's open model on our own GPU, confirmed six near misses out of six.
+
+12
+00:00:33,125 --> 00:00:37,950
+And it knew the seated driver was the operator, so nobody was bothered.
+
+13
+00:00:38,000 --> 00:00:40,621
+Spark writes the warning in Spanish.
+
 14
-00:00:35,000 --> 00:00:36,689
-Now it fires twice.
+00:00:40,671 --> 00:00:42,848
+Meta's speech model says it.
 
 15
-00:00:36,739 --> 00:00:39,298
-A worker walks inside four metres.
+00:00:42,898 --> 00:00:47,300
+Voice Transcribe listens back, to check it was said right.
 
 16
-00:00:39,348 --> 00:00:44,950
-Muse Glimmer, Meta's open model on our own GPU, checks the frames: violation.
-
-17
-00:00:45,000 --> 00:00:47,750
-Then the rule flags the driver. Glimmer:
-
-18
-00:00:47,800 --> 00:00:50,950
-that's the operator, in the cab. No alert.
-
-19
-00:00:51,000 --> 00:00:54,050
-The warning goes out in Spanish.
-
-20
-00:00:55,000 --> 00:00:58,428
+00:00:50,000 --> 00:00:53,150
 In a crowd crush, nobody does anything wrong.
 
-21
-00:00:58,478 --> 00:01:01,472
+17
+00:00:53,200 --> 00:00:55,950
 People are packed too tightly to move.
 
+18
+00:00:56,000 --> 00:01:01,037
+This is real footage from a crowd experiment, with an instruction in Hindi.
+
+19
+00:01:01,087 --> 00:01:04,950
+SAM 3.1's counts stayed within four percent of the truth.
+
+20
+00:01:05,000 --> 00:01:06,550
+Spark calls it critical.
+
+21
+00:01:06,600 --> 00:01:16,950
+The plan was to send people to side door B, but the route guard saw that door was filling too, so Spark held the inflow instead.
+
 22
-00:01:01,522 --> 00:01:04,950
-From the ground, no one sees it building.
+00:01:17,000 --> 00:01:23,950
+In one run, Glimmer confirmed in six seconds, and stewards were told twenty-six seconds after the reading.
 
 23
-00:01:05,000 --> 00:01:11,950
-This is real footage from a crowd experiment, played live into Rulecam, with an instruction in Hindi.
+00:01:24,000 --> 00:01:29,950
+When a Hindi announcement came back saying "crowd" instead of "gate", it was held back.
 
 24
-00:01:12,000 --> 00:01:14,912
-SAM 3.1 counts heads in each zone:
+00:01:30,000 --> 00:01:31,728
+A shop owner asks:
 
 25
-00:01:14,962 --> 00:01:18,296
-ninety-five to ninety-nine percent of the true count.
+00:01:31,778 --> 00:01:33,950
+when was the queue longest?
 
 26
-00:01:18,346 --> 00:01:22,950
-At the gate, eight people per square metre. The truth: eight.
+00:01:34,000 --> 00:01:36,158
+The tracker said twenty-two people.
 
 27
-00:01:23,000 --> 00:01:31,883
-Muse Spark calls it critical, tells stewards to stop the inflow, and writes a calm announcement in Hindi and English.
+00:01:36,208 --> 00:01:42,783
+Rulecam counted the same frame three ways, with SAM, Spark and Glimmer, and said ten.
 
 28
-00:01:32,000 --> 00:01:34,521
-Reading to alert: about forty seconds.
+00:01:42,833 --> 00:01:44,550
+By hand: about twelve.
 
 29
-00:01:34,571 --> 00:01:37,950
-A slow check never holds a warning back.
+00:01:45,000 --> 00:01:53,950
+It spots a spill, tells the right person, and closes the task only when a photo shows the floor is clean.
 
 30
-00:01:38,000 --> 00:01:40,617
-A shop owner doesn't want rules.
+00:01:54,000 --> 00:01:59,550
+Ask out loud in Spanish, and the answer comes back in Spanish.
 
 31
-00:01:40,667 --> 00:01:41,950
-They want answers.
+00:02:05,000 --> 00:02:07,521
+Connect the cameras you already have.
 
 32
-00:01:42,000 --> 00:01:44,583
-Muse Spark picks its own tools:
+00:02:07,571 --> 00:02:10,950
+About thirty seconds to a named, surveyed camera.
 
 33
-00:01:44,633 --> 00:01:48,972
-SQL over SAM's tracks, SAM counts, Glimmer looking at frames.
+00:02:11,000 --> 00:02:16,950
+Staff get the alert on their phone, by role, never by name, in their own language.
 
 34
-00:01:49,022 --> 00:01:53,800
-It splits the view into two lanes by itself, and answers.
+00:02:17,000 --> 00:02:21,950
+In glasses mode, ask what you're looking at, and hear the answer.
 
 35
-00:01:54,000 --> 00:01:59,950
-On shelves, Spark spots the gaps and SAM checks no product is there.
-
-36
-00:02:00,000 --> 00:02:06,950
-It reads local food recalls, and keeps only items it can link to a real page.
-
-37
-00:02:07,000 --> 00:02:11,300
-And one rule pack can run in every store.
-
-38
-00:02:12,000 --> 00:02:14,093
+00:02:22,000 --> 00:02:23,987
 Why trust any of this?
 
-39
-00:02:14,143 --> 00:02:16,664
+36
+00:02:24,037 --> 00:02:26,431
 You don't have to trust us.
 
+37
+00:02:26,481 --> 00:02:32,950
+An inspector opens a proof pack, and their own browser re-checks every record and every number.
+
+38
+00:02:33,000 --> 00:02:35,950
+Change one number, and it turns red.
+
+39
+00:02:36,000 --> 00:02:41,303
+Workers can dispute any alert, and a false alarm becomes a permanent test.
+
 40
-00:02:16,714 --> 00:02:23,950
-Every event, verdict and action goes into a hash chain, and your own browser recomputes every fingerprint.
-
-41
-00:02:24,000 --> 00:02:27,050
-Change one byte, and it breaks.
-
-42
-00:02:28,000 --> 00:02:31,077
-Workers see every rule on a poster.
-
-43
-00:02:31,127 --> 00:02:36,883
-One tap disputes an alert, and a false alarm becomes a permanent test.
-
-44
-00:02:37,000 --> 00:02:39,217
+00:02:41,353 --> 00:02:42,950
 No face recognition. Ever.
 
-45
-00:02:40,000 --> 00:02:43,067
-Need a rule type we don't have?
+41
+00:02:43,000 --> 00:02:45,690
+Need a new kind of rule?
 
-46
-00:02:43,117 --> 00:02:49,300
-Muse Code writes it, and a solver proves it never alerts without its target.
+42
+00:02:45,740 --> 00:02:49,800
+Muse Code writes it, and a solver proves it.
 
-47
-00:02:50,000 --> 00:02:52,690
-Rulecam. Plain words in. Verified alerts out.
+43
+00:02:50,000 --> 00:02:51,767
+Rulecam. Plain words in.
 
-48
-00:02:52,740 --> 00:02:56,800
-On the cameras you already own, in any language.
+44
+00:02:51,817 --> 00:02:57,217
+Verified alerts out. On the cameras you already own, in any language.

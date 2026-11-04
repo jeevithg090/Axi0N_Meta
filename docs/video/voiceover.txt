@@ -1,49 +1,47 @@
 [0:00] A forklift passes a worker. A crowd presses toward a gate. A queue backs up.
 
-[0:06] The cameras saw it all. Nobody was watching.
+[0:05] The cameras saw it all. Nobody was watching.
 
-[0:10] This is Rulecam.
+[0:08] This is Rulecam.
 
-[0:12] A warehouse manager sets one rule, in Spanish: keep people four metres from a moving forklift.
+[0:10] A warehouse manager sets one rule, in Spanish: keep people four metres from a moving forklift.
 
-[0:19] Muse Spark plans it. SAM 3.1 finds the forklift and measures the floor in metres. What it can't see, it says.
+[0:17] Muse Spark plans it, SAM 3.1 measures the floor, and Rule CI attacks it. Sixteen edge cases, six broken copies. All caught.
 
-[0:28] Before anyone approves, Rule CI attacks the rule. Sixteen edge cases, six broken copies. All caught.
+[0:26] On live video, Muse Glimmer, Meta's open model on our own GPU, confirmed six near misses out of six. And it knew the seated driver was the operator, so nobody was bothered.
 
-[0:35] Now it fires twice. A worker walks inside four metres. Muse Glimmer, Meta's open model on our own GPU, checks the frames: violation.
+[0:38] Spark writes the warning in Spanish. Meta's speech model says it. Voice Transcribe listens back, to check it was said right.
 
-[0:45] Then the rule flags the driver. Glimmer: that's the operator, in the cab. No alert.
+[0:50] In a crowd crush, nobody does anything wrong. People are packed too tightly to move.
 
-[0:51] The warning goes out in Spanish.
+[0:56] This is real footage from a crowd experiment, with an instruction in Hindi. SAM 3.1's counts stayed within four percent of the truth.
 
-[0:55] In a crowd crush, nobody does anything wrong. People are packed too tightly to move. From the ground, no one sees it building.
+[1:05] Spark calls it critical. The plan was to send people to side door B, but the route guard saw that door was filling too, so Spark held the inflow instead.
 
-[1:05] This is real footage from a crowd experiment, played live into Rulecam, with an instruction in Hindi.
+[1:17] In one run, Glimmer confirmed in six seconds, and stewards were told twenty-six seconds after the reading.
 
-[1:12] SAM 3.1 counts heads in each zone: ninety-five to ninety-nine percent of the true count. At the gate, eight people per square metre. The truth: eight.
+[1:24] When a Hindi announcement came back saying "crowd" instead of "gate", it was held back.
 
-[1:23] Muse Spark calls it critical, tells stewards to stop the inflow, and writes a calm announcement in Hindi and English.
+[1:30] A shop owner asks: when was the queue longest?
 
-[1:32] Reading to alert: about forty seconds. A slow check never holds a warning back.
+[1:34] The tracker said twenty-two people. Rulecam counted the same frame three ways, with SAM, Spark and Glimmer, and said ten. By hand: about twelve.
 
-[1:38] A shop owner doesn't want rules. They want answers.
+[1:45] It spots a spill, tells the right person, and closes the task only when a photo shows the floor is clean.
 
-[1:42] Muse Spark picks its own tools: SQL over SAM's tracks, SAM counts, Glimmer looking at frames. It splits the view into two lanes by itself, and answers.
+[1:54] Ask out loud in Spanish, and the answer comes back in Spanish.
 
-[1:54] On shelves, Spark spots the gaps and SAM checks no product is there.
+[2:05] Connect the cameras you already have. About thirty seconds to a named, surveyed camera.
 
-[2:00] It reads local food recalls, and keeps only items it can link to a real page.
+[2:11] Staff get the alert on their phone, by role, never by name, in their own language.
 
-[2:07] And one rule pack can run in every store.
+[2:17] In glasses mode, ask what you're looking at, and hear the answer.
 
-[2:12] Why trust any of this? You don't have to trust us. Every event, verdict and action goes into a hash chain, and your own browser recomputes every fingerprint.
+[2:22] Why trust any of this? You don't have to trust us. An inspector opens a proof pack, and their own browser re-checks every record and every number.
 
-[2:24] Change one byte, and it breaks.
+[2:33] Change one number, and it turns red.
 
-[2:28] Workers see every rule on a poster. One tap disputes an alert, and a false alarm becomes a permanent test.
+[2:36] Workers can dispute any alert, and a false alarm becomes a permanent test. No face recognition. Ever.
 
-[2:37] No face recognition. Ever.
-
-[2:40] Need a rule type we don't have? Muse Code writes it, and a solver proves it never alerts without its target.
+[2:43] Need a new kind of rule? Muse Code writes it, and a solver proves it.
 
 [2:50] Rulecam. Plain words in. Verified alerts out. On the cameras you already own, in any language.

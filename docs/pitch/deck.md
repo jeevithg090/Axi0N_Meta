@@ -70,20 +70,22 @@ confirms the worker (0.99), rejects the seated driver (0.05). Three labels under
 **Speaker notes (60 s live moment, then 20 s)**
 
 The live moment, in this order. If any step stalls for more than 10 seconds, say "this is the
-recorded run" and switch to `/demo?demo=1` (REPLAY). Warm the GPUs at T-60 min (`docs/DEMO.md`).
+recorded run" and switch to the recorded page (REPLAY). Warm everything at T-60 min
+([`docs/demo-day.md`](../demo-day.md)), and plan once on the stage camera beforehand so the
+survey is reused.
 
-1. `/planner`: type the forklift rule in Spanish. "Any language. It plans, and it tells me
-   what the camera can't see." (Do not wait for the plan; open the finished one.)
-2. `/demo?demo=1`, Rule CI: "Before I can approve it, it attacks the rule. Sixteen edge
-   cases, six broken copies. All caught."
-3. The two verdicts (T02 and T04 goldens, REPLAY): "Same rule fires twice. Glimmer, Meta's open
-   model on our own GPU, confirms the worker and rejects the driver. Nobody is bothered for
-   the driver."
-4. Click **Verify it in your browser**: "Your browser recomputes every fingerprint. You don't
-   have to trust us."
+1. `{{LIVE_UI_URL}}/usecases/warehouse`: say or type the forklift rule in Spanish, press "Plan
+   this rule". "Any language. Llama Guard screens it, Spark plans it, and it tells me what the
+   camera can't see." On a surveyed camera this took 42–45 s on 4 Nov; talk over it.
+2. Rule CI turns green: "Before I can approve it, it attacks the rule. Sixteen edge cases, six
+   broken copies. All caught."
+3. The verdicts (REPLAY cards on the same page): "Glimmer, Meta's open model on our own GPU,
+   confirmed six near misses out of six live, and knew the seated driver was the operator."
+4. The proof portal share link: "An inspector's own browser re-checks every record and every
+   number. Change one, and it turns red."
 
-Then, pointing at the other two labels: "The same parts warn a venue about crowd density, and
-answer a shop owner's questions. Let me show you the numbers."
+Then, pointing at the other two labels: "The same parts warn a venue before a crowd crush, and
+answer a shop owner's questions. Here are the numbers."
 
 ---
 
@@ -93,12 +95,14 @@ answer a shop owner's questions. Let me show you the numbers."
 
 Four words across the top, each with one line:
 
-1. **Describe.** Say what worries you, in any language.
+1. **Describe.** Say what worries you, in any language. Llama Guard 4 screens it.
 2. **Plan.** Muse Spark plans it; SAM 3.1 checks what the camera can see and measures metres.
 3. **Prove.** Rule CI attacks the rule before a person approves it.
-4. **Trust.** Muse Glimmer checks every alert; everything is hash-chained; anyone can verify.
+4. **Trust.** Muse Glimmer checks every alert (Muse Spark Open can check again); warnings are
+   heard back before they play; everything is hash-chained; anyone can verify.
 
-Bottom strip: "Phone or the CCTV you have · No face recognition · Workers can dispute any alert".
+Bottom strip: "Any camera you have · Alerts to roles, never names · No face recognition ·
+Workers can dispute any alert".
 
 **Speaker notes (30 s)**
 
@@ -114,25 +118,26 @@ rule and dispute any alert. A false alarm becomes a permanent test."
 
 **On the slide**
 
-| World | Measured | Source |
+| World | Measured live (4 Nov) | Source |
 |---|---|---|
-| Warehouse | Glimmer **0.99** on the worker 2.90 m from a moving forklift; **0.98** on the same rule in Spanish; **0.05** on the seated driver, no alert; **19.0 s** event to verified decision | [live campaign, 1 Nov](../../reports/eval/2026-11-01-live-test-campaign.md) |
-| Crowd | SAM 3.1 found **95–99%** of true heads; gate density within about **10%**; reading to alert about **40 s** | [Jülich run, 3 Nov](../../reports/eval/2026-11-03-crowd-live.md) |
-| Supermarket | **13 of 13** owner questions answered on real checkout video, **10** fully right | [Ask run, 1 Nov](../../reports/eval/2026-11-01-supermarket-ask.md) |
-| Cost | **$0.0039** GPU cost per alert check, 20 at once | [load test, 2 Nov](../../reports/eval/2026-11-02-serverless-load.json) |
-| Weak, and shown | Ask counts within tolerance on hand-labelled CCTV: **7 of 36** | [Ask benchmark](../../reports/eval/ask/2026-11-02T230520Z-corridor.json) |
+| Warehouse | Glimmer confirmed **6 of 6** near misses at **0.98–0.99**; the Spanish warning heard back with word error **0.09–0.18**, all passed; plan in **42–45 s** on a surveyed camera | [warehouse](../../reports/eval/2026-11-04-warehouse-live.md) |
+| Crowd | Counts within **0–4%** of the Jülich truth; Glimmer confirmed in **6.2 s**, stewards told **26 s** after the reading; a mistranslated Hindi announcement caught and held back | [crowd](../../reports/eval/2026-11-04-crowd-live.md) |
+| Supermarket | Busy-frame count **22 → 10** with three models (about **12** by hand); spill seen to cleared in **1.9 min**, checked by photo (the spill image is a generated SAMPLE) | [supermarket](../../reports/eval/2026-11-04-supermarket-live.md) |
+| Trust | Proof pack: **395** records and **97** numbers re-checked in the browser in **0.3–0.4 s**; one edited number turns it red | [proof portal](../../reports/eval/2026-11-04-proof-portal.md) |
+| Weak, and shown | Ask's counts on hand-labelled CCTV: **7 of 36** within tolerance (2 Nov). Glimmer once held back a true crowd alert; Spark now decides when Glimmer disagrees (unit-tested, not yet seen live) | [Ask benchmark](../../reports/eval/ask/2026-11-02T230520Z-corridor.json), [crowd](../../reports/eval/2026-11-04-crowd-live.md) |
 
-Beside the table: the crowd chart ([`media/crowd-density-vs-truth.png`](media/crowd-density-vs-truth.png)),
-Rulecam's gate density against the truth, reading by reading.
+Beside the table: the crowd chart ([`media/crowd-density-vs-truth.png`](media/crowd-density-vs-truth.png))
+or the supermarket card "22 → 10 people" (`ui/public/screens/11-supermarket-journey.png`).
 
-**Speaker notes (35 s)**
+**Speaker notes (40 s)**
 
-"Every number here links to the run, the date and the commit that produced it. In the
-warehouse, Glimmer confirmed a real violation at 0.99 and rejected the seated driver at 0.05.
-On real footage from a Jülich crowd experiment, SAM 3.1 counted 95 to 99 percent of the true
-heads, and the alert came about 40 seconds after the reading. We also show what doesn't work
-yet: Ask's counts on hand-labelled CCTV were within tolerance 7 times out of 36. We publish
-that, because the whole product is about not hiding things."
+"Every number here links to the run that produced it. In the warehouse, Glimmer confirmed six
+near misses out of six, and the Spanish warning was checked by listening to it. On real footage
+from a Jülich crowd experiment, counts stayed within four percent of the truth, and stewards
+were told 26 seconds after the reading. In the supermarket, the tracker said 22 people on a
+busy frame; three Meta models counting the same frame said 10, and a person counted about 12.
+And an inspector's browser re-checks 395 records in under half a second. We also show what
+doesn't work yet, because the whole product is about not hiding things."
 
 ---
 
@@ -173,10 +178,12 @@ timing evidence are in [`research/industrial.md`](research/industrial.md#3-the-e
   cloud camera platforms are reported to charge (unverified).
 - **Chain:** one rule pack for every store, a store-level scorecard (never per worker), one
   evidence root for head office.
-- **Proof portal:** read-only evidence packs for inspectors and insurers, paid per site.
+- **Proof portal:** proof packs for inspectors and insurers, re-checked in their own browser,
+  paid per site.
+- **Staff app** is included: alerts go to roles, in each person's language.
 
-Under it: "Measured GPU cost per alert check: $0.0039 (20 at once). Cost per camera-hour: not
-yet measured."
+Under it: "Measured GPU cost per alert check: $0.0039 (20 at once, 2 Nov). Cost per
+camera-hour: not yet measured."
 
 **Speaker notes (30 s)**
 
@@ -197,26 +204,29 @@ not yet measured cost per camera-hour, so the price is a hypothesis we will test
 
 | Model | Its job | Live? |
 |---|---|---|
-| Muse Spark | Plans rules, runs the Ask agent, judges crowd levels, searches the web with checked sources | Live |
+| Muse Spark | Plans rules, runs the Ask agent, judges crowds and plans routes, reviews disputes, searches the web with checked sources | Live |
 | SAM 3.1 | Sees: surveys, probes, tracks, counts heads | Live |
-| Muse Glimmer (open weights) | Checks every alert, on our own GPU | Live |
-| Voice Transcribe, MMS-TTS | Listens and speaks, in the user's language | Live |
-| Muse Code | Writes new rule types; Z3 proves them | Built |
-| Spark Open, Prompt Guard 2 | Second check; scene-text firewall | Built, not live yet |
+| Muse Glimmer (open weights) | Checks every alert, on our own GPUs | Live |
+| Muse Spark Open (open weights) | Second check, plan audit, Ask review, on our own 8 x H100 | Live |
+| Muse Code | Writes new rule types; Z3 proves them | Live |
+| Llama Guard 4, Prompt Guard 2 | Refuses rules about who people are; firewall for text in the scene | Live |
+| Voice Transcribe, MMS-TTS | Listens and speaks, in the user's language, and checks itself by listening back | Live |
 
 One line under it: "Each model is checked by another part of the system."
 
-**Speaker notes (35 s)**
+**Speaker notes (40 s)**
 
 "We use Meta's models as a team that checks itself. Spark plans and reasons. SAM 3.1 sees and
-measures. Glimmer, which we run ourselves as open weights, checks every alert. Three things
-surprised us. Glimmer could tell the forklift operator from a pedestrian, which our rule engine
-couldn't. SAM 3.1 counted heads in a dense crowd from above almost perfectly. And SAM can't see
-'empty shelf', so we let Spark propose the gaps and SAM confirm there's no product. Spark Open
-and Prompt Guard are built but not live in our deployment yet, and we say so."
+measures. Glimmer and Spark Open, which we run ourselves as open weights, check every alert.
+Four things surprised us. Glimmer could tell the forklift operator from a pedestrian, which our
+rule engine couldn't. No single model counts a busy queue right, but SAM, Spark and Glimmer
+together got within two people. Listening back caught a Hindi announcement that said 'crowd'
+instead of 'gate'. And Z3 found a divide-by-zero in a check Muse Code wrote; the repair round
+fixed it."
 
-> If Spark Open or Prompt Guard 2 goes live with a report before the finals, change their row
-> to Live and add the number.
+> Spark Open costs $43.12 an hour warm and takes about 18 minutes to start
+> ([`docs/demo-day.md`](../demo-day.md)). Warm it before the finals or leave it out of the live
+> moment.
 
 ---
 
@@ -250,14 +260,14 @@ is listed in the repo, with the licence of everything we reused."
 > Plain words in. Verified alerts out.
 
 - **Pilots:** one warehouse, one supermarket, one venue or station, on cameras they already own.
-- **Meta:** access to Muse Spark Open for the second check, and the gated Prompt Guard 2 model.
-- **You:** open [rulecam.vercel.app/demo](https://rulecam.vercel.app/demo?demo=1) and press
-  **Verify it in your browser**.
+- **Meta:** help putting glasses mode on Ray-Ban Meta glasses (the Wearables Device Access
+  Toolkit), so a supervisor can walk the floor with it.
+- **You:** open `{{LIVE_UI_URL}}/demo?demo=1` and press **Verify it in your browser**.
 
 **Speaker notes (20 s)**
 
-"We're asking for three pilots, one in each world, on cameras they already own. From Meta, the
-access we need to switch on the second check. And from you: open the demo and press verify.
+"We're asking for three pilots, one in each world, on cameras they already own. From Meta,
+help putting glasses mode on real glasses. And from you: open the demo and press verify.
 Your own browser will check our evidence. Plain words in. Verified alerts out. Thank you."
 
 ---
@@ -267,10 +277,11 @@ Your own browser will check our evidence. Plain words in. Verified alerts out. T
 | Question | Answer |
 |---|---|
 | How is this different from Verkada or Spot AI? | They let you describe an alert. We tell you what the camera can't check, attack the rule before it goes live, check every alert with a second model, and keep a record anyone can verify. On cameras you already own. |
-| How accurate is it? | The forklift rule worked end to end on real video (0.99 confirm, 0.05 reject). Crowd counts were 95–99% of truth. Ask's counts are weak: 7 of 36 within tolerance on hand-labelled CCTV. We publish all of it. |
-| Did Glimmer check the crowd alert? | Not in the 3 Nov run: no GPU was free, so the alert went out unchecked after 20 s, as designed. A slow check never holds a warning back. |
+| How accurate is it? | Live on 4 Nov: Glimmer confirmed 6 of 6 forklift near misses; crowd counts were within 0–4% of the Jülich truth; a busy-frame count came to 10 against about 12 by hand. Weak: Ask's counts on hand-labelled CCTV were 7 of 36 within tolerance (2 Nov). We publish all of it. |
+| Did Glimmer check the crowd alert? | When it had a GPU, yes: 0.95 in 6.2 s in run 6. When no GPU was free, alerts went out unchecked and said so; a late check never holds a warning back. Once Glimmer held a true alert (it would not confirm more than 5 per m² from one image); now Spark decides to send or hold when Glimmer disagrees, unit-tested and not yet seen live. |
 | Isn't this surveillance? | No face recognition, ever. Faces are blurred in evidence by default. Results are per rule and per store, never per worker. Workers see every rule and can dispute any alert. Our hackathon deployment runs a less strict prototype mode, and we document exactly what it changes. |
-| Does Meta train on your footage? | Our hosted API key is Standard tier, never Contributor. The model that sees alert frames runs on open weights on our own GPU. All our measured runs used public stock or research footage. |
-| What does it cost to run? | $0.0039 of GPU time per alert check with 20 at once. Cost per camera-hour is not measured yet. GPUs scale to zero when idle, so cold starts are slow (minutes). |
+| Does Meta train on your footage? | Our hosted API key is Standard tier, never Contributor. Glimmer and Spark Open, which check alerts, run on open weights on our own GPUs (a hosted Glimmer is the last fallback). All our measured runs used public footage or generated images labelled SAMPLE. |
+| What does it cost to run? | $0.0039 of GPU time per alert check with 20 at once (2 Nov). Spark Open is the expensive part: $43.12 an hour warm, so it runs only when needed. Cost per camera-hour is not measured yet. GPUs scale to zero when idle, so cold starts are slow (minutes). |
 | What if the model is wrong? | Outside prototype mode, a rejected alert on a high-severity rule still goes to a person. A disputed alert becomes a permanent Rule CI test. |
 | Is it a safety system? | No. It helps people watch. It does not replace a guard, a lock-out or a supervisor. |
+| Has it run on real CCTV or real glasses? | Not yet. Connectors were tested on streaming servers and a simulated ONVIF recorder; glasses mode on a phone page with stock stills; push in Chromium. Each report says so. |

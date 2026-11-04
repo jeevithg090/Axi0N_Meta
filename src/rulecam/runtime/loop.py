@@ -85,6 +85,7 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Protocol, runtime_checkable
 
 from pydantic import Field
@@ -1118,7 +1119,8 @@ class RuntimeLoop:
         After act-first actions, or when Tier 1 gave no verdict, the decision is chained too.
         """
         rule, chunk, key = job.context.rule, job.chunk, candidate.event_id
-        self._append("verdict", {"event_id": key, **_dump(tier1)}, chunk, key)
+        verdict = {"event_id": key, **_dump(tier1), **strip_reference(candidate.strip_paths)}
+        self._append("verdict", verdict, chunk, key)
         self._bus.publish(Topic.VERDICT_NEW, VerdictNew(event_id=candidate.event_id, verdict=tier1))
         decision = self._policy.decide(candidate, rule, tier1)
         if job.act_first or verifier_error(tier1) is not None:
@@ -1160,6 +1162,24 @@ class ActionDone(Frozen):
 
 async def _await(start: Callable[[], Awaitable[None]]) -> None:
     await start()
+
+
+def strip_reference(paths: Sequence[str]) -> dict[str, object]:
+    """Where the verdict's evidence strip is: `{"strip": {"dir", "frames"}}`, or nothing.
+
+    `dir` is `<camera>/<event_id>` under the data directory's `strips/` folder (the runtime's
+    layout), so a consumer finds the frames without guessing and no absolute server path is
+    chained.
+    """
+    if not paths:
+        return {}
+    first = Path(paths[0])
+    return {
+        "strip": {
+            "dir": f"{first.parent.parent.name}/{first.parent.name}",
+            "frames": [Path(p).name for p in paths],
+        }
+    }
 
 
 def _dump(model: Frozen) -> Mapping[str, object]:

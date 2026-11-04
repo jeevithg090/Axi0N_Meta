@@ -296,6 +296,26 @@ def test_escalation_timeline_with_fake_clock(tmp_path: Path) -> None:
     assert Topic.ALERT_NEW in rig.bus.topics()
 
 
+def test_pending_says_who_was_told_and_who_is_next(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    rig.escalation.start(
+        "ev-3", ["aide", "charge_nurse"], after_s=60, title="t", body="b", rule_id="r1"
+    )
+    pending = rig.escalation.pending("ev-3")
+    assert pending is not None
+    assert (pending.notified, pending.next_role) == (("aide",), "charge_nurse")
+    assert pending.rule_id == "r1"
+    assert pending.next_at is not None
+    assert (pending.next_at - rig.clock.now()).total_seconds() == 60
+    rig.clock.advance(60)
+    rig.escalation.tick()
+    last = rig.escalation.pending("ev-3")
+    assert last is not None
+    assert (last.notified, last.next_role, last.next_at) == (("aide", "charge_nurse"), None, None)
+    rig.escalation.ack("ev-3", "charge_nurse")
+    assert rig.escalation.pending("ev-3") is None
+
+
 def test_ack_cancels_escalation(tmp_path: Path) -> None:
     rig = Rig(tmp_path)
     rig.escalation.start("ev-1", ["aide", "charge_nurse"], after_s=60, title="t", body="b")

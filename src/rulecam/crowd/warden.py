@@ -41,7 +41,7 @@ import json
 import threading
 import time
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -204,6 +204,9 @@ class CrowdAlert(Frozen):
         default=None, description="When Spark's assessment behind the alert came back."
     )
     sent_at: datetime | None = Field(default=None, description="When it was sent or held.")
+    notified_at: datetime | None = Field(
+        default=None, description="When staff were notified (before speech was synthesised)."
+    )
     roles: list[str] = Field(
         default_factory=list, description="Roles in escalation order (the first notified now)."
     )
@@ -307,6 +310,7 @@ class CrowdWarden:
         camera_names: dict[str, str] | None = None,
         escalation: EscalationManager | None = None,
         alert_store: LanNotifier | None = None,
+        verifier_warm: Callable[[], bool] | None = None,
     ) -> None:
         """Create the warden.
 
@@ -327,6 +331,9 @@ class CrowdWarden:
             camera_names: Camera id -> the owner's name for it.
             escalation: The site's escalation chains (`None`: one notification, no timers).
             alert_store: The LAN alert store, which knows each notification's status.
+            verifier_warm: Whether Glimmer has a warm worker now (`None`: unknown). With no
+                warm worker a cold start outlasts `check_timeout_s`, so the alert goes at once
+                and the check's verdict is chained when it comes.
         """
         self._memory = memory
         self._frames = frames
@@ -344,6 +351,7 @@ class CrowdWarden:
         self._names = dict(camera_names or {})
         self._escalation = escalation
         self._alert_store = alert_store
+        self._verifier_warm = verifier_warm
         self._venue = Venue()
         self._taps: dict[str, list[dict[str, str]]] = {}
         self._arrivals: dict[str, Arrival] = {}
@@ -504,8 +512,19 @@ class CrowdWarden:
         )
         self._start(made)
         self._save()
+        self._delivery.submit(self._warm_voices, made.languages)
         _log.info("crowd_watch", camera_id=camera_id, languages=made.languages, floor=bool(floor))
         return made
+
+    def _warm_voices(self, languages: Sequence[str]) -> None:
+        """Load each announcement language's voice now, so the first alert does not wait."""
+        if self._tts is None:
+            return
+        for lang in languages:
+            try:
+                self._tts.synth(".", lang)
+            except Exception as exc:  # a language without a voice still shows its text
+                _log.info("crowd_voice_unavailable", lang=lang, error=repr(exc)[:200])
 
     def _start(self, watch: Watch) -> None:
         if watch.floor is not None:
@@ -899,6 +918,7 @@ class CrowdWarden:
             )
             return
         notified = self._notify(alert_id, watch, latest, assessment, heatmap, roles=roles)
+        notified_at = self._clock.now()
         audio = self._speak(alert_id, assessment.announce)
         alert = CrowdAlert(
             alert_id=alert_id,
@@ -914,6 +934,7 @@ class CrowdWarden:
             notified=notified,
             assessed_at=judged_at,
             sent_at=self._clock.now(),
+            notified_at=notified_at,
             roles=roles,
             route_checks=list(routes),
         )
@@ -930,6 +951,13 @@ class CrowdWarden:
         comes (`_late_check`).
         """
         future = self._checks.submit(self._check, watch, latest, assessment)
+        if not self._glimmer_warm():
+            _log.warning("crowd_check_cold", camera_id=watch.camera_id, alert_id=alert_id)
+            future.add_done_callback(lambda done: self._late_check(alert_id, done))
+            return None, (
+                "Glimmer had no warm worker (a cold start outlasts the "
+                f"{self._check_timeout:g} s budget); sent unchecked, its verdict is chained later"
+            )
         try:
             check = future.result(timeout=self._check_timeout)
         except TimeoutError:
@@ -947,6 +975,16 @@ class CrowdWarden:
         if check is None:
             return None, "Glimmer's check failed or had no frames; sent unchecked"
         return check, None
+
+    def _glimmer_warm(self) -> bool:
+        """Whether to wait for Glimmer: true unless its endpoint says no worker is warm."""
+        if self._verifier_warm is None:
+            return True
+        try:
+            return self._verifier_warm()
+        except Exception as exc:  # an unreadable state means: wait as usual
+            _log.warning("crowd_verifier_state_unknown", error=repr(exc)[:200])
+            return True
 
     def _late_check(self, alert_id: str, done: Future[CrowdCheck | None]) -> None:
         """Chain the verdict of a check that came after its alert was sent."""

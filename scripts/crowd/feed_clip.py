@@ -8,8 +8,8 @@ sample folder's files are applied to it (`CAMERA` in them becomes the new camera
 - `truth.json` -> `PUT /crowd/truth/{camera}` (ground truth, for the report's score),
 - `watch.json` -> `POST /crowd/watch` (the operator's instruction, floor points and zones).
 
-With `--setup`, Muse Spark's proposal for the camera (`POST /crowd/setup`) is fetched after the
-first chunks and saved next to the feed log, before the sample watch starts.
+With `--setup`, Muse Spark's proposal for the camera (`POST /crowd/setup`) is also fetched, on
+its own thread so the feed keeps the clip's pace, and saved next to the feed log.
 
 Usage:
     uv run python scripts/crowd/feed_clip.py --clip small-030_c_56_h0.mp4
@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -102,14 +103,21 @@ def main() -> None:
         )
         log["chunks"] = sent
         if chunk.index == 0:
-            if args.setup:
-                proposal = http.post(
-                    "/crowd/setup",
-                    json={"camera_id": pairing.camera_id, "instruction": _instruction(args)},
-                )
-                (args.out / "setup.json").write_text(proposal.text, encoding="utf-8")
             configure(http, args.sample, pairing.camera_id, log)
+            if args.setup:  # on its own thread: the feed must keep the clip's pace
+                threading.Thread(
+                    target=_propose, args=(args, pairing.camera_id), daemon=True
+                ).start()
         (args.out / "feed_log.json").write_text(json.dumps(log, indent=1), encoding="utf-8")
+
+
+def _propose(args: argparse.Namespace, camera_id: str) -> None:
+    """Save Muse Spark's setup proposal for the camera next to the feed log."""
+    with httpx.Client(base_url=args.api, timeout=180.0) as http:
+        reply = http.post(
+            "/crowd/setup", json={"camera_id": camera_id, "instruction": _instruction(args)}
+        )
+    (args.out / "setup.json").write_text(reply.text, encoding="utf-8")
 
 
 def _instruction(args: argparse.Namespace) -> str:

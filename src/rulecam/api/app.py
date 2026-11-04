@@ -967,6 +967,9 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         perception=perception,
         response=response,
         runtime=runtime,
+        glimmer_warm=lambda: any(
+            p.health().state == "warm" for p in probes if p.service == "glimmer"
+        ),
     )
     ask_agent, ask_tickers = build_ask(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, crowd=(crowd, warden)
@@ -1184,6 +1187,7 @@ def build_crowd(
     perception: Perception,
     response: Response,
     runtime: RuntimeLoop | None,
+    glimmer_warm: Callable[[], bool] | None = None,
 ) -> tuple[CrowdMemory | None, CrowdWarden | None, tuple[Callable[[], object], ...]]:
     """Crowd early warning: readings every few seconds and the warden that judges them.
 
@@ -1264,6 +1268,7 @@ def build_crowd(
         camera_names=names,
         escalation=response.escalation,
         alert_store=response.notifier,
+        verifier_warm=glimmer_warm,
     )
     languages = [x for x in settings.rulecam_crowd_languages.split(",") if x.strip()]
     if settings.rulecam_crowd_instruction:

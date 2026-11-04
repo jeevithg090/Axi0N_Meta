@@ -24,7 +24,7 @@ from rulecam.crowd.warden import CrowdWarden
 from rulecam.crowd.zones import CrowdZone
 from rulecam.evidence.chain import EventChain, read_chain
 from tests.crowd.conftest import Sam, top_down, wait_for
-from tests.crowd.test_warden import INSTRUCTION, Speech, crowd, latest, warning
+from tests.crowd.test_warden import INSTRUCTION, Gate, Speech, crowd, latest, warning
 from tests.fakes import EPOCH, FakeClock, FakeLLM
 
 __all__ = ["crowd"]  # the fixture, shared with the warden tests
@@ -325,6 +325,37 @@ def test_spark_chooses_again_when_a_destination_is_filling_and_hears_who_answere
     prompt = json.loads(str(spark.calls[2]["messages"][1]["content"]))  # type: ignore[index]
     (shown,) = prompt["open_alerts"]
     assert (shown["status"], shown["still_escalating"]) == ("open", True)
+
+
+def test_a_cold_glimmer_is_not_waited_for_and_its_verdict_still_lands(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    glimmer = Gate(FakeLLM([{"agrees": True, "seen": "Packed.", "confidence": 0.9}]))
+    clock = FakeClock(EPOCH)
+    chain = EventChain(tmp_path / "chain", "stadium", clock=clock)
+    chosen = CrowdWarden(
+        memory=crowd,
+        frames=grabber,
+        spark=FakeLLM([warning()]),
+        glimmer=glimmer,
+        glimmer_model="muse-glimmer",
+        chain=chain,
+        notifier=None,
+        tts=None,
+        clock=clock,
+        out_dir=tmp_path / "crowd",
+        check_timeout_s=30.0,
+        verifier_warm=lambda: False,
+    )
+    chosen.assess(chosen.watch("gate", INSTRUCTION, ["en"]), latest(crowd))
+    (alert,) = chosen.alerts()
+    assert alert.sent
+    assert alert.check_note is not None
+    assert alert.check_note.startswith("Glimmer had no warm worker")
+    assert alert.notified_at is not None
+    glimmer.open.set()
+    path = chain.path_for(EPOCH.date())
+    wait_for(lambda: read_chain(path)[-1].kind == "verdict")
 
 
 def test_after_an_ack_sam_looks_for_the_steward_in_the_zone(

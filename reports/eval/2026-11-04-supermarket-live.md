@@ -96,6 +96,38 @@ Nobody tapped *On my way* during the run, so "0 answered" in the brief is true.
 - **Shelf boxes are approximate.** Some gap boxes overlap product at their edges; SAM 3.1's
   product cover check and the Glimmer veto are there for that, but the veto needs Glimmer to
   answer.
-- **Not done:** recording switchback blocks and the final read-out from the page; an incident
-  PDF for a hazard; Chain Mode scorecard rows from these findings; a deli food-safety pack;
-  "exit blocked for more than 5 minutes" as a typed rule.
+- **Not done at the time of this run:** recording switchback blocks from the page (added after;
+  one block recorded live at chain record #23); an incident PDF for a hazard; Chain Mode
+  scorecard rows from these findings; a deli food-safety pack; "exit blocked for more than 5
+  minutes" as a typed rule.
+
+## Update: fixing the over-count (point-then-count)
+
+**The problem.** In the end-to-end run Ask said "22 customers in view" on the checkout-queue
+camera at 01:13:07 UTC. That number was the tracker's `customer` boxes at one keyframe; on this
+busy view SAM put two boxes on some people. Counted by hand on the same frame: about 12 people
+(about 13 on a second busy frame of the same clip on another camera id, 01:03:10, where the
+tracker had 21).
+
+**The fix.** A new Ask tool, `cross_count`, counts the same frame three ways at once, none
+seeing the others: SAM 3.1 boxes, Muse Spark 1.3 pointing at each person on a 0-1000 grid, and
+Muse Glimmer's own count. It adds the tracker's count at the nearest keyframe, says whether they
+agree, and how SAM's boxes and Spark's points line up (boxes with no point inside, boxes with
+several, points outside every box). Spark reconciles them and says why. The prompt's old claim
+that "the count present at one ts is reliable" was wrong on busy views and is gone.
+
+**Same frames, before and after (live, 4 Nov):**
+
+| Frame | By hand | Tracker (Ask's answer before) | SAM 3.1 boxes | Spark points | Glimmer | Ask now |
+|---|---|---|---|---|---|---|
+| checkout queue, 01:13:07 | ~12 | 22 `customer` + 2 `cashier` | 15-17 | 9 | 10-11 | **10** ("SAM found 15 boxes but 9 had no person point, indicating duplicates") |
+| checkout queue, 01:03:10 | ~13 | 21 `customer` + 5 `cashier` | 15-16 | 9-10 | 11-13 | **11** |
+
+No single model was right: SAM over-counts busy views and Spark's points miss people half
+hidden behind others; the three counts bracket the truth and the tracker's number falls outside
+the bracket. Ask's error went from +10 and +8 to -2 and -2. Each counter took 1.2-1.8 s (SAM),
+9-14 s (Spark) and 5-7 s (Glimmer), in parallel; the two Ask answers took 146 s and 56 s in all.
+
+The first version still trusted the tracker: with the three counts in front of it Spark answered
+22, because the prompt said a count at one instant is reliable. The line-up numbers and the
+corrected prompt are what changed its answer.

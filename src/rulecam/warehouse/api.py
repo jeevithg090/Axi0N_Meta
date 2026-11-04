@@ -66,6 +66,7 @@ from rulecam.warehouse.models import (
     SpokenWarning,
     TalkRequest,
     ToolboxTalk,
+    VoiceNoteRequest,
     VoiceReport,
     WarehouseStory,
 )
@@ -88,6 +89,12 @@ from rulecam.warehouse.talks import (
     WarningMaker,
     incident_from_records,
     shift_counts,
+)
+from rulecam.warehouse.voice_note import (
+    VoiceChannel,
+    VoiceNote,
+    VoiceNoteError,
+    VoiceNoteSender,
 )
 
 _log = get_logger(__name__)
@@ -159,6 +166,7 @@ class WarehouseService:
     duties: DutyWriter | None = None
     reports: NearMissReporter | None = None
     planner: PlannerSubmit | None = None
+    voice_notes: VoiceNoteSender | None = None
 
     def days(self) -> list[date]:
         """Days with a chain, oldest first."""
@@ -315,7 +323,7 @@ def _model_call[T](call: Callable[[], T]) -> T:
         return call()
     except ClientConfigError as exc:
         raise HTTPException(503, f"model not configured: {exc}") from exc
-    except ReportError:
+    except (ReportError, VoiceNoteError):
         raise
     except (ModelClientError, RulecamError) as exc:
         _log.warning("warehouse_model_failed", error=str(exc))
@@ -330,6 +338,7 @@ def warehouse_router(service: WarehouseService, *, dependencies: Sequence[Any] =
     _duty_routes(router, service)
     _report_routes(router, service)
     _voice_report_routes(router, service)
+    _voice_note_routes(router, service)
     return router
 
 
@@ -459,6 +468,24 @@ def _report_routes(router: APIRouter, service: WarehouseService) -> None:
         return FileResponse(found, media_type=media.get(found.suffix, "application/octet-stream"))
 
 
+def _voice_note_routes(router: APIRouter, service: WarehouseService) -> None:
+    """The spoken warning sent to a role's phone as a WhatsApp voice note."""
+
+    @router.post("/incidents/{event_id}/voice-note")
+    def voice_note(event_id: EventId, body: VoiceNoteRequest) -> VoiceNote:
+        sender = service.voice_notes
+        if sender is None:
+            raise HTTPException(503, "voice notes are not set up")
+        key = f"{event_id}.{body.lang}" + (f"+{body.also}" if body.also else "")
+        warning = service.store.load("warnings", key, SpokenWarning)
+        if warning is None:
+            raise HTTPException(404, "make the spoken warning first")
+        try:
+            return _model_call(lambda: sender.send(warning, body.role))
+        except VoiceNoteError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+
 def _voice_report_routes(router: APIRouter, service: WarehouseService) -> None:
     """A worker's spoken near-miss report, and the rule it proposes."""
 
@@ -570,6 +597,7 @@ def build_warehouse(
     runtime: RuntimeLoop | None,
     perception: Perception,
     planner: PlannerSubmit | None = None,
+    whatsapp: VoiceChannel | None = None,
     dependencies: Sequence[Any] = (),
 ) -> APIRouter:
     """The `/warehouse` router, wired to the app's chain, plans, runtime and perception.
@@ -584,6 +612,7 @@ def build_warehouse(
         runtime: The runtime loop (for the rules it enforces now).
         perception: The track store and recorded chunks.
         planner: The Site Planner (a worker's proposed rule is planned and Rule CI-tested).
+        whatsapp: WhatsApp, for spoken warnings sent as voice notes (when configured).
         dependencies: Route dependencies (owner login).
 
     Returns:
@@ -625,5 +654,12 @@ def build_warehouse(
         duties=writers.duties,
         reports=writers.reports,
         planner=planner,
+        voice_notes=VoiceNoteSender(
+            whatsapp,
+            chain=chain,
+            store=store,
+            clock=clock,
+            dry_run=settings.rulecam_actions_dry_run,
+        ),
     )
     return warehouse_router(service, dependencies=dependencies)

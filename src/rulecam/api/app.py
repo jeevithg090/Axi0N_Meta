@@ -1064,6 +1064,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 runtime=runtime,
                 perception=perception,
                 planner=planner,
+                whatsapp=response.whatsapp,
                 dependencies=_OWNER,
             ),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),

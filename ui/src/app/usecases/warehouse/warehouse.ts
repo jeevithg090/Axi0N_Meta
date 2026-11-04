@@ -108,6 +108,17 @@ export interface SpokenWarning {
   created_at: string;
 }
 
+/** `POST /warehouse/incidents/{id}/voice-note`: the warning sent to a phone over WhatsApp. */
+export interface VoiceNote {
+  event_id: string;
+  role: string;
+  langs: string[];
+  sent: boolean;
+  message_id: string | null;
+  detail: string;
+  record_hash: string;
+}
+
 export interface ToolboxTalk {
   event_id: string;
   lang: string;
@@ -280,6 +291,11 @@ export const warehouse = {
     call<SpokenWarning>(
       `/incidents/${enc(eventId)}/warning`,
       post(also ? { lang, also } : { lang }),
+    ),
+  voiceNote: (eventId: string, role: string, lang: string, also?: string | null) =>
+    call<VoiceNote>(
+      `/incidents/${enc(eventId)}/voice-note`,
+      post(also ? { role, lang, also } : { role, lang }),
     ),
   talk: (eventId: string, lang: string) =>
     call<ToolboxTalk>(`/incidents/${enc(eventId)}/toolbox-talk`, post({ lang, illustrate: true })),

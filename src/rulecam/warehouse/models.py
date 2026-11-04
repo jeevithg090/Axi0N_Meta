@@ -535,3 +535,13 @@ class DutyDone(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     role: str = Field(default="owner", min_length=1, max_length=64, pattern=r"^[A-Za-z][\w-]*$")
+
+
+class VoiceNoteRequest(BaseModel):
+    """Body of `POST /warehouse/incidents/{event_id}/voice-note`: which warning, to whom."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z][\w-]*$")
+    lang: str = Field(default="es", pattern=r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
+    also: str | None = Field(default=None, pattern=r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")

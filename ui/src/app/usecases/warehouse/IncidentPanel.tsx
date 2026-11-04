@@ -20,6 +20,7 @@ import {
   type RefresherDuty,
   type SpokenWarning,
   type ToolboxTalk,
+  type VoiceNote,
 } from "./warehouse";
 import styles from "./warehouse.module.css";
 
@@ -100,6 +101,9 @@ export function IncidentPanel({ near, planId }: { near: NearMiss; planId: string
   );
   const close = useAction(() => warehouse.dutyDone(event, "owner"), setDuty);
   const [tap, setTap] = useState<string | null>(null);
+  const [noteRole, setNoteRole] = useState("supervisor");
+  const [note, setNote] = useState<VoiceNote | null>(null);
+  const sendNote = useAction(() => warehouse.voiceNote(event, noteRole, lang, also), setNote);
 
   async function respond(alert: Alert, button: string) {
     try {
@@ -225,6 +229,32 @@ export function IncidentPanel({ near, planId }: { near: NearMiss; planId: string
             <audio controls src={warehouse.fileUrl(warning.audio)}>
               <track kind="captions" />
             </audio>
+          )}
+          <div className={styles.row}>
+            <label>
+              WhatsApp voice note to{" "}
+              <input
+                className={styles.input}
+                style={{ width: 140 }}
+                value={noteRole}
+                onChange={(e) => setNoteRole(e.target.value)}
+                aria-label="Role to send the voice note to"
+              />
+            </label>
+            <button
+              type="button"
+              className={styles.button}
+              disabled={sendNote.busy || !noteRole.trim()}
+              onClick={sendNote.go}
+            >
+              Send voice note
+            </button>
+          </div>
+          {sendNote.error && <p className={styles.error}>{sendNote.error}</p>}
+          {note && (
+            <p className={styles.muted}>
+              {note.detail} (chained <span className={styles.mono}>{note.record_hash}</span>)
+            </p>
           )}
           <p className={styles.muted}>
             Written by {warning.model}; spoken by {warning.tts ?? "no engine"}

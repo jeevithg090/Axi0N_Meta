@@ -1206,6 +1206,7 @@ def build_crowd(
         return None, None, ()
     try:
         spark = SparkClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
+        voice = VoiceTranscribeClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
     except ClientConfigError as exc:
         _log.warning("crowd_disabled", error=str(exc))
         return None, None, ()
@@ -1269,6 +1270,7 @@ def build_crowd(
         escalation=response.escalation,
         alert_store=response.notifier,
         verifier_warm=glimmer_warm,
+        transcriber=voice,
     )
     languages = [x for x in settings.rulecam_crowd_languages.split(",") if x.strip()]
     if settings.rulecam_crowd_instruction:

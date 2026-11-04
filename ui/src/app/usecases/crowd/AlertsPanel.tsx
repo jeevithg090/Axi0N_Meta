@@ -91,7 +91,10 @@ export function AlertsPanel({
     if (played.current.has(newest.alert_id)) return;
     played.current.add(newest.alert_id);
     if (!autoplay) return;
-    const queue = newest.audio.filter((x) => x.audio).map((x) => fileUrl(x.audio ?? ""));
+    // an announcement whose meaning did not survive the round trip is never played by itself
+    const queue = newest.audio
+      .filter((x) => x.audio && x.meaning !== "different")
+      .map((x) => fileUrl(x.audio ?? ""));
     const playNext = (): void => {
       const src = queue.shift();
       if (!src) return;
@@ -177,6 +180,20 @@ export function AlertsPanel({
             <div key={k} className={styles.row}>
               <span className={styles.small}>
                 <strong>[{a.lang}]</strong> {a.text}
+                {a.meaning && (
+                  <span
+                    style={{ color: a.meaning === "different" ? "#c62828" : undefined }}
+                    title={a.heard ? `Heard back: ${a.heard} (WER ${a.wer})` : undefined}
+                  >
+                    {" "}
+                    · heard back:{" "}
+                    {a.meaning === "same"
+                      ? "same meaning (Muse Spark)"
+                      : a.meaning === "different"
+                        ? `DIFFERENT: ${a.meaning_note ?? ""}`
+                        : `not checked (${a.meaning_note ?? ""})`}
+                  </span>
+                )}
               </span>
               {a.audio && <audio controls preload="none" src={fileUrl(a.audio)} />}
             </div>

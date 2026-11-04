@@ -141,7 +141,15 @@ export interface CrowdAlert {
   held_reason?: string | null;
   check_note?: string | null;
   heatmap?: string | null;
-  audio: { lang: string; text: string; audio?: string }[];
+  audio: {
+    lang: string;
+    text: string;
+    audio?: string;
+    heard?: string;
+    wer?: string;
+    meaning?: "same" | "different" | "unchecked";
+    meaning_note?: string;
+  }[];
   chain_hash?: string | null;
   notified?: string | null;
   assessed_at?: string | null;

@@ -55,7 +55,8 @@ from rulecam.act.notify import LanNotifier, for_event
 from rulecam.ask.vision import Frame, FrameGrabber
 from rulecam.ask.watch import FileAttacher
 from rulecam.clients.open_weights.glimmer import user_message
-from rulecam.contracts import TTS, Clock, Frozen, Notifier, StructuredLLM
+from rulecam.contracts import TTS, Clock, Frozen, Notifier, StructuredLLM, Transcriber
+from rulecam.crowd.announce import hear_back
 from rulecam.crowd.forecast import forecast
 from rulecam.crowd.memory import CrowdMemory
 from rulecam.crowd.report import Truth
@@ -69,6 +70,7 @@ from rulecam.evidence.chain import EventChain
 from rulecam.log import get_logger
 from rulecam.perception.calibration import calibrate_clicks
 from rulecam.perception.errors import PerceptionError
+from rulecam.voice_out.roundtrip import RoundTripChecker
 
 _log = get_logger(__name__)
 
@@ -311,6 +313,7 @@ class CrowdWarden:
         escalation: EscalationManager | None = None,
         alert_store: LanNotifier | None = None,
         verifier_warm: Callable[[], bool] | None = None,
+        transcriber: Transcriber | None = None,
     ) -> None:
         """Create the warden.
 
@@ -334,6 +337,8 @@ class CrowdWarden:
             verifier_warm: Whether Glimmer has a warm worker now (`None`: unknown). With no
                 warm worker a cold start outlasts `check_timeout_s`, so the alert goes at once
                 and the check's verdict is chained when it comes.
+            transcriber: Muse Voice Transcribe: each spoken announcement is heard back and
+                Spark judges whether its meaning survived (`None`: not checked).
         """
         self._memory = memory
         self._frames = frames
@@ -352,6 +357,7 @@ class CrowdWarden:
         self._escalation = escalation
         self._alert_store = alert_store
         self._verifier_warm = verifier_warm
+        self._hearing = RoundTripChecker(transcriber) if transcriber is not None else None
         self._venue = Venue()
         self._taps: dict[str, list[dict[str, str]]] = {}
         self._arrivals: dict[str, Arrival] = {}
@@ -1039,6 +1045,7 @@ class CrowdWarden:
     def _speak(self, alert_id: str, announce: Sequence[Announcement]) -> list[dict[str, str]]:
         """Each announcement as text, and as a WAV file when speech works for its language."""
         out = []
+        wavs: dict[int, bytes] = {}
         for k, item in enumerate(announce):
             spoken = {"lang": item.lang, "text": item.text}
             if self._tts is not None:
@@ -1051,8 +1058,11 @@ class CrowdWarden:
                     name = f"{alert_id}-{k}-{item.lang}.wav"
                     (self.audio_dir / name).write_bytes(wav)
                     spoken["audio"] = name
+                    wavs[k] = wav
             out.append(spoken)
-        return out
+        if self._hearing is None or not wavs:
+            return out
+        return hear_back(out, wavs, checker=self._hearing, spark=self._spark)
 
     def _chain_alert(self, alert: CrowdAlert, watch: Watch, latest: CrowdReading) -> str | None:
         """Chain the alert as an incident: candidate, Glimmer's verdict, the actions taken.
@@ -1096,7 +1106,11 @@ class CrowdWarden:
         done = [
             f"alert {assessment.level}: {'; '.join(assessment.staff_actions) or assessment.why}"
         ]
-        done += [f"announcement ({a['lang']}): {a['text']}" for a in alert.audio]
+        done += [
+            f"announcement ({a['lang']}): {a['text']}"
+            + (f" [heard back: {a['meaning']} meaning]" if a.get("meaning") else "")
+            for a in alert.audio
+        ]
         for detail in done:
             self._chain.append(
                 "action",

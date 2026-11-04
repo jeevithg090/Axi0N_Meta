@@ -28,31 +28,39 @@ the forecast, the staff actions and the announcements.
    (optical flow). Each zone also gets a **projection**: the last minute's density line, the net
    inflow, and the seconds until each published reference density (2, 4, 5, 6 per m²) by the
    trend and by the fill clock (edge flow), plus how long it has already been above each.
-4. **Muse Spark 1.3 assesses** with the instruction, the series, the projection, the venue layout
+4. **The hottest zone is counted three ways** every 15 s: SAM 3.1 (the reading), Muse Spark
+   pointing at each head on a 0–1000 grid over the zone cut out of the frame, and Muse Glimmer
+   counting the same cut-out. The range goes to Spark as the count's uncertainty; the page shows
+   Spark's points. A **phase meter** per zone (speed over three minutes, its stop-and-go swings,
+   the pressure) also goes to Spark, which names the phase (free flow, dense flow, stop-and-go,
+   turbulence, standing).
+5. **Muse Spark 1.3 assesses** with the instruction, the series, the projection, the venue layout
    with every camera's newest numbers, and the alerts still open (who was told, who answered,
    whether a steward was seen). It answers with the level, why (with numbers), when and where it
    becomes dangerous, staff actions tied to venue places, and the announcements.
-5. **Route guard**: every action that moves people names its destination. The destination's
+6. **Route guard**: every action that moves people names its destination. The destination's
    camera numbers are read; if it is as dense as where people are coming from, or getting denser,
    Spark is asked again with those numbers before anything goes out. A destination no camera
    sees is marked unmeasured on the alert.
-6. **Muse Glimmer checks the frames** (the newest frame, its heatmap with each zone's density
+7. **Muse Glimmer checks the frames** (the newest frame, its heatmap with each zone's density
    outlined, and one from 30 s earlier) within 20 s. When Glimmer does not confirm it, Spark gets
    Glimmer's description with the measurements and decides to send or hold (live on Jülich,
    Glimmer once called shoulder-to-shoulder packing "not confirmed" because it could not count
    8 per m² from a picture). A Glimmer with no warm worker is not waited for (a cold start
    outlasts the budget); its verdict is chained when it comes.
-7. **Stewards are alerted with buttons** (*On my way*, *False alarm*, *Escalate*) through the
+8. **Stewards are alerted with buttons** (*On my way*, *False alarm*, *Escalate*) through the
    site's notifier (phone app, Telegram, WhatsApp). Nobody tapping within `ack_within_s` sends it
-   to the next role (`escalate_to`). After *On my way*, SAM 3.1 looks for the steward
-   (`high-visibility vest`) in the alert's zone on each new reading for five minutes.
-8. **Announcements are spoken and heard back**: Meta MMS-TTS speaks each one into a WAV (voices
+   to the next role (`escalate_to`). After *On my way*, SAM 3.1 looks for the steward on each
+   new reading for five minutes: `steward_concept` (what stewards wear here, default
+   `high-visibility vest`; the Jülich staff wear blue vests) in `steward_zone` (default: the
+   alert's zone).
+9. **Announcements are spoken and heard back**: Meta MMS-TTS speaks each one into a WAV (voices
    are loaded when the watch starts), Muse Voice Transcribe transcribes the WAV back, and Spark
    judges whether the meaning survived. The page plays only announcements that did; live, a
    Hindi "do not push at the gate" came back as "do not push at the crowd" and was stopped.
-9. **Everything is chained**: the candidate, Glimmer's verdict, each notification, escalation,
+10. **Everything is chained**: the candidate, Glimmer's verdict, each notification, escalation,
    tap and arrival, on the hash-chained evidence log.
-10. **After the event**, `GET /crowd/report` gives the timeline, peaks, time above each reference
+11. **After the event**, `GET /crowd/report` gives the timeline, peaks, time above each reference
     density, latency per alert, the chain records and whether the chain verifies, the score
     against ground truth when it is registered, and (with `narrate=true`) Spark's after-action
     summary.
@@ -130,6 +138,9 @@ All routes are owner-only (loopback or an owner session) and answer 503 while cr
   "ack_within_s": 45,
   "floor": {"image_px": [[667.7, 616.5], [665.4, 78.4], [245.4, 166.7], [260.5, 538.7]],
             "ground_m": [[-2, 0], [2, 0], [2, 4], [-2, 4]]},
+  "steward_concept": "blue vest",
+  "steward_zone": {"name": "gate staff side",
+                   "polygon_px": [[668, 150], [880, 150], [880, 560], [668, 560]]},
   "zones": [{"name": "gate approach (2 x 2 m)",
              "polygon_px": [[667.2, 486.7], [666.0, 217.8], [419.3, 243.9], [424.9, 463.8]]}],
   "concept": "head",
@@ -155,6 +166,11 @@ them is marked unmeasured.
   density, `above_s`), `assessment` (Spark's: `level`, `zones`, `why`, `forecast`,
   `minutes_to_danger`, `alert`, `staff_actions`, `actions[]` with `do`, `target`, `role`,
   `why`, `to`, `announce[]`, `check`), `assessed_at`, `assess_seconds`, `last_alert`.
+- `cameras[].tally`: the newest three-way count (`zone`, `at`, `sam`, `spark`, `spark_said`,
+  `glimmer`, `glimmer_note`, `low`, `high`, `spread`, `disagree`, `crop` file, `crop_box`,
+  `points_px` in the crop, `notes`); `forecast[].phase` is the phase meter (`speeds`,
+  `speed_mps`, `speed_per_min`, `swings`, `swing_share`, `pressure`, `pressure_peak`), and the
+  assessment has `phase`.
 - `alerts[]` (`CrowdAlert`): `alert_id`, `camera_id`, `at` (the reading), `level`,
   `assessment`, `check` (Glimmer: `agrees`, `seen`, `confidence`) or `check_note`, `sent`,
   `held_reason`, `heatmap`, `audio[]` (`lang`, `text`, `audio` file), `chain_hash`, `notified`,
@@ -182,11 +198,20 @@ sentences), `latency[]` (`assess_s` and `alert_s` from the reading, `checked`), 
 chart), `after_action` (`headline`, `narrative`, `cited[]` with each sentence's chain `records`,
 `worked`, `change`).
 
+## Visitors and failing servers
+
+The page asks `GET /crowd/status` first. A 403 shows the owner-only notice, a 404 "not
+available on this server", a 503 "switched off on this server", and no answer within 8 s "did
+not answer"; the stream is only opened once the status answers. Visitors, and anyone while no
+crowd camera is live, see a recorded live run (`ui/src/app/usecases/crowd/recorded-run.json`,
+4 Nov 2026 01:35 UTC, labelled RECORDED) instead of an empty page.
+
 ## Files Ask reads
 
 Under `<data>/crowd/`: `readings.jsonl` (one row per zone per reading, Ask's `crowd_readings`),
 `assessments.jsonl` (`crowd_assessments`, with each route check and whether Spark re-chose),
-`alerts.jsonl` (`crowd_alerts`), `acks.jsonl` (taps made on the page), `watches.json`,
+`alerts.jsonl` (`crowd_alerts`), `acks.jsonl` (taps made on the page), `counts.jsonl` (the
+three-way counts), `watches.json`,
 `venue.json`, `truth/<camera>.json`, `audio/*.wav`.
 
 ## Settings

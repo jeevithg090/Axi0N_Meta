@@ -55,14 +55,22 @@ experiment footage, SAM 3.1 counted 95–99% of heads. No face recognition, ever
 ## Problem statement
 
 **Build for Your World.** Small sites already have cameras: a warehouse with forklifts, a
-supermarket, a station gate, a festival entrance. They do not have a safety team to watch the
-cameras, write rules for them, or check that an alert is real. The stakes are real: OSHA counts
-about 85 deaths and 34,900 serious injuries a year from forklifts in the US
-([OSHA](https://www.osha.gov/sites/default/files/enforcement/directives/reg1_fy2018_cpl-04-00-023e_powered-industrial-trucks.pdf)).
-In a crowd crush, nobody does anything wrong; people are packed so tightly they can no longer
-move by choice, and stewards on the ground cannot see the density building. AI camera products
-exist, but owners have no way to know whether a rule really works, whether an alert is real, or
-what happens to the footage. Rulecam is built to be checked.
+supermarket, a station gate, a festival entrance. Nobody watches them. One retailer found that
+less than 1% of its recorded video is ever viewed
+([Security Magazine](https://www.securitymagazine.com/articles/76977-so-why-isnt-shrink-shrinking-1)).
+
+The stakes are real. OSHA counts about 85 deaths and 34,900 serious injuries a year from
+forklifts in the US
+([OSHA](https://www.osha.gov/sites/default/files/enforcement/directives/reg1_fy2018_cpl-04-00-023e_powered-industrial-trucks.pdf)),
+and one in four blue-collar workers saw a near miss last year and didn't report it
+([TRADESAFE](https://trdsf.com/blogs/news/workplace-safety-silence-reporting-risks)). In a
+crowd crush, nobody does anything wrong: people are packed too tightly to move, and inquiries
+keep finding that the warning existed and did not become action
+([our research, with sources](docs/pitch/research/crowd.md#what-repeats)).
+
+Plain-language camera alerts already exist. What a small site can't get is a way to check that
+a rule really works, that an alert is real, and what happens to the footage. Rulecam is built to
+be checked, on the cameras a site already owns, in the language its people speak.
 
 ## Long description (by judging criterion)
 

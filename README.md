@@ -184,19 +184,31 @@ Oct 31 (see [`eval/RESULTS.md`](eval/RESULTS.md)).
 
 ### The problem
 
+- **Cameras are everywhere, but nobody is watching.** One retailer found that less than 1% of
+  its recorded video is ever viewed
+  ([Security Magazine](https://www.securitymagazine.com/articles/76977-so-why-isnt-shrink-shrinking-1)).
+  A small site has cameras, but no safety team to watch them, write rules for them, or check
+  that an alert is real.
 - **Forklifts hurt people every day.** OSHA counts about **85 deaths and 34,900 serious
   injuries a year** from forklifts in the US
   ([OSHA, Powered Industrial Trucks notice](https://www.osha.gov/sites/default/files/enforcement/directives/reg1_fy2018_cpl-04-00-023e_powered-industrial-trucks.pdf)).
-  The National Safety Council lists forklifts as the source of **84 work deaths in 2024**
-  ([NSC Injury Facts](https://injuryfacts.nsc.org/work/safety-topics/forklifts/)).
-- **Food makes people sick.** The CDC estimates that **48 million people** in the US get sick
-  from food each year; **128,000** go to hospital and **3,000** die
-  ([CDC, Facts About Food Poisoning](https://www.cdc.gov/food-safety/data-research/facts-stats/index.html)).
-- **Crowds get dangerous before anyone can see it from the ground.** In a crush, nobody did
-  anything wrong. People are packed so tightly that they can no longer move by choice. Stewards
-  at ground level see faces, not density. A camera looking down can count.
-- **Cameras are everywhere, but nobody is watching.** A small site already has cameras. It does
-  not have a safety team to watch them, write rules for them, or check that an alert is real.
+  One in four blue-collar workers saw a near miss in the past year and didn't report it
+  ([TRADESAFE survey](https://trdsf.com/blogs/news/workplace-safety-silence-reporting-risks)).
+- **Language matters.** In 2024 Hispanic or Latino workers died at work at 4.3 per 100,000
+  full-time workers, against 3.3 for all workers
+  ([BLS](https://www.bls.gov/news.release/cfoi.nr0.htm)). OSHA requires training in a language
+  workers understand.
+- **Empty shelves and queues cost sales.** Out-of-stocks cost about 7.4% of retail sales in
+  2021, per NielsenIQ data
+  ([report](https://a-closer-look.com/wp-content/uploads/2024/09/Report-Out-of-Sight-Out-of-Mind-The-Hidden-Cost-of-Empty-Shelves-and-Broken-Displays_FINAL-sm.pdf)).
+- **Crowds get dangerous before anyone can see it from the ground.** In a crush, nobody does
+  anything wrong. People are packed so tightly that they can no longer move by choice. Inquiries
+  keep finding the same thing: the warning existed, and it did not become action
+  ([our research, with sources](docs/pitch/research/crowd.md#what-repeats)). A camera looking
+  down can count, and an alert can name who does what next.
+- **Trust is the gap.** Plain-language camera alerts already exist. What owners, workers and
+  insurers can't get is a way to check that a rule works and an alert is real
+  ([market research](docs/pitch/research/)).
 
 ### Who it helps
 

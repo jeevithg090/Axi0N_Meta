@@ -48,7 +48,7 @@ def test_muse_code_writes_the_check(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert source.code == EXAMPLE_CHECK
     assert source.tests == EXAMPLE_TESTS
     [(argv, env, seen)] = runner.calls
-    assert argv[:3] == ["/usr/local/bin/muse", "exec", "--json"]
+    assert argv[:5] == ["/usr/local/bin/muse", "exec", "--json", "--model", "muse-spark-1.2"]
     assert seen == {"SPEC.md", "check.py", "test_check.py"}
     assert "META_API_KEY" not in env
     assert env["MUSE_PROFILE"] == "ci"

@@ -2,7 +2,8 @@
 
 Muse Spark Open (Baseten, the Tier 2 client) reads the owner's request, the code, the validator
 rules and the proof summary, and answers approve or reject with reasons. Without a Baseten key,
-Muse Spark 1.3 reviews instead and the result says `reviewer="spark-1.3-fallback"`; with neither,
+or when Spark Open fails, Muse Spark 1.3 reviews instead and the result says
+`reviewer="spark-1.3-fallback"` (with the Spark Open error as its first reason); with neither,
 the review is `skipped` and the extension cannot be approved. A model error is recorded as
 `error`, which also blocks approval. Any reject blocks approval.
 
@@ -160,7 +161,13 @@ class ExtensionReviewer:
         """
         messages = review_messages(spec, code, proof)
         if self._spark_open is not None:
-            return self._with_spark_open(self._spark_open, messages)
+            result = self._with_spark_open(self._spark_open, messages)
+            if result.verdict != "error" or self._spark is None:
+                return result
+            fallback = self._with_spark(self._spark, messages)
+            return fallback.model_copy(
+                update={"reasons": (f"Spark Open failed: {result.reasons[0]}", *fallback.reasons)}
+            )
         if self._spark is not None:
             return self._with_spark(self._spark, messages)
         return skipped("no reviewer configured (needs BASETEN_API_KEY or a Spark key)")

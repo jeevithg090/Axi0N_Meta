@@ -1,6 +1,6 @@
 {
   "camera_id": "CAM-04",
-  "code": "\"\"\"Alert when a pallet stack reaches above the owner's yellow line on the rack.\"\"\"\n\nLINE = \"yellow\"\nCONCEPT = \"pallet\"\nMARGIN_PX = 0\n\n\ndef line_y_at(line, x):\n    x1 = line[0][0]\n    y1 = line[0][1]\n    x2 = line[1][0]\n    y2 = line[1][1]\n    if x2 == x1:\n        return min(y1, y2)\n    return y1 + (y2 - y1) * (x - x1) / (x2 - x1)\n\n\ndef check(sample):\n    line = sample.get(\"lines\", {}).get(LINE)\n    if not line:\n        return {\"value\": False, \"measure\": None, \"why\": \"no yellow line drawn\"}\n    highest = None\n    for obj in sample.get(\"objects\", []):\n        if CONCEPT not in str(obj.get(\"concept\", \"\")).lower():\n            continue\n        box = obj[\"box_xyxy_px\"]\n        top = obj[\"mask_top_y_px\"]\n        above_px = line_y_at(line, (box[0] + box[2]) / 2) - top\n        if highest is None or above_px > highest:\n            highest = above_px\n    if highest is None:\n        return {\"value\": False, \"measure\": None, \"why\": \"no pallet in view\"}\n    over = highest > MARGIN_PX\n    word = \"above\" if over else \"below\"\n    return {\n        \"value\": over,\n        \"measure\": round(highest, 1),\n        \"why\": f\"pallet top {abs(highest):.0f} px {word} the yellow line\",\n    }\n",
+  "code": "\"\"\"Alert when a pallet stack reaches above the owner's yellow line on the rack.\"\"\"\n\nLINE = \"yellow\"\nCONCEPT = \"pallet\"\nMARGIN_PX = 0\n\n\ndef line_y_at(line, x):\n    x1 = line[0][0]\n    y1 = line[0][1]\n    x2 = line[1][0]\n    y2 = line[1][1]\n    if x2 == x1:\n        return min(y1, y2)\n    return y1 + (y2 - y1) * (x - x1) / (x2 - x1)\n\n\ndef check(sample):\n    line = sample.get(\"lines\", {}).get(LINE)\n    if not line:\n        return {\"value\": False, \"measure\": None, \"why\": \"no yellow line drawn\"}\n    highest = None\n    for obj in sample.get(\"objects\", []):\n        if str(obj.get(\"concept\", \"\")).lower() != CONCEPT:\n            continue\n        box = obj[\"box_xyxy_px\"]\n        top = obj[\"mask_top_y_px\"]\n        above_px = line_y_at(line, (box[0] + box[2]) / 2) - top\n        if highest is None or above_px > highest:\n            highest = above_px\n    if highest is None:\n        return {\"value\": False, \"measure\": None, \"why\": \"no pallet in view\"}\n    over = highest > MARGIN_PX\n    word = \"above\" if over else \"below\"\n    return {\n        \"value\": over,\n        \"measure\": round(highest, 1),\n        \"why\": f\"pallet top {abs(highest):.0f} px {word} the yellow line\",\n    }\n",
   "concept": "pallet",
   "created_at": "2026-10-30T12:00:00Z",
   "decided_at": null,
@@ -193,11 +193,11 @@
       },
       {
         "cases": [],
-        "detail": "26 of 26 mutants caught (100%; need 80%)",
+        "detail": "27 of 27 mutants caught (100%; need 80%)",
         "metrics": {
-          "killed": 26.0,
+          "killed": 27.0,
           "score": 1.0,
-          "total": 26.0
+          "total": 27.0
         },
         "name": "mutation",
         "status": "passed"
@@ -208,6 +208,29 @@
         "metrics": {},
         "name": "muse_image_scenes",
         "status": "skipped"
+      },
+      {
+        "cases": [],
+        "detail": "5 of 5 relations held on 202 scenes",
+        "metrics": {
+          "errors": 0.0,
+          "held": 5.0,
+          "relations": 5.0,
+          "scenes": 202.0
+        },
+        "name": "common_sense",
+        "status": "passed"
+      },
+      {
+        "cases": [],
+        "detail": "Z3 4.16.0, up to 2 objects: no_target_no_alert: proved; total: proved; translation_invariant: proved; monotone: proved",
+        "metrics": {
+          "counterexamples": 0.0,
+          "proved": 4.0,
+          "undecided": 0.0
+        },
+        "name": "math_proof",
+        "status": "passed"
       }
     ]
   },
@@ -226,7 +249,7 @@
     ],
     "verdict": "approve"
   },
-  "sha256": "cc962230b6fcbf75b796e140676dd67bb9752b9ced4ff31c34db8a4055ebb8d9",
+  "sha256": "2adbe07f0fa6ed25092ef8f2004ab884614138e0e310d50833e87067416b30c1",
   "status": "proposed",
   "tests": "\"\"\"Data only: test cases for check.py (Rulecam parses this with ast.literal_eval).\"\"\"\n\nCASES = [\n    {\n        \"name\": \"top-10-px-above\",\n        \"sample\": {\n            \"timestamp\": \"2026-11-03T12:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [200, 190, 320, 420],\n                    \"mask_top_y_px\": 190,\n                    \"mask_area_px\": 27600,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.9,\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[0, 200], [640, 200]]},\n            \"px_per_m\": None,\n        },\n        \"expect\": True,\n    },\n    {\n        \"name\": \"top-10-px-below\",\n        \"sample\": {\n            \"timestamp\": \"2026-11-03T12:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [200, 210, 320, 420],\n                    \"mask_top_y_px\": 210,\n                    \"mask_area_px\": 25200,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.9,\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[0, 200], [640, 200]]},\n            \"px_per_m\": None,\n        },\n        \"expect\": False,\n    },\n    {\n        \"name\": \"no-pallets\",\n        \"sample\": {\n            \"timestamp\": \"2026-11-03T12:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[0, 200], [640, 200]]},\n            \"px_per_m\": None,\n        },\n        \"expect\": False,\n    },\n    {\n        \"name\": \"no-line-drawn\",\n        \"sample\": {\n            \"timestamp\": \"2026-11-03T12:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [200, 100, 320, 420],\n                    \"mask_top_y_px\": 100,\n                    \"mask_area_px\": 38400,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.9,\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {},\n            \"px_per_m\": None,\n        },\n        \"expect\": False,\n    },\n    {\n        \"name\": \"sloped-line-above\",\n        \"sample\": {\n            \"timestamp\": \"2026-11-03T12:00:00Z\",\n            \"frame_w\": 640,\n            \"frame_h\": 480,\n            \"objects\": [\n                {\n                    \"concept\": \"pallet\",\n                    \"box_xyxy_px\": [300, 230, 340, 420],\n                    \"mask_top_y_px\": 230,\n                    \"mask_area_px\": 7600,\n                    \"ground_xy_m\": None,\n                    \"score\": 0.8,\n                }\n            ],\n            \"zones\": {},\n            \"lines\": {\"yellow\": [[0, 200], [640, 280]]},\n            \"px_per_m\": None,\n        },\n        \"expect\": True,\n    },\n]\n"
 }

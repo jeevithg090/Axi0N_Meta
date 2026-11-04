@@ -50,7 +50,9 @@ pair a phone (the "Pair a phone" button, or `/pair`), or play a clip in with
 10. **Toolbox talk.** Click *Toolbox talk*: a two-minute talk in Spanish written from the
     records and the evidence frames, with a Muse Image drawing of the safe behaviour.
 11. **Worker dispute.** *Worker page (QR): rules and disputes* opens the anonymous worker page;
-    a worker taps an alert and disputes it (tap or voice).
+    a worker taps an alert and disputes it (tap or voice). Muse Spark 1.3 re-reviews it with the
+    evidence frames and upholds or rejects it (live on 4 Nov: upheld in 28 s, "the yellow ruler
+    reads 4.9–5.1 m, all above 4 m").
 12. **Permanent regression.** An upheld dispute, or the owner's *False alarm* tap on the phone
     alert, adds the alert to the rule's permanent Rule CI regressions; the story's last step
     turns done.
@@ -138,8 +140,14 @@ names the vehicle; the operator is found through the fleet's own records, not by
 
 ## Limits (honest)
 
-- Tier 2 (Spark Open) is not configured live, so worker disputes stay `pending` until a person
-  decides; the owner's *False alarm* tap is the path to a regression today.
+- Tier 2 (Spark Open) is not configured live. Worker disputes are reviewed by Muse Spark 1.3
+  with up to four evidence frames instead (`worker/spark_review.py`,
+  `RULECAM_DISPUTE_SPARK_FALLBACK`); if that call fails the dispute stays `pending` for a person.
+- With actions live and no speaker or phrase book configured, the rule's own "play the warning"
+  action fails; the warning played on the page is the Spark-written, MMS-TTS-spoken WAV.
+- Latency on 4 Nov was dominated by the serverless SAM timing out (2 x 60 s) before hosted SAM
+  took over: candidates reached the chain about 2 minutes after the event; Glimmer's verdict took
+  12–22 s (reports/eval/2026-11-04-warehouse-live.md).
 - The OSHA clause comes from Spark's web search; when the page it cites is not among the pages
   the search returned, a second Spark call picks one of the returned pages or the citation is
   shown as unverified.

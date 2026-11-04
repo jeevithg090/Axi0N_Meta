@@ -123,6 +123,17 @@ The same flow by API: `POST /ask` → `POST /retail/advice {receipt}` →
 `POST /retail/advice/{id}/accept` → `POST /retail/watches/{watch_id}/run` →
 `POST /retail/tasks/{id}/proof` → `POST /retail/brief {lang}`.
 
+## For a chain of stores
+
+- `GET /retail/scorecard` scores this store's retail work on Chain Mode's scorecard (see the
+  table above), so HQ sees it next to every other store's rules.
+- `chains/supermarket-deli/pack.yaml` is a deli rule pack head office can push to every store:
+  the hand sink kept clear (FDA Food Code 5-205.11), raw meat not left out on the prep counter
+  (3-501.16) and the fire exit clear (OSHA 1910.37(a)(3)), with knobs each store may tighten.
+  `rulecam chain prove chains/supermarket-deli/pack.yaml` shows it releasable (Rule CI green at
+  every knob setting); `rulecam chain fit chains/supermarket-deli/pack.yaml
+  chains/supermarket-deli/stores` fits the example store (a SAMPLE set-up), 3 of 3 ready.
+
 ## Limits (honest)
 
 - The live test footage is stock video looped as phone cameras, so "how long" and "how many

@@ -110,6 +110,7 @@ from rulecam.ask.runlog import AskRunLog, git_sha
 from rulecam.ask.watch import ClipJoiner
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
+from rulecam.chain.api import chain_router
 from rulecam.clients.errors import ClientConfigError
 from rulecam.clients.meta_hosted import SparkClient, VoiceTranscribeClient
 from rulecam.clients.open_weights.glimmer import GlimmerClient
@@ -1042,6 +1043,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 dependencies=_OWNER,
             ),
             extensions.router(_OWNER),
+            chain_router(settings.rulecam_chains_dir, dependencies=_OWNER),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
         ),

@@ -17,6 +17,7 @@ pass, API revision `559f976`).
 
 | ID | Sev | Owner | Where | Summary |
 |---|---|---|---|---|
+| QA-B18 | **P0** | supermarket (`ui ask`; `components/signage/AskSignage.tsx`) | `/ask` (final-integration and every agent branch) | Ask fabricates answers: when the API refuses (a visitor) or fails, `runSynthesizedAgent` plays a canned trace ending "muse-spark-open accepted the answer" with a fake receipt; the page also opens on a canned exchange. No SAMPLE tag |
 | QA-B1 | P1 | lead / ops (pod `.env`) | live API | Owner login is off on the live pod: `/auth/me` says `login_enabled: false` |
 | QA-B2 | P1 | UI agent (`lib/store.ts`, `ModeBadge`) + ops (`PUBLIC_DEMO`) | every live page | The badge says OFFLINE to every visitor while the API is up and LIVE |
 | QA-B3 | P1 | warehouse (`ui/demo`) | `/demo?demo=1` | Three "Next golden run · Not recorded yet. Needs: … `rulecam golden capture`" blocks show internal TODOs to judges |
@@ -33,6 +34,57 @@ pass, API revision `559f976`).
 | QA-B15 | P1 | UI agent (`components/signage/MonitorSignage.tsx`) | `/monitor` (final-integration build) | The sample walkthrough labels people "WORKER #208", "WORKER #204", "WORKER #201": reads as per-person identity, against the no-identity guardrail and the pitch |
 | QA-B16 | P1 | warehouse (`ui/worker`) | `/worker/<plan>/<camera>` on a phone | Language and **Dispute** buttons are 22 px tall: too small to tap on the QR-poster page that is "mobile first, large tap targets" |
 | QA-B17 | P2 | UI agent (`layout` / shell breadcrumb) | any unknown URL | The 404 page throws React hydration error #418: the breadcrumb renders the pathname, which differs between the prerendered `/_not-found` and the browser |
+| QA-B19 | P1 | UI agent (`components/signage/SystemSignage.tsx`) | `/system` | Made-up numbers shown as live: "Candidates Emitted 7", "Tier-1 Verifications 7 / 0" (wrong field names, so always 7), mode "LIVE" when `/health` fails, cost $0.14 and cap $0.50 defaults, "Muse Spark Open 70B" Tier 2, "10.0 Hz Engine" |
+| QA-B20 | P1 | supermarket (`ui site`; `components/signage/SiteSignage.tsx`) | `/site` | Seeded web-context results (FSA recalls naming real brands, "Searches: 15 · Pages Read: 87", "✓ source picked from the pages the search returned", "LIVE EVAL VERIFIED (PR #145)") shown as today's live research with no SAMPLE/recorded label |
+| QA-B21 | P1 | lead (merge order) | landing (`p1/ui-hallmark`) | The new landing links `/usecases/supermarket`, `/usecases/warehouse`, `/usecases/crowd`; each page lives on its own branch, so the landing has dead links unless all three merge with it |
+
+### QA-B18 · P0 · Ask fabricates answers when the API says no
+
+- **Repro:** build any branch, open `/ask`. The page opens on a finished exchange ("Two sub-2.0m
+  encounters were recorded today … CONFIRMED VIOLATION …", "Review · muse-spark-open accepted the
+  answer", "receipt 9f41e8c20a7b"). Type any question as a visitor (the API answers 403) or with
+  the API down: `executeQuestion` catches the failure and calls `runSynthesizedAgent`, which
+  streams a canned SQL step, a canned Glimmer look, a canned Spark Open review and a canned answer
+  with a fake receipt. Nothing on the page says it is sample content; the badge says LIVE/OFFLINE.
+- **Why P0:** a judge asks a question and gets a made-up answer that claims a model review that
+  is not deployed (README: Spark Open is not live). Also the header claims "11 camera streams" and
+  lists an `identity_spans` table (reads as identity tracking).
+- **Fix:** delete the synthesized fallback; on 403 render `<OwnerOnly what="Asking about the
+  cameras" />`, on other errors show the error. If a worked example must stay, put it under
+  `<SampleDataTag what="An example exchange, written for the interface …" />`, and never label it
+  with a model or receipt. Drop `identity_spans` and the fixed "11".
+
+### QA-B19 · P1 · /system shows invented runtime numbers
+
+- **Repro:** `/system` on a build with a running API: "Candidates Emitted **7**", "Tier-1
+  Verifications Completed / Failed **7 / 0**" while `/runtime/metrics` says `"candidates": 0`.
+  `SystemSignage.tsx` reads `runtime?.candidates_emitted ?? 7` and
+  `runtime?.verifications_completed ?? 7`; the API sends `candidates` and has no
+  `verifications_completed`, so it is always 7. Other fallbacks shown as data:
+  `health?.mode ?? "LIVE"` (says LIVE when `/health` fails), `cost ?? 0.14`, cap `?? 0.5` (the
+  API's default is 12), `tier2 ?? "spark-open"` / `"Muse Spark Open 70B"`, "10.0 Hz Engine",
+  `revision ?? "dev-worktree (HEAD)"`, `workers_max ?? 1`.
+- **Fix:** render "—" (or "unknown") for every missing field; map to the real fields
+  (`candidates`, `verifications_failed`, `verify_errors`); never default the mode to LIVE.
+
+### QA-B20 · P1 · /site shows seeded research as today's
+
+- **Repro:** `/site` (owner or visitor, API without `/context` data): "Around the site today",
+  two FSA recall notices naming real brands (Walkers, Gilbert's Kosher Foods), a Bonfire Night
+  event, "Searches: 15 · Pages Read: 87", "✓ SOURCE PICKED FROM THE PAGES THE SEARCH RETURNED",
+  "LIVE EVAL VERIFIED (PR #145) ✓". These come from `SEEDED_CONTEXTS` (asked_at 2026-11-03).
+- **Expected:** if it is a recorded run, say "Recorded 3 Nov 2026 run (REPLAY)" on it; if it is
+  hand-written, `SampleDataTag`. Check that each recall item really came from the search (recall
+  notices about real companies must not be invented).
+- **Fix:** label the seeded block; prefer showing it only in `?demo=1`.
+
+### QA-B21 · P1 · Landing links need all three use-case branches
+
+- **Repro:** `p1/ui-hallmark` build: `ui/e2e` `journey.spec.ts` → "404 /usecases/supermarket",
+  "404 /usecases/warehouse", "404 /usecases/crowd".
+- **Fix (lead):** merge `p1/uc-supermarket`, `p1/uc-warehouse` and `p1/uc-crowd` before (or with)
+  `p1/ui-hallmark`, or hide a card whose page is not in the build. Re-run `journey.spec.ts` on the
+  merged build.
 
 ### QA-B1 · P1 · Owner login is off on the live pod
 

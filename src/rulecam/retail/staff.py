@@ -77,6 +77,9 @@ class StaffDesk:
         picture = self._image(finding.evidence.marked) if finding.evidence.marked else None
         title = f"{TITLES[finding.kind]}: {finding.camera_name or finding.camera_id}"
         body = finding.staff_message or finding.headline
+        announce = finding.detail.get("announcement")
+        if isinstance(announce, str) and announce:
+            body = f"{body}\nAnnounce: {announce}"
         with for_event(finding.id, finding.watch_id):
             alert_id = self._notifier.send(
                 who,

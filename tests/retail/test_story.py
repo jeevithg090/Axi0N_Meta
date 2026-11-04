@@ -3,6 +3,7 @@ staff alert with the photo → restock task closed by photo → the owner's brie
 
 from __future__ import annotations
 
+import hashlib
 import json
 from concurrent.futures import Executor, Future
 from datetime import timedelta
@@ -15,10 +16,18 @@ from fastapi.testclient import TestClient
 
 from rulecam.act.notify import LanNotifier
 from rulecam.advisor.api import AdviceStore
+from rulecam.ask.runlog import GENESIS, row_hash
 from rulecam.ask.vision import FrameGrabber
 from rulecam.bus import Bus
 from rulecam.evidence.chain import EventChain, read_chain
-from rulecam.retail.advice import AdviceWriter, evidence_numbers, grounded, queue_gain, spread
+from rulecam.retail.advice import (
+    AdviceWriter,
+    evidence_numbers,
+    grounded,
+    queue_gain,
+    receipt,
+    spread,
+)
 from rulecam.retail.api import retail_router
 from rulecam.retail.brief import BriefWriter, day_stats
 from rulecam.retail.checks import QueueChecker, RetailError, ShelfChecker, Site
@@ -208,6 +217,13 @@ def test_queue_check_alerts_staff_with_the_marked_photo(tmp_path: Path) -> None:
     assert record.kind == "advice"
     assert record.payload["type"] == "retail_finding"
     assert record.payload["finding_id"] == finding.id
+
+
+def test_till_announcement_goes_to_staff(tmp_path: Path) -> None:
+    said = "Till 2 is opening. / La caja 2 está abriendo."
+    rig = Rig(tmp_path, FakeLLM([judgement(announcement=said)]))
+    rig.service.run_check("queue", "till")
+    assert rig.notifier.sent[0]["body"] == f"Open the right till now.\nAnnounce: {said}"
 
 
 def test_quiet_check_sends_nothing(tmp_path: Path) -> None:
@@ -435,3 +451,22 @@ def test_staff_close_by_hand(tmp_path: Path) -> None:
     assert done["minutes_to_fix"] == 1.0
     feed = client.get("/retail/tasks", params={"role": "stock", "open_only": True}).json()
     assert feed == []
+
+
+def test_receipt_rehashes_in_any_language(tmp_path: Path) -> None:
+    row: dict[str, object] = {
+        "question": "¿Cuántos clientes esperan?",
+        "answer": "Seis.",
+        "ts": AT.isoformat(),
+        "models": ["muse-spark-1.3"],
+        "seconds": 1.5,
+        "prev_sha256": GENESIS,
+    }
+    row["sha256"] = row_hash(GENESIS, row)
+    runs = tmp_path / "runs.jsonl"
+    runs.write_text(json.dumps(row, ensure_ascii=False) + "\n", encoding="utf-8")
+    got = receipt(runs, str(row["sha256"]))
+    digest = hashlib.sha256((got.prev_sha256 + got.hashed_text).encode("utf-8")).hexdigest()
+    assert digest == got.receipt
+    assert got.rows_verified == 1
+    assert got.question == "¿Cuántos clientes esperan?"

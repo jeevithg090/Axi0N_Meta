@@ -25,7 +25,7 @@ from rulecam.advisor.recompute import NumberCheck, RecomputeReport
 from rulecam.contracts import Clock
 from rulecam.evidence.chain import EventChain
 from rulecam.log import get_logger
-from rulecam.retail.advice import AdviceWriter, RetailCard, latest_runs
+from rulecam.retail.advice import AdviceWriter, Receipt, RetailCard, latest_runs, receipt
 from rulecam.retail.brief import BriefWriter, day_stats, since_day
 from rulecam.retail.checks import RetailError, new_id
 from rulecam.retail.models import Brief, CheckKind, Finding, StaffTask, Watch, WatchRequest
@@ -340,6 +340,14 @@ class RetailService:
         )
 
     # -- advice --------------------------------------------------------------------------------
+
+    def receipt(self, sha: str) -> Receipt:
+        """An Ask answer's receipt with the text that was hashed.
+
+        Raises:
+            RetailError: For an unknown receipt.
+        """
+        return receipt(self._runs, sha)
 
     def asks(self, limit: int = 20) -> list[dict[str, object]]:
         """The owner's newest questions with their receipts."""

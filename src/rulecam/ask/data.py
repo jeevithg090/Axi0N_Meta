@@ -12,6 +12,9 @@ are `TIMESTAMP` in UTC, without a zone):
   `camera_id, t0, t1, caption, people, events`;
 - `track_identity`, `identity_spans`, `identity_notes`: track fragments joined into identities
   by appearance (`ask.identity`), each identity's span, and Glimmer's note on each person.
+- `retail_findings`, `retail_tasks`: the supermarket checks (queue, hazard, shelf; what the
+  models judged and whether staff were alerted) and the staff tasks they opened, with when each
+  was seen and fixed (`rulecam.retail`, beside the track store in `<data>/retail/`);
 - `crowd_readings`, `crowd_assessments`, `crowd_alerts`: crowd density, motion and pressure
   per zone every few seconds (`crowd.memory`), the warden's assessments and its alerts
   (`crowd.warden`); empty when crowd watch is off.
@@ -53,6 +56,35 @@ _CROWD_ASSESSMENTS: Final = (
     "camera_id VARCHAR, ts TIMESTAMP, level VARCHAR, zones VARCHAR[], why VARCHAR, "
     "forecast VARCHAR, minutes_to_danger DOUBLE, alert BOOLEAN, staff_actions VARCHAR[]"
 )
+_RETAIL_FINDINGS: Final = {
+    "id": "VARCHAR",
+    "kind": "VARCHAR",
+    "camera_id": "VARCHAR",
+    "camera_name": "VARCHAR",
+    "at": "VARCHAR",
+    "checked_at": "VARCHAR",
+    "watch_id": "VARCHAR",
+    "act": "BOOLEAN",
+    "headline": "VARCHAR",
+    "staff_message": "VARCHAR",
+    "metric": "DOUBLE",
+    "alert_id": "VARCHAR",
+    "task_id": "VARCHAR",
+}
+_RETAIL_TASKS: Final = {
+    "id": "VARCHAR",
+    "kind": "VARCHAR",
+    "camera_id": "VARCHAR",
+    "where": "VARCHAR",
+    "items": "VARCHAR[]",
+    "seen_at": "VARCHAR",
+    "created_at": "VARCHAR",
+    "status": "VARCHAR",
+    "done_at": "VARCHAR",
+    "closed_by": "VARCHAR",
+    "minutes_to_fix": "DOUBLE",
+    "role": "VARCHAR",
+}
 _CROWD_ALERTS: Final = (
     "alert_id VARCHAR, camera_id VARCHAR, ts TIMESTAMP, level VARCHAR, sent BOOLEAN, "
     "held_reason VARCHAR"
@@ -193,6 +225,7 @@ class TrackTables:
             "identity_id VARCHAR, role VARCHAR, description VARCHAR, carrying VARCHAR",
         )
         self._crowd_tables(crowd or CrowdFiles())
+        self._retail_tables(root.parent / "retail")
         # Relinking can retire an identity id; its note then describes no current identity.
         self._con.execute(
             "DELETE FROM identity_notes WHERE identity_id NOT IN "
@@ -216,6 +249,63 @@ class TrackTables:
             "crowd_assessments", files.assessments, _CROWD_ASSESSMENTS, timestamps=("ts",)
         )
         self._json_table("crowd_alerts", files.alerts, _CROWD_ALERTS, timestamps=("ts",))
+
+    def _retail_tables(self, folder: Path) -> None:
+        """`retail_findings` (one row per check) and `retail_tasks` (each task's latest state)."""
+        self._typed_table(
+            "retail_findings",
+            folder / "findings.jsonl",
+            _RETAIL_FINDINGS,
+            "id, kind, camera_id, camera_name, {at} AS seen_at, {checked_at} AS checked_at, "
+            "watch_id, act, headline, staff_message, metric, alert_id, task_id",
+            dedupe="checked_at",
+        )
+        self._typed_table(
+            "retail_tasks",
+            folder / "tasks.events.jsonl",
+            _RETAIL_TASKS,
+            'id, kind, camera_id, "where" AS place, items, {seen_at} AS seen_at, '
+            "{created_at} AS created_at, status, {done_at} AS done_at, closed_by, "
+            "minutes_to_fix, role",
+            dedupe="row",
+        )
+
+    def _typed_table(
+        self, name: str, path: Path, columns: dict[str, str], select: str, *, dedupe: str
+    ) -> None:
+        """Load chosen keys of a JSON-lines file; ISO text times become UTC `TIMESTAMP`s.
+
+        `select` names time columns as `{col}`; with `dedupe="row"` the last line per `id`
+        is kept (a log of states), else every line is one row.
+        """
+        times = {
+            c: f'CAST(CAST("{c}" AS TIMESTAMPTZ) AS TIMESTAMP)'
+            for c in columns
+            if c.endswith(("at", "_at"))
+        }
+        projection = select.format(**times)
+        spec = "{" + ", ".join(f"'{k}': '{v}'" for k, v in columns.items()) + "}"
+        if path.is_file() and path.stat().st_size:
+            source = path.as_posix().replace("'", "''")
+            body = (
+                f"SELECT {projection}, row_number() OVER () AS line_no FROM "  # noqa: S608
+                f"read_json('{source}', format = 'newline_delimited', columns = {spec})"
+            )
+            if dedupe == "row":
+                body = (
+                    f"SELECT * EXCLUDE (line_no) FROM ({body}) "  # noqa: S608 - constant parts
+                    "QUALIFY row_number() OVER (PARTITION BY id ORDER BY line_no DESC) = 1"
+                )
+            else:
+                body = f"SELECT * EXCLUDE (line_no) FROM ({body})"  # noqa: S608
+            self._con.execute(f"CREATE TABLE {name} AS {body}")
+            return
+        empty = (
+            f"SELECT {projection} FROM (SELECT "  # noqa: S608 - constant parts
+            + ", ".join(f'CAST(NULL AS {v}) AS "{k}"' for k, v in columns.items())
+            + ") WHERE false"
+        )
+        self._con.execute(f"CREATE TABLE {name} AS {empty}")
 
     def _json_table(
         self, name: str, path: Path | None, columns: str, *, timestamps: Sequence[str] = ()

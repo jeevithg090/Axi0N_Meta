@@ -1,0 +1,182 @@
+/* Local, plain styles for the supermarket story; the design system restyles this page later. */
+
+.page {
+  display: grid;
+  gap: 24px;
+  padding: 24px 16px 64px;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: var(--ink, #141414);
+}
+
+.lead {
+  max-width: 70ch;
+  color: var(--ink-2, #4a4a46);
+}
+
+.steps {
+  display: grid;
+  gap: 16px;
+}
+
+.step {
+  border: 1px solid var(--rule-2, #b9b7ae);
+  background: var(--card, #fbfaf6);
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.stepHead {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.num {
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+  background: var(--ink, #141414);
+  color: var(--paper, #eceae3);
+  padding: 2px 8px;
+}
+
+.done {
+  background: #1d7a3a;
+}
+
+.title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.muted {
+  color: var(--mute, #6a6a64);
+  font-size: 0.9rem;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.input {
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  border: 1px solid var(--rule-2, #b9b7ae);
+  background: var(--paper, #fff);
+  color: inherit;
+}
+
+.button {
+  padding: 8px 12px;
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid var(--ink, #141414);
+  background: var(--ink, #141414);
+  color: var(--paper, #eceae3);
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.ghost {
+  composes: button;
+  background: transparent;
+  color: inherit;
+}
+
+.alert {
+  border-left: 4px solid var(--alert, #c93410);
+  padding-left: 10px;
+}
+
+.ok {
+  border-left: 4px solid #1d7a3a;
+  padding-left: 10px;
+}
+
+.card {
+  border: 1px solid var(--rule-2, #b9b7ae);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.image {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rule-2, #b9b7ae);
+}
+
+.thumbs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.thumbs img {
+  width: 120px;
+  height: auto;
+  border: 1px solid var(--rule-2, #b9b7ae);
+}
+
+.mono {
+  font-family: ui-monospace, monospace;
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
+.timeline {
+  display: grid;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.pill {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table td,
+.table th {
+  border-bottom: 1px solid var(--rule-2, #b9b7ae);
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.error {
+  color: var(--alert, #c93410);
+}
+
+.answer {
+  white-space: pre-wrap;
+  font-size: 1.05rem;
+}

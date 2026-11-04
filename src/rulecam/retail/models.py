@@ -80,6 +80,12 @@ class QueueJudgement(Frozen):
         max_length=100,
         description="Numbers of the yellow boxes that are people queueing.",
     )
+    announcement: str = Field(
+        default="",
+        max_length=400,
+        description="When a till opens: one short announcement for customers, in each language "
+        "the store's customers speak, else ''.",
+    )
     confidence: float = Field(ge=0, le=1)
 
 

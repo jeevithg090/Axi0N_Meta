@@ -38,6 +38,7 @@ from rulecam.advisor.claims import build_slot_claim, render_slot_claim
 from rulecam.advisor.errors import AdvisorError
 from rulecam.advisor.measurement import build_measurement_plan
 from rulecam.advisor.whatif.queueing import UnstableQueueError, allen_cunneen_wait, mmc_wait
+from rulecam.ask.runlog import canonical, verify_run_log
 from rulecam.contracts import Clock, Frozen, StructuredLLM
 from rulecam.contracts.advisor import (
     Change,
@@ -233,6 +234,59 @@ def find_run(runs: Path, receipt: str) -> dict[str, object]:
                     return row
     msg = f"no Ask answer with receipt {receipt[:12]}…"
     raise RetailError(msg)
+
+
+class Receipt(Frozen):
+    """An Ask answer's receipt, with the exact text that was hashed.
+
+    `sha256(prev_sha256 + hashed_text)` must equal `receipt`; a browser can check it with
+    `crypto.subtle.digest` and read the answer from `hashed_text` itself.
+
+    Attributes:
+        receipt: The run log row's hash.
+        prev_sha256: The previous row's hash (64 zeros for the first row).
+        hashed_text: The row's canonical JSON without its own hash.
+        question: The owner's question.
+        answer: The answer.
+        ts: When it was answered.
+        models: The models that worked on it.
+        rows_verified: Rows of the whole run log whose chain checked out (`None`: broken).
+    """
+
+    receipt: str
+    prev_sha256: str
+    hashed_text: str
+    question: str
+    answer: str
+    ts: str
+    models: list[str]
+    rows_verified: int | None
+    qr_png_base64: str | None = None
+
+
+def receipt(runs: Path, sha: str) -> Receipt:
+    """The receipt of the Ask answer `sha`, checked against the run log.
+
+    Raises:
+        RetailError: When no row has that hash.
+    """
+    row = find_run(runs, sha)
+    body = {k: v for k, v in row.items() if k != "sha256"}
+    try:
+        verified: int | None = verify_run_log(runs)
+    except ValueError:
+        verified = None
+    models = row.get("models")
+    return Receipt(
+        receipt=sha,
+        prev_sha256=str(row.get("prev_sha256", "")),
+        hashed_text=canonical(body),
+        question=str(row.get("question", "")),
+        answer=str(row.get("answer", "")),
+        ts=str(row.get("ts", "")),
+        models=[str(m) for m in models] if isinstance(models, list) else [],
+        rows_verified=verified,
+    )
 
 
 def latest_runs(runs: Path, limit: int = 20) -> list[dict[str, object]]:

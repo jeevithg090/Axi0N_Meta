@@ -24,13 +24,15 @@ from pathlib import Path
 from typing import Annotated, Any, Final, Literal
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import Path as PathParam
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from rulecam.ask import AskAgent, AskAnswer
+from rulecam.capture.pair_phone.service import qr_png_base64
 from rulecam.clients.errors import ModelClientError
 from rulecam.contracts import Frozen
-from rulecam.retail.advice import RetailCard
+from rulecam.retail.advice import Receipt, RetailCard
 from rulecam.retail.checks import RetailError
 from rulecam.retail.models import (
     Brief,
@@ -239,6 +241,21 @@ def _advice_routes(router: APIRouter, svc: Callable[[], RetailService]) -> None:
     def asks(limit: Annotated[int, Query(ge=1, le=100)] = 20) -> list[dict[str, object]]:
         """The owner's latest Ask answers with their receipts."""
         return svc().asks(limit)
+
+    @router.get("/receipts/{sha}")
+    async def ask_receipt(
+        sha: Annotated[str, PathParam(pattern=r"^[0-9a-f]{64}$")],
+        link: Annotated[str | None, Query(max_length=400, pattern=r"^https?://\S+$")] = None,
+    ) -> Receipt:
+        """An Ask answer's receipt, the run log's chain check and a QR code of `link`.
+
+        `link` is the page that checks the receipt in the browser; without it there is no QR.
+        """
+        s = svc()
+        found = await _run(lambda: s.receipt(sha))
+        if link is None:
+            return found
+        return found.model_copy(update={"qr_png_base64": qr_png_base64(link)})
 
     @router.post("/advice")
     async def advice(body: AdviceRequest) -> RetailCard:

@@ -215,6 +215,13 @@ crowd watch is off. crowd_assessments(camera_id, ts, level, zones, why, forecast
 minutes_to_danger, alert, staff_actions, announce, check) are the crowd warden's judgements and \
 crowd_alerts(alert_id, camera_id, ts, level, sent, held_reason, check, assessment, audio) the \
 warnings it sent or held (held: Muse Glimmer did not see it in the frames).
+- retail_findings(id, kind, camera_id, camera_name, seen_at, checked_at, watch_id, act, \
+headline, staff_message, metric, alert_id, task_id): every supermarket check (kind queue, \
+hazard or shelf): what the models judged (headline), whether staff should act (act) and were \
+alerted (alert_id), and its number (metric: customers waiting, confirmed hazards, shelf gaps). \
+retail_tasks(id, kind, camera_id, place, items, seen_at, created_at, status, done_at, \
+closed_by, minutes_to_fix, role) are the staff jobs they opened (restock a gap, make a hazard \
+safe), each with when it was seen and fixed and how the fix was checked (photo, camera, staff).
 
 Tools:
 1. sql: one or more DuckDB SELECT/WITH statements over those tables, separated by ';' (each \

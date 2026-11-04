@@ -3,23 +3,27 @@
 from __future__ import annotations
 
 import json
-from datetime import timedelta
+from collections.abc import Callable
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from rulecam.act.escalation import EscalationManager
 from rulecam.act.notify import LanNotifier
-from rulecam.ask.vision import FrameGrabber
+from rulecam.ask.vision import Frame, FrameGrabber
 from rulecam.bus import Bus
 from rulecam.crowd.forecast import forecast
 from rulecam.crowd.memory import CrowdMemory
 from rulecam.crowd.report import Truth, after_action, build_report
-from rulecam.crowd.scan import CrowdReading, ZoneReading
+from rulecam.crowd.routes import check_routes, recheck_message
+from rulecam.crowd.scan import CrowdReading, CrowdScanner, ZoneReading
 from rulecam.crowd.setup import propose, role_id
 from rulecam.crowd.venue import Place, Venue
 from rulecam.crowd.warden import CrowdWarden
+from rulecam.crowd.zones import CrowdZone
 from rulecam.evidence.chain import EventChain, read_chain
+from tests.crowd.conftest import Sam, top_down, wait_for
 from tests.crowd.test_warden import INSTRUCTION, Speech, crowd, latest, warning
 from tests.fakes import EPOCH, FakeClock, FakeLLM
 
@@ -246,3 +250,103 @@ def test_spark_proposes_the_watch_from_the_instruction_and_the_newest_frame(
     with pytest.raises(ValueError, match="images"):
         propose(spark, None, grabber, "gate", "x", name="x")
     assert role_id("  ") == ""
+
+
+def test_the_fill_clock_counts_people_crossing_the_zone_edge(
+    tmp_path: Path, frame_at: Callable[[int, datetime], Frame]
+) -> None:
+    scanner = CrowdScanner(
+        segmenter=Sam([(20.0, 100.0, 40.0, 150.0)]), out_dir=tmp_path / "heat", grid=1
+    )
+    after = frame_at(15, EPOCH + timedelta(seconds=1.5))
+    before = frame_at(10, EPOCH + timedelta(seconds=1.0))  # the scene drifts 20 px/s right
+    gate = CrowdZone(name="gate", polygon_px=[(50, 0), (400, 0), (400, 300), (50, 300)])
+    reading = scanner.scan(after, before, (top_down(0.05), "owner"), [gate])
+    zone = reading.zone("gate")
+    assert zone is not None
+    assert (zone.in_per_min, zone.out_per_min) == (30.0, 0.0)
+    (cell,) = [c for c in reading.cells if c.people]
+    flow = cell.flow_px
+    assert flow is not None
+    assert flow[0] == pytest.approx(20.0, abs=3.0)
+    history = [reading.model_copy(update={"at": EPOCH + timedelta(seconds=s)}) for s in (0, 5)]
+    (_, projected) = forecast(history)
+    assert projected.in_per_min == 30.0
+    assert projected.fill_eta_s["2"] is not None
+
+
+def test_the_route_guard_measures_each_destination() -> None:
+    venue = Venue(places=[Place(name="Gate C", camera_id="c", zone="view"), Place(name="Car")])
+    filling = [reading(10.0 * k, 3.0 + 0.2 * k, 12 + k) for k in range(4)]
+    checks = check_routes(
+        [("redirect to Gate C", "gate c"), ("open Car", "Car"), ("x", "Moon")],
+        venue,
+        lambda camera_id: filling if camera_id == "c" else [],
+        source_density=4.0,
+    )
+    assert [c.measured for c in checks] == [False, False, False]  # "view" has no density here
+    assert [c.note for c in checks][1:] == ["no camera sees it", "not in the venue layout"]
+    checks = check_routes(
+        [("redirect to Gate C", "Gate C")],
+        Venue(places=[Place(name="Gate C", camera_id="c", zone="gate")]),
+        lambda camera_id: filling,
+        source_density=4.0,
+    )
+    assert checks[0].filling
+    assert checks[0].note == "getting denser"
+    assert "3.6 people/m² now" in recheck_message(checks)
+
+
+def test_spark_chooses_again_when_a_destination_is_filling_and_hears_who_answered(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    redirect = {
+        **warning(),
+        "actions": [
+            {"do": "redirect", "target": "Gate A", "role": "stewards", "why": "x", "to": "Gate A"}
+        ],
+    }
+    hold = {
+        **warning(),
+        "actions": [{"do": "hold", "target": "Outer barrier", "role": "stewards", "why": "y"}],
+    }
+    spark = FakeLLM([redirect, hold, {**warning(), "level": "critical"}])
+    chosen, *_ = escalating(tmp_path, crowd, grabber, spark)
+    chosen.set_venue(VENUE)
+    watch = chosen.watch("gate", INSTRUCTION, ["en"], role="stewards")
+    assessment = chosen.assess(watch, latest(crowd))
+    assert assessment.actions[0].do == "hold"
+    again = spark.calls[1]["messages"]
+    assert "Route check" in str(again[-1]["content"])  # type: ignore[index]
+    (alert,) = chosen.alerts()
+    (checked,) = alert.route_checks
+    assert (checked.to, checked.filling, checked.replaced) == ("Gate A", True, True)
+    chosen.assess(watch, latest(crowd))
+    prompt = json.loads(str(spark.calls[2]["messages"][1]["content"]))  # type: ignore[index]
+    (shown,) = prompt["open_alerts"]
+    assert (shown["status"], shown["still_escalating"]) == ("open", True)
+
+
+def test_after_an_ack_sam_looks_for_the_steward_in_the_zone(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    chosen, _, _, chain, _ = escalating(tmp_path, crowd, grabber, FakeLLM([warning()]))
+    watch = chosen.watch("gate", INSTRUCTION, ["en"], role="stewards")
+    chosen.assess(watch, latest(crowd))
+    (alert,) = chosen.alerts()
+    chosen.tick()
+    assert chosen.ack_state(alert.alert_id).arrival is None  # nobody acknowledged yet
+    chosen.ack(alert.alert_id, "stewards")
+    chosen.tick()
+
+    def looked() -> bool:
+        arrival = chosen.ack_state(alert.alert_id).arrival
+        return arrival is not None and arrival.checks > 0
+
+    wait_for(looked)
+    arrival = chosen.ack_state(alert.alert_id).arrival
+    assert arrival is not None
+    assert (arrival.concept, arrival.zone, arrival.people) == ("high-visibility vest", "view", 8)
+    assert arrival.seen_at == latest(crowd).at
+    details = [r.payload.get("detail") for r in read_chain(chain.path_for(EPOCH.date()))]
+    assert "8 x 'high-visibility vest' seen in view by SAM 3.1" in details

@@ -46,6 +46,7 @@ VIEW: Final = "view"
 _HEAT_MAX_PPM2: Final = 6.0  # colour scale top of the heatmap (display only)
 _TILE_WORKERS: Final = 4
 _ARROW_MAX_PX: Final = 30.0  # longest motion arrow on the heatmap (display only)
+FLUX_HORIZON_S: Final = 2.0  # edge crossings are counted over this much of each person's motion
 
 
 class ZoneReading(Frozen):
@@ -62,6 +63,12 @@ class ZoneReading(Frozen):
     coherence: float | None = None
     counterflow_share: float | None = None
     pressure: float | None = None
+    in_per_min: float | None = Field(
+        default=None, description="People crossing the zone's edge inwards, per minute."
+    )
+    out_per_min: float | None = Field(
+        default=None, description="People crossing the zone's edge outwards, per minute."
+    )
 
 
 class CellReading(Frozen):
@@ -247,7 +254,14 @@ class CrowdScanner:
         readings = [
             _zone(VIEW, view, feet=feet, velocities=velocities, ground=ground),
             *(
-                _zone(z.name, z.polygon_px, feet=feet, velocities=velocities, ground=ground)
+                _zone(
+                    z.name,
+                    z.polygon_px,
+                    feet=feet,
+                    velocities=velocities,
+                    ground=ground,
+                    flow_px=flow_px,
+                )
                 for z in zones
             ),
         ]
@@ -336,12 +350,14 @@ def _zone(
     feet: signals.FloatArray,
     velocities: signals.FloatArray,
     ground: _Ground | None,
+    flow_px: signals.FloatArray | None = None,
 ) -> ZoneReading:
     chosen = signals.inside(polygon, feet) if len(feet) else np.zeros(0, dtype=bool)
     people = int(chosen.sum())
     area = ground.area(polygon) if ground is not None else None
     moved = signals.motion(velocities[chosen])
     dense = signals.density(people, area)
+    crossing = _crossings(polygon, feet, flow_px) if flow_px is not None else None
     return ZoneReading(
         zone=name,
         people=people,
@@ -354,6 +370,32 @@ def _zone(
         coherence=_round(moved.coherence),
         counterflow_share=_round(moved.counterflow),
         pressure=_round(signals.pressure(dense, moved.velocity_var), 4),
+        in_per_min=crossing[0] if crossing is not None else None,
+        out_per_min=crossing[1] if crossing is not None else None,
+    )
+
+
+def _crossings(
+    polygon: Sequence[tuple[float, float]],
+    feet: signals.FloatArray,
+    flow_px: signals.FloatArray,
+) -> tuple[float, float] | None:
+    """People crossing the zone's edge in and out, per minute, from their image motion.
+
+    Each person with a measured motion is moved `FLUX_HORIZON_S` seconds along it; those that
+    change side are counted and scaled to a minute. `None` when nobody's motion is known.
+    """
+    known = np.isfinite(flow_px).all(axis=1) if len(flow_px) else np.zeros(0, dtype=bool)
+    if not known.any():
+        return None
+    now = feet[known]
+    later = now + flow_px[known] * FLUX_HORIZON_S
+    inside_now = signals.inside(polygon, now)
+    inside_later = signals.inside(polygon, later)
+    scale = 60.0 / FLUX_HORIZON_S
+    return (
+        round(float((~inside_now & inside_later).sum()) * scale, 1),
+        round(float((inside_now & ~inside_later).sum()) * scale, 1),
     )
 
 

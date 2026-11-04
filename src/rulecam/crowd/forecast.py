@@ -5,6 +5,9 @@ readings:
 
 - the density now and its change per minute (a least-squares line, `signals.trend`);
 - the inflow: the change in people per minute in the zone (arrivals minus departures);
+- the fill clock: people crossing the zone's edge in and out per minute (optical flow, the mean
+  of the last `FLUX_READINGS` readings), and the seconds that net flow takes to bring the zone
+  to each reference density at its area;
 - for each published reference density (`REFERENCE_PPM2`), how many seconds the recent line
   takes to reach it (`None` when the line is flat or falling, or already past it), and how long
   the zone has stayed at or above it without a break.
@@ -27,6 +30,7 @@ from rulecam.crowd.scan import CrowdReading
 from rulecam.crowd.signals import trend
 
 RECENT_S: Final = 60.0  # the window the projection's line is fitted on
+FLUX_READINGS: Final = 3  # the fill clock averages the edge crossings of this many readings
 MAX_ETA_S: Final = 1800.0  # a projection further out than this says nothing useful
 REFERENCE_PPM2: Final = (2.0, 4.0, 5.0, 6.0)
 """Published reference densities, people per m²: free flow ends, restricted, at risk, crushes."""
@@ -54,6 +58,16 @@ class ZoneForecast(Frozen):
         description="Reference density (as text) -> seconds the zone has stayed at or above it.",
     )
     peak_ppm2: float | None = None
+    in_per_min: float | None = Field(
+        default=None, description="People crossing the zone's edge inwards per minute (flow)."
+    )
+    out_per_min: float | None = Field(
+        default=None, description="People crossing the zone's edge outwards per minute (flow)."
+    )
+    fill_eta_s: dict[str, float | None] = Field(
+        default_factory=dict,
+        description="Reference density -> seconds the net edge flow takes to reach it.",
+    )
 
 
 def forecast(history: Sequence[CrowdReading], recent_s: float = RECENT_S) -> list[ZoneForecast]:
@@ -95,6 +109,12 @@ def _zone(
     for level in REFERENCE_PPM2:
         eta[_key(level)] = _eta(current, fit.per_min if fit else None, level)
     peaks = [v for _, v in density if v is not None]
+    flux = _flux(name, recent)
+    area = now.area_m2 if now is not None else None
+    fill: dict[str, float | None] = {}
+    if flux is not None and area:
+        net_per_min = (flux[0] - flux[1]) / area
+        fill = {_key(level): _eta(current, net_per_min, level) for level in REFERENCE_PPM2}
     return ZoneForecast(
         zone=name,
         density_ppm2=current,
@@ -107,6 +127,26 @@ def _zone(
         eta_s=eta,
         above_s={_key(level): _above(name, history, level) for level in REFERENCE_PPM2},
         peak_ppm2=max(peaks) if peaks else None,
+        in_per_min=flux[0] if flux is not None else None,
+        out_per_min=flux[1] if flux is not None else None,
+        fill_eta_s=fill,
+    )
+
+
+def _flux(name: str, recent: Sequence[CrowdReading]) -> tuple[float, float] | None:
+    """Mean edge crossings in and out per minute over the newest readings that measured them."""
+    found = [
+        (z.in_per_min, z.out_per_min)
+        for r in recent
+        if (z := r.zone(name)) is not None
+        and z.in_per_min is not None
+        and z.out_per_min is not None
+    ][-FLUX_READINGS:]
+    if not found:
+        return None
+    return (
+        round(sum(i for i, _ in found if i is not None) / len(found), 1),
+        round(sum(o for _, o in found if o is not None) / len(found), 1),
     )
 
 

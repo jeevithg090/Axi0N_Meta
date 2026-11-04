@@ -210,7 +210,7 @@ each report says where it ran.
   `/usecases/supermarket`. The warehouse and supermarket pages run live on the Meta API; the
   crowd page shows its recorded 4 Nov runs, because crowd is not live now. **On a phone:**
   `https://preferred-florist-labeled-trace.trycloudflare.com/staff`, `https://preferred-florist-labeled-trace.trycloudflare.com/glasses`.
-- **Video:** TODO. It shows the three worlds with each shot labelled LIVE, REPLAY, RESEARCH
+- **Video:** [`docs/video/script.md`](docs/video/script.md) ([`captions.srt`](docs/video/captions.srt)). It shows the three worlds with each shot labelled LIVE, REPLAY, RESEARCH
   FOOTAGE or SAMPLE.
 
 ### Technical depth (20%)
@@ -301,16 +301,16 @@ a late check hold back a warning.
 **Muse Code** writes new rule types, gets one repair round when a proof fails, and waits for the
 owner to approve.
 
-**Most Viral.** X post: **TODO (link)**.
+**Most Viral.** Launch thread and demo cards: [`docs/pitch/launch.md`](docs/pitch/launch.md).
 
-**Community Vote.** Gallery link: **TODO**.
+**Community Vote.** Live interactive replay and proof gallery: `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1`.
 
 ## Links
 
 - Repository: https://github.com/jeevithg090/Axi0N_Meta
 - Replay, no login, no keys: `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1` (the header says REPLAY)
 - Live app: `https://preferred-florist-labeled-trace.trycloudflare.com` (the header says LIVE)
-- Video: **TODO**
+- Video script & captions: [`docs/video/script.md`](docs/video/script.md) · [`docs/video/captions.srt`](docs/video/captions.srt)
 - Results: [`README.md#results`](README.md#results), [`eval/RESULTS.md`](eval/RESULTS.md) and
   [`reports/eval/`](reports/eval/)
 
@@ -320,11 +320,10 @@ owner to approve.
 |---|---|---|
 | P1, team lead | Jeevith | @jeevithg090 |
 | P2 | Nava (Navadarshanth Shanmugasundaram) | @nav6x |
-| P3 | Raunak | @R3unakk |
-| P4 | Aris | TODO: confirm the handle |
+| P3 | Raunak Khandelwal | @R3unakk |
+| P4 | Rudraksh Singh Chauhan | @UchihaVegito |
 
-Names are from `docs/standups.md` and `docs/HANDOFF.md`. TODO: confirm full names as each person
-wants them shown.
+Ownership by directory is listed in [`.github/CODEOWNERS`](.github/CODEOWNERS).
 
 ## Known limits (say these out loud)
 

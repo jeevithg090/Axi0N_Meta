@@ -78,7 +78,7 @@ reply, not in post 1, so the post itself travels.
 >
 > Code and every measured number: https://github.com/jeevithg090/Axi0N_Meta
 >
-> 3-minute video: TODO
+> 3-minute video walkthrough & script: https://github.com/jeevithg090/Axi0N_Meta/blob/main/docs/video/script.md
 
 Sources: post 1, the [1 Nov campaign](../../reports/eval/2026-11-01-live-test-campaign.md) and
 the T04 golden (`scenarios/driver_only_4m.expected.json`); post 3,

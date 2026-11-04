@@ -9,6 +9,7 @@ import { StepFlow, type FlowStep } from "@/components/kit";
 import { useDemoQuery } from "@/lib/stream";
 
 import { LiveStatusChip } from "./LiveStatusChip";
+import { UseCaseStill } from "./UseCaseStill";
 import { WORLDS, type WorldSlug } from "./worlds";
 import styles from "./usecases.module.css";
 
@@ -68,11 +69,14 @@ export function UseCaseFrame({ children }: { children: ReactNode }) {
           </nav>
           <LiveStatusChip />
         </div>
-        <div className={styles.heroBody}>
-          <h1 className={styles.title}>{world ? world.promise : "One engine, three worlds"}</h1>
-          <p className={styles.line}>
-            {world ? world.line : "The same planner, Rule CI and verifier, pointed at three kinds of site."}
-          </p>
+        <div className={styles.heroSplit}>
+          <div className={styles.heroBody}>
+            <h1 className={styles.title}>{world ? world.promise : "One engine, three worlds"}</h1>
+            <p className={styles.line}>
+              {world ? world.line : "The same planner, Rule CI and verifier, pointed at three kinds of site."}
+            </p>
+          </div>
+          {world && <UseCaseStill world={world} caption="full" priority className={styles.heroStill} />}
         </div>
         {world && (
           <StepFlow

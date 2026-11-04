@@ -1,7 +1,7 @@
 "use client";
 
 import { LiveBadge, Skeleton } from "@/components/kit";
-import { gpuLine, isLive, useHealth } from "@/lib/health";
+import { gpuLine, healthBadge, useSharedHealth } from "@/lib/health";
 import { useDemo } from "@/lib/stream";
 
 import styles from "./usecases.module.css";
@@ -12,7 +12,7 @@ import styles from "./usecases.module.css";
  */
 export function LiveStatusChip() {
   const demo = useDemo();
-  const load = useHealth(15000, demo === false);
+  const load = useSharedHealth(demo === false);
 
   if (demo) {
     return (
@@ -31,7 +31,7 @@ export function LiveStatusChip() {
   const glimmer = load.phase === "ok" ? gpuLine(load.health.gpus?.glimmer) : null;
   return (
     <p className={styles.status} data-testid="usecase-status">
-      <LiveBadge mode={isLive(load) ? "live" : "offline"} />
+      <LiveBadge mode={healthBadge(load) === "LIVE" ? "live" : healthBadge(load) === "REPLAY" ? "replay" : "offline"} />
       <span className={styles.statusText}>
         {load.phase === "error" ? (
           "API not reachable just now"

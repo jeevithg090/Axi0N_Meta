@@ -1,7 +1,7 @@
 "use client";
 
 import { LiveBadge, Skeleton } from "@/components/kit";
-import { gpuLine, isLive, useHealth } from "@/lib/health";
+import { gpuLine, healthBadge, useSharedHealth } from "@/lib/health";
 
 import styles from "./landing.module.css";
 
@@ -12,7 +12,7 @@ const GPUS: { key: string; name: string }[] = [
 
 /** The live system, from `GET /health`, polled every 15 s. Unreachable says so; nothing is cached. */
 export function SystemStatus() {
-  const load = useHealth();
+  const load = useSharedHealth();
   const health = load.phase === "ok" ? load.health : null;
 
   return (
@@ -26,7 +26,7 @@ export function SystemStatus() {
             <Skeleton label="Checking the API" />
           ) : (
             <LiveBadge
-              mode={isLive(load) ? "live" : "offline"}
+              mode={healthBadge(load) === "LIVE" ? "live" : healthBadge(load) === "REPLAY" ? "replay" : "offline"}
               detail={`checked ${load.at.toISOString().slice(11, 19)} UTC`}
             />
           )}

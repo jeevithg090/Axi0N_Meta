@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { initialState, type UiState } from "@/lib/store";
 
-import { DashboardShell } from "./DashboardShell";
+import { DashboardShell, shellBadge } from "./DashboardShell";
 import { SampleDataTag } from "./SampleDataTag";
 
 let streamState: UiState = initialState;
@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 vi.mock("@/lib/stream", () => ({
   useStream: () => streamState,
   useDemoQuery: () => demoQuery,
+  useDemo: () => demoQuery !== "",
 }));
 vi.mock("@/lib/auth", () => ({
   useAuth: () => ({ phase: "visitor", via: null, loginEnabled: true, expiresAt: null }),
@@ -105,6 +106,49 @@ describe("DashboardShell", () => {
 
     await waitFor(() => expect(document.body.textContent).toContain("unknown"));
     expect(screen.getByTestId("shell-cameras").textContent).toBe("Cameras —");
+  });
+});
+
+describe("DashboardShell badge comes from GET /health", () => {
+  const health = (body: unknown) =>
+    vi.fn(async (url: string) => (url === "/rulecam-api/health" ? respond(body) : respond({}, 403)));
+
+  it("says LIVE when /health is ok and live, even with the event socket down", async () => {
+    vi.stubGlobal("fetch", health({ ok: true, mode: "live", gpus: {} }));
+    streamState = { ...initialState, connection: "closed" };
+    render(<DashboardShell>page</DashboardShell>);
+    await waitFor(() => expect(screen.getByTestId("mode-badge").textContent).toBe("LIVE"));
+  });
+
+  it("says OFFLINE when /health does not answer, whatever the socket said", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("down");
+      }),
+    );
+    streamState = { ...initialState, connection: "open", badge: "LIVE" };
+    render(<DashboardShell>page</DashboardShell>);
+    await waitFor(() => expect(screen.getByTestId("mode-badge").textContent).toBe("OFFLINE"));
+  });
+
+  it("says REPLAY when the API runs in replay mode, and on the landing page too", async () => {
+    vi.stubGlobal("fetch", health({ ok: true, mode: "replay", gpus: {} }));
+    pathname = "/";
+    render(<DashboardShell>page</DashboardShell>);
+    await waitFor(() => expect(screen.getByTestId("mode-badge").textContent).toBe("REPLAY"));
+  });
+
+  it("maps modes the way the API's badge_for does", () => {
+    const at = new Date();
+    expect(shellBadge(false, { phase: "loading" }, initialState)).toBe("…");
+    expect(shellBadge(false, { phase: "ok", health: { ok: true, mode: "record" }, at }, initialState)).toBe("LIVE");
+    expect(shellBadge(false, { phase: "ok", health: { ok: false, mode: "live" }, at }, initialState)).toBe("OFFLINE");
+    expect(shellBadge(true, { phase: "error", at }, initialState)).toBe("REPLAY");
+    // The socket may fill the badge only while /health has not answered yet.
+    const open = { ...initialState, connection: "open" as const, badge: "LIVE" as const };
+    expect(shellBadge(false, { phase: "loading" }, open)).toBe("LIVE");
+    expect(shellBadge(false, { phase: "error", at }, open)).toBe("OFFLINE");
   });
 });
 

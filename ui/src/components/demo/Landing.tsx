@@ -13,6 +13,7 @@ import {
   SERVERLESS_LOAD,
 } from "@/fixtures/live-campaign";
 
+import { UseCaseStill } from "@/components/usecases/UseCaseStill";
 import { WORLDS } from "@/components/usecases/worlds";
 
 import { SystemStatus } from "./SystemStatus";
@@ -265,6 +266,7 @@ export function Landing() {
           <ul className={styles.worlds}>
             {WORLDS.map((w) => (
               <li key={w.slug} className={styles.world}>
+                <UseCaseStill world={w} className={styles.worldStill} />
                 <Link href={`/usecases/${w.slug}`} className={styles.worldLink} data-testid={`world-${w.slug}`}>
                   <span className={styles.worldName}>
                     <span className={styles.worldIcon}>{icons[w.icon]}</span>

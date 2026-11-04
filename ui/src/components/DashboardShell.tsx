@@ -7,7 +7,9 @@ import { usePathname } from "next/navigation";
 import { GOLDEN_RUNS } from "@/fixtures/golden";
 import { useAuth, type AuthPhase } from "@/lib/auth";
 import { API_PROXY } from "@/lib/config";
-import { useDemoQuery, useStream } from "@/lib/stream";
+import { gpuLine, healthBadge, HealthProvider, useSharedHealth, type HealthLoad, type SystemBadge } from "@/lib/health";
+import { useDemo, useDemoQuery, useStream } from "@/lib/stream";
+import type { UiState } from "@/lib/store";
 import { useTheme } from "@/lib/theme";
 
 import { icons, RulecamMark, type IconName } from "./icons";
@@ -38,16 +40,12 @@ interface LiveStats {
   plansCount: number | null;
   totalIncidents: number | null;
   cameras: number | null;
-  samGpu: string | null;
-  glimmerGpu: string | null;
 }
 
 const UNKNOWN_STATS: LiveStats = {
   plansCount: null,
   totalIncidents: null,
   cameras: null,
-  samGpu: null,
-  glimmerGpu: null,
 };
 
 const VERIFY_URL = GOLDEN_RUNS[0]?.verify_url ?? "/verify/";
@@ -106,11 +104,24 @@ function liveBadge(href: string, stats: LiveStats): string | undefined {
   return undefined;
 }
 
-/** A GPU's state from `GET /health` → `gpus` (an object with `state`, or a bare string). */
-function gpuState(gpus: Record<string, { state?: string } | string> | undefined, name: string): string | null {
-  const entry = gpus?.[name];
-  if (typeof entry === "string") return entry;
-  return entry?.state ?? null;
+/**
+ * The header badge: REPLAY on a golden replay; otherwise what `GET /health` says. The event
+ * socket is an enhancement only: it may fill the badge while /health has not answered yet, and it
+ * never makes the badge OFFLINE.
+ */
+export function shellBadge(demo: boolean | null, health: HealthLoad, stream: UiState): SystemBadge {
+  if (demo) return "REPLAY";
+  const fromHealth = healthBadge(health);
+  if (fromHealth === "…" && stream.connection === "open" && stream.badge) return stream.badge;
+  return fromHealth;
+}
+
+/** The badge this page shows, from the shared /health poll. */
+function useShellBadge(): SystemBadge {
+  const demo = useDemo();
+  const stream = useStream();
+  const health = useSharedHealth(demo === false);
+  return shellBadge(demo, health, stream);
 }
 
 const PHONE_QUERY = "(max-width: 760px)";
@@ -191,7 +202,7 @@ function Wordmark({ query, compact = false }: { query: string; compact?: boolean
 
 /** The landing page's bar: the wordmark, four anchors on the page, the badge and one action. */
 function SiteHeader() {
-  const stream = useStream();
+  const badge = useShellBadge();
   const demoQuery = useDemoQuery();
   return (
     <header className="site-header">
@@ -204,7 +215,7 @@ function SiteHeader() {
           <a href="#measured">Results</a>
         </nav>
         <div className="site-header-tools">
-          <ModeBadge state={stream} />
+          <ModeBadge label={badge} />
           <ThemeSwitch compact />
           <Link href={`/monitor${demoQuery}`} className="btn only-desktop">
             Open the console
@@ -216,8 +227,20 @@ function SiteHeader() {
 }
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
+  // One /health poll for the page, never on a golden replay (nor before the URL has been read).
+  const demo = useDemo();
+  return (
+    <HealthProvider enabled={demo === false}>
+      <ShellFrame>{children}</ShellFrame>
+    </HealthProvider>
+  );
+}
+
+function ShellFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const stream = useStream();
+  const demo = useDemo();
+  const badge = useShellBadge();
+  const health = useSharedHealth(demo === false);
   const auth = useAuth();
   const demoQuery = useDemoQuery();
   const chrome = chromeFor(pathname);
@@ -238,7 +261,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   // audience sees there is the recording, labelled REPLAY by the mode badge. The landing page
   // and the bare screens poll for themselves or not at all.
   useEffect(() => {
-    if (demoQuery || chrome !== "app") {
+    if (demo !== false || chrome !== "app") {
       setLiveStats(UNKNOWN_STATS);
       return undefined;
     }
@@ -252,8 +275,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       }
     };
     const poll = async () => {
-      const [h, p, inc, cams] = await Promise.all([
-        json<{ gpus?: Record<string, { state?: string } | string> }>("/health"),
+      const [p, inc, cams] = await Promise.all([
         json<unknown[]>("/plans"),
         json<unknown[]>("/incidents"),
         json<unknown[]>("/cameras"),
@@ -263,8 +285,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         plansCount: p ? p.length : null,
         totalIncidents: inc ? inc.length : null,
         cameras: cams ? cams.length : null,
-        samGpu: gpuState(h?.gpus, "sam"),
-        glimmerGpu: gpuState(h?.gpus, "glimmer"),
       });
     };
     void poll();
@@ -273,7 +293,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       active = false;
       window.clearInterval(id);
     };
-  }, [demoQuery, chrome]);
+  }, [demo, chrome]);
 
   // Keyboard shortcut: Ctrl+B (or Cmd+B) toggles the sidebar.
   useEffect(() => {
@@ -301,7 +321,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div className="app" data-chrome="bare">
         <header className="bare-header">
           <Wordmark query={demoQuery} />
-          <ModeBadge state={stream} />
+          <ModeBadge label={badge} />
         </header>
         <main className="shell-main">{children}</main>
       </div>
@@ -309,6 +329,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   const crumb = pageName(pathname);
+  const gpus = health.phase === "ok" ? health.health.gpus : undefined;
+  const samGpu = gpus ? gpuLine(gpus.sam).state : "unknown";
+  const glimmerGpu = gpus ? gpuLine(gpus.glimmer).state : "unknown";
   const toggleNav = () => (isPhone() ? setMobileOpen((o) => !o) : setCollapsed((c) => !c));
 
   return (
@@ -374,11 +397,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <dl className="gpu-list" aria-label="GPU state from the API">
             <div className="gpu-row">
               <dt>SAM 3.1 GPU</dt>
-              <dd data-state={liveStats.samGpu ?? "unknown"}>{liveStats.samGpu ?? "unknown"}</dd>
+              <dd data-state={samGpu}>{samGpu}</dd>
             </div>
             <div className="gpu-row">
               <dt>Glimmer GPU</dt>
-              <dd data-state={liveStats.glimmerGpu ?? "unknown"}>{liveStats.glimmerGpu ?? "unknown"}</dd>
+              <dd data-state={glimmerGpu}>{glimmerGpu}</dd>
             </div>
           </dl>
           <ThemeSwitch compact={collapsed} />
@@ -422,7 +445,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="shell-header-right">
-            <ModeBadge state={stream} />
+            <ModeBadge label={badge} />
             <span className="shell-cameras" data-testid="shell-cameras">
               Cameras <b>{liveStats.cameras ?? "—"}</b>
             </span>

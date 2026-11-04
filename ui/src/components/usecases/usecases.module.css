@@ -44,7 +44,29 @@
 .status { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); margin: 0; font-size: var(--text-sm); color: var(--color-muted); min-width: 160px; }
 .statusText b { font: 500 var(--text-sm) var(--font-outlier); color: var(--color-cool); }
 
-.heroBody { display: grid; gap: var(--space-sm); max-width: 62rem; }
+.heroSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: var(--space-xl);
+  align-items: center;
+}
+.heroBody { display: grid; gap: var(--space-sm); max-width: 62rem; min-width: 0; }
+.heroStill { max-width: 560px; justify-self: end; width: 100%; }
+
+/* a still: one frame of real footage, black and white, a hairline edge, its source beneath */
+.still { margin: 0; display: grid; gap: var(--space-xs); min-width: 0; }
+.still img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: var(--radius-card);
+  background: var(--color-scene);
+  outline: var(--rule-hair) solid color-mix(in oklab, var(--color-ink) 12%, transparent);
+  outline-offset: -1px;
+}
+.still figcaption { font-size: var(--text-xs); line-height: 1.45; color: var(--color-muted); }
 .title {
   font-size: var(--text-display-s);
   letter-spacing: var(--tracking-display);
@@ -56,6 +78,11 @@
 .journey { max-width: var(--container); }
 
 .body { min-width: 0; }
+
+@media (max-width: 60rem) {
+  .heroSplit { grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }
+  .heroStill { justify-self: start; }
+}
 
 @media (max-width: 760px) {
   .hero { padding: var(--space-lg) var(--space-md); gap: var(--space-lg); }

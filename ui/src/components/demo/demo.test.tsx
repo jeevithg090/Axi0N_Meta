@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { GOLDEN_RUNS } from "@/fixtures/golden";
 import { CAMPAIGN, campaignTest, firstEvent, SERVERLESS_LOAD } from "@/fixtures/live-campaign";
 
-import { headlines, Landing, MODELS, PITCH, STEPS } from "./Landing";
+import { headlines, Landing, MODELS, PITCH, STEPS, WORLDS } from "./Landing";
 import { LiveAlerts, seconds, verdictWords } from "./LiveAlerts";
 
 afterEach(cleanup);
@@ -29,6 +29,16 @@ describe("Landing", () => {
     for (const m of MODELS) {
       const row = within(table).getByText(m.model).closest("tr")!;
       expect(within(row).getByText(m.status)).toBeTruthy();
+    }
+  });
+
+  it("links the three worlds, each with a labelled still from its own footage", () => {
+    render(<Landing />);
+    for (const w of WORLDS) {
+      expect(screen.getByTestId(`world-${w.slug}`).getAttribute("href")).toBe(`/usecases/${w.slug}`);
+      const still = screen.getByTestId(`still-${w.slug}`);
+      expect(within(still).getByRole("img").getAttribute("alt")).toBe(w.still.alt);
+      expect(still.textContent).toBe(w.still.label);
     }
   });
 

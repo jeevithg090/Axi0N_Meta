@@ -76,6 +76,18 @@ describe("UseCaseFrame", () => {
     expect(screen.getByRole("link", { name: /Crowd/ }).getAttribute("href")).toBe("/usecases/crowd?demo=1");
   });
 
+  it("shows a still from the footage it ran on, labelled honestly", () => {
+    vi.stubGlobal("fetch", vi.fn());
+    demo = true;
+    pathname = "/usecases/crowd";
+    render(<UseCaseFrame>page</UseCaseFrame>);
+    const still = screen.getByTestId("still-crowd");
+    expect(within(still).getByRole("img").getAttribute("src")).toBe("/usecases/crowd.jpg");
+    expect(still.textContent).toContain("Research footage, Jülich bottleneck experiment");
+    expect(still.textContent).toContain("Not a real venue");
+    for (const w of WORLDS) expect(w.still.credit).toMatch(/^(Stock|Research) footage/);
+  });
+
   it("says OFFLINE when the API does not answer", async () => {
     vi.stubGlobal(
       "fetch",

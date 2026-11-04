@@ -14,7 +14,7 @@
 #   llama_guard  vzi5ij5gclndjc  Llama Guard 4 12B (vLLM FP8), 1 x 24-48 GB GPU   $0.75-1.75/h
 #   spark_open   hljmhlgjyaacyv  Muse Spark Open 816B-A42B (llama.cpp), 8 x H100  $43.12/h
 # SPARK=0 leaves Spark Open out (it is the expensive one, and its cold start is the longest:
-# about 10 min to load 470 GB of weights, so warm it at least 20 min ahead).
+# about 18 min to load 470 GB of weights, so warm it at least 30 min ahead).
 #
 # While holding, every PING_EVERY_S each endpoint gets one authenticated /ping and workers.min=1 is
 # re-asserted; three failed pings in a row print a loud warning with the fallback to use. After

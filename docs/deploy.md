@@ -1101,7 +1101,7 @@ with 8-GPU stock that night), and a 520 GB high-performance network volume `uhe0
 - The start script is `scripts/spark_open_pod/serverless.sh`. The endpoint has no code volume,
   so the script and `llama_edge` reach the worker as env vars (`scripts/spark_open_pod/
   endpoint_env.sh` prints them). The first start downloads the weights onto the volume
-  (resumable); later cold starts only load them, about 10 minutes.
+  (resumable); later cold starts only load them, about 18 minutes (measured 4 Nov).
 - Same key scheme as Glimmer: the RunPod key in `Authorization`, the model key (the RunPod
   secret `rulecam_glimmer_api_key`) in `X-Rulecam-Key`.
 - API settings: `SPARK_OPEN_BASE_URL=https://hljmhlgjyaacyv.api.runpod.ai/v1`,

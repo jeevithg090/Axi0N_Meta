@@ -29,7 +29,7 @@ the night of 3 to 4 Nov.
 2. `curl -s https://rulecam.vercel.app/rulecam-api/health`: `ok: true`, `revision` is the commit
    we meant to ship, `gpus.sam` and `gpus.glimmer` not `unhealthy`.
 3. Decide whether Spark Open is in the demo. It is the expensive one ($43.12/h) and needs about
-   10 minutes to load its weights. If yes, warm everything now:
+   18 minutes to load its weights (measured 4 Nov). If yes, warm everything now:
 
    ```bash
    scripts/ops/demo_warm.sh at 16:30        # the demo's start in UTC; warms 30 min before
@@ -75,7 +75,7 @@ the night of 3 to 4 Nov.
 |---|---|---|
 | SAM endpoint cold or out of GPUs | The runtime falls back to hosted SAM 3.1 per call after `SAM_HTTP_TIMEOUT_S` x `SAM_HTTP_ATTEMPTS` (set 25 x 1 for demos; `sam_fallback_to_hosted` in the API log, `sam_fallbacks` in `/runtime/metrics`) | Nothing for the demo. Afterwards check `demo_warm.sh status` for throttled workers |
 | Glimmer endpoint down | A Tier 1 call that gets no answer goes to the standby endpoint (`GLIMMER_STANDBY_BASE_URL`), then to hosted Glimmer (`GLIMMER_FALLBACK_*`; 10 to 60 s a call); `model_failover` in the API log. If all fail, unverified candidates go to the human queue | Say "it waits for a person" and show the queue |
-| Spark Open not warm or failing | Tier 2, plan audit and Ask review are skipped: Tier 1 decides alone and anything unsure goes to a person; Ask answers without the second check | Warm it 20 min earlier next time (`demo_warm.sh up`); do not wait for it on stage |
+| Spark Open not warm or failing | Tier 2, plan audit and Ask review are skipped: Tier 1 decides alone and anything unsure goes to a person; Ask answers without the second check | Warm it 30 min earlier next time (`demo_warm.sh up`); do not wait for it on stage |
 | Llama Guard 4 down | The plan-time screen is skipped; the planner's own guardrails still decline identity rules | Nothing |
 | Prompt Guard 2 not loaded | `/runtime/metrics` shows `firewall: degraded`; candidates with scene text go to a person | Check `HF_TOKEN` on the API pod |
 | Meta Model API errors | Ask and planning fail with a visible error | Show the recorded REPLAY demo (`/demo?demo=1`) |

@@ -23,6 +23,9 @@ const mono = Atkinson_Hyperlegible_Mono({
   weight: ["400", "500"],
   variable: "--font-atkinson-mono",
   display: "swap",
+  // next/font has no metric overrides for this face yet; the fallback is ui-monospace.
+  adjustFontFallback: false,
+  fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
 });
 
 export const metadata: Metadata = {

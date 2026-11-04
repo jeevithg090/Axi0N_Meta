@@ -96,10 +96,10 @@ Nobody tapped *On my way* during the run, so "0 answered" in the brief is true.
 - **Shelf boxes are approximate.** Some gap boxes overlap product at their edges; SAM 3.1's
   product cover check and the Glimmer veto are there for that, but the veto needs Glimmer to
   answer.
-- **Not done at the time of this run:** recording switchback blocks from the page (added after;
-  one block recorded live at chain record #23); an incident PDF for a hazard; Chain Mode
-  scorecard rows from these findings; a deli food-safety pack; "exit blocked for more than 5
-  minutes" as a typed rule.
+- **Not done at the time of this run:** switchback blocks from the page, the hazard incident
+  report, the Chain Mode store row and the blocked-exit rule were added after it (see the
+  updates below; one switchback block was recorded live at chain record #23). The deli
+  food-safety pack is not done.
 
 ## Update: fixing the over-count (point-then-count)
 
@@ -131,3 +131,48 @@ the bracket. Ask's error went from +10 and +8 to -2 and -2. Each counter took 1.
 The first version still trusted the tracker: with the three counts in front of it Spark answered
 22, because the prompt said a count at one instant is reliable. The line-up numbers and the
 corrected prompt are what changed its answer.
+
+## Update: visible reasoning, the exit rule, incident reports, the chain row (live, 4 Nov)
+
+**Ask shows Spark's reasoning.** Muse Spark returns `reasoning.summary` together with
+`json_schema` output (probed live: `concise`, `auto` and `detailed` all work, 1-2 sentences per
+turn). Ask now streams it as a `reasoning` event before each turn's tool calls and keeps it in
+the run log. Live: "Analyzing retail findings to summarize shelf gaps and hazard fix times from
+today's data." Not every turn returns one (1 of 2 turns in that answer). It is off in replay
+mode, where the extra field would change the recorded requests.
+
+**"Fire exit blocked over 5 minutes" as a typed rule.** Spark judges whether the exit is blocked
+and by what; SAM 3.1 must find the obstruction inside Spark's box; code counts back over the
+camera's unbroken run of blocked readings and alerts when the owner's limit is reached. No real
+blocked-exit footage was available, so the frames are **SAMPLE** (Muse Image: a pallet of
+bottled water in front of a fire exit, and the same door cleared). Five readings as a camera
+seen at 0, 2, 5, 6 and 8 minutes:
+
+| Minute | Spark: blocked by | SAM 3.1 found it | Blocked for | Alert |
+|---|---|---|---|---|
+| 0 | pallet stacked with bottled water | 2 | 0 s | no |
+| 2 | pallet of shrink-wrapped water bottles | 1 | 120 s | no |
+| 5 | pallet of bottled water | 1 | 300 s | **yes** |
+| 6 | pallet of shrink-wrapped bottled water | 2 | 360 s | (joins the open task: no second alert) |
+| 8 | clear | 0 | 0 s | no; the task closes as cleared |
+
+Each reading took 8.2-14.7 s (Spark plus SAM).
+
+**Incident report per task.** `GET /retail/tasks/{id}/incident` builds the runtime's incident
+pack from the task's own chain records. Live for the SAMPLE spill task: "Seen 01:18:44 · staff
+alerted 01:18:44 · cleared 01:20:39 (1.9 min)", chain records #19 (detection) and #21
+(cleared, checked by photo), two face-blurred stills, chain intact (28 records that day), QR to
+the verify page. Playwright is not installed on the laptop, so it came back as the printable
+HTML (1.2 MB with the stills inlined); with Chromium it is a PDF.
+
+**The store's row on the Chain Mode scorecard.** Staff tasks and till alerts become rule outcomes
+for Chain Mode's own scorecard (`chain/retail.py`). Live, for the test window (00:20-02:10):
+
+| Rule | On time | Late | Status |
+|---|---|---|---|
+| Spills, hazards and exits made safe within 15 min | 1 | 2 | too few to show a rate (small-crew floor of 5) |
+| Gaps refilled within 60 min | 1 | 1 | too few to show a rate |
+| Till alerts answered | 0 | 3 | camera blind: the test camera had video for 5.5% of the window |
+
+These are honest for this test (staff never tapped *On my way*, and the SAMPLE spills that were
+not given a proof photo stayed open past 15 minutes), not a store's real performance.

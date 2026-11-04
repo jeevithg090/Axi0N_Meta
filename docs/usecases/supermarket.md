@@ -71,6 +71,7 @@ not contain.
 | `POST /retail/advice/{id}/accept` | | `RetailCard` with `preregistered_seq` and `watch_id` |
 | `POST /retail/advice/{id}/blocks` | `{state: on\|off, start, end}` | `RetailCard` with `blocks` (each the mean of the watch's readings in it, written to the chain as an `advice` record of `type: block`) and, once a pair is done, `verdict` by the pre-registered rule; after the planned pairs the card becomes `adopted`, `reverted` or `rejected` and a `type: verdict` record is written |
 | `POST /retail/brief` · `GET /retail/brief` | `{lang}` | `Brief` |
+| `GET /retail/scorecard?hazard_minutes=15&restock_minutes=60` | | `{fit, scorecard}`: this store's tasks and till alerts as Chain Mode rule outcomes (`retail-hazard-cleared`, `retail-gap-refilled`, `retail-till-answered`) on Chain Mode's own scorecard (recorded provenance, Wilson interval, small-crew floor, BLIND when a camera had no video) |
 | `POST /retail/ask/voice` | multipart `audio` (16-bit PCM WAV), `lang?`, `conversation_id?` | `{transcript, lang, transcribe_seconds, answer}` |
 
 `Finding`: `{id, kind, camera_id, camera_name, at, checked_at, watch_id, act, headline,

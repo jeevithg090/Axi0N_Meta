@@ -100,6 +100,15 @@ describe("askReducer", () => {
     expect(exchange.answer?.answer).toBe("Two.");
   });
 
+  it("keeps Spark's reasoning summary on its turn", () => {
+    const events: AskEvent[] = [
+      { type: "thinking", turn: 0 },
+      { type: "reasoning", turn: 0, detail: "Counting the queue three ways." },
+    ];
+    const exchange = events.reduce(askReducer, newExchange("q"));
+    expect(exchange.turns[0]?.reasoning).toBe("Counting the queue three ways.");
+  });
+
   it("ends on an error", () => {
     const exchange = askReducer(newExchange("q"), { type: "error", detail: "boom" });
     expect(exchange.error).toBe("boom");
@@ -114,6 +123,13 @@ describe("stepSummary", () => {
     );
     expect(stepSummary(step({ frames: [{ count: 3 }, { count: 4 }] }))).toBe("counts 3, 4");
     expect(stepSummary(step({ error: "bad" }))).toBe("error: bad");
+  });
+
+  it("shows the three counts and whether they agree", () => {
+    const cross = { counts: { "sam-3.1": 22, "muse-spark-1.3": 12 }, all_equal: false };
+    expect(stepSummary(step({ ...cross, tracked: { customer: 22 } }))).toBe(
+      "sam-3.1 22 · muse-spark-1.3 12 (DISAGREE); tracker: customer 22",
+    );
   });
 });
 

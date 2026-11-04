@@ -271,8 +271,9 @@ def test_services_from_settings_with_runtime(tmp_path: Path) -> None:
         assert metrics["verifier_down"] is False
         assert metrics["verifier"]["state"] == "closed"  # Tier 1 behind its circuit breaker
         assert "rulecam_runtime_verifier_down 0.0" in client.get("/metrics").text
-    # Escalation timers, Tier 1 health probe, the cost watch, the staff app's Web Push relay.
-    assert len(services.tickers) == 4
+    # Escalation timers, Tier 1 health probe, the cost watch, the supermarket watches, the staff
+    # app's Web Push relay.
+    assert len(services.tickers) == 5
 
 
 def test_alert_routes_are_owner_only(tmp_path: Path) -> None:

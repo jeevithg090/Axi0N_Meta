@@ -6,11 +6,15 @@ import json
 from collections.abc import Sequence
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from rulecam.ask import AskAgent, FrameGrabber, SqlError, TrackTables, open_tables
+from rulecam.ask.trace import AskEvent
 from rulecam.clients.errors import StructuredOutputError
+from rulecam.clients.meta_hosted.spark import reasoning_summary
+from rulecam.clients.transport import ModelTransportError
 from rulecam.contracts import Detection, Mask, Track, TrackPoint
 from rulecam.rules.store import ParquetTrackStore
 from tests.fakes import EPOCH, FakeClock, FakeLLM, make_chunk
@@ -210,3 +214,145 @@ def test_a_broken_spark_reply_ends_with_an_apology(tracks_root: Path, tmp_path: 
     reply = agent(BrokenSpark(), FakeLLM(), tracks_root, tmp_path, Sam()).ask("q")
     assert reply.answer.startswith("Sorry")
     assert "StructuredOutputError" in reply.steps[-1].action.thought
+
+
+class DownGlimmer(FakeLLM):
+    """A Glimmer that times out, counting how often it was asked."""
+
+    def structured(self, **kwargs: object) -> Any:
+        self.calls.append(dict(kwargs))
+        raise ModelTransportError("POST /chat/completions failed: ReadTimeout")
+
+
+def test_a_glimmer_that_times_out_is_not_waited_for_again(
+    tracks_root: Path, tmp_path: Path
+) -> None:
+    at = (EPOCH + timedelta(seconds=6)).isoformat()
+    looking: dict[str, object] = {
+        "thought": "look",
+        "action": "look",
+        "camera_id": "checkout",
+        "times": [at],
+        "question": "How many queue?",
+    }
+    spark = FakeLLM(
+        [
+            turn(looking),
+            turn(looking),
+            turn({"thought": "done", "action": "answer", "answer": "From SAM instead."}),
+        ]
+    )
+    glimmer = DownGlimmer()
+    reply = agent(spark, glimmer, tracks_root, tmp_path, Sam()).ask("q")
+    assert len(glimmer.calls) == 1
+    assert "ReadTimeout" in reply.steps[0].result["error"]  # type: ignore[index]
+    assert "looks are skipped" in reply.steps[1].result["error"]  # type: ignore[index]
+    assert reply.answer == "From SAM instead."
+
+
+class Attach:
+    def attach(self, path: Path) -> dict[str, object]:
+        return {"type": "input_image", "file_id": path.name}
+
+
+def test_cross_count_gives_spark_three_counts_and_the_tracker(
+    tracks_root: Path, tmp_path: Path
+) -> None:
+    at = (EPOCH + timedelta(seconds=6)).isoformat()
+    spark = FakeLLM(
+        [
+            turn(
+                {
+                    "thought": "count three ways",
+                    "action": "cross_count",
+                    "camera_id": "checkout",
+                    "times": [at],
+                    "concept": "person",
+                }
+            ),
+            {"points": [{"x": 100, "y": 500, "what": "a"}], "note": "one is behind a pillar"},
+            turn({"thought": "done", "action": "answer", "answer": "One person; SAM split them."}),
+        ]
+    )
+    glimmer = FakeLLM([{"count": 1, "how": "one shopper at the till"}])
+    asker = AskAgent(
+        spark=spark,
+        segmenter=Sam(),
+        glimmer=glimmer,
+        glimmer_model="muse-glimmer-30b",
+        tables=open_tables(tracks_root),
+        frames=FrameGrabber(Chunks(), tmp_path / "frames", extract=write_frame),  # type: ignore[arg-type]
+        clock=FakeClock(EPOCH + timedelta(minutes=5)),
+        timezone="UTC",
+        files=Attach(),
+        marks_dir=tmp_path / "marks",
+    )
+    reply = asker.ask("How many people at the till?")
+    result = reply.steps[0].result
+    assert isinstance(result, dict)
+    assert result["counts"] == {"sam-3.1": 2, "muse-spark-1.3": 1, "muse-glimmer-30b": 1}
+    assert result["all_equal"] is False
+    assert (result["low"], result["high"]) == (1, 2)
+    assert result["tracked"] == {"person": 2}
+    assert result["spark"]["detail"] == "one is behind a pillar"
+    assert reply.answer == "One person; SAM split them."
+
+
+class ReasonedSpark(FakeLLM):
+    """A Spark that also returns a reasoning summary each turn."""
+
+    def structured_reasoned(
+        self, *, model: str, messages: list[dict[str, object]], schema: type[Any]
+    ) -> tuple[Any, list[str]]:
+        turn = self.structured(model=model, messages=messages, schema=schema)
+        return turn, [f"Thinking about turn {len(self.calls)}."]
+
+
+def test_reasoning_summaries_stream_between_turns(tracks_root: Path, tmp_path: Path) -> None:
+    spark = ReasonedSpark(
+        [
+            turn({"thought": "q", "action": "sql", "sql": "SELECT 1"}),
+            turn({"thought": "a", "action": "answer", "answer": "One."}),
+        ]
+    )
+    events: list[AskEvent] = []
+    asker = AskAgent(
+        spark=spark,
+        segmenter=Sam(),
+        glimmer=FakeLLM(),
+        glimmer_model="muse-glimmer-30b",
+        tables=open_tables(tracks_root),
+        frames=FrameGrabber(Chunks(), tmp_path / "frames", extract=write_frame),  # type: ignore[arg-type]
+        clock=FakeClock(EPOCH + timedelta(minutes=5)),
+        timezone="UTC",
+        reasoning=True,
+    )
+    reply = asker.ask("q", emit=events.append)
+    said = [e.detail for e in events if e.type == "reasoning"]
+    assert said == ["Thinking about turn 1.", "Thinking about turn 2."]
+    kinds = [e.type for e in events]
+    assert kinds.index("reasoning") < kinds.index("actions")
+    assert [t.reasoning for t in reply.turns] == [[s] for s in said]
+    quiet = AskAgent(
+        spark=ReasonedSpark([turn({"thought": "a", "action": "answer", "answer": "x"})]),
+        segmenter=Sam(),
+        glimmer=FakeLLM(),
+        glimmer_model="m",
+        tables=open_tables(tracks_root),
+        frames=FrameGrabber(Chunks(), tmp_path / "frames", extract=write_frame),  # type: ignore[arg-type]
+        clock=FakeClock(EPOCH),
+        timezone="UTC",
+    )
+    assert quiet.ask("q").turns[0].reasoning == []
+
+
+def test_reasoning_summary_parts() -> None:
+    body = {
+        "output": [
+            {"type": "reasoning", "summary": [{"type": "summary_text", "text": "Plan."}]},
+            {"type": "message", "content": [{"type": "output_text", "text": "{}"}]},
+            {"type": "reasoning", "summary": [{"type": "summary_text", "text": "Check."}]},
+        ]
+    }
+    assert reasoning_summary(body) == ["Plan.", "Check."]
+    assert reasoning_summary({"output": "nope"}) == []

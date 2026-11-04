@@ -9,7 +9,7 @@ from pydantic import Field
 from rulecam.contracts import Frozen
 from rulecam.crowd.zones import CrowdZone
 
-Action = Literal["sql", "count_objects", "look", "watch", "crowd_scan", "answer"]
+Action = Literal["sql", "count_objects", "look", "watch", "crowd_scan", "cross_count", "answer"]
 
 
 class AskAction(Frozen):
@@ -22,7 +22,8 @@ class AskAction(Frozen):
         description="For sql: one or more SELECT/WITH statements separated by ';'.",
     )
     concept: str | None = Field(
-        default=None, description="For count_objects and crowd_scan: a noun phrase."
+        default=None,
+        description="For count_objects, cross_count and crowd_scan: a noun phrase.",
     )
     camera_id: str | None = Field(
         default=None, description="For count_objects, look, watch and crowd_scan."
@@ -100,12 +101,14 @@ class AskTurnTiming(Frozen):
         model: The model that chose them.
         seconds: Spark's time for the turn.
         actions: How many actions it chose.
+        reasoning: Spark's reasoning summary for the turn (empty when not asked for).
     """
 
     turn: int
     model: str
     seconds: float
     actions: int
+    reasoning: list[str] = Field(default_factory=list)
 
 
 class AskReview(Frozen):
@@ -166,7 +169,7 @@ class AskAnswer(Frozen):
 
 
 EventType = Literal[
-    "start", "thinking", "actions", "step", "reviewing", "review", "answer", "error"
+    "start", "thinking", "reasoning", "actions", "step", "reviewing", "review", "answer", "error"
 ]
 
 
@@ -175,6 +178,7 @@ class AskEvent(Frozen):
 
     - `start`: the question was taken (`conversation_id`);
     - `thinking`: Spark is choosing turn `turn`'s actions;
+    - `reasoning`: Spark's reasoning summary for turn `turn` (`detail`), before its actions;
     - `actions`: it chose `actions` in `seconds`;
     - `step`: action `index` of turn `turn` finished (`step`); a turn's steps can finish in any
       order;

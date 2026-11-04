@@ -1,0 +1,3228 @@
+{
+ "meta": {
+  "date": "2026-11-04",
+  "where": "local API on a laptop (RULECAM_MODE=live) against the Meta Model API (Muse Spark 1.3/1.2, hosted SAM 3.1, Voice Transcribe, Muse Image) and the RunPod serverless SAM 3.1 and Muse Glimmer endpoints",
+  "sample_labels": {
+   "aisle-spill-SAMPLE.png": "Muse Image edit of a real Pexels aisle frame (spill added)",
+   "shelf-after-SAMPLE.png": "Muse Image edit of a real Commons shelf photo (restocked)"
+  }
+ },
+ "e2e": [
+  {
+   "step": "1 ask",
+   "status": 200,
+   "wall_s": 60.36,
+   "reply": {
+    "question": "When was the checkout queue longest, how many tills were open then, roughly how many customers arrived per minute and how long did each take to serve? Do we need another till?",
+    "answer": "Longest checkout queue in the recording was at ~01:13:07 UTC on 4 Nov on the checkout-queue camera (phone-15) facing the Card-only / self-checkout tills:\n\n- 22 customers present in view at 01:13:07.623Z. Next largest was 21 at 01:03:10Z on phone-11.\n- Tills open then: 2 of 2 tills open and serving. Tracker saw 3-5 cashier tracks at the facing front-end tills (phone-14) around 01:13:07-01:13:09 (3 at 01:13:07, rising to 4-5), but visually only 2 lanes were actively serving the queue - the foreground lane and the lane to its left - confirmed by look and by the retail check: `6 waiting, 2 of 2 tills open; about 240s wait; open another till` at 01:10:53Z.\n- Arrivals: ~6 customers per minute. Watch of phone-15 01:12:00-01:13:00 saw 2 new trolley shoppers join per ~20s = 5-7/min, queue 2 longer at end than start. Track starts also peak at 01:12 with 122 new customer fragments that minute (over-counts fragments, same trend).\n- Serve time: ~60-90 sec per customer per till, typically ~1 minute. No completion seen in ~20s of watching, consistent with 240s wait for 6 waiting on 2 tills = ~80s each.\n\nDo we need another till? Yes. Arrivals ~6/min ≈ capacity of 2 tills at ~1/min each (~2/min total served if 2 open, 6-8/min if all 6-8 positions busy but only 2 staffed), so queue was stable to slowly growing. System already raised `Please open another till to help the checkout queue` (alert al-2). Open a 3rd till.\n\nHow got: max COUNT(DISTINCT track_id) per ts for concept customer on queue cameras, cashier counts on till cameras at same ts, retail_findings queue checks, verified by look at 01:13:07 and 60s watch. Medium-high confidence - track counts at an instant are reliable, arrival/service are rough visual estimates.",
+    "steps": [
+     {
+      "turn": 0,
+      "action": "sql",
+      "thought": "Find when checkout queue cameras had most customers present.",
+      "model": null,
+      "seconds": 0.1
+     },
+     {
+      "turn": 0,
+      "action": "sql",
+      "thought": "Get average dwell/service time proxy from track spans.",
+      "model": null,
+      "seconds": 0.2
+     },
+     {
+      "turn": 0,
+      "action": "sql",
+      "thought": "Check till cameras for open tills and long customer stays.",
+      "model": null,
+      "seconds": 0.1
+     },
+     {
+      "turn": 1,
+      "action": "sql",
+      "thought": "Check tills open at peak, arrivals per minute, and queue findings.",
+      "model": null,
+      "seconds": 0.0
+     },
+     {
+      "turn": 2,
+      "action": "look",
+      "thought": "Visually verify queue length and open tills at the 22-person peak.",
+      "model": "muse-glimmer-30b",
+      "seconds": 24.0
+     },
+     {
+      "turn": 2,
+      "action": "look",
+      "thought": "Check front-end tills facing the same peak for open count.",
+      "model": "muse-glimmer-30b",
+      "seconds": 18.9
+     },
+     {
+      "turn": 2,
+      "action": "watch",
+      "thought": "Estimate arrival rate and service time from motion.",
+      "model": "muse-spark-1.2",
+      "seconds": 15.0
+     },
+     {
+      "turn": 3,
+      "action": "answer",
+      "thought": "Peak is 22 at 01:13:07 with 2 tills open, arrivals ~6/min, ~1 min serve, needs another till.",
+      "model": null,
+      "seconds": 0.0
+     }
+    ],
+    "seconds": 60.3,
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b",
+     "muse-spark-1.2",
+     "meta-models/muse-spark-open-1026"
+    ],
+    "conversation_id": "edd67db9b2f04481935de900e3bbd663",
+    "turns": [
+     {
+      "turn": 0,
+      "model": "muse-spark-1.3",
+      "seconds": 8.1,
+      "actions": 3
+     },
+     {
+      "turn": 1,
+      "model": "muse-spark-1.3",
+      "seconds": 4.2,
+      "actions": 1
+     },
+     {
+      "turn": 2,
+      "model": "muse-spark-1.3",
+      "seconds": 8.7,
+      "actions": 3
+     },
+     {
+      "turn": 3,
+      "model": "muse-spark-1.3",
+      "seconds": 13.9,
+      "actions": 1
+     }
+    ],
+    "numbers": [
+     22.0,
+     2.0,
+     6.0,
+     1.0
+    ],
+    "prompt_sha256": "12decf4c45d50684e76770000c9c0d74edd93f64e6c36592a4a04efa5bc39c05",
+    "receipt": "21c820c291dc2d22101574d58169e74b99a54ced89772aef6513e92927cb67ad",
+    "reviews": [
+     {
+      "verdict": "error",
+      "problems": [],
+      "advice": "",
+      "draft": "Longest checkout queue in the recording was at ~01:13:07 UTC on 4 Nov on the checkout-queue camera (phone-15) facing the Card-only / self-checkout tills:\n\n- 22 customers present in view at 01:13:07.623Z. Next largest was 21 at 01:03:10Z on phone-11.\n- Tills open then: 2 of 2 tills open and serving. Tracker saw 3-5 cashier tracks at the facing front-end tills (phone-14) around 01:13:07-01:13:09 (3 at 01:13:07, rising to 4-5), but visually only 2 lanes were actively serving the queue - the foreground lane and the lane to its left - confirmed by look and by the retail check: `6 waiting, 2 of 2 tills open; about 240s wait; open another till` at 01:10:53Z.\n- Arrivals: ~6 customers per minute. Watch of phone-15 01:12:00-01:13:00 saw 2 new trolley shoppers join per ~20s = 5-7/min, queue 2 longer at end than start. Track starts also peak at 01:12 with 122 new customer fragments that minute (over-counts fragments, same trend).\n- Serve time: ~60-90 sec per customer per till, typically ~1 minute. No completion seen in ~20s of watching, consistent with 240s wait for 6 waiting on 2 tills = ~80s each.\n\nDo we need another till? Yes. Arrivals ~6/min ≈ capacity of 2 tills at ~1/min each (~2/min total served if 2 open, 6-8/min if all 6-8 positions busy but only 2 staffed), so queue was stable to slowly growing. System already raised `Please open another till to help the checkout queue` (alert al-2). Open a 3rd till.\n\nHow got: max COUNT(DISTINCT track_id) per ts for concept customer on queue cameras, cashier counts on till cameras at same ts, retail_findings queue checks, verified by look at 01:13:07 and 60s watch. Medium-high confidence - track counts at an instant are reliable, arrival/service are rough visual estimates.",
+      "turn": 3,
+      "model": "meta-models/muse-spark-open-1026",
+      "seconds": 0.2,
+      "reasoning_ref": null,
+      "detail": "ModelHTTPError: HTTP 401 from /chat/completions: Authentication required."
+     }
+    ]
+   }
+  },
+  {
+   "step": "1b receipt",
+   "status": 200,
+   "wall_s": 0.01,
+   "reply": {
+    "receipt": "21c820c291dc2d22101574d58169e74b99a54ced89772aef6513e92927cb67ad",
+    "prev_sha256": "0853a51d2a2cc0a53efe1dae57a0ea3f4b21b9e738d3190ce7eb92498e74284a",
+    "question": "When was the checkout queue longest, how many tills were open then, roughly how many customers arrived per minute and how long did each take to serve? Do we need another till?",
+    "answer": "Longest checkout queue in the recording was at ~01:13:07 UTC on 4 Nov on the checkout-queue camera (phone-15) facing the Card-only / self-checkout tills:\n\n- 22 customers present in view at 01:13:07.623Z. Next largest was 21 at 01:03:10Z on phone-11.\n- Tills open then: 2 of 2 tills open and serving. Tracker saw 3-5 cashier tracks at the facing front-end tills (phone-14) around 01:13:07-01:13:09 (3 at 01:13:07, rising to 4-5), but visually only 2 lanes were actively serving the queue - the foreground lane and the lane to its left - confirmed by look and by the retail check: `6 waiting, 2 of 2 tills open; about 240s wait; open another till` at 01:10:53Z.\n- Arrivals: ~6 customers per minute. Watch of phone-15 01:12:00-01:13:00 saw 2 new trolley shoppers join per ~20s = 5-7/min, queue 2 longer at end than start. Track starts also peak at 01:12 with 122 new customer fragments that minute (over-counts fragments, same trend).\n- Serve time: ~60-90 sec per customer per till, typically ~1 minute. No completion seen in ~20s of watching, consistent with 240s wait for 6 waiting on 2 tills = ~80s each.\n\nDo we need another till? Yes. Arrivals ~6/min ≈ capacity of 2 tills at ~1/min each (~2/min total served if 2 open, 6-8/min if all 6-8 positions busy but only 2 staffed), so queue was stable to slowly growing. System already raised `Please open another till to help the checkout queue` (alert al-2). Open a 3rd till.\n\nHow got: max COUNT(DISTINCT track_id) per ts for concept customer on queue cameras, cashier counts on till cameras at same ts, retail_findings queue checks, verified by look at 01:13:07 and 60s watch. Medium-high confidence - track counts at an instant are reliable, arrival/service are rough visual estimates.",
+    "ts": "2026-11-04T01:16:45.242921+00:00",
+    "models": [
+     "muse-spark-1.3",
+     "muse-glimmer-30b",
+     "muse-spark-1.2",
+     "meta-models/muse-spark-open-1026"
+    ],
+    "rows_verified": 4
+   }
+  },
+  {
+   "step": "2 advice",
+   "status": 200,
+   "wall_s": 19.54,
+   "reply": {
+    "recommendation": {
+     "id": "adv-retail-694d4d5fc2c4",
+     "status": "proposed",
+     "scope_kind": "station",
+     "scope_ids": [
+      "phone-15",
+      "phone-14"
+     ],
+     "klass": "test",
+     "provenance": "recorded",
+     "saw": [
+      {
+       "template": "The longest checkout queue view on the checkout queue camera coincided with {peak_customers} customers in view with {open_tills} tills open and serving.",
+       "slots": {
+        "peak_customers": "peak_customers",
+        "open_tills": "open_tills"
+       },
+       "grade": "C"
+      },
+      {
+       "template": "The busy checkout lanes coincided with arrivals of about {arrival_rate} customers per minute in words and service of about {service_time} seconds in words per customer per till, with the queue stable to slowly growing.",
+       "slots": {
+        "arrival_rate": "arrival_rate",
+        "service_time": "service_time"
+       },
+       "grade": "C"
+      }
+     ],
+     "why": [
+      {
+       "id": "why-1",
+       "statement": "Queue was at its largest with only two tills serving",
+       "status": "untestable",
+       "share_of_gap": null,
+       "evidence_query_ids": []
+      },
+      {
+       "id": "why-2",
+       "statement": "Arrivals roughly matched capacity so queue did not clear",
+       "status": "untestable",
+       "share_of_gap": null,
+       "evidence_query_ids": []
+      },
+      {
+       "id": "why-3",
+       "statement": "System alert already asked to open another till",
+       "status": "untestable",
+       "share_of_gap": null,
+       "evidence_query_ids": []
+      }
+     ],
+     "do": [
+      {
+       "op": "add_capacity",
+       "params": {
+        "what": "Open a third checkout till to serve the checkout queue during busy periods and close it when the queue clears.",
+        "tills_to_open": "1"
+       }
+      }
+     ],
+     "who_role": "duty manager",
+     "revert": "Close the extra till and return to normal till roster.",
+     "expect": {
+      "metric": "mean wait at the tills",
+      "interval": [
+       0.0,
+       0.0
+      ],
+      "level": 0.0,
+      "unit": "s",
+      "model_rung": "erlang_c",
+      "assumptions": {
+       "stable_with_one_more_till": "fail"
+      }
+     },
+     "safety": {
+      "rules_checked": [],
+      "verdict": "pass",
+      "considered_not_recommended": []
+     },
+     "rank_score": 0.0,
+     "measurement_plan_id": "mp-adv-retail-694d4d5fc2c4",
+     "numbers_total": 4,
+     "numbers_reproduced": 4
+    },
+    "title": "Open a third till to cut the checkout queue",
+    "saw": [
+     "The longest checkout queue view on the checkout queue camera coincided with 22 customers in view with 2 tills open and serving.",
+     "The busy checkout lanes coincided with arrivals of about 6 customers per minute in words and service of about 60 seconds in words per customer per till, with the queue stable to slowly growing."
+    ],
+    "change": "Open a third checkout till to serve the checkout queue during busy periods and close it when the queue clears.",
+    "gain": "Even one more till would not keep up with the arrivals measured.",
+    "numbers": [
+     {
+      "id": "peak_customers",
+      "label": "Customers present at peak",
+      "value": 22.0,
+      "unit": "customers",
+      "definition": "Maximum distinct customer tracks present in one checkout queue camera view at the peak instant.",
+      "grounded": true
+     },
+     {
+      "id": "open_tills",
+      "label": "Tills open at peak",
+      "value": 2.0,
+      "unit": "tills",
+      "definition": "Number of tills open and actively serving the checkout queue at the peak, from retail check.",
+      "grounded": true
+     },
+     {
+      "id": "arrival_rate",
+      "label": "Customer arrivals per minute",
+      "value": 6.0,
+      "unit": "customers per minute",
+      "definition": "Rough rate of new trolley shoppers joining the checkout queue during the watch window.",
+      "grounded": true
+     },
+     {
+      "id": "service_time",
+      "label": "Serve time per customer per till",
+      "value": 60.0,
+      "unit": "seconds",
+      "definition": "Typical time to serve one customer at one till estimated from watch with no completion in short window.",
+      "grounded": true
+     }
+    ],
+    "hidden": [],
+    "plan": {
+     "id": "mp-adv-retail-694d4d5fc2c4",
+     "recommendation_id": "adv-retail-694d4d5fc2c4",
+     "primary_metric": "customers waiting in checkout queue",
+     "guard_metrics": [
+      "tills open",
+      "staff availability"
+     ],
+     "design": "switchback",
+     "block_minutes": 30,
+     "n_pairs": 6,
+     "min_detectable_effect": 19.72010388225317,
+     "smallest_possible_p": 0.03125,
+     "decision_rule": "On-minus-off difference of customers waiting in checkout queue per pair of blocks, exact sign-flip test, 95% interval. worked: the whole interval is below 0. worse: the whole interval is above 0. no_effect: the interval lies within +/-19.7201. Otherwise, or before all pairs are done: not_enough_data.",
+     "preregistration_hash": "e5bc76f3185a271083a7487e670ac8822d8e7451f71a64c511ae790b57690ff2"
+    },
+    "sigma_note": "no earlier readings yet: the measured value itself, a cautious guess",
+    "watch": {
+     "kind": "queue",
+     "camera_id": "phone-15",
+     "every_s": 120,
+     "role": "duty-manager",
+     "focus": "Count customers waiting in the checkout queue at Card-only tills and note how many till lanes are serving."
+    },
+    "ask_receipt": "21c820c291dc2d22101574d58169e74b99a54ced89772aef6513e92927cb67ad",
+    "question": "When was the checkout queue longest, how many tills were open then, roughly how many customers arrived per minute and how long did each take to serve? Do we need another till?",
+    "created_at": "2026-11-04T01:17:04.797078Z",
+    "seconds": 19.53,
+    "preregistered_seq": null,
+    "watch_id": null
+   }
+  },
+  {
+   "step": "3 accept",
+   "status": 200,
+   "wall_s": 0.01,
+   "reply": {
+    "recommendation": {
+     "id": "adv-retail-694d4d5fc2c4",
+     "status": "measuring",
+     "scope_kind": "station",
+     "scope_ids": [
+      "phone-15",
+      "phone-14"
+     ],
+     "klass": "test",
+     "provenance": "recorded",
+     "saw": [
+      {
+       "template": "The longest checkout queue view on the checkout queue camera coincided with {peak_customers} customers in view with {open_tills} tills open and serving.",
+       "slots": {
+        "peak_customers": "peak_customers",
+        "open_tills": "open_tills"
+       },
+       "grade": "C"
+      },
+      {
+       "template": "The busy checkout lanes coincided with arrivals of about {arrival_rate} customers per minute in words and service of about {service_time} seconds in words per customer per till, with the queue stable to slowly growing.",
+       "slots": {
+        "arrival_rate": "arrival_rate",
+        "service_time": "service_time"
+       },
+       "grade": "C"
+      }
+     ],
+     "why": [
+      {
+       "id": "why-1",
+       "statement": "Queue was at its largest with only two tills serving",
+       "status": "untestable",
+       "share_of_gap": null,
+       "evidence_query_ids": []
+      },
+      {
+       "id": "why-2",
+       "statement": "Arrivals roughly matched capacity so queue did not clear",
+       "status": "untestable",
+       "share_of_gap": null,
+       "evidence_query_ids": []
+      },
+      {
+       "id": "why-3",
+       "statement": "System alert already asked to open another till",
+       "status": "untestable",
+       "share_of_gap": null,
+       "evidence_query_ids": []
+      }
+     ],
+     "do": [
+      {
+       "op": "add_capacity",
+       "params": {
+        "what": "Open a third checkout till to serve the checkout queue during busy periods and close it when the queue clears.",
+        "tills_to_open": "1"
+       }
+      }
+     ],
+     "who_role": "duty manager",
+     "revert": "Close the extra till and return to normal till roster.",
+     "expect": {
+      "metric": "mean wait at the tills",
+      "interval": [
+       0.0,
+       0.0
+      ],
+      "level": 0.0,
+      "unit": "s",
+      "model_rung": "erlang_c",
+      "assumptions": {
+       "stable_with_one_more_till": "fail"
+      }
+     },
+     "safety": {
+      "rules_checked": [],
+      "verdict": "pass",
+      "considered_not_recommended": []
+     },
+     "rank_score": 0.0,
+     "measurement_plan_id": "mp-adv-retail-694d4d5fc2c4",
+     "numbers_total": 4,
+     "numbers_reproduced": 4
+    },
+    "title": "Open a third till to cut the checkout queue",
+    "saw": [
+     "The longest checkout queue view on the checkout queue camera coincided with 22 customers in view with 2 tills open and serving.",
+     "The busy checkout lanes coincided with arrivals of about 6 customers per minute in words and service of about 60 seconds in words per customer per till, with the queue stable to slowly growing."
+    ],
+    "change": "Open a third checkout till to serve the checkout queue during busy periods and close it when the queue clears.",
+    "gain": "Even one more till would not keep up with the arrivals measured.",
+    "numbers": [
+     {
+      "id": "peak_customers",
+      "label": "Customers present at peak",
+      "value": 22.0,
+      "unit": "customers",
+      "definition": "Maximum distinct customer tracks present in one checkout queue camera view at the peak instant.",
+      "grounded": true
+     },
+     {
+      "id": "open_tills",
+      "label": "Tills open at peak",
+      "value": 2.0,
+      "unit": "tills",
+      "definition": "Number of tills open and actively serving the checkout queue at the peak, from retail check.",
+      "grounded": true
+     },
+     {
+      "id": "arrival_rate",
+      "label": "Customer arrivals per minute",
+      "value": 6.0,
+      "unit": "customers per minute",
+      "definition": "Rough rate of new trolley shoppers joining the checkout queue during the watch window.",
+      "grounded": true
+     },
+     {
+      "id": "service_time",
+      "label": "Serve time per customer per till",
+      "value": 60.0,
+      "unit": "seconds",
+      "definition": "Typical time to serve one customer at one till estimated from watch with no completion in short window.",
+      "grounded": true
+     }
+    ],
+    "hidden": [],
+    "plan": {
+     "id": "mp-adv-retail-694d4d5fc2c4",
+     "recommendation_id": "adv-retail-694d4d5fc2c4",
+     "primary_metric": "customers waiting in checkout queue",
+     "guard_metrics": [
+      "tills open",
+      "staff availability"
+     ],
+     "design": "switchback",
+     "block_minutes": 30,
+     "n_pairs": 6,
+     "min_detectable_effect": 19.72010388225317,
+     "smallest_possible_p": 0.03125,
+     "decision_rule": "On-minus-off difference of customers waiting in checkout queue per pair of blocks, exact sign-flip test, 95% interval. worked: the whole interval is below 0. worse: the whole interval is above 0. no_effect: the interval lies within +/-19.7201. Otherwise, or before all pairs are done: not_enough_data.",
+     "preregistration_hash": "e5bc76f3185a271083a7487e670ac8822d8e7451f71a64c511ae790b57690ff2"
+    },
+    "sigma_note": "no earlier readings yet: the measured value itself, a cautious guess",
+    "watch": {
+     "kind": "queue",
+     "camera_id": "phone-15",
+     "every_s": 120,
+     "role": "duty-manager",
+     "focus": "Count customers waiting in the checkout queue at Card-only tills and note how many till lanes are serving."
+    },
+    "ask_receipt": "21c820c291dc2d22101574d58169e74b99a54ced89772aef6513e92927cb67ad",
+    "question": "When was the checkout queue longest, how many tills were open then, roughly how many customers arrived per minute and how long did each take to serve? Do we need another till?",
+    "created_at": "2026-11-04T01:17:04.797078Z",
+    "seconds": 19.53,
+    "preregistered_seq": 16,
+    "watch_id": "w-4d80209344ff"
+   }
+  },
+  {
+   "step": "4 watch run",
+   "status": 200,
+   "wall_s": 20.63,
+   "reply": {
+    "id": "f-482fceb1929f",
+    "kind": "queue",
+    "camera_id": "phone-15",
+    "camera_name": "checkout queue",
+    "at": "2026-11-04T01:14:53.808014Z",
+    "checked_at": "2026-11-04T01:17:25.429062Z",
+    "watch_id": "w-4d80209344ff",
+    "act": true,
+    "headline": "8 waiting, 2 of 2 tills open; about 300 s wait; open another till",
+    "staff_message": "Please open another card-only till to help the checkout queue.",
+    "detail": {
+     "lanes": [
+      {
+       "lane": "Card-only till - left",
+       "open": true,
+       "customers_waiting": 4,
+       "being_served": true
+      },
+      {
+       "lane": "Card-only till - right",
+       "open": true,
+       "customers_waiting": 4,
+       "being_served": true
+      }
+     ],
+     "customers_waiting": 8,
+     "est_wait_s": 300.0,
+     "queue_moving": false,
+     "customer_needs_help": false,
+     "open_another_till": true,
+     "alert_staff": true,
+     "reason": "2 card-only till lanes visible and both serving, with ~8 customers queueing with carts/baskets. Positions almost unchanged between frames 3s apart, so queue not moving. Longest line ~4-5 people ~300s wait. Worse than prior reading of 6 waiting already alerted, so re-alert. Box numbers approximate due to overlapping labels.",
+     "staff_message": "Please open another card-only till to help the checkout queue.",
+     "queue_marks": [
+      2,
+      5,
+      7,
+      8,
+      9,
+      10,
+      11,
+      13
+     ],
+     "announcement": "A new till is opening, please come through. Una nueva caja esta abriendo, por favor pase.",
+     "confidence": 0.72,
+     "people_per_frame": [
+      16,
+      15
+     ]
+    },
+    "evidence": {
+     "frames": [
+      "1a2751098e48cbfa261e47d9.jpg",
+      "5a06fe5e5bb1a21a2c545d47.jpg"
+     ],
+     "marked": "5a06fe5e5bb1a21a2c545d47-1023918150.jpg",
+     "clip": null
+    },
+    "calls": [
+     {
+      "model": "sam-3.1",
+      "role": "people",
+      "seconds": 2.68,
+      "error": null
+     },
+     {
+      "model": "muse-spark-1.3",
+      "role": "queue judge",
+      "seconds": 16.27,
+      "error": null
+     }
+    ],
+    "seconds": 20.6,
+    "alert_id": "al-1",
+    "task_id": null,
+    "metric": 8.0
+   }
+  },
+  {
+   "step": "5 shelf photo",
+   "status": 200,
+   "wall_s": 51.05,
+   "reply": {
+    "id": "f-88fd885ec83a",
+    "kind": "shelf",
+    "camera_id": "upload",
+    "camera_name": "upload",
+    "at": null,
+    "checked_at": "2026-11-04T01:18:16.483938Z",
+    "watch_id": null,
+    "act": true,
+    "headline": "11 shelf gap(s), about 136 facings to refill",
+    "staff_message": "Restock gap 1: left bay, shelf 1 (next to below blue pasta packs, shelf label Special $4.80, ~8 facings); gap 2: second bay, shelf 1 (next to below Barilla chickpea and red lentil, above empty back panel, ~6 facings); gap 3: second bay, shelf 2 (next to below Barilla red lentil penne, above Sauce Relish and Pickles sign, ~25 facings); gap 4: middle bay, shelf 3 (next to left Barilla red lentil penne, below Pulse Pasta, ~12 facings); gap 5: middle bay, shelf 4 (next to left Pulse Pasta, above empty shelf, ~8 facings); gap 6: middle bay, shelf 5 (next to left Pulse Pasta, below gluten free pasta boxes, ~8 facings); gap 7: right bay, shelf 2 (next to above CousCous and Spices boxes, below blue bag, ~12 facings); gap 8: right bay, shelf 3 (next to above small grocery boxes, below empty shelf with blue bag, ~15 facings); gap 9: right bay, shelf 4 (next to above empty shelf, below empty shelf, ~15 facings); gap 10: right bay, shelf 5 (next to above empty shelf, below empty bottom shelf, ~15 facings); gap 11: right bay, shelf 6 (next to above empty shelf, next to floor aisle, ~12 facings)",
+    "detail": {
+     "camera_id": "upload",
+     "at": null,
+     "width": 1920,
+     "height": 1440,
+     "products_seen": 31,
+     "gaps": [
+      {
+       "number": 1,
+       "box_xyxy": [
+        105.6,
+        322.56,
+        748.8,
+        492.48
+       ],
+       "section": "left bay, shelf 1",
+       "neighbours": "below blue pasta packs, shelf label Special $4.80",
+       "facings": 8,
+       "product_cover": 0.0
+      },
+      {
+       "number": 2,
+       "box_xyxy": [
+        748.8,
+        342.72,
+        969.6,
+        501.12
+       ],
+       "section": "second bay, shelf 1",
+       "neighbours": "below Barilla chickpea and red lentil, above empty back panel",
+       "facings": 6,
+       "product_cover": 0.0
+      },
+      {
+       "number": 3,
+       "box_xyxy": [
+        201.6,
+        489.6,
+        1219.2,
+        578.88
+       ],
+       "section": "second bay, shelf 2",
+       "neighbours": "below Barilla red lentil penne, above Sauce Relish and Pickles sign",
+       "facings": 25,
+       "product_cover": 0.172
+      },
+      {
+       "number": 4,
+       "box_xyxy": [
+        783.36,
+        586.08,
+        1259.52,
+        681.12
+       ],
+       "section": "middle bay, shelf 3",
+       "neighbours": "left Barilla red lentil penne, below Pulse Pasta",
+       "facings": 12,
+       "product_cover": 0.0
+      },
+      {
+       "number": 5,
+       "box_xyxy": [
+        898.56,
+        691.2,
+        1221.12,
+        809.28
+       ],
+       "section": "middle bay, shelf 4",
+       "neighbours": "left Pulse Pasta, above empty shelf",
+       "facings": 8,
+       "product_cover": 0.0
+      },
+      {
+       "number": 6,
+       "box_xyxy": [
+        787.2,
+        813.6,
+        1209.6,
+        941.76
+       ],
+       "section": "middle bay, shelf 5",
+       "neighbours": "left Pulse Pasta, below gluten free pasta boxes",
+       "facings": 8,
+       "product_cover": 0.006
+      },
+      {
+       "number": 7,
+       "box_xyxy": [
+        1228.8,
+        453.6,
+        1601.28,
+        538.56
+       ],
+       "section": "right bay, shelf 2",
+       "neighbours": "above CousCous and Spices boxes, below blue bag",
+       "facings": 12,
+       "product_cover": 0.0
+      },
+      {
+       "number": 8,
+       "box_xyxy": [
+        1236.48,
+        540.0,
+        1656.96,
+        630.72
+       ],
+       "section": "right bay, shelf 3",
+       "neighbours": "above small grocery boxes, below empty shelf with blue bag",
+       "facings": 15,
+       "product_cover": 0.0
+      },
+      {
+       "number": 9,
+       "box_xyxy": [
+        1205.76,
+        630.72,
+        1658.88,
+        758.88
+       ],
+       "section": "right bay, shelf 4",
+       "neighbours": "above empty shelf, below empty shelf",
+       "facings": 15,
+       "product_cover": 0.0
+      },
+      {
+       "number": 10,
+       "box_xyxy": [
+        1180.8,
+        727.2,
+        1656.96,
+        872.64
+       ],
+       "section": "right bay, shelf 5",
+       "neighbours": "above empty shelf, below empty bottom shelf",
+       "facings": 15,
+       "product_cover": 0.0
+      },
+      {
+       "number": 11,
+       "box_xyxy": [
+        1201.92,
+        839.52,
+        1641.6,
+        1029.6
+       ],
+       "section": "right bay, shelf 6",
+       "neighbours": "above empty shelf, next to floor aisle",
+       "facings": 12,
+       "product_cover": 0.004
+      }
+     ],
+     "rejected": [
+      {
+       "box_xyxy": [
+        910.08,
+        944.64,
+        1217.28,
+        1072.8
+       ],
+       "section": "middle bay, shelf 6",
+       "reason": "SAM 3.1 finds products covering 29% of it"
+      }
+     ],
+     "model": "muse-spark-1.3",
+     "glimmer": null
+    },
+    "evidence": {
+     "frames": [
+      "photo-bda10aef0b0e481f.jpg"
+     ],
+     "marked": "photo-bda10aef0b0e481f-7084999344.jpg",
+     "clip": null
+    },
+    "calls": [
+     {
+      "model": "muse-spark-1.3",
+      "role": "gap finder + SAM 3.1 check",
+      "seconds": 26.01,
+      "error": null
+     },
+     {
+      "model": "muse-glimmer-30b",
+      "role": "gap second look",
+      "seconds": 25.02,
+      "error": "RetailError: Glimmer did not answer within 25 s (cold start?)"
+     }
+    ],
+    "seconds": 51.03,
+    "alert_id": "al-2",
+    "task_id": "t-a6c69fbda8e1",
+    "metric": 11.0
+   }
+  },
+  {
+   "step": "6 hazard photo (SAMPLE spill)",
+   "status": 200,
+   "wall_s": 27.7,
+   "reply": {
+    "id": "f-09f69256fcbb",
+    "kind": "hazard",
+    "camera_id": "upload",
+    "camera_name": "upload",
+    "at": null,
+    "checked_at": "2026-11-04T01:18:44.185803Z",
+    "watch_id": null,
+    "act": true,
+    "headline": "1 confirmed hazard(s): spill",
+    "staff_message": "Large milk spill in main aisle by chocolate display - please block aisle and clean up immediately.",
+    "detail": {
+     "summary": "Large milk spill covering center aisle floor with crushed jug in middle. Two shoppers walking at edge of puddle, high slip-and-fall risk. Needs immediate cleanup and aisle control.",
+     "confidence": 0.95,
+     "spark_alert": true,
+     "hazards": [
+      {
+       "number": 1,
+       "item": {
+        "box": [
+         150.0,
+         793.0,
+         570.0,
+         994.0
+        ],
+        "kind": "spill",
+        "sam_phrase": "puddle of milk",
+        "what": "Large puddle of spilled milk spread across aisle floor with crushed plastic milk jug lying in it, major slip hazard",
+        "severity": "high"
+       },
+       "box_xyxy": [
+        288.0,
+        1015.04,
+        1094.4,
+        1272.32
+       ],
+       "sam_found": 1,
+       "glimmer": {
+        "hazard": true,
+        "why": "Inside the yellow box 1 the aisle floor is visibly wet with a large white liquid puddle and a broken/crushed white plastic milk jug lies in the spill in front of the two boys. That is a clear slip hazard on the floor in the boxed area."
+       },
+       "confirmed": true
+      }
+     ]
+    },
+    "evidence": {
+     "frames": [
+      "photo-4952208c58724515.png"
+     ],
+     "marked": "photo-4952208c58724515-1541552064.jpg",
+     "clip": null
+    },
+    "calls": [
+     {
+      "model": "muse-spark-1.3",
+      "role": "hazard finder",
+      "seconds": 10.51,
+      "error": null
+     },
+     {
+      "model": "sam-3.1",
+      "role": "hazard 1",
+      "seconds": 4.2,
+      "error": null
+     },
+     {
+      "model": "muse-glimmer-30b",
+      "role": "second look 1",
+      "seconds": 12.51,
+      "error": null
+     }
+    ],
+    "seconds": 27.67,
+    "alert_id": "al-3",
+    "task_id": "t-92e6b0e9afda",
+    "metric": 1.0
+   }
+  },
+  {
+   "step": "6b hazard photo (real aisle)",
+   "status": 200,
+   "wall_s": 7.1,
+   "reply": {
+    "id": "f-06e10dccf85b",
+    "kind": "hazard",
+    "camera_id": "upload",
+    "camera_name": "upload",
+    "at": null,
+    "checked_at": "2026-11-04T01:18:51.296559Z",
+    "watch_id": null,
+    "act": false,
+    "headline": "No floor hazard seen",
+    "staff_message": "",
+    "detail": {
+     "summary": "Checked main aisle and bakery area floor. Floor is clean, dry and reflective with no spills, puddles, broken glass, fallen stock, produce on floor, boxes, or blocking obstructions. Shopping trolley present with shopper is not blocking. No slip or trip risk visible.",
+     "confidence": 0.92,
+     "spark_alert": false,
+     "hazards": []
+    },
+    "evidence": {
+     "frames": [
+      "photo-3e7ebe7e42254365.jpg"
+     ],
+     "marked": "photo-3e7ebe7e42254365.jpg",
+     "clip": null
+    },
+    "calls": [
+     {
+      "model": "muse-spark-1.3",
+      "role": "hazard finder",
+      "seconds": 7.09,
+      "error": null
+     }
+    ],
+    "seconds": 7.1,
+    "alert_id": null,
+    "task_id": null,
+    "metric": 0.0
+   }
+  },
+  {
+   "step": "7a shelf proof (same before photo)",
+   "status": 200,
+   "wall_s": 41.72,
+   "reply": {
+    "id": "t-a6c69fbda8e1",
+    "kind": "shelf",
+    "finding_id": "f-88fd885ec83a",
+    "camera_id": "upload",
+    "where": "upload",
+    "items": [
+     "gap 1: left bay, shelf 1 next to below blue pasta packs, shelf label Special $4.80 (~8 facings)",
+     "gap 2: second bay, shelf 1 next to below Barilla chickpea and red lentil, above empty back panel (~6 facings)",
+     "gap 3: second bay, shelf 2 next to below Barilla red lentil penne, above Sauce Relish and Pickles sign (~25 facings)",
+     "gap 4: middle bay, shelf 3 next to left Barilla red lentil penne, below Pulse Pasta (~12 facings)",
+     "gap 5: middle bay, shelf 4 next to left Pulse Pasta, above empty shelf (~8 facings)",
+     "gap 6: middle bay, shelf 5 next to left Pulse Pasta, below gluten free pasta boxes (~8 facings)",
+     "gap 7: right bay, shelf 2 next to above CousCous and Spices boxes, below blue bag (~12 facings)",
+     "gap 8: right bay, shelf 3 next to above small grocery boxes, below empty shelf with blue bag (~15 facings)",
+     "gap 9: right bay, shelf 4 next to above empty shelf, below empty shelf (~15 facings)",
+     "gap 10: right bay, shelf 5 next to above empty shelf, below empty bottom shelf (~15 facings)",
+     "gap 11: right bay, shelf 6 next to above empty shelf, next to floor aisle (~12 facings)"
+    ],
+    "marked": "photo-bda10aef0b0e481f-7084999344.jpg",
+    "seen_at": "2026-11-04T01:18:16.483938Z",
+    "created_at": "2026-11-04T01:18:16.484117Z",
+    "status": "open",
+    "done_at": null,
+    "closed_by": null,
+    "minutes_to_fix": null,
+    "alert_id": "al-2",
+    "role": "stock",
+    "proof_image": "proof-c5b539b240b04c8d.jpg",
+    "proof": {
+     "spark": {
+      "gaps": [
+       {
+        "number": 1,
+        "filled": false,
+        "note": "Top shelf left remains empty, no product"
+       },
+       {
+        "number": 2,
+        "filled": false,
+        "note": "Top shelf center remains empty"
+       },
+       {
+        "number": 3,
+        "filled": false,
+        "note": "Top left shelf still empty"
+       },
+       {
+        "number": 4,
+        "filled": false,
+        "note": "Middle shelf center still empty"
+       },
+       {
+        "number": 5,
+        "filled": false,
+        "note": "Shelf below center still empty"
+       },
+       {
+        "number": 6,
+        "filled": false,
+        "note": "Mid-low shelf still empty"
+       },
+       {
+        "number": 7,
+        "filled": false,
+        "note": "Upper right shelf still empty"
+       },
+       {
+        "number": 8,
+        "filled": false,
+        "note": "Mid right upper shelf still empty"
+       },
+       {
+        "number": 9,
+        "filled": false,
+        "note": "Mid right shelf still empty"
+       },
+       {
+        "number": 10,
+        "filled": false,
+        "note": "Lower mid right shelf still empty"
+       },
+       {
+        "number": 11,
+        "filled": false,
+        "note": "Bottom right shelves still empty"
+       }
+      ],
+      "all_filled": false,
+      "summary": "After photo shows same empty pasta shelves, no restock visible in any numbered gap."
+     },
+     "glimmer": null,
+     "closed": false,
+     "calls": [
+      {
+       "model": "muse-spark-1.3",
+       "role": "gap filled?",
+       "seconds": 16.67,
+       "error": null
+      },
+      {
+       "model": "muse-glimmer-30b",
+       "role": "second look",
+       "seconds": 25.03,
+       "error": "TimeoutError: Glimmer did not answer within 25 s"
+      }
+     ],
+     "seconds": 41.7
+    },
+    "fixed_seq": null
+   }
+  },
+  {
+   "step": "7b shelf proof (SAMPLE restocked)",
+   "status": 200,
+   "wall_s": 41.24,
+   "reply": {
+    "id": "t-a6c69fbda8e1",
+    "kind": "shelf",
+    "finding_id": "f-88fd885ec83a",
+    "camera_id": "upload",
+    "where": "upload",
+    "items": [
+     "gap 1: left bay, shelf 1 next to below blue pasta packs, shelf label Special $4.80 (~8 facings)",
+     "gap 2: second bay, shelf 1 next to below Barilla chickpea and red lentil, above empty back panel (~6 facings)",
+     "gap 3: second bay, shelf 2 next to below Barilla red lentil penne, above Sauce Relish and Pickles sign (~25 facings)",
+     "gap 4: middle bay, shelf 3 next to left Barilla red lentil penne, below Pulse Pasta (~12 facings)",
+     "gap 5: middle bay, shelf 4 next to left Pulse Pasta, above empty shelf (~8 facings)",
+     "gap 6: middle bay, shelf 5 next to left Pulse Pasta, below gluten free pasta boxes (~8 facings)",
+     "gap 7: right bay, shelf 2 next to above CousCous and Spices boxes, below blue bag (~12 facings)",
+     "gap 8: right bay, shelf 3 next to above small grocery boxes, below empty shelf with blue bag (~15 facings)",
+     "gap 9: right bay, shelf 4 next to above empty shelf, below empty shelf (~15 facings)",
+     "gap 10: right bay, shelf 5 next to above empty shelf, below empty bottom shelf (~15 facings)",
+     "gap 11: right bay, shelf 6 next to above empty shelf, next to floor aisle (~12 facings)"
+    ],
+    "marked": "photo-bda10aef0b0e481f-7084999344.jpg",
+    "seen_at": "2026-11-04T01:18:16.483938Z",
+    "created_at": "2026-11-04T01:18:16.484117Z",
+    "status": "done",
+    "done_at": "2026-11-04T01:20:14.256131Z",
+    "closed_by": "photo",
+    "minutes_to_fix": 2.0,
+    "alert_id": "al-2",
+    "role": "stock",
+    "proof_image": "proof-4d1e08de8ab0409f.png",
+    "proof": {
+     "spark": {
+      "gaps": [
+       {
+        "number": 1,
+        "filled": true,
+        "note": "Top left shelf now full of Barilla pasta packs"
+       },
+       {
+        "number": 2,
+        "filled": true,
+        "note": "Top middle shelf now full of pasta boxes"
+       },
+       {
+        "number": 3,
+        "filled": true,
+        "note": "Second shelf left now stocked with pasta"
+       },
+       {
+        "number": 4,
+        "filled": true,
+        "note": "Middle shelf now filled with boxed pasta"
+       },
+       {
+        "number": 5,
+        "filled": true,
+        "note": "Center shelf area now stocked"
+       },
+       {
+        "number": 6,
+        "filled": true,
+        "note": "Lower middle shelf now filled with pasta"
+       },
+       {
+        "number": 7,
+        "filled": true,
+        "note": "Upper right shelf now stocked with pasta"
+       },
+       {
+        "number": 8,
+        "filled": true,
+        "note": "Right middle shelf now filled"
+       },
+       {
+        "number": 9,
+        "filled": true,
+        "note": "Mid-right shelf now stocked"
+       },
+       {
+        "number": 10,
+        "filled": true,
+        "note": "Lower right shelf now filled with product"
+       },
+       {
+        "number": 11,
+        "filled": true,
+        "note": "Bottom right floor shelf now stocked"
+       }
+      ],
+      "all_filled": true,
+      "summary": "All 11 empty gaps visible before are now fully stocked with Barilla pasta boxes in the after photo. Shelves appear full across entire aisle."
+     },
+     "glimmer": null,
+     "closed": true,
+     "calls": [
+      {
+       "model": "muse-spark-1.3",
+       "role": "gap filled?",
+       "seconds": 16.2,
+       "error": null
+      },
+      {
+       "model": "muse-glimmer-30b",
+       "role": "second look",
+       "seconds": 25.02,
+       "error": "TimeoutError: Glimmer did not answer within 25 s"
+      }
+     ],
+     "seconds": 41.22
+    },
+    "fixed_seq": 20
+   }
+  },
+  {
+   "step": "7c hazard proof (real aisle, no spill)",
+   "status": 200,
+   "wall_s": 24.92,
+   "reply": {
+    "id": "t-92e6b0e9afda",
+    "kind": "hazard",
+    "finding_id": "f-09f69256fcbb",
+    "camera_id": "upload",
+    "where": "upload",
+    "items": [
+     "hazard 1: Large puddle of spilled milk spread across aisle floor with crushed plastic milk jug lying in it, major slip hazard (high)"
+    ],
+    "marked": "photo-4952208c58724515-1541552064.jpg",
+    "seen_at": "2026-11-04T01:18:44.185803Z",
+    "created_at": "2026-11-04T01:18:44.186062Z",
+    "status": "done",
+    "done_at": "2026-11-04T01:20:39.166134Z",
+    "closed_by": "photo",
+    "minutes_to_fix": 1.9,
+    "alert_id": "al-3",
+    "role": "floor",
+    "proof_image": "proof-ea7877e4c8f74a87.jpg",
+    "proof": {
+     "spark": {
+      "gaps": [
+       {
+        "number": 1,
+        "filled": true,
+        "note": "Milk spill and crushed jug gone; same aisle floor is clean, dry and unobstructed in after photo."
+       }
+      ],
+      "all_filled": true,
+      "summary": "Hazard 1 cleared. The large milk spill in the main aisle is gone and the floor is clean in the after image."
+     },
+     "glimmer": {
+      "gaps": [],
+      "all_filled": true,
+      "summary": "The single marked floor hazard in the before image is the spill in the aisle marked 1 spill. In the after photo the aisle floor is dry, the broken bottle and the white liquid spill are no longer present, so the hazard is gone / made safe."
+     },
+     "closed": true,
+     "calls": [
+      {
+       "model": "muse-spark-1.3",
+       "role": "gap filled?",
+       "seconds": 9.77,
+       "error": null
+      },
+      {
+       "model": "muse-glimmer-30b",
+       "role": "second look",
+       "seconds": 15.13,
+       "error": null
+      }
+     ],
+     "seconds": 24.9
+    },
+    "fixed_seq": 21
+   }
+  },
+  {
+   "step": "8 brief",
+   "status": 200,
+   "wall_s": 11.07,
+   "reply": {
+    "day": "2026-11-04",
+    "written_at": "2026-11-04T01:20:39.191787Z",
+    "lang": "English",
+    "text": "Morning. Tills were busy. We did 18 queue checks, with 9 waiting at peak, and sent 15 calls to open another till. We sent 9 alerts in all and 0 were answered.\nShelves need work. We did 3 shelf checks and found 30 gaps. 3 restock tasks are still open and 3 are done.\nFloor hazards need work. We did 6 hazard checks and confirmed 3 hazards, including a large milk spill by the chocolate display.\nYou asked 4 times about longest queues and tills open, and about gaps and hazards and fix time. Fix time was not recorded.\nOn the 2 till-opening trials being tested, it is too early to tell.\nWhat cameras could not see: stock in the back, staff reasons for not answering, and aisles with no camera.",
+    "headline": "Busy tills went unanswered, shelves and spill still open",
+    "stats": {
+     "checks": {
+      "queue": 18,
+      "hazard": 6,
+      "shelf": 3
+     },
+     "alerts_sent": 9,
+     "alerts_answered": 0,
+     "queue_peak_waiting": 9,
+     "queue_peak_at": "2026-11-04T00:44:25.550967Z",
+     "till_calls": 15,
+     "help_calls": 0,
+     "hazards_confirmed": 3,
+     "shelf_gaps": 30,
+     "tasks_open": 3,
+     "tasks_done": 3,
+     "median_minutes_to_fix": null,
+     "asks": 4
+    },
+    "decisions": [
+     "Chase the 9 unanswered alerts for tills and the milk spill clean-up.",
+     "Agree who restocks the 3 open restock tasks today."
+    ],
+    "model": "muse-spark-1.3",
+    "seconds": 11.06
+   }
+  },
+  {
+   "step": "9 spoken question (Spanish)",
+   "status": 200,
+   "wall_s": 44.98,
+   "reply": {
+    "transcript": "¿Cuántos clientes esperaban en las cajas y cuántas cajas estaban abiertas?",
+    "lang": "es",
+    "answer": {
+     "question": "¿Cuántos clientes esperaban en las cajas y cuántas cajas estaban abiertas?",
+     "answer": "A las ~01:19:40 UTC (último video grabado):\n\n- Checkout queue (phone-19, vista amplia): ~9 clientes esperando en la cola + 1-2 ya en mostrador pagando = 10-11 clientes en zona de cajas. Se ven 2 cajas abiertas con cajero atendiendo.\n- Checkout lanes (phone-17): se ven 3 mostradores, 2 en uso, con 2 clientes esperando en la cola del carril central.\n- Front-end tills (phone-18): se ven 3-4 mostradores amarillos, 2 abiertos con cajero/a de camisa verde, con 1 cliente pagando y 1 esperando + 1 acercándose con carrito.\n\nLas 3 cámaras miran la misma zona frontal desde ángulos distintos, por lo que no se suman: en total hay unas 9 personas en cola + 2-3 en caja y 2 cajas abiertas atendiendo. No hay cola larga desbordada, escena tranquila. Obtenido por inspección visual de los 3 encuadres a las 01:19:40-42, confianza media.",
+     "steps": [
+      {
+       "turn": 0,
+       "action": "look",
+       "thought": "Necesito ver cajas abiertas y cola en checkout lanes más reciente.",
+       "model": "muse-glimmer-30b",
+       "seconds": 16.3
+      },
+      {
+       "turn": 0,
+       "action": "look",
+       "thought": "Necesito ver tills abiertos y espera en front-end.",
+       "model": "muse-glimmer-30b",
+       "seconds": 12.2
+      },
+      {
+       "turn": 0,
+       "action": "look",
+       "thought": "Necesito medir la cola principal en checkout queue.",
+       "model": "muse-glimmer-30b",
+       "seconds": 19.8
+      },
+      {
+       "turn": 1,
+       "action": "answer",
+       "thought": "Sintetizo las 3 vistas del mismo front-end para no duplicar.",
+       "model": null,
+       "seconds": 0.0
+      }
+     ],
+     "seconds": 41.8,
+     "models": [
+      "muse-spark-1.3",
+      "muse-glimmer-30b",
+      "meta-models/muse-spark-open-1026"
+     ],
+     "conversation_id": "3b9dada1573e4947850096175884b791",
+     "turns": [
+      {
+       "turn": 0,
+       "model": "muse-spark-1.3",
+       "seconds": 10.1,
+       "actions": 3
+      },
+      {
+       "turn": 1,
+       "model": "muse-spark-1.3",
+       "seconds": 11.4,
+       "actions": 1
+      }
+     ],
+     "numbers": [
+      9.0,
+      2.0
+     ],
+     "prompt_sha256": "12decf4c45d50684e76770000c9c0d74edd93f64e6c36592a4a04efa5bc39c05",
+     "receipt": "5e7b368e4a2e71f3923525a577e27e8ef8a2bef98f91f545154c21ef82ff0bf6",
+     "reviews": [
+      {
+       "verdict": "error",
+       "problems": [],
+       "advice": "",
+       "draft": "A las ~01:19:40 UTC (último video grabado):\n\n- Checkout queue (phone-19, vista amplia): ~9 clientes esperando en la cola + 1-2 ya en mostrador pagando = 10-11 clientes en zona de cajas. Se ven 2 cajas abiertas con cajero atendiendo.\n- Checkout lanes (phone-17): se ven 3 mostradores, 2 en uso, con 2 clientes esperando en la cola del carril central.\n- Front-end tills (phone-18): se ven 3-4 mostradores amarillos, 2 abiertos con cajero/a de camisa verde, con 1 cliente pagando y 1 esperando + 1 acercándose con carrito.\n\nLas 3 cámaras miran la misma zona frontal desde ángulos distintos, por lo que no se suman: en total hay unas 9 personas en cola + 2-3 en caja y 2 cajas abiertas atendiendo. No hay cola larga desbordada, escena tranquila. Obtenido por inspección visual de los 3 encuadres a las 01:19:40-42, confianza media.",
+       "turn": 1,
+       "model": "meta-models/muse-spark-open-1026",
+       "seconds": 0.2,
+       "reasoning_ref": null,
+       "detail": "ModelHTTPError: HTTP 401 from /chat/completions: Authentication required."
+      }
+     ]
+    },
+    "transcribe_seconds": 3.15
+   }
+  }
+ ],
+ "round1": {
+  "q1": {
+   "id": "f-ad281025ddd4",
+   "kind": "queue",
+   "camera_id": "phone-1",
+   "camera_name": "checkout lanes",
+   "at": "2026-11-04T00:44:27.606389Z",
+   "checked_at": "2026-11-04T00:45:50.531260Z",
+   "watch_id": null,
+   "act": false,
+   "headline": "5 waiting, 3 of 3 tills open; about 180 s wait",
+   "staff_message": "",
+   "detail": {
+    "lanes": [
+     {
+      "lane": "left till",
+      "open": true,
+      "customers_waiting": 1,
+      "being_served": true
+     },
+     {
+      "lane": "center till",
+      "open": true,
+      "customers_waiting": 2,
+      "being_served": true
+     },
+     {
+      "lane": "back till",
+      "open": true,
+      "customers_waiting": 2,
+      "being_served": false
+     }
+    ],
+    "customers_waiting": 5,
+    "est_wait_s": 180.0,
+    "queue_moving": false,
+    "customer_needs_help": false,
+    "open_another_till": false,
+    "alert_staff": false,
+    "reason": "Center till clearly open with cashier box 7 serving box 6, boxes 3 and 2 waiting with trolleys. Left till appears open with box 1 at belt end and box 4 with trolley behind, counted as 1 waiting 1 being served, no staff visible but active use. Boxes 5 and 8 in background appear to be queuing at a further till, counted but unsure if same queue or passing. No movement of bodies/trolleys across the 6s of frames, so not moving. Wait for 2-3 with full trolleys ~3 min. No unattended counter.",
+    "staff_message": "",
+    "queue_marks": [
+     2,
+     3,
+     4,
+     5,
+     8
+    ],
+    "confidence": 0.68,
+    "people_per_frame": [
+     8,
+     8,
+     8
+    ]
+   },
+   "evidence": {
+    "frames": [
+     "cd186135fdb9711788ef256c.jpg",
+     "a830ac05e3c0bace8e6f4bdd.jpg",
+     "e834c81216e7cc7d8c992403.jpg"
+    ],
+    "marked": "e834c81216e7cc7d8c992403-4783032811.jpg",
+    "clip": null
+   },
+   "calls": [
+    {
+     "model": "sam-3.1",
+     "role": "people",
+     "seconds": 22.33,
+     "error": null
+    },
+    {
+     "model": "muse-spark-1.3",
+     "role": "queue judge",
+     "seconds": 17.57,
+     "error": null
+    }
+   ],
+   "seconds": 49.06,
+   "alert_id": null,
+   "task_id": null,
+   "metric": 5.0
+  },
+  "s1": {
+   "id": "f-33e75bd2bc08",
+   "kind": "shelf",
+   "camera_id": "upload",
+   "camera_name": "upload",
+   "at": null,
+   "checked_at": "2026-11-04T00:47:26.958049Z",
+   "watch_id": null,
+   "act": true,
+   "headline": "11 shelf gap(s), about 152 facings to refill",
+   "staff_message": "Restock gap 1: left and center bays, shelf 1 (next to Bare peg back panel; below Barilla chickpea casarecce and red lentil penne, ~25 facings); gap 2: right bay, shelf 1 (next to CousCous and green pasta boxes to left; Pasta and 1/2 Price signs above, ~6 facings); gap 3: center bay, shelf 2 (next to Barilla red lentil boxes to left; blue bag to right on same shelf, ~12 facings); gap 4: right bays, shelf 2 (next to Blue bag and red object to left; small red packs further right, ~10 facings); gap 5: left bay, shelf 3 (next to Blue pasta packs above on shelf 2; yellow packs below on shelf 5; tape rolls on shelf, ~4 facings); gap 6: center to mid-right bays, shelf 3 (next to Pulse Pasta boxes to left and above; white notice paper on shelf edge to right, ~18 facings); gap 7: right bay, shelf 3 (next to White notice paper on edge; red tins on shelf above, ~8 facings); gap 8: center bay, shelf 4 (next to Pulse Pasta boxes above and to left; Gluten free boxes below, ~12 facings); gap 9: mid-right and right bays, shelf 4 (next to Blue bag on shelf above; empty dark shelf below, ~15 facings); gap 10: center to right bays, shelf 5 (next to Gluten free pasta boxes to left; cardboard box with red packs on shelf, ~20 facings); gap 11: center to right bays, shelf 6 bottom (next to Gluten free and red boxes above and to left; bare shelf and floor to right, ~22 facings)",
+   "detail": {
+    "camera_id": "upload",
+    "at": null,
+    "width": 1920,
+    "height": 1440,
+    "products_seen": 31,
+    "gaps": [
+     {
+      "number": 1,
+      "box_xyxy": [
+       0.0,
+       40.32,
+       1067.52,
+       349.92
+      ],
+      "section": "left and center bays, shelf 1",
+      "neighbours": "Bare peg back panel; below Barilla chickpea casarecce and red lentil penne",
+      "facings": 25,
+      "product_cover": 0.0
+     },
+     {
+      "number": 2,
+      "box_xyxy": [
+       1463.04,
+       372.96,
+       1676.16,
+       457.92
+      ],
+      "section": "right bay, shelf 1",
+      "neighbours": "CousCous and green pasta boxes to left; Pasta and 1/2 Price signs above",
+      "facings": 6,
+      "product_cover": 0.0
+     },
+     {
+      "number": 3,
+      "box_xyxy": [
+       779.52,
+       509.76,
+       1209.6,
+       653.76
+      ],
+      "section": "center bay, shelf 2",
+      "neighbours": "Barilla red lentil boxes to left; blue bag to right on same shelf",
+      "facings": 12,
+      "product_cover": 0.006
+     },
+     {
+      "number": 4,
+      "box_xyxy": [
+       1386.24,
+       532.8,
+       1680.0,
+       640.8
+      ],
+      "section": "right bays, shelf 2",
+      "neighbours": "Blue bag and red object to left; small red packs further right",
+      "facings": 10,
+      "product_cover": 0.0
+     },
+     {
+      "number": 5,
+      "box_xyxy": [
+       74.88,
+       763.2,
+       497.28,
+       900.0
+      ],
+      "section": "left bay, shelf 3",
+      "neighbours": "Blue pasta packs above on shelf 2; yellow packs below on shelf 5; tape rolls on shelf",
+      "facings": 4,
+      "product_cover": 0.133
+     },
+     {
+      "number": 6,
+      "box_xyxy": [
+       906.24,
+       679.68,
+       1434.24,
+       822.24
+      ],
+      "section": "center to mid-right bays, shelf 3",
+      "neighbours": "Pulse Pasta boxes to left and above; white notice paper on shelf edge to right",
+      "facings": 18,
+      "product_cover": 0.0
+     },
+     {
+      "number": 7,
+      "box_xyxy": [
+       1441.92,
+       619.2,
+       1668.48,
+       738.72
+      ],
+      "section": "right bay, shelf 3",
+      "neighbours": "White notice paper on edge; red tins on shelf above",
+      "facings": 8,
+      "product_cover": 0.0
+     },
+     {
+      "number": 8,
+      "box_xyxy": [
+       798.72,
+       796.32,
+       1215.36,
+       938.88
+      ],
+      "section": "center bay, shelf 4",
+      "neighbours": "Pulse Pasta boxes above and to left; Gluten free boxes below",
+      "facings": 12,
+      "product_cover": 0.0
+     },
+     {
+      "number": 9,
+      "box_xyxy": [
+       1201.92,
+       715.68,
+       1670.4,
+       868.32
+      ],
+      "section": "mid-right and right bays, shelf 4",
+      "neighbours": "Blue bag on shelf above; empty dark shelf below",
+      "facings": 15,
+      "product_cover": 0.0
+     },
+     {
+      "number": 10,
+      "box_xyxy": [
+       917.76,
+       920.16,
+       1664.64,
+       1091.52
+      ],
+      "section": "center to right bays, shelf 5",
+      "neighbours": "Gluten free pasta boxes to left; cardboard box with red packs on shelf",
+      "facings": 20,
+      "product_cover": 0.113
+     },
+     {
+      "number": 11,
+      "box_xyxy": [
+       760.32,
+       1062.72,
+       1653.12,
+       1330.56
+      ],
+      "section": "center to right bays, shelf 6 bottom",
+      "neighbours": "Gluten free and red boxes above and to left; bare shelf and floor to right",
+      "facings": 22,
+      "product_cover": 0.133
+     }
+    ],
+    "rejected": [
+     {
+      "box_xyxy": [
+       205.44,
+       1008.0,
+       493.44,
+       1169.28
+      ],
+      "section": "left bay, shelf 5",
+      "reason": "SAM 3.1 finds products covering 68% of it"
+     }
+    ],
+    "model": "muse-spark-1.3"
+   },
+   "evidence": {
+    "frames": [
+     "photo-d3ff2fd1f82d44dd.jpg"
+    ],
+    "marked": "photo-d3ff2fd1f82d44dd-2333258017.jpg",
+    "clip": null
+   },
+   "calls": [
+    {
+     "model": "muse-spark-1.3",
+     "role": "gap finder + SAM 3.1 check",
+     "seconds": 29.85,
+     "error": null
+    }
+   ],
+   "seconds": 29.85,
+   "alert_id": "al-1",
+   "task_id": "t-9e2f401a4970",
+   "metric": 11.0
+  },
+  "h_spill": {
+   "id": "f-732496781212",
+   "kind": "hazard",
+   "camera_id": "upload",
+   "camera_name": "upload",
+   "at": null,
+   "checked_at": "2026-11-04T00:53:09.878277Z",
+   "watch_id": null,
+   "act": true,
+   "headline": "1 confirmed hazard(s): spill",
+   "staff_message": "Large milk spill in main aisle by chocolate display - send cleanup with wet floor sign and mop now.",
+   "detail": {
+    "summary": "Large milk spill covering floor in central aisle with crushed jug in middle. Two shoppers walking through spill area. High slip risk, requires immediate cleanup and signage.",
+    "confidence": 0.96,
+    "spark_alert": true,
+    "hazards": [
+     {
+      "number": 1,
+      "item": {
+       "box": [
+        158.0,
+        794.0,
+        569.0,
+        992.0
+       ],
+       "kind": "spill",
+       "sam_phrase": "puddle of milk",
+       "what": "Large puddle of spilled milk with crushed plastic jug in middle of aisle, major slip-and-fall risk for shoppers walking through it.",
+       "severity": "high"
+      },
+      "box_xyxy": [
+       303.36,
+       1016.32,
+       1092.48,
+       1269.76
+      ],
+      "sam_found": 1,
+      "glimmer": null,
+      "confirmed": true
+     }
+    ]
+   },
+   "evidence": {
+    "frames": [
+     "photo-515ca934f45444e8.png"
+    ],
+    "marked": "photo-515ca934f45444e8-7019238736.jpg",
+    "clip": null
+   },
+   "calls": [
+    {
+     "model": "muse-spark-1.3",
+     "role": "hazard finder",
+     "seconds": 13.81,
+     "error": null
+    },
+    {
+     "model": "sam-3.1",
+     "role": "hazard 1",
+     "seconds": 5.01,
+     "error": null
+    },
+    {
+     "model": "muse-glimmer-30b",
+     "role": "second look 1",
+     "seconds": 60.02,
+     "error": "RetailError: Glimmer did not answer within 60 s (cold start?)"
+    }
+   ],
+   "seconds": 79.03,
+   "alert_id": "al-3",
+   "task_id": "t-72cb54d173eb",
+   "metric": 1.0
+  },
+  "h_plain": {
+   "id": "f-3438a83ce21c",
+   "kind": "hazard",
+   "camera_id": "upload",
+   "camera_name": "upload",
+   "at": null,
+   "checked_at": "2026-11-04T00:51:59.336873Z",
+   "watch_id": null,
+   "act": false,
+   "headline": "No floor hazard seen",
+   "staff_message": "",
+   "detail": {
+    "summary": "Main aisle floor is clean, dry and clear. No spills, broken glass, fallen stock, or obstructions visible. Displays and stock are neat and out of walkway.",
+    "confidence": 0.95,
+    "spark_alert": false,
+    "hazards": []
+   },
+   "evidence": {
+    "frames": [
+     "photo-bc68ebbec8cd4b8b.jpg"
+    ],
+    "marked": "photo-bc68ebbec8cd4b8b.jpg",
+    "clip": null
+   },
+   "calls": [
+    {
+     "model": "muse-spark-1.3",
+     "role": "hazard finder",
+     "seconds": 8.51,
+     "error": null
+    }
+   ],
+   "seconds": 8.53,
+   "alert_id": null,
+   "task_id": null,
+   "metric": 0.0
+  },
+  "p_before": {
+   "id": "t-9e2f401a4970",
+   "kind": "shelf",
+   "finding_id": "f-33e75bd2bc08",
+   "camera_id": "upload",
+   "where": "upload",
+   "items": [
+    "gap 1: left and center bays, shelf 1 next to Bare peg back panel; below Barilla chickpea casarecce and red lentil penne (~25 facings)",
+    "gap 2: right bay, shelf 1 next to CousCous and green pasta boxes to left; Pasta and 1/2 Price signs above (~6 facings)",
+    "gap 3: center bay, shelf 2 next to Barilla red lentil boxes to left; blue bag to right on same shelf (~12 facings)",
+    "gap 4: right bays, shelf 2 next to Blue bag and red object to left; small red packs further right (~10 facings)",
+    "gap 5: left bay, shelf 3 next to Blue pasta packs above on shelf 2; yellow packs below on shelf 5; tape rolls on shelf (~4 facings)",
+    "gap 6: center to mid-right bays, shelf 3 next to Pulse Pasta boxes to left and above; white notice paper on shelf edge to right (~18 facings)",
+    "gap 7: right bay, shelf 3 next to White notice paper on edge; red tins on shelf above (~8 facings)",
+    "gap 8: center bay, shelf 4 next to Pulse Pasta boxes above and to left; Gluten free boxes below (~12 facings)",
+    "gap 9: mid-right and right bays, shelf 4 next to Blue bag on shelf above; empty dark shelf below (~15 facings)",
+    "gap 10: center to right bays, shelf 5 next to Gluten free pasta boxes to left; cardboard box with red packs on shelf (~20 facings)",
+    "gap 11: center to right bays, shelf 6 bottom next to Gluten free and red boxes above and to left; bare shelf and floor to right (~22 facings)"
+   ],
+   "marked": "photo-d3ff2fd1f82d44dd-2333258017.jpg",
+   "seen_at": "2026-11-04T00:47:26.958049Z",
+   "created_at": "2026-11-04T00:47:26.958655Z",
+   "status": "open",
+   "done_at": null,
+   "closed_by": null,
+   "minutes_to_fix": null,
+   "alert_id": "al-1",
+   "role": "stock",
+   "proof_image": "proof-62a935ff86104c80.jpg",
+   "proof": {
+    "spark": {
+     "gaps": [
+      {
+       "number": 1,
+       "filled": false,
+       "note": "Top shelf still empty pegboard, no product added."
+      },
+      {
+       "number": 2,
+       "filled": false,
+       "note": "Upper right shelf still empty, no product added."
+      },
+      {
+       "number": 3,
+       "filled": false,
+       "note": "Middle upper shelf still empty."
+      },
+      {
+       "number": 4,
+       "filled": false,
+       "note": "Right middle shelf still empty except bag."
+      },
+      {
+       "number": 5,
+       "filled": false,
+       "note": "Left shelf still empty with same items."
+      },
+      {
+       "number": 6,
+       "filled": false,
+       "note": "Center shelf still empty, no restock."
+      },
+      {
+       "number": 7,
+       "filled": false,
+       "note": "Right shelf section still empty."
+      },
+      {
+       "number": 8,
+       "filled": false,
+       "note": "Lower center shelf still empty."
+      },
+      {
+       "number": 9,
+       "filled": false,
+       "note": "Middle right shelf still empty."
+      },
+      {
+       "number": 10,
+       "filled": false,
+       "note": "Lower middle long shelf still empty."
+      },
+      {
+       "number": 11,
+       "filled": false,
+       "note": "Bottom shelf area still empty."
+      }
+     ],
+     "all_filled": false,
+     "summary": "After photo shows same empty pasta aisle as before. No numbered gaps have been filled with product; all shelves remain empty."
+    },
+    "glimmer": null,
+    "closed": false,
+    "calls": [
+     {
+      "model": "muse-spark-1.3",
+      "role": "gap filled?",
+      "seconds": 15.59,
+      "error": null
+     },
+     {
+      "model": "muse-glimmer-30b",
+      "role": "second look",
+      "seconds": 60.04,
+      "error": "TimeoutError: Glimmer did not answer within 60 s"
+     }
+    ],
+    "seconds": 75.63
+   },
+   "fixed_seq": null
+  },
+  "p_after": {
+   "id": "t-9e2f401a4970",
+   "kind": "shelf",
+   "finding_id": "f-33e75bd2bc08",
+   "camera_id": "upload",
+   "where": "upload",
+   "items": [
+    "gap 1: left and center bays, shelf 1 next to Bare peg back panel; below Barilla chickpea casarecce and red lentil penne (~25 facings)",
+    "gap 2: right bay, shelf 1 next to CousCous and green pasta boxes to left; Pasta and 1/2 Price signs above (~6 facings)",
+    "gap 3: center bay, shelf 2 next to Barilla red lentil boxes to left; blue bag to right on same shelf (~12 facings)",
+    "gap 4: right bays, shelf 2 next to Blue bag and red object to left; small red packs further right (~10 facings)",
+    "gap 5: left bay, shelf 3 next to Blue pasta packs above on shelf 2; yellow packs below on shelf 5; tape rolls on shelf (~4 facings)",
+    "gap 6: center to mid-right bays, shelf 3 next to Pulse Pasta boxes to left and above; white notice paper on shelf edge to right (~18 facings)",
+    "gap 7: right bay, shelf 3 next to White notice paper on edge; red tins on shelf above (~8 facings)",
+    "gap 8: center bay, shelf 4 next to Pulse Pasta boxes above and to left; Gluten free boxes below (~12 facings)",
+    "gap 9: mid-right and right bays, shelf 4 next to Blue bag on shelf above; empty dark shelf below (~15 facings)",
+    "gap 10: center to right bays, shelf 5 next to Gluten free pasta boxes to left; cardboard box with red packs on shelf (~20 facings)",
+    "gap 11: center to right bays, shelf 6 bottom next to Gluten free and red boxes above and to left; bare shelf and floor to right (~22 facings)"
+   ],
+   "marked": "photo-d3ff2fd1f82d44dd-2333258017.jpg",
+   "seen_at": "2026-11-04T00:47:26.958049Z",
+   "created_at": "2026-11-04T00:47:26.958655Z",
+   "status": "open",
+   "done_at": null,
+   "closed_by": null,
+   "minutes_to_fix": null,
+   "alert_id": "al-1",
+   "role": "stock",
+   "proof_image": "proof-6b5fcce6b5554b92.png",
+   "proof": {
+    "spark": {
+     "gaps": [
+      {
+       "number": 1,
+       "filled": true,
+       "note": "Top shelf now fully lined with Barilla pasta boxes."
+      },
+      {
+       "number": 2,
+       "filled": true,
+       "note": "Upper far-right shelf now stocked with pasta boxes."
+      },
+      {
+       "number": 3,
+       "filled": true,
+       "note": "Middle-upper empty shelf now filled with pasta boxes."
+      },
+      {
+       "number": 4,
+       "filled": true,
+       "note": "Shelf around blue bag area now filled with pasta to both sides."
+      },
+      {
+       "number": 5,
+       "filled": false,
+       "note": "Left wire basket shelf still mostly empty, same few packs as before."
+      },
+      {
+       "number": 6,
+       "filled": true,
+       "note": "Mid-level empty shelf now filled with rows of pasta boxes."
+      },
+      {
+       "number": 7,
+       "filled": true,
+       "note": "Mid-right shelves now fully stocked with pasta boxes."
+      },
+      {
+       "number": 8,
+       "filled": true,
+       "note": "Lower-mid empty shelf now filled with pasta boxes."
+      },
+      {
+       "number": 9,
+       "filled": true,
+       "note": "Middle lower shelf area now stocked with pasta boxes."
+      },
+      {
+       "number": 10,
+       "filled": true,
+       "note": "Lower shelf stretch now filled with pasta boxes."
+      },
+      {
+       "number": 11,
+       "filled": true,
+       "note": "Bottom shelf area now stocked with pasta boxes."
+      }
+     ],
+     "all_filled": false,
+     "summary": "10 of 11 gaps restocked with pasta. All main pasta aisle shelves from top to bottom are now full except gap 5 on the left wire shelf which remains empty."
+    },
+    "glimmer": null,
+    "closed": false,
+    "calls": [
+     {
+      "model": "muse-spark-1.3",
+      "role": "gap filled?",
+      "seconds": 10.48,
+      "error": null
+     },
+     {
+      "model": "muse-glimmer-30b",
+      "role": "second look",
+      "seconds": 60.03,
+      "error": "TimeoutError: Glimmer did not answer within 60 s"
+     }
+    ],
+    "seconds": 70.51
+   },
+   "fixed_seq": null
+  },
+  "p_hazard": {
+   "id": "t-72cb54d173eb",
+   "kind": "hazard",
+   "finding_id": "f-732496781212",
+   "camera_id": "upload",
+   "where": "upload",
+   "items": [
+    "hazard 1: Large puddle of spilled milk with crushed plastic jug in middle of aisle, major slip-and-fall risk for shoppers walking through it. (high)"
+   ],
+   "marked": "photo-515ca934f45444e8-7019238736.jpg",
+   "seen_at": "2026-11-04T00:53:09.878277Z",
+   "created_at": "2026-11-04T00:53:09.878407Z",
+   "status": "done",
+   "done_at": "2026-11-04T01:10:45.745052Z",
+   "closed_by": "photo",
+   "minutes_to_fix": 17.6,
+   "alert_id": "al-3",
+   "role": "floor",
+   "proof_image": "proof-362ec411d94542e6.jpg",
+   "proof": {
+    "spark": {
+     "gaps": [
+      {
+       "number": 1,
+       "filled": true,
+       "note": "Milk spill and jug gone, floor clean and dry"
+      }
+     ],
+     "all_filled": true,
+     "summary": "Single milk spill hazard cleared; after photo shows clean dry floor where spill was."
+    },
+    "glimmer": {
+     "gaps": [],
+     "all_filled": true,
+     "summary": "The only marked floor hazard in the before image is the spill / broken milk bottle in the yellow box in the aisle centre. In the staff-after photo the aisle floor in that area is dry and the broken bottle / liquid spill is no longer visible – the hazard has been cleared / made safe."
+    },
+    "closed": true,
+    "calls": [
+     {
+      "model": "muse-spark-1.3",
+      "role": "gap filled?",
+      "seconds": 10.42,
+      "error": null
+     },
+     {
+      "model": "muse-glimmer-30b",
+      "role": "second look",
+      "seconds": 11.06,
+      "error": null
+     }
+    ],
+    "seconds": 21.48
+   },
+   "fixed_seq": 11
+  },
+  "q2": {
+   "id": "f-015e1fd0d953",
+   "kind": "queue",
+   "camera_id": "phone-2",
+   "camera_name": "front-end tills",
+   "at": "2026-11-04T00:44:24.386559Z",
+   "checked_at": "2026-11-04T00:48:54.087112Z",
+   "watch_id": null,
+   "act": false,
+   "headline": "1 waiting, 2 of 2 tills open; about 90 s wait",
+   "staff_message": "",
+   "detail": {
+    "lanes": [
+     {
+      "lane": "middle till",
+      "open": true,
+      "customers_waiting": 1,
+      "being_served": true
+     },
+     {
+      "lane": "right till",
+      "open": true,
+      "customers_waiting": 0,
+      "being_served": true
+     }
+    ],
+    "customers_waiting": 1,
+    "est_wait_s": 90.0,
+    "queue_moving": null,
+    "customer_needs_help": false,
+    "open_another_till": false,
+    "alert_staff": false,
+    "reason": "Two yellow tills visible both staffed. Middle till has cashier box 6 serving customer with cart box 3, with one person behind box 5 appearing to wait. Right till has cashier box 1 bagging while customer box 7 is at counter. Box 2 is staff walking left, box 4 is background person not clearly queuing. 6s between frames shows little positional change, so movement unsure. One waiting person does not need another till.",
+    "staff_message": "",
+    "queue_marks": [
+     5
+    ],
+    "confidence": 0.65,
+    "people_per_frame": [
+     4,
+     7
+    ]
+   },
+   "evidence": {
+    "frames": [
+     "e2f94c484a717e4104dee3ee.jpg",
+     "6a07ad42fb3613117d88c41d.jpg"
+    ],
+    "marked": "6a07ad42fb3613117d88c41d-4978253353.jpg",
+    "clip": null
+   },
+   "calls": [
+    {
+     "model": "sam-3.1",
+     "role": "people",
+     "seconds": 3.6,
+     "error": null
+    },
+    {
+     "model": "muse-spark-1.3",
+     "role": "queue judge",
+     "seconds": 13.17,
+     "error": null
+    }
+   ],
+   "seconds": 25.63,
+   "alert_id": null,
+   "task_id": null,
+   "metric": 1.0
+  },
+  "q3": {
+   "id": "f-0c199b5d19ba",
+   "kind": "queue",
+   "camera_id": "phone-3",
+   "camera_name": "checkout queue",
+   "at": "2026-11-04T00:44:25.550967Z",
+   "checked_at": "2026-11-04T00:48:55.692686Z",
+   "watch_id": null,
+   "act": true,
+   "headline": "9 waiting, 1 of 1 tills open; about 300 s wait; open another till",
+   "staff_message": "Please open another till for the self-checkout queue.",
+   "detail": {
+    "lanes": [
+     {
+      "lane": "self-scan checkouts",
+      "open": true,
+      "customers_waiting": 9,
+      "being_served": true
+     }
+    ],
+    "customers_waiting": 9,
+    "est_wait_s": 300.0,
+    "queue_moving": true,
+    "customer_needs_help": false,
+    "open_another_till": true,
+    "alert_staff": true,
+    "reason": "Self-scan area is busy with ~9 people queuing with trolleys/baskets behind 2+ people being served at kiosks. Queue shifts left/forward across the 6s frames but remains long. No closed till with waiting customers seen, but queue length suggests need for another open till. Box numbers are uncertain due to low-res overlay text.",
+    "staff_message": "Please open another till for the self-checkout queue.",
+    "queue_marks": [
+     6,
+     7,
+     8,
+     10,
+     11,
+     12,
+     14,
+     15,
+     17
+    ],
+    "confidence": 0.68,
+    "people_per_frame": [
+     16,
+     15,
+     18
+    ]
+   },
+   "evidence": {
+    "frames": [
+     "05c9507560e8dc2e1809103a.jpg",
+     "9041cf98362b24784a54e86e.jpg",
+     "04fc80304ebfd75e5c13bd40.jpg"
+    ],
+    "marked": "04fc80304ebfd75e5c13bd40-2772576424.jpg",
+    "clip": null
+   },
+   "calls": [
+    {
+     "model": "sam-3.1",
+     "role": "people",
+     "seconds": 3.9,
+     "error": null
+    },
+    {
+     "model": "muse-spark-1.3",
+     "role": "queue judge",
+     "seconds": 10.3,
+     "error": null
+    }
+   ],
+   "seconds": 27.25,
+   "alert_id": "al-2",
+   "task_id": null,
+   "metric": 9.0
+  },
+  "ask1": {
+   "question": "When was the checkout queue longest, how many tills were open then, roughly how many customers arrived per minute and how long did each take to serve? Do we need another till?",
+   "answer": "Longest recorded checkout queue was at ~00:44:27 UTC on 4 Nov (checkout lanes camera phone-1): 5 customers waiting, with 3 of 3 tills open, estimated ~180s (3 min) wait. That is the only queue finding in the recording (00:20-00:48), so it is the peak we can see.\n\nTills open then: 3 of 3 open - i.e. all available tills were staffed/serving. No extra till to open without adding capacity.\n\nArrivals and service: video from 00:41:27-00:44:27 on the checkout-queue camera is a short ~20-36s loop repeated, so true throughput cannot be measured reliably. Rough visual estimate was ~5-6 new shoppers joining per minute and ~60-120s per till transaction (typically ~45-90s scanning + payment, ~2 min with bagging). Confidence low because of the loop.\n\nDo you need another till? On this evidence: not yet actioned by the system (act=false, no task opened), but you are at capacity. 5 waiting with all 3 tills open and ~3 min wait is at the usual supermarket threshold (open another till at >3-4 waiting or >2-3 min wait). If arrivals stay at ~5/min, you will need a 4th till / staffed express lane or to divert to self-scan, otherwise the queue will grow.\n\nHow I got it: retail_findings queue check + visual check of phone-1/phone-3 video. Sure on queue length/tills (system finding); arrival/service rates are rough and low-confidence due to looped video and no track/crowd data.",
+   "steps": [
+    {
+     "turn": 0,
+     "action": "sql",
+     "thought": "Find recorded queue findings and longest queue.",
+     "model": null,
+     "seconds": 0.0
+    },
+    {
+     "turn": 0,
+     "action": "sql",
+     "thought": "Search captions for queue descriptions.",
+     "model": null,
+     "seconds": 0.0
+    },
+    {
+     "turn": 0,
+     "action": "sql",
+     "thought": "Find peak crowd counts to locate longest queue time.",
+     "model": null,
+     "seconds": 0.0
+    },
+    {
+     "turn": 1,
+     "action": "look",
+     "thought": "Verify longest queue and tills open on checkout lanes cam",
+     "model": null,
+     "seconds": 121.0
+    },
+    {
+     "turn": 1,
+     "action": "look",
+     "thought": "Verify queue on dedicated queue camera",
+     "model": null,
+     "seconds": 120.8
+    },
+    {
+     "turn": 1,
+     "action": "watch",
+     "thought": "Measure arrival rate and service time from video",
+     "model": "muse-spark-1.2",
+     "seconds": 27.0
+    },
+    {
+     "turn": 1,
+     "action": "watch",
+     "thought": "Measure tills open and throughput on lanes cam",
+     "model": "muse-spark-1.2",
+     "seconds": 45.5
+    },
+    {
+     "turn": 1,
+     "action": "look",
+     "thought": "Check later period to compare queue",
+     "model": null,
+     "seconds": 120.7
+    },
+    {
+     "turn": 1,
+     "action": "look",
+     "thought": "Check later queue cam",
+     "model": null,
+     "seconds": 120.7
+    },
+    {
+     "turn": 2,
+     "action": "count_objects",
+     "thought": "Count queue at peak time second way.",
+     "model": "sam-3.1",
+     "seconds": 0.8
+    },
+    {
+     "turn": 2,
+     "action": "count_objects",
+     "thought": "Count queue on queue cam.",
+     "model": "sam-3.1",
+     "seconds": 1.4
+    },
+    {
+     "turn": 2,
+     "action": "count_objects",
+     "thought": "Count open tills.",
+     "model": "sam-3.1",
+     "seconds": 1.6
+    },
+    {
+     "turn": 2,
+     "action": "sql",
+     "thought": "Check tracking tables exist",
+     "model": null,
+     "seconds": 0.0
+    },
+    {
+     "turn": 3,
+     "action": "answer",
+     "thought": "Answer from retail finding plus caveated watch estimates.",
+     "model": null,
+     "seconds": 0.0
+    }
+   ],
+   "seconds": 147.3,
+   "models": [
+    "muse-spark-1.3",
+    "muse-spark-1.2",
+    "sam-3.1",
+    "meta-models/muse-spark-open-1026"
+   ],
+   "conversation_id": "29f1738fb93b4ff992b2382ead2cc78a",
+   "turns": [
+    {
+     "turn": 0,
+     "model": "muse-spark-1.3",
+     "seconds": 3.3,
+     "actions": 3
+    },
+    {
+     "turn": 1,
+     "model": "muse-spark-1.3",
+     "seconds": 8.9,
+     "actions": 6
+    },
+    {
+     "turn": 2,
+     "model": "muse-spark-1.3",
+     "seconds": 4.1,
+     "actions": 4
+    },
+    {
+     "turn": 3,
+     "model": "muse-spark-1.3",
+     "seconds": 7.9,
+     "actions": 1
+    }
+   ],
+   "numbers": [
+    5.0,
+    3.0,
+    5.5,
+    90.0
+   ],
+   "prompt_sha256": "12decf4c45d50684e76770000c9c0d74edd93f64e6c36592a4a04efa5bc39c05",
+   "receipt": "59356b86dab424e1d8ec8df51fe40328d07780220ec41a3a6efa4660823132b1",
+   "reviews": [
+    {
+     "verdict": "error",
+     "problems": [],
+     "advice": "",
+     "draft": "Longest recorded checkout queue was at ~00:44:27 UTC on 4 Nov (checkout lanes camera phone-1): 5 customers waiting, with 3 of 3 tills open, estimated ~180s (3 min) wait. That is the only queue finding in the recording (00:20-00:48), so it is the peak we can see.\n\nTills open then: 3 of 3 open - i.e. all available tills were staffed/serving. No extra till to open without adding capacity.\n\nArrivals and service: video from 00:41:27-00:44:27 on the checkout-queue camera is a short ~20-36s loop repeated, so true throughput cannot be measured reliably. Rough visual estimate was ~5-6 new shoppers joining per minute and ~60-120s per till transaction (typically ~45-90s scanning + payment, ~2 min with bagging). Confidence low because of the loop.\n\nDo you need another till? On this evidence: not yet actioned by the system (act=false, no task opened), but you are at capacity. 5 waiting with all 3 tills open and ~3 min wait is at the usual supermarket threshold (open another till at >3-4 waiting or >2-3 min wait). If arrivals stay at ~5/min, you will need a 4th till / staffed express lane or to divert to self-scan, otherwise the queue will grow.\n\nHow I got it: retail_findings queue check + visual check of phone-1/phone-3 video. Sure on queue length/tills (system finding); arrival/service rates are rough and low-confidence due to looped video and no track/crowd data.",
+     "turn": 3,
+     "model": "meta-models/muse-spark-open-1026",
+     "seconds": 0.4,
+     "reasoning_ref": null,
+     "detail": "ModelHTTPError: HTTP 401 from /chat/completions: Authentication required."
+    }
+   ]
+  },
+  "adv1": {
+   "recommendation": {
+    "id": "adv-retail-a5ae6a73af28",
+    "status": "proposed",
+    "scope_kind": "station",
+    "scope_ids": [
+     "phone-1",
+     "phone-3"
+    ],
+    "klass": "test",
+    "provenance": "recorded",
+    "saw": [
+     {
+      "template": "The longest recorded checkout queue held {queue_waiting} customers waiting coincided with {tills_open} tills open serving checkout lanes.",
+      "slots": {
+       "queue_waiting": "queue_waiting",
+       "tills_open": "tills_open"
+      },
+      "grade": "C"
+     },
+     {
+      "template": "Rough visual estimate showed {arrival_rate} customers per minute joining coincided with about {service_time} seconds to serve each customer at a till.",
+      "slots": {
+       "arrival_rate": "arrival_rate",
+       "service_time": "service_time"
+      },
+      "grade": "C"
+     }
+    ],
+    "why": [
+     {
+      "id": "why-1",
+      "statement": "All available tills were open at the peak queue, so no spare capacity remains.",
+      "status": "untestable",
+      "share_of_gap": null,
+      "evidence_query_ids": []
+     },
+     {
+      "id": "why-2",
+      "statement": "Queue length and wait were at the usual threshold to open another till.",
+      "status": "untestable",
+      "share_of_gap": null,
+      "evidence_query_ids": []
+     },
+     {
+      "id": "why-3",
+      "statement": "Arrival estimate suggests the queue will grow unless capacity is added.",
+      "status": "untestable",
+      "share_of_gap": null,
+      "evidence_query_ids": []
+     },
+     {
+      "id": "why-4",
+      "statement": "Confidence in arrival and service estimates is low due to looped video, so test with a switchback.",
+      "status": "untestable",
+      "share_of_gap": null,
+      "evidence_query_ids": []
+     }
+    ],
+    "do": [
+     {
+      "op": "add_capacity",
+      "params": {
+       "what": "Open one additional staffed till or express lane at the front-end checkout during busy periods.",
+       "extra_tills": "1",
+       "location": "front-end checkout"
+      }
+     }
+    ],
+    "who_role": "Front-end supervisor",
+    "revert": "Close the extra till and return the colleague to normal duties.",
+    "expect": {
+     "metric": "mean wait at the tills",
+     "interval": [
+      0.0,
+      0.0
+     ],
+     "level": 0.0,
+     "unit": "s",
+     "model_rung": "erlang_c",
+     "assumptions": {
+      "stable_with_one_more_till": "fail"
+     }
+    },
+    "safety": {
+     "rules_checked": [],
+     "verdict": "pass",
+     "considered_not_recommended": []
+    },
+    "rank_score": 0.0,
+    "measurement_plan_id": "mp-adv-retail-a5ae6a73af28",
+    "numbers_total": 4,
+    "numbers_reproduced": 4
+   },
+   "title": "Open a fourth till when checkout queue exceeds threshold",
+   "saw": [
+    "The longest recorded checkout queue held 5 customers waiting coincided with 3 tills open serving checkout lanes.",
+    "Rough visual estimate showed 5.5 customers per minute joining coincided with about 90 seconds to serve each customer at a till."
+   ],
+   "change": "Open one additional staffed till or express lane at the front-end checkout during busy periods.",
+   "gain": "Even one more till would not keep up with the arrivals measured.",
+   "numbers": [
+    {
+     "id": "queue_waiting",
+     "label": "Customers waiting at peak",
+     "value": 5.0,
+     "unit": "customers",
+     "definition": "Number of customers waiting in the longest recorded checkout queue at peak time from retail_findings.",
+     "grounded": true
+    },
+    {
+     "id": "tills_open",
+     "label": "Tills open at peak",
+     "value": 3.0,
+     "unit": "tills",
+     "definition": "Number of tills open and serving at the time of the longest recorded queue.",
+     "grounded": true
+    },
+    {
+     "id": "arrival_rate",
+     "label": "New shoppers joining per minute",
+     "value": 5.5,
+     "unit": "customers per minute",
+     "definition": "Rough visual estimate of new shoppers joining the checkout queue per minute.",
+     "grounded": true
+    },
+    {
+     "id": "service_time",
+     "label": "Seconds per till transaction",
+     "value": 90.0,
+     "unit": "seconds",
+     "definition": "Rough visual estimate of seconds to serve one customer per till transaction including scanning and payment.",
+     "grounded": true
+    }
+   ],
+   "hidden": [],
+   "plan": {
+    "id": "mp-adv-retail-a5ae6a73af28",
+    "recommendation_id": "adv-retail-a5ae6a73af28",
+    "primary_metric": "customers waiting in checkout queue",
+    "guard_metrics": [
+     "tills open",
+     "customers served per minute"
+    ],
+    "design": "switchback",
+    "block_minutes": 30,
+    "n_pairs": 6,
+    "min_detectable_effect": 4.481841791421175,
+    "smallest_possible_p": 0.03125,
+    "decision_rule": "On-minus-off difference of customers waiting in checkout queue per pair of blocks, exact sign-flip test, 95% interval. worked: the whole interval is below 0. worse: the whole interval is above 0. no_effect: the interval lies within +/-4.48184. Otherwise, or before all pairs are done: not_enough_data.",
+    "preregistration_hash": "940f40cbe6610f1ebca10270f94d0cadfb74266cb50f4e842c7e899e5f41deb5"
+   },
+   "sigma_note": "no earlier readings yet: the measured value itself, a cautious guess",
+   "watch": {
+    "kind": "queue",
+    "camera_id": "phone-3",
+    "every_s": 120,
+    "role": "front-end-lead",
+    "focus": "Count customers waiting in the checkout queue and note how many tills are open and serving."
+   },
+   "ask_receipt": "59356b86dab424e1d8ec8df51fe40328d07780220ec41a3a6efa4660823132b1",
+   "question": "When was the checkout queue longest, how many tills were open then, roughly how many customers arrived per minute and how long did each take to serve? Do we need another till?",
+   "created_at": "2026-11-04T00:56:24.712486Z",
+   "seconds": 15.44,
+   "preregistered_seq": null,
+   "watch_id": null
+  },
+  "acc1": {
+   "recommendation": {
+    "id": "adv-retail-a5ae6a73af28",
+    "status": "measuring",
+    "scope_kind": "station",
+    "scope_ids": [
+     "phone-1",
+     "phone-3"
+    ],
+    "klass": "test",
+    "provenance": "recorded",
+    "saw": [
+     {
+      "template": "The longest recorded checkout queue held {queue_waiting} customers waiting coincided with {tills_open} tills open serving checkout lanes.",
+      "slots": {
+       "queue_waiting": "queue_waiting",
+       "tills_open": "tills_open"
+      },
+      "grade": "C"
+     },
+     {
+      "template": "Rough visual estimate showed {arrival_rate} customers per minute joining coincided with about {service_time} seconds to serve each customer at a till.",
+      "slots": {
+       "arrival_rate": "arrival_rate",
+       "service_time": "service_time"
+      },
+      "grade": "C"
+     }
+    ],
+    "why": [
+     {
+      "id": "why-1",
+      "statement": "All available tills were open at the peak queue, so no spare capacity remains.",
+      "status": "untestable",
+      "share_of_gap": null,
+      "evidence_query_ids": []
+     },
+     {
+      "id": "why-2",
+      "statement": "Queue length and wait were at the usual threshold to open another till.",
+      "status": "untestable",
+      "share_of_gap": null,
+      "evidence_query_ids": []
+     },
+     {
+      "id": "why-3",
+      "statement": "Arrival estimate suggests the queue will grow unless capacity is added.",
+      "status": "untestable",
+      "share_of_gap": null,
+      "evidence_query_ids": []
+     },
+     {
+      "id": "why-4",
+      "statement": "Confidence in arrival and service estimates is low due to looped video, so test with a switchback.",
+      "status": "untestable",
+      "share_of_gap": null,
+      "evidence_query_ids": []
+     }
+    ],
+    "do": [
+     {
+      "op": "add_capacity",
+      "params": {
+       "what": "Open one additional staffed till or express lane at the front-end checkout during busy periods.",
+       "extra_tills": "1",
+       "location": "front-end checkout"
+      }
+     }
+    ],
+    "who_role": "Front-end supervisor",
+    "revert": "Close the extra till and return the colleague to normal duties.",
+    "expect": {
+     "metric": "mean wait at the tills",
+     "interval": [
+      0.0,
+      0.0
+     ],
+     "level": 0.0,
+     "unit": "s",
+     "model_rung": "erlang_c",
+     "assumptions": {
+      "stable_with_one_more_till": "fail"
+     }
+    },
+    "safety": {
+     "rules_checked": [],
+     "verdict": "pass",
+     "considered_not_recommended": []
+    },
+    "rank_score": 0.0,
+    "measurement_plan_id": "mp-adv-retail-a5ae6a73af28",
+    "numbers_total": 4,
+    "numbers_reproduced": 4
+   },
+   "title": "Open a fourth till when checkout queue exceeds threshold",
+   "saw": [
+    "The longest recorded checkout queue held 5 customers waiting coincided with 3 tills open serving checkout lanes.",
+    "Rough visual estimate showed 5.5 customers per minute joining coincided with about 90 seconds to serve each customer at a till."
+   ],
+   "change": "Open one additional staffed till or express lane at the front-end checkout during busy periods.",
+   "gain": "Even one more till would not keep up with the arrivals measured.",
+   "numbers": [
+    {
+     "id": "queue_waiting",
+     "label": "Customers waiting at peak",
+     "value": 5.0,
+     "unit": "customers",
+     "definition": "Number of customers waiting in the longest recorded checkout queue at peak time from retail_findings.",
+     "grounded": true
+    },
+    {
+     "id": "tills_open",
+     "label": "Tills open at peak",
+     "value": 3.0,
+     "unit": "tills",
+     "definition": "Number of tills open and serving at the time of the longest recorded queue.",
+     "grounded": true
+    },
+    {
+     "id": "arrival_rate",
+     "label": "New shoppers joining per minute",
+     "value": 5.5,
+     "unit": "customers per minute",
+     "definition": "Rough visual estimate of new shoppers joining the checkout queue per minute.",
+     "grounded": true
+    },
+    {
+     "id": "service_time",
+     "label": "Seconds per till transaction",
+     "value": 90.0,
+     "unit": "seconds",
+     "definition": "Rough visual estimate of seconds to serve one customer per till transaction including scanning and payment.",
+     "grounded": true
+    }
+   ],
+   "hidden": [],
+   "plan": {
+    "id": "mp-adv-retail-a5ae6a73af28",
+    "recommendation_id": "adv-retail-a5ae6a73af28",
+    "primary_metric": "customers waiting in checkout queue",
+    "guard_metrics": [
+     "tills open",
+     "customers served per minute"
+    ],
+    "design": "switchback",
+    "block_minutes": 30,
+    "n_pairs": 6,
+    "min_detectable_effect": 4.481841791421175,
+    "smallest_possible_p": 0.03125,
+    "decision_rule": "On-minus-off difference of customers waiting in checkout queue per pair of blocks, exact sign-flip test, 95% interval. worked: the whole interval is below 0. worse: the whole interval is above 0. no_effect: the interval lies within +/-4.48184. Otherwise, or before all pairs are done: not_enough_data.",
+    "preregistration_hash": "940f40cbe6610f1ebca10270f94d0cadfb74266cb50f4e842c7e899e5f41deb5"
+   },
+   "sigma_note": "no earlier readings yet: the measured value itself, a cautious guess",
+   "watch": {
+    "kind": "queue",
+    "camera_id": "phone-3",
+    "every_s": 120,
+    "role": "front-end-lead",
+    "focus": "Count customers waiting in the checkout queue and note how many tills are open and serving."
+   },
+   "ask_receipt": "59356b86dab424e1d8ec8df51fe40328d07780220ec41a3a6efa4660823132b1",
+   "question": "When was the checkout queue longest, how many tills were open then, roughly how many customers arrived per minute and how long did each take to serve? Do we need another till?",
+   "created_at": "2026-11-04T00:56:24.712486Z",
+   "seconds": 15.44,
+   "preregistered_seq": 9,
+   "watch_id": "w-f74931d38358"
+  },
+  "voice1": {
+   "transcript": "¿Cuántos clientes esperaban en las cajas y cuántas cajas estaban abiertas?.?",
+   "lang": "es",
+   "answer": {
+    "question": "¿Cuántos clientes esperaban en las cajas y cuántas cajas estaban abiertas?.?",
+    "answer": "A las 00:59:50 UTC del 04/11/2026:\n- Clientes esperando en la zona de checkout queue (cámara phone-11): 17 personas detectadas por conteo automático. En las vistas de tills/lanes (phone-10 y phone-9) se detectaron 7 personas en cada una, compatibles con clientes en cajas y en cola.\n- Cajas abiertas: al menos 3 mostradores de caja visibles/detectados en front-end tills (phone-10) y 2 en checkout lanes (phone-9), por lo que estimo unas 3 cajas operativas.\n\nCómo lo obtuve: conteo automático SAM 3.1 de `person` y `checkout counter` sobre los fotogramas grabados de phone-9, phone-10 y phone-11 a las 00:59:50 UTC. La verificación visual con Muse Glimmer (look) falló por timeout y no hay captions ni retail_findings para ese minuto, por lo que la cifra de cajas abiertas es de confianza media-baja y la de clientes en espera es conteo de personas en la zona de cola, no distinción perfecta cliente/personal.",
+    "steps": [
+     {
+      "turn": 0,
+      "action": "look",
+      "thought": "Need to see checkout queue at latest time",
+      "model": null,
+      "seconds": 120.5
+     },
+     {
+      "turn": 0,
+      "action": "look",
+      "thought": "Need to see front-end tills to count open tills",
+      "model": null,
+      "seconds": 120.5
+     },
+     {
+      "turn": 0,
+      "action": "look",
+      "thought": "Need checkout lanes view for cross-check",
+      "model": null,
+      "seconds": 120.8
+     },
+     {
+      "turn": 1,
+      "action": "count_objects",
+      "thought": "Count queue waiting via SAM",
+      "model": "sam-3.1",
+      "seconds": 0.9
+     },
+     {
+      "turn": 1,
+      "action": "count_objects",
+      "thought": "Count people at tills",
+      "model": "sam-3.1",
+      "seconds": 2.9
+     },
+     {
+      "turn": 1,
+      "action": "count_objects",
+      "thought": "Count lanes people",
+      "model": "sam-3.1",
+      "seconds": 11.7
+     },
+     {
+      "turn": 2,
+      "action": "count_objects",
+      "thought": "Need generic person count on queue camera",
+      "model": "sam-3.1",
+      "seconds": 3.3
+     },
+     {
+      "turn": 2,
+      "action": "count_objects",
+      "thought": "Count tills to estimate open",
+      "model": "sam-3.1",
+      "seconds": 1.4
+     },
+     {
+      "turn": 2,
+      "action": "count_objects",
+      "thought": "Count lanes counters",
+      "model": "sam-3.1",
+      "seconds": 6.5
+     },
+     {
+      "turn": 3,
+      "action": "sql",
+      "thought": "Check retail findings for queue length and open tills",
+      "model": null,
+      "seconds": 0.0
+     },
+     {
+      "turn": 3,
+      "action": "crowd_scan",
+      "thought": "Measure queue crowd density",
+      "model": null,
+      "seconds": 0.0
+     },
+     {
+      "turn": 4,
+      "action": "look",
+      "thought": "Visual check for open tills",
+      "model": null,
+      "seconds": 120.5
+     },
+     {
+      "turn": 5,
+      "action": "answer",
+      "thought": "look timed out, answer from count_objects",
+      "model": null,
+      "seconds": 0.0
+     }
+    ],
+    "seconds": 293.0,
+    "models": [
+     "muse-spark-1.3",
+     "sam-3.1",
+     "meta-models/muse-spark-open-1026"
+    ],
+    "conversation_id": "45390b7fef6b44fb8a52a833784f5d93",
+    "turns": [
+     {
+      "turn": 0,
+      "model": "muse-spark-1.3",
+      "seconds": 5.8,
+      "actions": 3
+     },
+     {
+      "turn": 1,
+      "model": "muse-spark-1.3",
+      "seconds": 4.3,
+      "actions": 3
+     },
+     {
+      "turn": 2,
+      "model": "muse-spark-1.3",
+      "seconds": 4.7,
+      "actions": 3
+     },
+     {
+      "turn": 3,
+      "model": "muse-spark-1.3",
+      "seconds": 4.9,
+      "actions": 2
+     },
+     {
+      "turn": 4,
+      "model": "muse-spark-1.3",
+      "seconds": 4.7,
+      "actions": 1
+     },
+     {
+      "turn": 5,
+      "model": "muse-spark-1.3",
+      "seconds": 6.9,
+      "actions": 1
+     }
+    ],
+    "numbers": [
+     17.0,
+     3.0
+    ],
+    "prompt_sha256": "12decf4c45d50684e76770000c9c0d74edd93f64e6c36592a4a04efa5bc39c05",
+    "receipt": "242bcef469881462a298aaa0719a49386c1c313c368e21ac1b12748d2e94c8ff",
+    "reviews": [
+     {
+      "verdict": "error",
+      "problems": [],
+      "advice": "",
+      "draft": "A las 00:59:50 UTC del 04/11/2026:\n- Clientes esperando en la zona de checkout queue (cámara phone-11): 17 personas detectadas por conteo automático. En las vistas de tills/lanes (phone-10 y phone-9) se detectaron 7 personas en cada una, compatibles con clientes en cajas y en cola.\n- Cajas abiertas: al menos 3 mostradores de caja visibles/detectados en front-end tills (phone-10) y 2 en checkout lanes (phone-9), por lo que estimo unas 3 cajas operativas.\n\nCómo lo obtuve: conteo automático SAM 3.1 de `person` y `checkout counter` sobre los fotogramas grabados de phone-9, phone-10 y phone-11 a las 00:59:50 UTC. La verificación visual con Muse Glimmer (look) falló por timeout y no hay captions ni retail_findings para ese minuto, por lo que la cifra de cajas abiertas es de confianza media-baja y la de clientes en espera es conteo de personas en la zona de cola, no distinción perfecta cliente/personal.",
+      "turn": 5,
+      "model": "meta-models/muse-spark-open-1026",
+      "seconds": 1.3,
+      "reasoning_ref": null,
+      "detail": "ModelHTTPError: HTTP 401 from /chat/completions: Authentication required."
+     }
+    ]
+   },
+   "transcribe_seconds": 2.99
+  },
+  "brief1": {
+   "day": "2026-11-04",
+   "written_at": "2026-11-04T00:59:57.287696Z",
+   "lang": "Spanish",
+   "text": "Las cajas estuvieron ocupadas con un pico de 9 personas esperando. Se pidieron 2 aperturas de caja y se mandaron 3 avisos con 0 respuestas. En estantería hay 11 huecos, unos 152 frentes por reponer, con 2 tareas abiertas y 0 terminadas. En el suelo hay 1 derrame confirmado de leche, riesgo alto de caída. Usted preguntó cuándo fue la cola más larga y si hace falta otra caja. El registro habla de las 00:44 con 3 de 3 cajas abiertas. La prueba de abrir una cuarta caja sigue midiendo, con 0 de 6 pares hechos y 1 lectura media de 9. Aún es pronto para saber. Hay que decidir abrir otra caja y limpiar y reponer. Las cámaras no vieron otros pasillos ni llegadas por minuto.",
+   "headline": "Colas sin respuesta, pasta vacía y leche en el suelo",
+   "stats": {
+    "checks": {
+     "queue": 4,
+     "hazard": 2,
+     "shelf": 1
+    },
+    "alerts_sent": 3,
+    "alerts_answered": 0,
+    "queue_peak_waiting": 9,
+    "queue_peak_at": "2026-11-04T00:44:25.550967Z",
+    "till_calls": 2,
+    "help_calls": 0,
+    "hazards_confirmed": 1,
+    "shelf_gaps": 11,
+    "tasks_open": 2,
+    "tasks_done": 0,
+    "median_minutes_to_fix": null,
+    "asks": 1
+   },
+   "decisions": [
+    "Abrir otra caja en hora pico y confirmar que se responde a los avisos.",
+    "Limpiar la leche derramada y reponer los 11 huecos de pasta."
+   ],
+   "model": "muse-spark-1.3",
+   "seconds": 10.82
+  }
+ },
+ "round2": {
+  "r2_spill": {
+   "id": "f-358a09e0ad1b",
+   "kind": "hazard",
+   "camera_id": "upload",
+   "camera_name": "upload",
+   "at": null,
+   "checked_at": "2026-11-04T01:11:44.834022Z",
+   "watch_id": null,
+   "act": true,
+   "headline": "1 confirmed hazard(s): spill",
+   "staff_message": "Large milk spill in main aisle by chocolate display - clean up and cone off now.",
+   "detail": {
+    "summary": "Large milk spill with crushed jug covering aisle floor where two shoppers are walking through, high slip risk.",
+    "confidence": 0.96,
+    "spark_alert": true,
+    "hazards": [
+     {
+      "number": 1,
+      "item": {
+       "box": [
+        155.0,
+        793.0,
+        569.0,
+        991.0
+       ],
+       "kind": "spill",
+       "sam_phrase": "puddle of milk",
+       "what": "Large puddle of spilled milk with crushed plastic jug lying in center of aisle, major slip-and-fall risk",
+       "severity": "high"
+      },
+      "box_xyxy": [
+       297.6,
+       1015.04,
+       1092.48,
+       1268.48
+      ],
+      "sam_found": 1,
+      "glimmer": {
+       "hazard": true,
+       "why": "Inside the yellow box 1 the floor is visibly wet with a large white liquid puddle and a broken/crushed white plastic jug lying in it in the centre of the aisle. The two boys are walking through the wet area. That is a clear slip / trip hazard – a spill with the container on the floor – as the model described."
+      },
+      "confirmed": true
+     }
+    ]
+   },
+   "evidence": {
+    "frames": [
+     "photo-937a65fb704a4ae3.png"
+    ],
+    "marked": "photo-937a65fb704a4ae3-8410199386.jpg",
+    "clip": null
+   },
+   "calls": [
+    {
+     "model": "muse-spark-1.3",
+     "role": "hazard finder",
+     "seconds": 15.12,
+     "error": null
+    },
+    {
+     "model": "sam-3.1",
+     "role": "hazard 1",
+     "seconds": 12.08,
+     "error": null
+    },
+    {
+     "model": "muse-glimmer-30b",
+     "role": "second look 1",
+     "seconds": 14.41,
+     "error": null
+    }
+   ],
+   "seconds": 42.0,
+   "alert_id": "al-3",
+   "task_id": "t-e6c8f9ebccac",
+   "metric": 1.0
+  },
+  "r2_plain": {
+   "id": "f-34dca3ffcbcd",
+   "kind": "hazard",
+   "camera_id": "upload",
+   "camera_name": "upload",
+   "at": null,
+   "checked_at": "2026-11-04T01:11:08.856773Z",
+   "watch_id": null,
+   "act": false,
+   "headline": "No floor hazard seen",
+   "staff_message": "",
+   "detail": {
+    "summary": "Main aisle and bakery display floor looks clean, dry and unobstructed. No spills, puddles, broken glass, fallen stock, or blocking boxes/trolleys seen. Shopper's trolley on left does not block aisle.",
+    "confidence": 0.95,
+    "spark_alert": false,
+    "hazards": []
+   },
+   "evidence": {
+    "frames": [
+     "photo-828a2112c5b74525.jpg"
+    ],
+    "marked": "photo-828a2112c5b74525.jpg",
+    "clip": null
+   },
+   "calls": [
+    {
+     "model": "muse-spark-1.3",
+     "role": "hazard finder",
+     "seconds": 6.07,
+     "error": null
+    }
+   ],
+   "seconds": 6.09,
+   "alert_id": null,
+   "task_id": null,
+   "metric": 0.0
+  },
+  "r2_shelf": {
+   "id": "f-74dada8b7e4b",
+   "kind": "shelf",
+   "camera_id": "upload",
+   "camera_name": "upload",
+   "at": null,
+   "checked_at": "2026-11-04T01:11:34.538102Z",
+   "watch_id": null,
+   "act": true,
+   "headline": "8 shelf gap(s), about 86 facings to refill",
+   "staff_message": "Restock gap 1: bay 1, shelf 2 (next to left: Baking Paper 15m, Multix BAKE; above: top wire shelf; below: empty base shelf, ~8 facings); gap 2: bay 2, shelf 2 (next to above: top wire shelf with bottles; below: empty base shelf, ~10 facings); gap 3: bay 3, shelf 2 (next to above: top wire shelf; below: empty base shelf, Customer Notice sign on edge, ~12 facings); gap 4: bay 1, shelf 3 (next to left: Multix BAKE 30, 50 packs; above: empty middle shelf, ~8 facings); gap 5: bay 2, shelf 3 (next to above: empty middle shelf; left: bay 1 base empty, ~10 facings); gap 6: bay 3, shelf 3 (next to above: empty middle shelf with Customer Notice; left and right: continuous empty base, ~10 facings); gap 7: bay 4, shelf 3 (next to above: empty upper wire shelves; continues to empty aisle to the right, ~8 facings); gap 8: bays 5-8, shelf 3 (next to above: empty upper wire shelves; left: empty base continuing; right: distant stocked aisle, ~20 facings)",
+   "detail": {
+    "camera_id": "upload",
+    "at": null,
+    "width": 1920,
+    "height": 1440,
+    "products_seen": 10,
+    "gaps": [
+     {
+      "number": 1,
+      "box_xyxy": [
+       159.36,
+       290.88,
+       485.76,
+       649.44
+      ],
+      "section": "bay 1, shelf 2",
+      "neighbours": "left: Baking Paper 15m, Multix BAKE; above: top wire shelf; below: empty base shelf",
+      "facings": 8,
+      "product_cover": 0.025
+     },
+     {
+      "number": 2,
+      "box_xyxy": [
+       491.52,
+       260.64,
+       794.88,
+       614.88
+      ],
+      "section": "bay 2, shelf 2",
+      "neighbours": "above: top wire shelf with bottles; below: empty base shelf",
+      "facings": 10,
+      "product_cover": 0.0
+     },
+     {
+      "number": 3,
+      "box_xyxy": [
+       804.48,
+       269.28,
+       1188.48,
+       607.68
+      ],
+      "section": "bay 3, shelf 2",
+      "neighbours": "above: top wire shelf; below: empty base shelf, Customer Notice sign on edge",
+      "facings": 12,
+      "product_cover": 0.0
+     },
+     {
+      "number": 4,
+      "box_xyxy": [
+       272.64,
+       764.64,
+       556.8,
+       1283.04
+      ],
+      "section": "bay 1, shelf 3",
+      "neighbours": "left: Multix BAKE 30, 50 packs; above: empty middle shelf",
+      "facings": 8,
+      "product_cover": 0.0
+     },
+     {
+      "number": 5,
+      "box_xyxy": [
+       541.44,
+       725.76,
+       823.68,
+       1104.48
+      ],
+      "section": "bay 2, shelf 3",
+      "neighbours": "above: empty middle shelf; left: bay 1 base empty",
+      "facings": 10,
+      "product_cover": 0.0
+     },
+     {
+      "number": 6,
+      "box_xyxy": [
+       808.32,
+       682.56,
+       1048.32,
+       967.68
+      ],
+      "section": "bay 3, shelf 3",
+      "neighbours": "above: empty middle shelf with Customer Notice; left and right: continuous empty base",
+      "facings": 10,
+      "product_cover": 0.0
+     },
+     {
+      "number": 7,
+      "box_xyxy": [
+       1032.96,
+       635.04,
+       1238.4,
+       869.76
+      ],
+      "section": "bay 4, shelf 3",
+      "neighbours": "above: empty upper wire shelves; continues to empty aisle to the right",
+      "facings": 8,
+      "product_cover": 0.0
+     },
+     {
+      "number": 8,
+      "box_xyxy": [
+       1213.44,
+       588.96,
+       1614.72,
+       809.28
+      ],
+      "section": "bays 5-8, shelf 3",
+      "neighbours": "above: empty upper wire shelves; left: empty base continuing; right: distant stocked aisle",
+      "facings": 20,
+      "product_cover": 0.0
+     }
+    ],
+    "rejected": [],
+    "model": "muse-spark-1.3"
+   },
+   "evidence": {
+    "frames": [
+     "photo-6d2f6ded67994a3b.jpg"
+    ],
+    "marked": "photo-6d2f6ded67994a3b-1514653235.jpg",
+    "clip": null
+   },
+   "calls": [
+    {
+     "model": "muse-spark-1.3",
+     "role": "gap finder + SAM 3.1 check",
+     "seconds": 31.76,
+     "error": null
+    }
+   ],
+   "seconds": 31.76,
+   "alert_id": "al-1",
+   "task_id": "t-5676625e0dd4",
+   "metric": 8.0
+  },
+  "r2_q1": {
+   "id": "f-9f328cd62009",
+   "kind": "queue",
+   "camera_id": "phone-13",
+   "camera_name": "checkout lanes",
+   "at": "2026-11-04T01:10:56.878180Z",
+   "checked_at": "2026-11-04T01:11:59.248169Z",
+   "watch_id": null,
+   "act": false,
+   "headline": "3 waiting, 2 of 2 tills open; about 180 s wait",
+   "staff_message": "",
+   "detail": {
+    "lanes": [
+     {
+      "lane": "center till",
+      "open": true,
+      "customers_waiting": 2,
+      "being_served": true
+     },
+     {
+      "lane": "left till",
+      "open": true,
+      "customers_waiting": 1,
+      "being_served": true
+     }
+    ],
+    "customers_waiting": 3,
+    "est_wait_s": 180.0,
+    "queue_moving": false,
+    "customer_needs_help": false,
+    "open_another_till": false,
+    "alert_staff": false,
+    "reason": "Center till clearly open with female cashier (box 6) serving blonde woman (box 5), with zebra-dress woman (box 3) and striped-shirt woman with red bag/cart (box 2) waiting behind. Left till shows two customers (boxes 1 and 4) at the belt, assumed open and being served with one waiting, but no staff visible so staffing unsure. Background heads (box 7) suggest another till but too cropped to judge, excluded. Across ~6s frames postures barely change, queue not advancing. 3 waiting total is moderate, no unserved counter, so no new till needed.",
+    "staff_message": "",
+    "queue_marks": [
+     1,
+     2,
+     3,
+     4,
+     5
+    ],
+    "announcement": "",
+    "confidence": 0.68,
+    "people_per_frame": [
+     8,
+     8,
+     7
+    ]
+   },
+   "evidence": {
+    "frames": [
+     "4a79ab934bf12072947f96c4.jpg",
+     "355fc7521fc524ccc6d6972b.jpg",
+     "9ba75e562beeed5a96965bfc.jpg"
+    ],
+    "marked": "9ba75e562beeed5a96965bfc-9016311469.jpg",
+    "clip": null
+   },
+   "calls": [
+    {
+     "model": "sam-3.1",
+     "role": "people",
+     "seconds": 25.98,
+     "error": null
+    },
+    {
+     "model": "muse-spark-1.3",
+     "role": "queue judge",
+     "seconds": 21.36,
+     "error": null
+    }
+   ],
+   "seconds": 56.52,
+   "alert_id": null,
+   "task_id": null,
+   "metric": 3.0
+  },
+  "r2_q2": {
+   "id": "f-73840543e532",
+   "kind": "queue",
+   "camera_id": "phone-15",
+   "camera_name": "checkout queue",
+   "at": "2026-11-04T01:10:53.260429Z",
+   "checked_at": "2026-11-04T01:11:34.786620Z",
+   "watch_id": null,
+   "act": true,
+   "headline": "6 waiting, 2 of 2 tills open; about 240 s wait; open another till",
+   "staff_message": "Please open another till to help the checkout queue.",
+   "detail": {
+    "lanes": [
+     {
+      "lane": "foreground right till",
+      "open": true,
+      "customers_waiting": 1,
+      "being_served": true
+     },
+     {
+      "lane": "middle card only till",
+      "open": true,
+      "customers_waiting": 5,
+      "being_served": true
+     }
+    ],
+    "customers_waiting": 6,
+    "est_wait_s": 240.0,
+    "queue_moving": false,
+    "customer_needs_help": false,
+    "open_another_till": true,
+    "alert_staff": true,
+    "reason": "Two tills visible are both open and being served. Foreground till has 1 waiting behind person being served. Middle card-only till has ~5 waiting behind person being served. Frames 3s apart show almost no position change, so queue not moving. Longest queue ~5-6 implies several minute wait. No unstaffed counter with waiting customer seen. Unsure of exact box numbers due to overlapping labels and blur, and of far-left tills.",
+    "staff_message": "Please open another till to help the checkout queue.",
+    "queue_marks": [
+     3,
+     5,
+     8,
+     9,
+     10,
+     12,
+     14
+    ],
+    "announcement": "Attention shoppers, an additional checkout is now open. Atención clientes, una caja adicional está abierta.",
+    "confidence": 0.62,
+    "people_per_frame": [
+     17,
+     16
+    ]
+   },
+   "evidence": {
+    "frames": [
+     "1ecec5992285342a9e4a99a4.jpg",
+     "051eb8ff06162dc35886d027.jpg"
+    ],
+    "marked": "051eb8ff06162dc35886d027-6434705917.jpg",
+    "clip": null
+   },
+   "calls": [
+    {
+     "model": "sam-3.1",
+     "role": "people",
+     "seconds": 6.41,
+     "error": null
+    },
+    {
+     "model": "muse-spark-1.3",
+     "role": "queue judge",
+     "seconds": 19.35,
+     "error": null
+    }
+   ],
+   "seconds": 32.03,
+   "alert_id": "al-2",
+   "task_id": null,
+   "metric": 6.0
+  }
+ }
+}

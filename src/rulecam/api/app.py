@@ -148,6 +148,7 @@ from rulecam.planner.site_config import SiteConfigError, load_site_config
 from rulecam.planner.standards import StandardsLibrary
 from rulecam.planner.steps.audit import audit_hook
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
+from rulecam.retail import build_retail
 from rulecam.rule_ci import prove_plan_hook
 from rulecam.rule_ci.hard_negatives import HardNegatives
 from rulecam.runtime.activate import Activation, PlanActivator, restore_activation
@@ -971,6 +972,19 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
     ask_agent, ask_tickers = build_ask(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, crowd=(crowd, warden)
     )
+    advice = AdviceStore()
+    retail, retail_tickers = build_retail(
+        settings,
+        cache=cache,
+        clock=clock,
+        bus=bus,
+        perception=perception,
+        response=response,
+        chain=chain,
+        advice=advice,
+        ask=ask_agent,
+        dependencies=_OWNER,
+    )
     origins = viewer_origins(settings.public_ui_url)
     auth = OwnerAuth.from_settings(settings, clock=clock, allowed_origins=origins)
     client_address = ClientAddress(
@@ -1008,10 +1022,12 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             *((watch.tick,) if watch is not None else ()),
             *ask_tickers,
             *crowd_tickers,
+            *retail_tickers,
         ),
         pollers=response.pollers(false_alarm),
         response=response.status,
         cost=watch.report if watch is not None else None,
+        advice=advice,
         routers=(
             build_worker_router(
                 settings,
@@ -1042,6 +1058,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 dependencies=_OWNER,
             ),
             extensions.router(_OWNER),
+            retail,
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
         ),

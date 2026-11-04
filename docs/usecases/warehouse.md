@@ -38,7 +38,8 @@ pair a phone (the "Pair a phone" button, or `/pair`), or play a clip in with
 7. **Spanish warning and phone alert.** Click *Spoken warning*: Muse Spark writes the warning in
    Spanish for this incident, it is spoken (Meta MMS-TTS when installed, else the system voice,
    labelled), and Muse Voice Transcribe listens back and gives the word error rate. Play it in
-   the page. With actions live (`RULECAM_ACTIONS_DRY_RUN=false`), the phone alert appears with
+   the page. Tick *and English* for a bilingual warning ("¡Montacargas…! Forklift…!"): each
+   language is spoken and checked by ear on its own. With actions live (`RULECAM_ACTIONS_DRY_RUN=false`), the phone alert appears with
    *On my way*, *False alarm* and *Escalate*; *On my way* acknowledges it on the chain.
 8. **Evidence.** *Incident report* opens the one-page report with every chained record of the
    event; *Verify the chain in your browser* recomputes every hash in the browser.
@@ -79,7 +80,7 @@ whose proxy times out can read it back with GET. Models are in
 | `GET /warehouse/near-misses` | `day`, `camera_id`, `plan_id` | `NearMiss[]`, newest first |
 | `GET /warehouse/heatmap` | `camera_id`, `day`, `plan_id` | `Heatmap`: frame size, grid `cells`, `points`, `unplaced`, `background` |
 | `GET /warehouse/heatmap/{camera_id}/frame` | `day` | a recorded JPEG of the camera |
-| `POST /warehouse/incidents/{event_id}/warning` | `{"lang": "es"}` | `SpokenWarning`: `text`, `english`, `audio` (WAV name), `tts`, `heard`, `wer`, `roundtrip_ok` |
+| `POST /warehouse/incidents/{event_id}/warning` | `{"lang": "es"}`, optionally `"also": "en"` for a bilingual warning | `SpokenWarning`: `text`, `english`, `audio` (WAV name), `tts`, `heard`, `wer`, `roundtrip_ok`, and `parts` (each language spoken and checked on its own) |
 | `POST /warehouse/incidents/{event_id}/toolbox-talk` | `{"lang": "es", "illustrate": true}` | `ToolboxTalk`: `title`, `minutes`, `sections`, `key_points`, `questions`, `illustration` (PNG name), `incident_hash` |
 | `POST /warehouse/incidents/{event_id}/duty` | none | `RefresherDuty`: `applies`, `why`, `clause` (citation, text, `source_url`, `source_retrieved`), `vehicle_unit`, `training_focus`, `due`, `status` |
 | `POST /warehouse/incidents/{event_id}/duty/done` | `{"role": "owner"}` | the duty with `status: done` and `done_hash` (the chained `label` record) |

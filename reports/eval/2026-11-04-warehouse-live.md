@@ -17,6 +17,7 @@ run records, the API log and the saved `/warehouse` results.
 | Live near miss | 9 candidates on 5 cameras: 3.28–4.00 m on the worker clip, 0.0 m on the driver clip | – |
 | Glimmer verdict (RunPod GPU) | 4 of 4 confirmed `violation`, 0.98–0.99 | 12.5–21.7 s per verdict |
 | Spanish warning | Spark wrote it, **Meta MMS-TTS** spoke it, Voice Transcribe heard it back: WER 0.09, 0.15, 0.18, all passed | 13.3–13.6 s |
+| Bilingual warning | Spanish then English in one WAV (MMS-TTS both): Spanish heard back word for word (WER 0.00, passed); English "forklift" heard as "for Cliff" (WER 0.27, **flagged as failed**) | 16.5 s |
 | Phone alert + ack | LAN alert to `safety_officer`; *On my way* tapped on `/usecases/warehouse`; ack chained | – |
 | Evidence | chain intact (287 records), incident report and verify page links | – |
 | OSHA refresher duty | clause found by Spark web search; on the 3.28 m near miss Spark read the forklift's painted unit **"K 35"** ("white marking on side panel, frames 2–3"), said the clause applies; marked done, `refresher_training_done` chained | 17.5–31.8 s |

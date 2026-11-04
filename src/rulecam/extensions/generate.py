@@ -103,7 +103,7 @@ Rulecam proves the check before an owner may approve it. Write for these steps:
   not change the answer.
 
 Every sample follows the schema above exactly (types included), so do not type-check fields;
-use `.get` only for the keys that may be missing (a line or zone name). Keep it short.
+use `.get` only for what may be missing (a line or zone name). Keep it short.
 """
 
 
@@ -180,7 +180,10 @@ def validator_rules() -> str:
             f"- `math.` attributes you may use: {', '.join(sorted(MATH_ATTRIBUTES))}.",
             f"- Methods you may call on data: {', '.join(sorted(DATA_METHODS))}. No other"
             " attribute (no `.format`, no `print`, no `open`, no `getattr`).",
-            "- Never raise: guard every lookup (use `.get`) and return value False when the data"
+            "- Never raise on a sample that follows the schema: every key listed there is always"
+            " present, but a line or zone name may be missing from its dict (use `.get`), the"
+            " object list may be empty, a line may be vertical, and `px_per_m`, `ground_xy_m`,"
+            " `score`, `frame_w` and `frame_h` may be null. Return value False when the data"
             " needed is missing.",
         ]
     )

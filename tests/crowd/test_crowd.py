@@ -14,19 +14,9 @@ from fastapi.testclient import TestClient
 
 from rulecam.ask.watch import Clip
 from rulecam.clients.errors import ModelResponseError
-from rulecam.crowd import (
-    CrowdCheck,
-    CrowdError,
-    CrowdLevels,
-    CrowdWatch,
-    Episode,
-    crowd_router,
-    decide,
-    episodes,
-    peak_local_density,
-    sample,
-)
-from rulecam.crowd.watch import MAX_CHECKS, _thin
+from rulecam.crowd.api import crowd_scan_router
+from rulecam.crowd.density import CrowdLevels, Episode, episodes, peak_local_density, sample
+from rulecam.crowd.watch import MAX_CHECKS, CrowdCheck, CrowdError, CrowdWatch, _thin, decide
 from tests.fakes import FakeLLM
 
 T0 = datetime(2026, 11, 3, 21, 0, tzinfo=UTC)
@@ -266,7 +256,9 @@ def test_thin_keeps_the_densest_sample() -> None:
 
 def test_route(tmp_path: Path) -> None:
     app = FastAPI()
-    app.include_router(crowd_router(watch(tmp_path, Tables(dense_rows()), None, Joiner(tmp_path))))
+    app.include_router(
+        crowd_scan_router(watch(tmp_path, Tables(dense_rows()), None, Joiner(tmp_path)))
+    )
     body = {
         "camera_id": "cam",
         "start": T0.isoformat(),
@@ -282,7 +274,7 @@ def test_route(tmp_path: Path) -> None:
         assert client.post("/crowd/scan", json=backwards).status_code == 422
         assert client.post("/crowd/scan", json=body | {"camera_id": "../x"}).status_code == 422
     off = FastAPI()
-    off.include_router(crowd_router(None))
+    off.include_router(crowd_scan_router(None))
     with TestClient(off) as client:
         assert client.post("/crowd/scan", json=body).status_code == 503
 

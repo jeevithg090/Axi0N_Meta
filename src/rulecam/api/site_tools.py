@@ -26,7 +26,9 @@ from rulecam.clients.meta_hosted.spark import SparkClient
 from rulecam.config import Settings
 from rulecam.context import SiteContextService, SiteLocation, context_router
 from rulecam.contracts import Clock
-from rulecam.crowd import CrowdLevels, CrowdWatch, crowd_router
+from rulecam.crowd.api import crowd_scan_router
+from rulecam.crowd.density import CrowdLevels
+from rulecam.crowd.watch import CrowdWatch
 from rulecam.log import get_logger
 from rulecam.replay.cache import ReplayCache
 from rulecam.runtime.factory import Perception
@@ -102,7 +104,7 @@ def build_site_tools(
     )
     return (
         context_router(context, dependencies=dependencies),
-        crowd_router(crowd, dependencies=dependencies),
+        crowd_scan_router(crowd, dependencies=dependencies),
         shelf_router(
             shelf,
             uploads_dir=data / "shelf" / "uploads",

@@ -123,6 +123,20 @@ class Settings(BaseSettings):
     rulecam_ask_review: bool = True
     # The deployed commit, for Ask's run log (empty: `git rev-parse HEAD` when run from a clone).
     rulecam_git_sha: str = ""
+    # Crowd early warning (`rulecam.crowd`, prototype mode): measure each camera's crowd every N
+    # seconds of video (SAM 3.1 on grid x grid tiles counting the concept); 0 = off.
+    rulecam_crowd_every_s: float = Field(default=0.0, ge=0.0)
+    rulecam_crowd_concept: str = "person"
+    rulecam_crowd_grid: int = Field(default=2, ge=1, le=4)
+    # Seconds between the warden's assessments (Muse Spark) of a watched camera.
+    rulecam_crowd_assess_every_s: float = Field(default=10.0, gt=0.0)
+    # Seconds Muse Glimmer gets to check an alert's frames; past it the alert goes unchecked.
+    rulecam_crowd_check_timeout_s: float = Field(default=20.0, gt=0.0)
+    # Cameras to measure (comma-separated ids; empty: every camera with video). With an
+    # instruction, they are watched from start-up in these announcement languages ("hi,en").
+    rulecam_crowd_cameras: str = ""
+    rulecam_crowd_instruction: str = ""
+    rulecam_crowd_languages: str = ""
     # Only for command-line clients that log in to a remote API as the owner (`rulecam eval
     # ask`); the API itself never reads it (it checks OWNER_PASSPHRASE_HASH).
     rulecam_owner_passphrase: SecretStr | None = None

@@ -29,7 +29,7 @@ class ScanRequest(BaseModel):
     verify: bool = True
 
 
-def crowd_router(watch: CrowdWatch | None, *, dependencies: Sequence[Any] = ()) -> APIRouter:
+def crowd_scan_router(watch: CrowdWatch | None, *, dependencies: Sequence[Any] = ()) -> APIRouter:
     """The `/crowd` routes; 503 without a track store."""
     router = APIRouter(prefix="/crowd", tags=["crowd"], dependencies=list(dependencies))
 

@@ -31,7 +31,7 @@ from rulecam.retail.advice import (
 from rulecam.retail.api import retail_router
 from rulecam.retail.brief import BriefWriter, day_stats
 from rulecam.retail.checks import QueueChecker, RetailError, ShelfChecker, Site
-from rulecam.retail.models import Finding, WatchRequest
+from rulecam.retail.models import Finding, StaffTask, WatchRequest
 from rulecam.retail.proof import ProofChecker
 from rulecam.retail.service import CardBook, RetailService, image_resolver
 from rulecam.retail.staff import StaffDesk
@@ -380,9 +380,21 @@ def test_day_stats_counts_answered_alerts() -> None:
         alert_id="al-1",
         metric=2.0,
     )
-    stats = day_stats([f], [], 0, {"f-1": "acknowledged"})
+    done = StaffTask(
+        id="t-1",
+        finding_id="f-1",
+        camera_id="aisle",
+        where="aisle",
+        items=[],
+        marked=None,
+        created_at=AT,
+        status="done",
+        minutes_to_fix=7.0,
+    )
+    stats = day_stats([f], [done], 0, {"f-1": "acknowledged"})
     assert stats.alerts_answered == 1
     assert stats.hazards_confirmed == 2
+    assert stats.median_minutes_to_fix == 7.0
 
 
 def test_grounding_and_gain_helpers() -> None:

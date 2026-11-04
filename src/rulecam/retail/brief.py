@@ -11,6 +11,7 @@ could not see. It must not add numbers that are not in what it was given.
 from __future__ import annotations
 
 import json
+import statistics
 import time
 from collections.abc import Sequence
 from datetime import datetime, timedelta
@@ -85,8 +86,15 @@ def day_stats(
         shelf_gaps=sum(int(f.metric or 0) for f in findings if f.kind == "shelf"),
         tasks_open=sum(1 for t in tasks if t.status in {"open", "on_my_way"}),
         tasks_done=sum(1 for t in tasks if t.status == "done"),
+        median_minutes_to_fix=median_fix(tasks),
         asks=asks,
     )
+
+
+def median_fix(tasks: Sequence[StaffTask]) -> float | None:
+    """Median minutes from seen to fixed over the closed tasks (`None` when none closed)."""
+    took = [t.minutes_to_fix for t in tasks if t.status == "done" and t.minutes_to_fix is not None]
+    return round(statistics.median(took), 1) if took else None
 
 
 class BriefWriter:

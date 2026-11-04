@@ -218,25 +218,25 @@ def disclose(days: Sequence[ChainDay], period: Period) -> tuple[set[str], list[D
         ):
             keys.add(item.key)
     keys |= _context_before(everything, windows[0][0])
-    proofs: list[DayProof] = []
-    for d in days:
-        inside = [
-            i for i, item in enumerate(d.records) if any(_in(item, lo, hi) for lo, hi in windows)
-        ]
-        first = inside[0] if inside else None
-        last = inside[-1] if inside else None
-        for edge in (first - 1 if first else None, last + 1 if last is not None else None):
-            if edge is not None and 0 <= edge < len(d.records):
-                keys.add(d.records[edge].key)
-        proofs.append(
-            d.proof.model_copy(
-                update={
-                    "window_first": first + 1 if first is not None else None,
-                    "window_last": last + 1 if last is not None else None,
-                }
-            )
-        )
+    proofs = [_window_edges(d, windows, keys) for d in days]
     return keys, proofs
+
+
+def _window_edges(day: ChainDay, windows: Sequence[tuple[int, int]], keys: set[str]) -> DayProof:
+    """Disclose the day's whole window plus one record on each side; return its proof entry.
+
+    A record written out of time order between the edges is disclosed too, so the window the
+    browser checks is always one unbroken run of seqs.
+    """
+    inside = [
+        i for i, item in enumerate(day.records) if any(_in(item, lo, hi) for lo, hi in windows)
+    ]
+    if not inside:
+        return day.proof
+    first, last = inside[0], inside[-1]
+    lo, hi = max(first - 1, 0), min(last + 1, len(day.records) - 1)
+    keys.update(item.key for item in day.records[lo : hi + 1])
+    return day.proof.model_copy(update={"window_first": first + 1, "window_last": last + 1})
 
 
 def _context_before(everything: Sequence[Located], start: int) -> set[str]:

@@ -12,6 +12,7 @@ from typing import Final
 
 from rulecam.cards.build import back_translation_for
 from rulecam.contracts import RuleIR, SitePlan
+from rulecam.planner.scope import rule_scope
 from rulecam.planner.steps.back_translate import NOT_BACK_TRANSLATED, plan_languages
 from rulecam.worker.log import SiteLog, event_code
 from rulecam.worker.models import DisputeOutcome, EventCard, WorkerPage, WorkerRule
@@ -27,12 +28,13 @@ def bucket_start(ts: datetime) -> datetime:
 
 
 def camera_rules(plan: SitePlan, camera_id: str) -> tuple[RuleIR, ...]:
-    """Return the plan's rules with a zone on `camera_id`."""
-    return tuple(
-        rule
-        for rule in plan.rules
-        if any(zone.camera_id == camera_id for zone in rule.zones.values())
-    )
+    """Return the plan's rules that run on `camera_id`.
+
+    That is the same scope the runtime uses (`planner.scope.rule_scope`): a zone on the camera,
+    the camera its calibration names, or the feasibility evidence that put it there. A rule with
+    no zone (a forklift distance rule, say) is on the page of every camera it runs on.
+    """
+    return tuple(rule for rule in plan.rules if camera_id in rule_scope(plan.feasibility, rule))
 
 
 def page_language(plan: SitePlan, lang: str | None) -> str:

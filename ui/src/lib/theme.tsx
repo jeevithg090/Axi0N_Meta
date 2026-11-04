@@ -4,6 +4,14 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
 
+const STORAGE_KEY = "rulecam-theme";
+
+/**
+ * Runs in <head> before first paint: applies a saved choice to <html data-theme>. With no saved
+ * choice the attribute stays unset and the stylesheet follows the system's light or dark setting.
+ */
+export const THEME_BOOT_SCRIPT = `try{var t=localStorage.getItem("${STORAGE_KEY}");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}`;
+
 interface ThemeContextValue {
   theme: Theme;
   isDark: boolean;
@@ -18,20 +26,33 @@ const ThemeContext = createContext<ThemeContextValue>({
   toggleTheme: () => {},
 });
 
+/** The theme in force: an explicit choice on <html>, else the system setting. */
+function currentTheme(): Theme {
+  if (typeof document === "undefined") return "light";
+  const attr = document.documentElement.getAttribute("data-theme");
+  if (attr === "light" || attr === "dark") return attr;
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
 
   useEffect(() => {
-    const saved = localStorage.getItem("rulecam-theme") as Theme | null;
-    if (saved === "light" || saved === "dark") {
-      setThemeState(saved);
-      document.documentElement.setAttribute("data-theme", saved);
-    }
+    setThemeState(currentTheme());
+    // Follow the system while nothing has been chosen on this device.
+    const query = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const onChange = () => setThemeState(currentTheme());
+    query?.addEventListener?.("change", onChange);
+    return () => query?.removeEventListener?.("change", onChange);
   }, []);
 
   const setTheme = (t: Theme) => {
     setThemeState(t);
-    localStorage.setItem("rulecam-theme", t);
+    try {
+      localStorage.setItem(STORAGE_KEY, t);
+    } catch {
+      // Private windows may refuse storage; the choice still applies to this page.
+    }
     document.documentElement.setAttribute("data-theme", t);
   };
 

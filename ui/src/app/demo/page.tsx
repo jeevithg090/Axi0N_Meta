@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { LiveAlerts } from "@/components/demo/LiveAlerts";
+import { LiveBadge, StepFlow } from "@/components/kit";
 import { StripFrames } from "@/components/VerifierPanel";
 import {
   GOLDEN_RUNS,
@@ -54,6 +55,25 @@ function GoldenStory({ run }: { run: GoldenRun }) {
   const query = `?demo=${run.name}`;
   return (
     <div className="golden" data-testid="golden-run">
+      <header className="golden-hero">
+        <LiveBadge mode="replay" detail={`recorded ${run.recorded_at.slice(0, 10)}, no model calls`} />
+        <h1 className="golden-title">The golden replay</h1>
+        <p className="lead">
+          One request, followed from plain words to a hash-chained decision. Every model reply was
+          stored, so this works with every GPU switched off.
+        </p>
+        <StepFlow
+          label="What this replay shows"
+          size="compact"
+          as="h2"
+          steps={[
+            { name: "Describe", text: "The owner's request, in their words.", state: "done", href: "#planner" },
+            { name: "Plan", text: "The planner's steps, with their real details.", state: "done", href: "#planner" },
+            { name: "Prove", text: "Rule CI, re-run offline, same as at approval.", state: "done", href: "#rule" },
+            { name: "Trust", text: "The chain, checked in your own browser.", state: "done", href: "#evidence" },
+          ]}
+        />
+      </header>
       <LiveAlerts />
       <section aria-label="Run">
         <h2>Golden run · {run.name}</h2>
@@ -78,7 +98,7 @@ function GoldenStory({ run }: { run: GoldenRun }) {
         </p>
       </section>
 
-      <section aria-label="Planner">
+      <section aria-label="Planner" id="planner">
         <h2>1 · The request and the planner</h2>
         <p>“{plan.request}”</p>
         <ol>
@@ -91,7 +111,7 @@ function GoldenStory({ run }: { run: GoldenRun }) {
         </ol>
       </section>
 
-      <section aria-label="Rule">
+      <section aria-label="Rule" id="rule">
         <h2>2 · The rule and Rule CI</h2>
         {plan.rules.map((rule) => (
           <p key={rule.id}>
@@ -116,7 +136,7 @@ function GoldenStory({ run }: { run: GoldenRun }) {
         </ul>
       </section>
 
-      <section aria-label="Runtime">
+      <section aria-label="Runtime" id="runtime">
         <h2>3 · Approved, then the camera</h2>
         <p>
           The scored pass gave {plural(score.candidates, "candidate")} and{" "}
@@ -130,7 +150,7 @@ function GoldenStory({ run }: { run: GoldenRun }) {
         ))}
       </section>
 
-      <section aria-label="Evidence">
+      <section aria-label="Evidence" id="evidence">
         <h2>4 · The evidence chain</h2>
         <ul>
           <Check ok={evidence.ok}>
@@ -142,10 +162,10 @@ function GoldenStory({ run }: { run: GoldenRun }) {
           </Check>
         </ul>
         <p>
-          Daily root: <code style={{ wordBreak: "break-all" }}>{evidence.root}</code>
+          Daily root: <code className="golden-root">{evidence.root}</code>
         </p>
         <p>
-          <a href={run.verify_url} data-testid="verify-link">
+          <a href={run.verify_url} data-testid="verify-link" className="btn primary">
             Verify it in your browser
           </a>{" "}
           <span className="muted">
@@ -155,12 +175,14 @@ function GoldenStory({ run }: { run: GoldenRun }) {
         </p>
       </section>
 
-      {PENDING_RUNS.map((p) => (
-        <section key={p.name} className="pending" aria-label={`Pending: ${p.name}`}>
-          <h2>Next golden run · {p.title}</h2>
-          <p className="muted">Not recorded yet. Needs: {p.needs}</p>
-        </section>
-      ))}
+      {PENDING_RUNS.length > 0 && (
+        <p className="muted" data-testid="pending-note">
+          {PENDING_RUNS.length === 1
+            ? "One more recorded run is coming"
+            : `${PENDING_RUNS.length} more recorded runs are coming`}
+          : {PENDING_RUNS.map((p) => p.title).join("; ")}.
+        </p>
+      )}
     </div>
   );
 }

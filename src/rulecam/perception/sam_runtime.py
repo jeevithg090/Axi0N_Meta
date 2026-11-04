@@ -423,7 +423,11 @@ class ModalWorker:
 
 
 def sam_transport(
-    base_url: str, api_key: SecretStr, edge_key: SecretStr | None = None
+    base_url: str,
+    api_key: SecretStr,
+    edge_key: SecretStr | None = None,
+    *,
+    timeout_s: float = HTTP_TIMEOUT_S,
 ) -> HttpxTransport:
     """`HttpxTransport` to `sam_server`, on a GPU pod or behind a RunPod load balancer.
 
@@ -433,16 +437,17 @@ def sam_transport(
         edge_key: `SAM_EDGE_KEY`, the RunPod API key a serverless load balancer checks at its
             edge. When set, it is the `Authorization` bearer and the server's key travels in
             `X-Rulecam-Key`.
+        timeout_s: Per-request timeout (`SAM_HTTP_TIMEOUT_S`).
 
     Returns:
         The transport.
     """
     if edge_key is None:
-        return HttpxTransport(base_url, api_key.get_secret_value(), timeout_s=HTTP_TIMEOUT_S)
+        return HttpxTransport(base_url, api_key.get_secret_value(), timeout_s=timeout_s)
     return HttpxTransport(
         base_url,
         edge_key.get_secret_value(),
-        timeout_s=HTTP_TIMEOUT_S,
+        timeout_s=timeout_s,
         headers={SAM_KEY_HEADER: api_key.get_secret_value()},
     )
 
@@ -497,8 +502,18 @@ class HttpSamWorker:
         if not settings.sam_base_url or settings.sam_api_key is None:
             msg = "SAM_BASE_URL and SAM_API_KEY must both be set for the self-hosted SAM server"
             raise SamRuntimeUnavailableError(msg)
-        edge_key = settings.sam_edge_key
-        return cls(sam_transport(settings.sam_base_url, settings.sam_api_key, edge_key))
+        transport = sam_transport(
+            settings.sam_base_url,
+            settings.sam_api_key,
+            settings.sam_edge_key,
+            timeout_s=settings.sam_http_timeout_s,
+        )
+        retry = RetryPolicy(
+            max_attempts=settings.sam_http_attempts,
+            base_delay_s=HTTP_RETRY.base_delay_s,
+            max_delay_s=HTTP_RETRY.max_delay_s,
+        )
+        return cls(transport, retry=retry)
 
     def segment(self, video: bytes, request: dict[str, Any]) -> dict[str, Any]:
         """Run one request on the GPU pod.

@@ -93,6 +93,8 @@ from rulecam.api.prometheus import (
     serverless_gpu_rate,
 )
 from rulecam.api.site_tools import build_site_tools
+from rulecam.api.validation import install_validation_handler
+from rulecam.api.wearables import build_wearables
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
     AskAgent,
@@ -110,15 +112,19 @@ from rulecam.ask.runlog import AskRunLog, git_sha
 from rulecam.ask.watch import ClipJoiner
 from rulecam.bus import Bus, Topic
 from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
+from rulecam.chain.api import chain_router
 from rulecam.clients.errors import ClientConfigError
 from rulecam.clients.meta_hosted import SparkClient, VoiceTranscribeClient
 from rulecam.clients.open_weights.glimmer import GlimmerClient
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
+from rulecam.compliance.api import build_proof_router
 from rulecam.config import Settings, get_settings
+from rulecam.connectors import ConnectorManager, build_connectors, connectors_router
 from rulecam.contracts import TTS, Calibration, Chunk, Clock, PrivacyMode, SitePlan
 from rulecam.crowd.memory import Calibrations, CrowdMemory, ModelCalibration
 from rulecam.crowd.scan import CrowdScanner
+from rulecam.crowd.tally import Tallier
 from rulecam.crowd.warden import CrowdWarden
 from rulecam.crowd.zones import CrowdZone
 from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
@@ -153,6 +159,7 @@ from rulecam.rule_ci import prove_plan_hook
 from rulecam.rule_ci.hard_negatives import HardNegatives
 from rulecam.runtime.activate import Activation, PlanActivator, restore_activation
 from rulecam.runtime.cost import CostMeter, CostReport, CostSettings, CostWatch
+from rulecam.runtime.coverage_log import CoverageLog
 from rulecam.runtime.factory import (
     ChainEventSource,
     ChunkIndex,
@@ -168,10 +175,13 @@ from rulecam.runtime.idle_stop import IdleGpuStop
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
 from rulecam.runtime.response import Response, ResponseStatus, build_response
 from rulecam.runtime.serverless import GpuHealth, RunPodServerless
+from rulecam.staff.factory import build_staff
 from rulecam.verify.tier2 import SparkOpenVerifier
 from rulecam.voice_out.tts import MmsTts
+from rulecam.warehouse.api import build_warehouse
 from rulecam.worker import DisputeService, worker_router
 from rulecam.worker.disputes import DisputeReviewer
+from rulecam.worker.spark_review import spark_dispute_reviewer
 
 _log = get_logger(__name__)
 
@@ -219,6 +229,7 @@ class AppServices:
         verify_base: The verify page's public URL in incident reports' QR codes (e.g.
             `<PUBLIC_UI_URL>/rulecam-api/verify/`); default the API's own `/verify/`.
         pdf_printer: Prints a report to PDF (`evidence.packs.render_pdf`).
+        connectors: Camera connectors; their names and first looks label `GET /cameras`.
     """
 
     bus: Bus
@@ -253,6 +264,7 @@ class AppServices:
     stills_root: Path | None = None
     verify_base: str | None = None
     pdf_printer: PdfPrinter = render_pdf
+    connectors: ConnectorManager | None = None  # names and first looks in `GET /cameras`
 
 
 class RuntimeReport(LoopMetrics):
@@ -343,6 +355,7 @@ class CameraInfo(BaseModel):
     label: str
     source: str
     last_chunk_at: datetime | None = None
+    description: str | None = None  # Muse Spark's first look (`rulecam.connectors`)
 
 
 class Health(BaseModel):
@@ -440,7 +453,8 @@ def _cameras(services: AppServices) -> list[CameraInfo]:
             camera_id,
             CameraInfo(camera_id=camera_id, label=camera_id, source="capture", last_chunk_at=last),
         )
-    return list(rows.values())
+    found = list(rows.values())
+    return services.connectors.label(found, CameraInfo) if services.connectors else found
 
 
 def _chain_days(folder: Path) -> list[date]:
@@ -665,6 +679,7 @@ def create_app(services: AppServices) -> FastAPI:
         publish) and starts the runtime loop if there is one; on shutdown it stops it.
     """
     app = FastAPI(title="Rulecam", version="0.1.0", lifespan=_lifespan(services))
+    install_validation_handler(app)
     auth = services.auth or OwnerAuth(clock=SystemClock(), allowed_origins=services.viewer_origins)
     app.dependency_overrides[require_owner] = auth.require_owner
     for router in _routers(services, auth):
@@ -968,6 +983,9 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         perception=perception,
         response=response,
         runtime=runtime,
+        glimmer_warm=lambda: any(
+            p.health().state == "warm" for p in probes if p.service == "glimmer"
+        ),
     )
     ask_agent, ask_tickers = build_ask(
         settings, cache=cache, clock=clock, bus=bus, perception=perception, crowd=(crowd, warden)
@@ -983,6 +1001,23 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         chain=chain,
         advice=advice,
         ask=ask_agent,
+        dependencies=_OWNER,
+    )
+    connectors = build_connectors(
+        settings, cache=cache, clock=clock, bus=bus, sam=perception.hosted, chunks=perception.chunks
+    )
+    staff = build_staff(
+        settings,
+        cache=cache,
+        clock=clock,
+        bus=bus,
+        response=response,
+        chain_root=chain_root,
+        segmenter=perception.hosted,
+        ask_agent=ask_agent,
+        false_alarm=false_alarm,
+        plans_dir=PLANS_DIR,
+        camera_labels=lambda: {c.camera_id: c.label for c in pair.registry.cameras()},
         dependencies=_OWNER,
     )
     origins = viewer_origins(settings.public_ui_url)
@@ -1016,6 +1051,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             else None
         ),
         auth=auth,
+        connectors=connectors,
         health_probes=probes,
         tickers=(
             *response.tickers,
@@ -1023,8 +1059,16 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             *ask_tickers,
             *crowd_tickers,
             *retail_tickers,
+            *staff.tickers,
         ),
-        pollers=response.pollers(false_alarm),
+        pollers=(
+            *response.pollers(false_alarm),
+            *(
+                (CoverageLog(perception.chunks, chain).poll,)
+                if settings.rulecam_coverage_log
+                else ()
+            ),
+        ),
         response=response.status,
         cost=watch.report if watch is not None else None,
         advice=advice,
@@ -1037,7 +1081,9 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 chain=chain,
                 plans=plans,
                 client_address=client_address,
-                reviewer=response.policy,
+                reviewer=spark_dispute_reviewer(
+                    settings, response.policy, cache=cache, clock=clock, bus=bus
+                ),
                 hard_negatives=hard_negatives,
             ),
             owner_alerts_router(response, on_false_alarm=false_alarm),
@@ -1059,8 +1105,46 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             ),
             extensions.router(_OWNER),
             retail,
+            chain_router(settings.rulecam_chains_dir, dependencies=_OWNER),
+            connectors_router(connectors, dependencies=_OWNER),
+            build_warehouse(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                chain=chain,
+                plans=plans,
+                runtime=runtime,
+                perception=perception,
+                planner=planner,
+                whatsapp=response.whatsapp,
+                dependencies=_OWNER,
+            ),
+            build_wearables(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                perception=perception,
+                chain=chain,
+                dependencies=_OWNER,
+            ),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
+            build_proof_router(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                chain_root=chain_root,
+                site=site,
+                privacy_mode=lambda: (
+                    runtime.plan.privacy_mode if runtime and runtime.plan else None
+                ),
+                dependencies=_OWNER,
+                plans_dir=PLANS_DIR,
+            ),
+            staff.router,
         ),
     )
 
@@ -1134,7 +1218,7 @@ def build_ask(
             site_profile=settings.rulecam_site_profile,
         )
     reviewer = None
-    if settings.rulecam_ask_review and settings.baseten_api_key is not None:
+    if settings.rulecam_ask_review and settings.spark_open_configured:
         reviewer = SparkOpenReviewer(
             SparkOpenClient.from_settings(settings, cache=cache, clock=clock, bus=bus),
             max_result_chars=settings.rulecam_ask_max_result_chars,
@@ -1202,6 +1286,7 @@ def build_crowd(
     perception: Perception,
     response: Response,
     runtime: RuntimeLoop | None,
+    glimmer_warm: Callable[[], bool] | None = None,
 ) -> tuple[CrowdMemory | None, CrowdWarden | None, tuple[Callable[[], object], ...]]:
     """Crowd early warning: readings every few seconds and the warden that judges them.
 
@@ -1220,6 +1305,7 @@ def build_crowd(
         return None, None, ()
     try:
         spark = SparkClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
+        voice = VoiceTranscribeClient.from_settings(settings, clock=clock, bus=bus, cache=cache)
     except ClientConfigError as exc:
         _log.warning("crowd_disabled", error=str(exc))
         return None, None, ()
@@ -1280,6 +1366,19 @@ def build_crowd(
         check_timeout_s=settings.rulecam_crowd_check_timeout_s,
         site_profile=settings.rulecam_site_profile,
         camera_names=names,
+        escalation=response.escalation,
+        alert_store=response.notifier,
+        verifier_warm=glimmer_warm,
+        transcriber=voice,
+        tallier=Tallier(
+            spark=spark,
+            files=spark,
+            glimmer=glimmer,
+            glimmer_model=glimmer.model,
+            frames_dir=frames.out_dir,
+            out_dir=settings.rulecam_data_dir / "strips" / "crowd",
+            glimmer_warm=glimmer_warm,
+        ),
     )
     languages = [x for x in settings.rulecam_crowd_languages.split(",") if x.strip()]
     if settings.rulecam_crowd_instruction:
@@ -1294,6 +1393,11 @@ def crowd_tts(bus: Bus) -> TTS | None:
         _log.info("crowd_tts_off", reason="the ml extra (transformers) is not installed")
         return None
     return MmsTts(bus)
+
+
+def coverage(settings: Settings, perception: Perception, chain: EventChain) -> CoverageLog | None:
+    """The coverage log that chains BLIND / OK changes, unless turned off."""
+    return CoverageLog(perception.chunks, chain) if settings.rulecam_coverage_log else None
 
 
 def cost_watch(

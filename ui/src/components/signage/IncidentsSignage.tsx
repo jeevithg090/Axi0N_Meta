@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { API_PROXY } from "../../lib/config";
 import { withCsrf } from "../../lib/api";
 import { SampleDataTag } from "../SampleDataTag";
+import { EmptyState, Skeleton } from "../kit";
+import { ClipPlayer } from "../ClipPlayer";
 
 interface IncidentSummary {
   event_id: string;
@@ -74,6 +76,8 @@ export function IncidentsSignage() {
   const [selectedId, setSelectedId] = useState<string>("");
   const [report, setReport] = useState<IncidentReport | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  // Why the queue is empty, when it is: the API refused (incidents are the owner's) or failed.
+  const [access, setAccess] = useState<"ok" | "forbidden" | "error">("ok");
   const [verdictFilter, setVerdictFilter] = useState<"all" | "violation" | "no_violation">("all");
   const [localStatus, setLocalStatus] = useState<Record<string, string>>({});
   const [actionBanner, setActionBanner] = useState<string | null>(null);
@@ -82,6 +86,7 @@ export function IncidentsSignage() {
     setLoading(true);
     try {
       const res = await fetch(`${API_PROXY}/incidents`, { cache: "no-store" });
+      setAccess(res.ok ? "ok" : res.status === 401 || res.status === 403 ? "forbidden" : "error");
       if (res.ok) {
         const data = (await res.json()) as IncidentSummary[];
         setIncidents(data);
@@ -90,6 +95,8 @@ export function IncidentsSignage() {
           setSelectedId(first.event_id);
         }
       }
+    } catch {
+      setAccess("error");
     } finally {
       setLoading(false);
     }
@@ -160,12 +167,17 @@ export function IncidentsSignage() {
         <div className="grid">
           <div className="s8">
             <div className="ctx">
-              Chained Incident Queue &nbsp;·&nbsp; <b>GET /incidents ({incidents.length} events)</b>{" "}
-              &nbsp;·&nbsp; {violationsCount} confirmed breaches · {suppressedCount} VLM-suppressed
+              Chained incident queue{" "}
+              <b>
+                GET /incidents (
+                {access === "ok" ? `${incidents.length} events` : access === "forbidden" ? "owner only" : "no answer"})
+              </b>
+              {access === "ok" && ` ${violationsCount} confirmed breaches, ${suppressedCount} suppressed by Glimmer`}
             </div>
             <h1 className="h1">
-              {violationsCount} confirmed breaches.{" "}
-              <span className="hi">Nothing is punished</span> without verifiable chain proof.
+              {access === "ok" ? `${violationsCount} confirmed breaches.` : "Every incident, with its proof."}
+              <br />
+              Nothing is punished without verifiable chain proof.
             </h1>
           </div>
           <div className="s4 stack end">
@@ -207,11 +219,32 @@ export function IncidentsSignage() {
         <div className="grid">
           {/* Queue List (4 cols) */}
           <div className="s4" style={{ padding: 0 }}>
-            <div style={{ borderTop: "2px solid var(--ink)" }}>
+            <div style={{ borderTop: "1px solid var(--color-rule)" }}>
               {loading && incidents.length === 0 ? (
-                <div style={{ padding: "var(--s3)" }} className="mono">
-                  Loading chained incidents…
+                <div style={{ padding: "var(--s3) 0" }}>
+                  <Skeleton lines={4} label="Loading chained incidents" />
                 </div>
+              ) : access === "forbidden" ? (
+                <EmptyState
+                  title="Incidents are the site owner's"
+                  icon="shield"
+                  action={
+                    <a className="btn" href="/login">
+                      Owner login
+                    </a>
+                  }
+                >
+                  The API keeps each incident&apos;s records for the owner. Everyone else gets the
+                  hashes, which anyone can check on the verify page.
+                </EmptyState>
+              ) : access === "error" ? (
+                <EmptyState title="Could not load incidents" tone="error" icon="alert">
+                  The Rulecam API did not answer. Try again in a moment.
+                </EmptyState>
+              ) : incidents.length === 0 ? (
+                <EmptyState title="No incidents yet" icon="alert">
+                  An incident appears here when an approved rule fires and Glimmer has checked it.
+                </EmptyState>
               ) : (
                 filtered.map((it) => {
                   const isSel = it.event_id === selectedId;
@@ -228,8 +261,8 @@ export function IncidentsSignage() {
                         background: isSel ? "var(--paper-2)" : "transparent",
                         color: "var(--ink)",
                         border: 0,
-                        borderBottom: "1px solid var(--ink)",
-                        borderLeft: isSel ? "6px solid var(--ink)" : "6px solid transparent",
+                        borderBottom: "1px solid var(--color-rule)",
+                        borderLeft: isSel ? "1px solid var(--color-rule-2)" : "6px solid transparent",
                         padding: "var(--s2)",
                         cursor: "pointer",
                       }}
@@ -313,9 +346,10 @@ export function IncidentsSignage() {
                     style={{
                       marginBottom: "var(--s3)",
                       padding: "10px 14px",
-                      background: "var(--yellow)",
-                      color: "#141414",
-                      border: "2px solid var(--ink)",
+                      background: "var(--color-accent-soft)",
+                      color: "var(--color-ink)",
+                      border: "1px solid var(--color-rule)",
+                      borderRadius: "var(--radius-card)",
                       fontWeight: 700,
                     }}
                   >
@@ -331,7 +365,8 @@ export function IncidentsSignage() {
                     gap: "12px",
                     padding: "12px 16px",
                     background: "var(--paper-2)",
-                    border: "2px solid var(--ink)",
+                    border: "1px solid var(--color-rule)",
+                    borderRadius: "var(--radius-card)",
                     marginBottom: "var(--s3)",
                   }}
                 >
@@ -380,12 +415,13 @@ export function IncidentsSignage() {
                 >
                   <div
                     style={{
-                      background: "#0a0c0e",
-                      border: "2px solid var(--ink)",
+                      background: "var(--color-scene)",
+                      border: "1px solid var(--color-rule)",
+                      borderRadius: "var(--radius-card)",
                       position: "relative",
                     }}
                   >
-                    <video
+                    <ClipPlayer
                       key={videoSrc}
                       src={videoSrc}
                       controls
@@ -400,8 +436,8 @@ export function IncidentsSignage() {
                         padding: "6px 10px",
                         fontFamily: "var(--font-dm-mono, monospace)",
                         fontSize: "11px",
-                        color: "#ECEAE3",
-                        background: "#141414",
+                        color: "var(--color-on-scene)",
+                        background: "var(--color-scene)",
                         display: "flex",
                         justifyContent: "space-between",
                       }}
@@ -421,9 +457,10 @@ export function IncidentsSignage() {
                           display: "flex",
                           alignItems: "center",
                           gap: "10px",
-                          background: "#141414",
-                          color: "#ECEAE3",
-                          border: "1px solid var(--ink)",
+                          background: "var(--color-scene)",
+                          color: "var(--color-on-scene)",
+                          border: "1px solid var(--color-rule)",
+                          borderRadius: "var(--radius-card)",
                           padding: "4px 8px",
                         }}
                       >
@@ -440,10 +477,10 @@ export function IncidentsSignage() {
                           }}
                         />
                         <div style={{ minWidth: 0 }}>
-                          <div className="dm" style={{ fontSize: "11px", color: "#F2D100" }}>
+                          <div className="dm" style={{ fontSize: "11px", color: "var(--color-scene-accent)" }}>
                             SAMPLE STILL #{idx + 1}
                           </div>
-                          <div className="dm" style={{ fontSize: "11px", color: "#B9C0C3" }}>
+                          <div className="dm" style={{ fontSize: "11px", color: "var(--color-on-scene-2)" }}>
                             Built-in, not this incident&apos;s evidence
                           </div>
                         </div>
@@ -457,7 +494,7 @@ export function IncidentsSignage() {
                   <h3 className="h3" style={{ fontSize: "20px", marginBottom: "var(--s2)" }}>
                     Cryptographic Event Timeline ({report.timeline.length} Chained Records)
                   </h3>
-                  <div style={{ borderTop: "2px solid var(--ink)" }}>
+                  <div style={{ borderTop: "1px solid var(--color-rule)" }}>
                     {report.timeline.map((entry) => (
                       <div
                         key={entry.seq}
@@ -466,7 +503,7 @@ export function IncidentsSignage() {
                           gridTemplateColumns: "70px 90px 100px 1fr 130px",
                           gap: "10px",
                           padding: "10px 8px",
-                          borderBottom: "1px solid var(--ink)",
+                          borderBottom: "1px solid var(--color-rule)",
                           alignItems: "baseline",
                           fontSize: "14px",
                         }}
@@ -478,12 +515,12 @@ export function IncidentsSignage() {
                         <span
                           className="dm"
                           style={{
-                            textTransform: "uppercase",
                             fontSize: "11px",
                             fontWeight: 700,
                             padding: "2px 6px",
                             background: "var(--paper-2)",
-                            border: "1px solid var(--ink)",
+                            border: "1px solid var(--color-rule)",
+                            borderRadius: "var(--radius-card)",
                             textAlign: "center",
                           }}
                         >

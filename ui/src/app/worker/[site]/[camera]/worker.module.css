@@ -1,0 +1,95 @@
+/* The worker page is read on a phone from the QR poster: every tap target is at least 44 px. */
+
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 16px;
+  overflow-wrap: anywhere;
+}
+
+.tap {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.2;
+  border: 1px solid rgba(127, 127, 127, 0.6);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.tap:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.tap[aria-pressed="true"] {
+  border-width: 2px;
+  font-weight: 600;
+}
+
+.primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.langSwitch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.event {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.choice input {
+  width: 22px;
+  height: 22px;
+}
+
+.details textarea {
+  width: 100%;
+  min-height: 88px;
+  font: inherit;
+  font-size: 16px;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.sheet {
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 16px;
+  border-radius: 12px 12px 0 0;
+  background: Canvas;
+  color: CanvasText;
+  display: grid;
+  gap: 12px;
+}

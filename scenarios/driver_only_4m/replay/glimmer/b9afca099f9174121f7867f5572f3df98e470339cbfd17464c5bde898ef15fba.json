@@ -1,0 +1,60 @@
+{
+  "key": "b9afca099f9174121f7867f5572f3df98e470339cbfd17464c5bde898ef15fba",
+  "provider": "glimmer",
+  "model": "muse-glimmer-30b",
+  "recorded_at": "2026-11-02T23:49:31.048771Z",
+  "latency_ms": 18806,
+  "response": {
+    "status": 200,
+    "headers": {
+      "date": "Mon, 02 Nov 2026 23:49:31 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "server": "cloudflare",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+      "vary": "Origin",
+      "x-runpod-worker-id": "ag59si3c9xfz7t",
+      "cf-cache-status": "DYNAMIC",
+      "content-encoding": "gzip",
+      "cf-ray": "a54708cfbdca7816-MSP"
+    },
+    "json": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "{\n  \"verdict\": \"no_violation\",\n  \"p_violation\": 0.05,\n  \"reason\": \"The red-boxed person is the forklift operator seated inside the cabin, not a separate pedestrian near a moving forklift; the measured proximity is to the vehicle they are operating.\",\n  \"scene_text\": \"HEL\\nK 35\"\n}",
+            "reasoning_content": "Rule: Keep people at least 4 metres away from a moving forklift.\n\nFrames show a person operating forklift, red box around person inside forklift cabin. The rule is about people away from moving forklift. The person is the operator, inside the forklift. So distance is zero? Measured 1.34 m. The rule logic distance_m a person b forklift lt 4.0. The person is on the forklift, so distance is small. But is that a violation? The rule likely intends pedestrians near forklift, not operator. The measured distance is between person and forklift, but person is operator inside. So the rule engine misidentifies. Visually, person is seated in forklift, not a separate person near it. So no violation of keeping people away; the person is the operator.\n\nThus no_violation. p_violation low.\n\nscene_text: maybe \"HEL\" visible on forklift mast. Also \"K 35\". No other text. Copy verbatim.\n\nscene_text: \"HEL\" \"K 35\". Might be \"HEL\" partial. Also maybe no other. Provide.\n\nAnswer: no_violation, p_violation ~0.05, reason: person is operator inside forklift cabin, not a separate pedestrian.\n\n"
+          }
+        }
+      ],
+      "created": 1793663370,
+      "model": "muse-glimmer-30b",
+      "system_fingerprint": "b11669-620d2225c",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 352,
+        "prompt_tokens": 6885,
+        "total_tokens": 7237,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "id": "chatcmpl-Ppv8zvafqi58k5nuLmN0U6g45TcBNBM8",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 6885,
+        "prompt_ms": 4833.245,
+        "prompt_per_token_ms": 0.7019963689179375,
+        "prompt_per_second": 1424.508792746902,
+        "predicted_n": 352,
+        "predicted_ms": 13044.497,
+        "predicted_per_token_ms": 37.16380911680911,
+        "predicted_per_second": 26.9078984034417
+      }
+    }
+  }
+}

@@ -5,19 +5,39 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rulecam evidence check</title>
   <style>
-    :root { --ok: #0a7d32; --bad: #b3261e; --ink: #1b1b1f; --muted: #5f6368; --bg: #fafafa; }
-    @media (prefers-color-scheme: dark) {
-      :root { --ok: #5fd38a; --bad: #ff8a80; --ink: #ececf1; --muted: #a0a4ab; --bg: #121214; }
+    /* Rulecam Console tokens; system faces only, so this page loads nothing from anywhere else. */
+    :root {
+      color-scheme: light dark;
+      --paper: oklch(97.6% 0.006 85); --panel: oklch(99.4% 0.003 85); --ink: oklch(19% 0.01 60);
+      --muted: oklch(46% 0.012 60); --rule: oklch(89.5% 0.008 85); --cool: oklch(49% 0.14 250);
+      --ok: oklch(48% 0.13 150); --ok-soft: oklch(94.5% 0.035 150);
+      --bad: oklch(51% 0.18 27); --bad-soft: oklch(95% 0.03 25); --focus: oklch(53% 0.15 68);
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     }
-    body { margin: 0; padding: 24px 16px; font: 16px/1.5 system-ui, sans-serif; color: var(--ink);
-           background: var(--bg); max-width: 640px; margin-inline: auto; }
-    h1 { font-size: 20px; margin: 0 0 4px; }
-    .muted { color: var(--muted); font-size: 14px; }
-    #verdict { font-size: 28px; font-weight: 700; margin: 24px 0 8px; }
-    #verdict.ok { color: var(--ok); }
-    #verdict.bad { color: var(--bad); }
-    label { display: block; margin-top: 24px; }
-    code { word-break: break-all; }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --paper: oklch(17% 0.008 250); --panel: oklch(21% 0.009 250); --ink: oklch(95% 0.005 250);
+        --muted: oklch(71% 0.01 250); --rule: oklch(31% 0.01 250); --cool: oklch(77% 0.12 245);
+        --ok: oklch(76% 0.15 150); --ok-soft: oklch(24.5% 0.03 150);
+        --bad: oklch(70% 0.17 25); --bad-soft: oklch(24.5% 0.035 25); --focus: oklch(82% 0.15 80);
+      }
+    }
+    html, body { overflow-x: clip; }
+    body { margin: 0 auto; padding: 48px 16px; max-width: 680px; font: 400 16px/1.55 var(--sans);
+           color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
+    h1 { font-size: 28px; font-weight: 500; letter-spacing: -0.02em; line-height: 1.15; margin: 0 0 8px; }
+    .muted { color: var(--muted); font-size: 15px; }
+    #verdict { margin: 32px 0 12px; padding: 20px 24px; border: 1px solid var(--rule); border-radius: 10px;
+               background: var(--panel); font: 500 20px/1.35 var(--mono); overflow-wrap: anywhere; }
+    #verdict.ok { color: var(--ok); background: var(--ok-soft); border-color: currentColor; }
+    #verdict.bad { color: var(--bad); background: var(--bad-soft); border-color: currentColor; }
+    #detail, #root { margin-top: 8px; }
+    code { font-family: var(--mono); color: var(--cool); word-break: break-all; }
+    label { display: block; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--rule);
+            color: var(--muted); font-size: 15px; }
+    input[type="file"] { display: block; margin-top: 12px; font: inherit; color: var(--ink); max-width: 100%; }
+    input[type="file"]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
   </style>
 </head>
 <body>

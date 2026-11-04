@@ -1,0 +1,61 @@
+{
+  "key": "a7a91b316b2df6df1eba474d3b531a61dfeaceb2a3aceb271a7673fe2643c93e",
+  "provider": "glimmer",
+  "model": "muse-glimmer-30b",
+  "recorded_at": "2026-11-02T23:44:10.572672Z",
+  "latency_ms": 15310,
+  "response": {
+    "status": 200,
+    "headers": {
+      "date": "Mon, 02 Nov 2026 23:44:10 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "server": "cloudflare",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+      "vary": "Origin",
+      "x-runpod-worker-id": "ag59si3c9xfz7t",
+      "cf-cache-status": "DYNAMIC",
+      "set-cookie": "__cflb=0H28v72BksC7jZHvNHSQvF5vHh5B9321jiEcARTWLVb; HttpOnly; SameSite=None; Secure; Path=/; Expires=Tue, 03 Nov 2026 00:14:10 GMT",
+      "content-encoding": "gzip",
+      "cf-ray": "a5470112bd50f5fc-ORD"
+    },
+    "json": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "{\n  \"verdict\": \"violation\",\n  \"p_violation\": 0.99,\n  \"reason\": \"A person is shown within ~4 m of an orange HELI forklift that is moving toward the camera in a warehouse, with the measured separation ~3.99 m, below the 4 m minimum.\",\n  \"scene_text\": \"HELI\"\n}",
+            "reasoning_content": "Rule: Keep people at least 4 metres away from a moving forklift.\n\nMeasured value 3.991023 m, predicate trace says distance_m true, moving true. So violation.\n\nScene text? Any text visible in scene: \"HELI\" on forklift. Also maybe \"MIRINO\"? On shirt. Might be text. Copy all text visible in scene verbatim. The forklift has \"HELI\". Person shirt has \"MIRINO\"? Looks like \"MIRINO\" or \"MIRINO\"? Let's assume \"MIRINO\". Might be \"MIRINO\". We'll list HELI.\n\nProbably scene_text: \"HELI\". Might also have other. I'll output HELI.\n\nAnswer violation, p_violation high ~0.99.\n\n"
+          }
+        }
+      ],
+      "created": 1793663050,
+      "model": "muse-glimmer-30b",
+      "system_fingerprint": "b11669-620d2225c",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 250,
+        "prompt_tokens": 6886,
+        "total_tokens": 7136,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "id": "chatcmpl-uLuqcn6TRoT2d3ObRWjkNGQhLXwcqdn9",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 6886,
+        "prompt_ms": 4501.569,
+        "prompt_per_token_ms": 0.6537277083938426,
+        "prompt_per_second": 1529.6888707026371,
+        "predicted_n": 250,
+        "predicted_ms": 9975.846,
+        "predicted_per_token_ms": 40.063638554216865,
+        "predicted_per_second": 24.96028908224927
+      }
+    }
+  }
+}

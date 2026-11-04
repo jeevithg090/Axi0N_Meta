@@ -5,6 +5,7 @@ import React, { useState } from "react";
 import { api, errorText } from "../../lib/api";
 import { PairPhoneButton } from "../PairPhoneButton";
 import { SampleDataTag } from "../SampleDataTag";
+import { ClipPlayer } from "../ClipPlayer";
 
 interface RulePreset {
   id: string;
@@ -195,7 +196,8 @@ export function PlannerSignage() {
           gap: "16px",
           padding: "14px 18px",
           background: "var(--card)",
-          border: "2px solid var(--ink)",
+          border: "1px solid var(--color-rule)",
+          borderRadius: "var(--radius-card)",
           marginBottom: "var(--s3)",
         }}
       >
@@ -218,7 +220,7 @@ export function PlannerSignage() {
             onClick={() => void handleCompileAndStage()}
             disabled={compiling}
           >
-            {compiling ? "Sending to the planner…" : "⚙ Plan this rule (live planner)"}
+            {compiling ? "Sending to the planner…" : "Plan this rule (live planner)"}
           </button>
           <button
             type="button"
@@ -244,9 +246,10 @@ export function PlannerSignage() {
           style={{
             marginBottom: "var(--s3)",
             padding: "12px 16px",
-            background: "var(--yellow)",
-            color: "#141414",
-            border: "2px solid var(--ink)",
+            background: "var(--color-accent-soft)",
+            color: "var(--color-ink)",
+            border: "1px solid var(--color-rule)",
+            borderRadius: "var(--radius-card)",
             fontWeight: 700,
           }}
         >
@@ -258,8 +261,8 @@ export function PlannerSignage() {
           style={{
             marginBottom: "var(--s3)",
             padding: "12px 16px",
-            background: "var(--alert)",
-            color: "#fff",
+            background: "var(--color-bad-soft)",
+            color: "var(--color-bad)",
             fontWeight: 700,
           }}
         >
@@ -270,7 +273,8 @@ export function PlannerSignage() {
       {/* 10-Step Pipeline Strip */}
       <div
         style={{
-          border: "2px solid var(--ink)",
+          border: "1px solid var(--color-rule)",
+          borderRadius: "var(--radius-card)",
           background: "var(--card)",
           padding: "12px 16px",
           marginBottom: "var(--s3)",
@@ -281,7 +285,7 @@ export function PlannerSignage() {
             const isCurrent = idx === activeStepIdx;
             const isDone = idx < activeStepIdx;
             const barColor = isCurrent
-              ? "#F2D100"
+              ? "var(--color-accent)"
               : isDone
                 ? "var(--ink)"
                 : "var(--rule-2)";
@@ -303,7 +307,8 @@ export function PlannerSignage() {
         <div className="s6" style={{ display: "flex", flexDirection: "column", gap: "var(--s3)" }}>
           <div
             style={{
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--card)",
               padding: "20px",
             }}
@@ -318,7 +323,7 @@ export function PlannerSignage() {
                 gap: "8px",
               }}
             >
-              <span className="small" style={{ fontWeight: 700, textTransform: "uppercase" }}>
+              <span className="small" style={{ fontWeight: 700 }}>
                 1 · Natural-Language Safety Request Composer
               </span>
               <div>
@@ -373,7 +378,8 @@ export function PlannerSignage() {
               style={{
                 width: "100%",
                 padding: "12px",
-                border: "2px solid var(--ink)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
                 background: "var(--paper)",
                 fontFamily: "var(--font-barlow-condensed, sans-serif)",
                 fontSize: "24px",
@@ -391,7 +397,8 @@ export function PlannerSignage() {
                 gap: "10px",
                 padding: "12px",
                 background: "var(--paper-2)",
-                border: "1px solid var(--ink)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
               }}
             >
               <div>
@@ -404,7 +411,7 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1.5px solid var(--ink)",
+                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,
@@ -432,7 +439,7 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1.5px solid var(--ink)",
+                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,
@@ -450,7 +457,7 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1.5px solid var(--ink)",
+                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,
@@ -472,7 +479,7 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1.5px solid var(--ink)",
+                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,
@@ -490,7 +497,8 @@ export function PlannerSignage() {
           {/* Compiled RuleIR AST Preview */}
           <div
             style={{
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--card)",
               padding: "20px",
             }}
@@ -503,7 +511,7 @@ export function PlannerSignage() {
                 marginBottom: "12px",
               }}
             >
-              <span className="small" style={{ fontWeight: 700, textTransform: "uppercase" }}>
+              <span className="small" style={{ fontWeight: 700 }}>
                 2 · Compiled Canonical RuleIR AST (Discriminated Union)
               </span>
               <span className="state">PREVIEW · NOT COMPILED</span>
@@ -581,7 +589,8 @@ export function PlannerSignage() {
         <div className="s6" style={{ display: "flex", flexDirection: "column", gap: "var(--s3)" }}>
           <div
             style={{
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--card)",
               padding: "20px",
             }}
@@ -594,14 +603,14 @@ export function PlannerSignage() {
                 marginBottom: "12px",
               }}
             >
-              <span className="small" style={{ fontWeight: 700, textTransform: "uppercase" }}>
+              <span className="small" style={{ fontWeight: 700 }}>
                 3 · Live Camera Ground-Plane Calibration ({cameraId})
               </span>
               <span className="state ok">HOMOGRAPHY ERR ±0.094m</span>
             </div>
 
-            <div style={{ position: "relative", background: "#0a0c0e", border: "2px solid var(--ink)" }}>
-              <video
+            <div style={{ position: "relative", background: "var(--color-scene)", border: "1px solid var(--color-rule)" }}>
+              <ClipPlayer
                 key={preset.videoSrc}
                 src={preset.videoSrc}
                 autoPlay
@@ -623,14 +632,14 @@ export function PlannerSignage() {
                 <polygon
                   points="60,185 210,115 470,115 590,195"
                   fill="rgba(242, 209, 0, 0.14)"
-                  stroke="#F2D100"
+                  stroke="var(--color-accent)"
                   strokeWidth="2"
                   strokeDasharray="6 4"
                 />
                 <text
                   x="76"
                   y="175"
-                  fill="#F2D100"
+                  fill="var(--color-accent)"
                   fontFamily="var(--font-dm-mono, monospace)"
                   fontSize="11"
                   fontWeight="700"
@@ -655,7 +664,8 @@ export function PlannerSignage() {
           {/* 24-Frame SAM 3.1 Probe Table */}
           <div
             style={{
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--card)",
               padding: "20px",
             }}
@@ -668,7 +678,7 @@ export function PlannerSignage() {
                 marginBottom: "12px",
               }}
             >
-              <span className="small" style={{ fontWeight: 700, textTransform: "uppercase" }}>
+              <span className="small" style={{ fontWeight: 700 }}>
                 4 · 24-Frame SAM 3.1 Feasibility Probes &amp; Regulatory Grounding
               </span>
               <span className="state ok">OBSERVABLE</span>

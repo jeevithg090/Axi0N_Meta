@@ -210,7 +210,7 @@ def test_food_code_pack_leads_with_monitoring_then_handwashing() -> None:
 
 
 @pytest.mark.usefixtures("strips")
-@pytest.mark.parametrize("template", ["f689", "generic"])
+@pytest.mark.parametrize("template", ["f689", "osha_pit", "generic"])
 def test_other_templates_and_broken_chain(template: str) -> None:
     html = render_html(make_pack(PrivacyMode.STRICT, template, chain_ok=False))
     assert "Evidence chain failed verification." in html

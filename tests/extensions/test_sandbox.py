@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from rulecam.extensions.errors import ExtensionRejectedError, SandboxError
@@ -112,6 +114,7 @@ def test_infinite_loop_is_killed() -> None:
         run_check(code, [{}], limits=SandboxLimits(cpu_s=1, wall_s=4.0))
 
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="macOS does not enforce RLIMIT_AS")
 def test_memory_bomb_in_check_fails_only_that_sample() -> None:
     code = "def check(sample):\n    big = [0] * (10 ** 10)\n    return {'value': True}\n"
     [outcome] = run_check(code, [{}])
@@ -120,6 +123,7 @@ def test_memory_bomb_in_check_fails_only_that_sample() -> None:
     assert "MemoryError" in outcome.error
 
 
+@pytest.mark.skipif(sys.platform == "darwin", reason="macOS does not enforce RLIMIT_AS")
 def test_memory_bomb_at_import_fails_the_batch() -> None:
     code = "BIG = [0] * (10 ** 10)\ndef check(sample):\n    return {'value': True}\n"
     with pytest.raises(SandboxError, match="MemoryError"):

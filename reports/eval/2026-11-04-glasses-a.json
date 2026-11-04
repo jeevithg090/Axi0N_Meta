@@ -1,0 +1,2744 @@
+{
+  "label": "a: team serverless Glimmer (RunPod), production settings",
+  "status": {
+    "ready": true,
+    "look": "muse-glimmer-30b",
+    "glimmer": "checking",
+    "compose": "muse-spark-1.3",
+    "count": "sam-3.1",
+    "transcribe": "muse-voice-transcribe-1.0",
+    "voice": "Meta MMS-TTS (system voice if it fails)",
+    "modes": [
+      "aisle",
+      "warehouse",
+      "crowd",
+      "general"
+    ],
+    "glimmer_timeout_s": 25.0
+  },
+  "cases": [
+    {
+      "case": "warehouse-typed",
+      "frame": "warehouse-forklift-ahead.jpg",
+      "wall_ms": 46245,
+      "answer": {
+        "answer_id": "20261104T010424-f7576499",
+        "at": "2026-11-04T01:05:10.424645Z",
+        "mode": "warehouse",
+        "kind": "question",
+        "question": "Is it safe to walk ahead?",
+        "heard": null,
+        "spoken": "No, stop. A forklift is working directly ahead blocking the aisle.",
+        "detail": "Not safe to walk ahead. This frame confirms a forklift directly ahead blocking the narrow aisle between tall stocked racks, with one operator on it. SAM 3.1 confirms 1 forklift and 1 person, agreeing with the first look. The operator ahead shows no high-visibility clothing, only a two-tone work uniform and cap. Wait back until the forklift clears.",
+        "alert": true,
+        "verified": false,
+        "verified_by": [
+          "muse-spark-1.3",
+          "sam-3.1"
+        ],
+        "severity": "danger",
+        "confidence": 0.9,
+        "hazards": [
+          {
+            "what": "forklift operating blocking narrow aisle",
+            "where": "ahead",
+            "severity": "danger"
+          },
+          {
+            "what": "operator without high-visibility clothing",
+            "where": "ahead on forklift",
+            "severity": "caution"
+          }
+        ],
+        "counts": [
+          {
+            "concept": "forklift",
+            "count": 1,
+            "boxes": [
+              [
+                397.0,
+                150.0,
+                695.0,
+                539.0,
+                0.863
+              ]
+            ]
+          },
+          {
+            "concept": "person",
+            "count": 1,
+            "boxes": [
+              [
+                439.0,
+                115.0,
+                715.0,
+                539.0,
+                0.977
+              ]
+            ]
+          }
+        ],
+        "gaps": [],
+        "look": {
+          "scene": "A worker is operating a forklift directly ahead in a narrow aisle between tall stocked racks.",
+          "answer": "No - a forklift is operating directly ahead blocking the aisle, wait back until it clears.",
+          "hazards": [
+            "forklift operating ahead in narrow aisle",
+            "worker ahead without high-visibility clothing"
+          ],
+          "alert": true,
+          "count": [
+            "forklift",
+            "person"
+          ]
+        },
+        "looked_by": "muse-spark-1.3 (Glimmer unavailable)",
+        "frame": "20261104T010424-f7576499.jpg",
+        "marked": "20261104T010424-f7576499-675767332.jpg",
+        "audio": "20261104T010424-f7576499.wav",
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 25001,
+            "ok": false,
+            "note": "no answer within 25 s"
+          },
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 7189,
+            "ok": true,
+            "note": "Glimmer unavailable (no answer within 25 s); Muse Spark looked instead "
+          },
+          {
+            "name": "count",
+            "model": "sam-3.1",
+            "ms": 3069,
+            "ok": true,
+            "note": "forklift: 1, person: 1"
+          },
+          {
+            "name": "compose",
+            "model": "muse-spark-1.3",
+            "ms": 8174,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 2754,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 46222,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "warehouse-spoken",
+      "frame": "warehouse-forklift-side.jpg",
+      "wall_ms": 23566,
+      "answer": {
+        "answer_id": "20261104T010510-f5be8414",
+        "at": "2026-11-04T01:05:33.991719Z",
+        "mode": "warehouse",
+        "kind": "question",
+        "question": "Is this aisle safe to safe to walk down?",
+        "heard": "Is this aisle safe to safe to walk down?",
+        "spoken": "No, not now. A forklift is operating immediately ahead, wait for it to clear.",
+        "detail": "No - aisle is blocked by a vehicle. I confirm the first look in this frame: 1 forklift immediately ahead filling the left and center view, with 1 operator seated driving it wearing a hard hat (SAM 3.1 confirms 1 forklift, 1 person, 1 hard hat). The forklift mast and cab are very close to the wearer, blocking the way forward. SAM counts agree with the visual. No pedestrian lane separation is visible.",
+        "alert": true,
+        "verified": false,
+        "verified_by": [
+          "muse-spark-1.3",
+          "sam-3.1"
+        ],
+        "severity": "danger",
+        "confidence": 0.92,
+        "hazards": [
+          {
+            "what": "forklift operating and blocking aisle",
+            "where": "ahead, very close",
+            "severity": "danger"
+          }
+        ],
+        "counts": [
+          {
+            "concept": "forklift",
+            "count": 1,
+            "boxes": [
+              [
+                0.0,
+                0.0,
+                702.0,
+                539.0,
+                0.64
+              ]
+            ]
+          },
+          {
+            "concept": "person",
+            "count": 1,
+            "boxes": [
+              [
+                280.0,
+                210.0,
+                535.0,
+                538.0,
+                0.926
+              ]
+            ]
+          },
+          {
+            "concept": "hard hat",
+            "count": 1,
+            "boxes": [
+              [
+                391.0,
+                208.0,
+                483.0,
+                257.0,
+                0.86
+              ]
+            ]
+          }
+        ],
+        "gaps": [],
+        "look": {
+          "scene": "A forklift with an operator is immediately ahead in a warehouse aisle.",
+          "answer": "No - a forklift is operating immediately ahead and blocking the way, wait for it to clear before walking down.",
+          "hazards": [
+            "forklift operating near ahead very close to wearer",
+            "operator ahead in vehicle lane without high-visibility clothing"
+          ],
+          "alert": true,
+          "count": [
+            "forklift",
+            "person",
+            "hard hat"
+          ]
+        },
+        "looked_by": "muse-spark-1.3 (Glimmer unavailable)",
+        "frame": "20261104T010510-f5be8414.jpg",
+        "marked": "20261104T010510-f5be8414-901838276.jpg",
+        "audio": "20261104T010510-f5be8414.wav",
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "hear",
+            "model": "muse-voice-transcribe-1.0",
+            "ms": 1593,
+            "ok": true,
+            "note": "Is this aisle safe to safe to walk down?"
+          },
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 5719,
+            "ok": true,
+            "note": "Glimmer unavailable (it failed in the last minutes); Muse Spark looked instead "
+          },
+          {
+            "name": "count",
+            "model": "sam-3.1",
+            "ms": 5077,
+            "ok": true,
+            "note": "forklift: 1, person: 1, hard hat: 1"
+          },
+          {
+            "name": "compose",
+            "model": "muse-spark-1.3",
+            "ms": 8474,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 994,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 23549,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "warehouse-patrol",
+      "frame": "warehouse-walk.jpg",
+      "wall_ms": 23678,
+      "answer": {
+        "answer_id": "20261104T010534-946f779c",
+        "at": "2026-11-04T01:05:57.669071Z",
+        "mode": "warehouse",
+        "kind": "patrol",
+        "question": null,
+        "heard": null,
+        "spoken": "",
+        "detail": "Wearer view down a racked warehouse aisle. SAM 3.1 confirms 1 person directly ahead, close to camera, walking away down the aisle, with no high-visibility clothing visible. First look claimed a forklift far ahead in the same aisle and a person without hi-vis near it, but SAM 3.1 reports 0 forklifts in this frame. I trust SAM on counts, so the forklift hazard is not confirmed. No vehicle, blocked exit, spill, or overhead load is confirmed in this frame.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "caution",
+        "confidence": 0.92,
+        "hazards": [
+          {
+            "what": "person without high-visibility clothing",
+            "where": "directly ahead, close",
+            "severity": "caution"
+          }
+        ],
+        "counts": [
+          {
+            "concept": "person",
+            "count": 1,
+            "boxes": [
+              [
+                436.0,
+                24.0,
+                959.0,
+                539.0,
+                0.992
+              ]
+            ]
+          },
+          {
+            "concept": "forklift",
+            "count": 0,
+            "boxes": []
+          }
+        ],
+        "gaps": [],
+        "look": {
+          "scene": "A person walks ahead of the wearer down a warehouse aisle lined with tall racking with a forklift visible far ahead.",
+          "answer": "",
+          "hazards": [
+            "person without high-visibility clothing near ahead in the aisle",
+            "forklift far ahead in the same aisle as the person"
+          ],
+          "alert": true,
+          "count": [
+            "person",
+            "forklift"
+          ]
+        },
+        "looked_by": "muse-spark-1.3 (Glimmer unavailable)",
+        "frame": "20261104T010534-946f779c.jpg",
+        "marked": "20261104T010534-946f779c-6485492535.jpg",
+        "audio": null,
+        "voice": null,
+        "stages": [
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 7333,
+            "ok": true,
+            "note": "Glimmer unavailable (it failed in the last minutes); Muse Spark looked instead "
+          },
+          {
+            "name": "count",
+            "model": "sam-3.1",
+            "ms": 2778,
+            "ok": true,
+            "note": "person: 1, forklift: 0"
+          },
+          {
+            "name": "compose",
+            "model": "muse-spark-1.3",
+            "ms": 11742,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 23668,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "aisle-spoken",
+      "frame": "bread-8.jpg",
+      "wall_ms": 26659,
+      "answer": {
+        "answer_id": "20261104T010557-1607138e",
+        "at": "2026-11-04T01:06:24.327977Z",
+        "mode": "aisle",
+        "kind": "question",
+        "question": "which shell facings are empty here?",
+        "heard": "which shell facings are empty here?",
+        "spoken": "On your left, the upper facings closest to you look sparse with just tags showing. The lower shelves there still have bread stocked.",
+        "detail": "Wearer asks about empty bread facings on the left wall. First look claimed 2-3 upper-tier facings near you empty with only shelf edge and tags, plus sparse gaps ahead. SAM 3.1 counted 8 bread packages all on the lower left near you and 37 price tags along the left wall, but shelf_gaps_confirmed_by_sam is empty so there are no SAM-confirmed empty boxes to report. Visually the upper left shelves closest to you do look sparse with tags visible while lower shelves show stocked bread, but this is not a confirmed gap check.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "info",
+        "confidence": 0.55,
+        "hazards": [],
+        "counts": [
+          {
+            "concept": "bread package",
+            "count": 8,
+            "boxes": [
+              [
+                109.0,
+                399.0,
+                170.0,
+                426.0,
+                0.636
+              ],
+              [
+                149.0,
+                417.0,
+                251.0,
+                473.0,
+                0.766
+              ],
+              [
+                0.0,
+                422.0,
+                45.0,
+                490.0,
+                0.59
+              ],
+              [
+                114.0,
+                424.0,
+                219.0,
+                489.0,
+                0.754
+              ],
+              [
+                154.0,
+                394.0,
+                225.0,
+                424.0,
+                0.688
+              ],
+              [
+                110.0,
+                274.0,
+                154.0,
+                342.0,
+                0.664
+              ],
+              [
+                140.0,
+                284.0,
+                194.0,
+                343.0,
+                0.613
+              ],
+              [
+                108.0,
+                445.0,
+                191.0,
+                521.0,
+                0.766
+              ]
+            ]
+          },
+          {
+            "concept": "price tag",
+            "count": 37,
+            "boxes": [
+              [
+                418.0,
+                431.0,
+                425.0,
+                444.0,
+                0.546
+              ],
+              [
+                158.0,
+                217.0,
+                188.0,
+                242.0,
+                0.871
+              ],
+              [
+                389.0,
+                283.0,
+                398.0,
+                292.0,
+                0.66
+              ],
+              [
+                385.0,
+                454.0,
+                395.0,
+                469.0,
+                0.617
+              ],
+              [
+                413.0,
+                472.0,
+                421.0,
+                483.0,
+                0.656
+              ],
+              [
+                255.0,
+                47.0,
+                274.0,
+                86.0,
+                0.832
+              ],
+              [
+                380.0,
+                398.0,
+                396.0,
+                415.0,
+                0.789
+              ],
+              [
+                311.0,
+                344.0,
+                328.0,
+                372.0,
+                0.675
+              ],
+              [
+                411.0,
+                334.0,
+                419.0,
+                343.0,
+                0.54
+              ],
+              [
+                304.0,
+                175.0,
+                319.0,
+                192.0,
+                0.688
+              ],
+              [
+                162.0,
+                80.0,
+                192.0,
+                112.0,
+                0.863
+              ],
+              [
+                333.0,
+                419.0,
+                353.0,
+                444.0,
+                0.84
+              ],
+              [
+                419.0,
+                465.0,
+                426.0,
+                474.0,
+                0.528
+              ],
+              [
+                425.0,
+                425.0,
+                431.0,
+                437.0,
+                0.563
+              ],
+              [
+                376.0,
+                280.0,
+                386.0,
+                289.0,
+                0.656
+              ],
+              [
+                314.0,
+                429.0,
+                338.0,
+                455.0,
+                0.82
+              ],
+              [
+                396.0,
+                390.0,
+                406.0,
+                400.0,
+                0.54
+              ],
+              [
+                380.0,
+                338.0,
+                389.0,
+                347.0,
+                0.742
+              ],
+              [
+                300.0,
+                259.0,
+                319.0,
+                286.0,
+                0.793
+              ],
+              [
+                408.0,
+                290.0,
+                414.0,
+                303.0,
+                0.575
+              ],
+              [
+                404.0,
+                439.0,
+                413.0,
+                451.0,
+                0.531
+              ],
+              [
+                240.0,
+                241.0,
+                261.0,
+                260.0,
+                0.836
+              ],
+              [
+                153.0,
+                358.0,
+                189.0,
+                382.0,
+                0.887
+              ],
+              [
+                165.0,
+                497.0,
+                204.0,
+                527.0,
+                0.879
+              ],
+              [
+                216.0,
+                0.0,
+                234.0,
+                18.0,
+                0.601
+              ],
+              [
+                409.0,
+                384.0,
+                418.0,
+                397.0,
+                0.601
+              ],
+              [
+                401.0,
+                487.0,
+                410.0,
+                498.0,
+                0.695
+              ],
+              [
+                415.0,
+                379.0,
+                424.0,
+                388.0,
+                0.597
+              ],
+              [
+                378.0,
+                222.0,
+                385.0,
+                240.0,
+                0.683
+              ],
+              [
+                438.0,
+                450.0,
+                443.0,
+                458.0,
+                0.559
+              ],
+              [
+                302.0,
+                93.0,
+                315.0,
+                111.0,
+                0.648
+              ],
+              [
+                417.0,
+                290.0,
+                423.0,
+                304.0,
+                0.59
+              ],
+              [
+                435.0,
+                417.0,
+                441.0,
+                426.0,
+                0.566
+              ],
+              [
+                389.0,
+                501.0,
+                399.0,
+                513.0,
+                0.75
+              ],
+              [
+                346.0,
+                341.0,
+                356.0,
+                352.0,
+                0.789
+              ],
+              [
+                373.0,
+                165.0,
+                381.0,
+                183.0,
+                0.648
+              ],
+              [
+                376.0,
+                516.0,
+                386.0,
+                532.0,
+                0.723
+              ]
+            ]
+          },
+          {
+            "concept": "shopping cart",
+            "count": 1,
+            "boxes": [
+              [
+                833.0,
+                383.0,
+                959.0,
+                539.0,
+                0.938
+              ]
+            ]
+          }
+        ],
+        "gaps": [],
+        "look": {
+          "scene": "A supermarket bread aisle stretches ahead with stocked shelves on the left, bakery displays on the right, and two shoppers in the aisle.",
+          "answer": "On the left bread wall, 2-3 upper-tier facings near you are empty showing only shelf edge and price tags, with more sparse gaps further ahead at mid-height.",
+          "hazards": [],
+          "alert": false,
+          "count": [
+            "bread package",
+            "price tag",
+            "shopping cart"
+          ]
+        },
+        "looked_by": "muse-spark-1.3 (Glimmer unavailable)",
+        "frame": "20261104T010557-1607138e.jpg",
+        "marked": "20261104T010557-1607138e-8286072645.jpg",
+        "audio": "20261104T010557-1607138e.wav",
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "hear",
+            "model": "muse-voice-transcribe-1.0",
+            "ms": 1133,
+            "ok": true,
+            "note": "which shell facings are empty here?"
+          },
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 8610,
+            "ok": true,
+            "note": "Glimmer unavailable (it failed in the last minutes); Muse Spark looked instead "
+          },
+          {
+            "name": "shelf",
+            "model": "muse-spark-1.3 + sam-3.1",
+            "ms": 12869,
+            "ok": true,
+            "note": "0 gaps confirmed, 0 rejected by SAM 3.1"
+          },
+          {
+            "name": "count",
+            "model": "sam-3.1",
+            "ms": 2272,
+            "ok": true,
+            "note": "bread package: 8, price tag: 37, shopping cart: 1"
+          },
+          {
+            "name": "compose",
+            "model": "muse-spark-1.3",
+            "ms": 9289,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 25002,
+            "ok": false,
+            "note": "no answer within 25 s"
+          },
+          {
+            "name": "speak",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 3066,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 26640,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "aisle-typed",
+      "frame": "bread-0.jpg",
+      "wall_ms": 23946,
+      "answer": {
+        "answer_id": "20261104T010624-7b945dd1",
+        "at": "2026-11-04T01:06:48.276050Z",
+        "mode": "aisle",
+        "kind": "question",
+        "question": "Which shelf facings are empty here?",
+        "heard": null,
+        "spoken": "No empty facings here, the bread shelves on your left look fully stocked.",
+        "detail": "You asked which shelf facings are empty. I checked this frame: bread shelves on the left ahead, promotional displays and bottles on the right. Glimmer's first look said no empty facings visible, all fully stocked, with no hazards. SAM 3.1 found 23 packaged bread loaves on the left and 14 bottles on the right, which supports well-stocked shelves. The confirmed gap list from the separate shelf-gap check is empty, so there is no confirmed empty facing to report in this frame.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "none",
+        "confidence": 0.85,
+        "hazards": [],
+        "counts": [
+          {
+            "concept": "packaged bread loaf",
+            "count": 23,
+            "boxes": [
+              [
+                181.0,
+                525.0,
+                224.0,
+                539.0,
+                0.54
+              ],
+              [
+                137.0,
+                376.0,
+                179.0,
+                408.0,
+                0.508
+              ],
+              [
+                221.0,
+                492.0,
+                264.0,
+                525.0,
+                0.531
+              ],
+              [
+                0.0,
+                279.0,
+                54.0,
+                318.0,
+                0.582
+              ],
+              [
+                0.0,
+                415.0,
+                23.0,
+                449.0,
+                0.511
+              ],
+              [
+                35.0,
+                391.0,
+                102.0,
+                428.0,
+                0.57
+              ],
+              [
+                212.0,
+                432.0,
+                253.0,
+                462.0,
+                0.508
+              ],
+              [
+                277.0,
+                340.0,
+                307.0,
+                367.0,
+                0.531
+              ],
+              [
+                48.0,
+                498.0,
+                110.0,
+                537.0,
+                0.54
+              ],
+              [
+                281.0,
+                415.0,
+                304.0,
+                436.0,
+                0.543
+              ],
+              [
+                168.0,
+                452.0,
+                214.0,
+                486.0,
+                0.515
+              ],
+              [
+                77.0,
+                384.0,
+                136.0,
+                417.0,
+                0.543
+              ],
+              [
+                143.0,
+                461.0,
+                188.0,
+                500.0,
+                0.59
+              ],
+              [
+                130.0,
+                193.0,
+                197.0,
+                220.0,
+                0.543
+              ],
+              [
+                200.0,
+                509.0,
+                241.0,
+                537.0,
+                0.594
+              ],
+              [
+                209.0,
+                284.0,
+                271.0,
+                304.0,
+                0.559
+              ],
+              [
+                0.0,
+                397.0,
+                65.0,
+                440.0,
+                0.601
+              ],
+              [
+                0.0,
+                518.0,
+                63.0,
+                539.0,
+                0.524
+              ],
+              [
+                78.0,
+                487.0,
+                141.0,
+                523.0,
+                0.563
+              ],
+              [
+                279.0,
+                333.0,
+                325.0,
+                361.0,
+                0.504
+              ],
+              [
+                185.0,
+                190.0,
+                252.0,
+                219.0,
+                0.586
+              ],
+              [
+                244.0,
+                484.0,
+                279.0,
+                509.0,
+                0.504
+              ],
+              [
+                177.0,
+                439.0,
+                232.0,
+                472.0,
+                0.54
+              ]
+            ]
+          },
+          {
+            "concept": "bottle",
+            "count": 14,
+            "boxes": [
+              [
+                818.0,
+                308.0,
+                833.0,
+                334.0,
+                0.601
+              ],
+              [
+                752.0,
+                308.0,
+                767.0,
+                348.0,
+                0.739
+              ],
+              [
+                765.0,
+                308.0,
+                780.0,
+                348.0,
+                0.73
+              ],
+              [
+                740.0,
+                309.0,
+                753.0,
+                348.0,
+                0.734
+              ],
+              [
+                807.0,
+                308.0,
+                820.0,
+                339.0,
+                0.695
+              ],
+              [
+                727.0,
+                408.0,
+                739.0,
+                446.0,
+                0.739
+              ],
+              [
+                752.0,
+                361.0,
+                765.0,
+                396.0,
+                0.714
+              ],
+              [
+                725.0,
+                358.0,
+                738.0,
+                395.0,
+                0.714
+              ],
+              [
+                751.0,
+                408.0,
+                766.0,
+                436.0,
+                0.629
+              ],
+              [
+                778.0,
+                308.0,
+                793.0,
+                346.0,
+                0.73
+              ],
+              [
+                727.0,
+                309.0,
+                740.0,
+                347.0,
+                0.742
+              ],
+              [
+                738.0,
+                358.0,
+                751.0,
+                396.0,
+                0.726
+              ],
+              [
+                739.0,
+                409.0,
+                752.0,
+                445.0,
+                0.714
+              ],
+              [
+                793.0,
+                308.0,
+                807.0,
+                342.0,
+                0.726
+              ]
+            ]
+          }
+        ],
+        "gaps": [],
+        "look": {
+          "scene": "A bright supermarket bread aisle with stocked shelves on the left, promotional displays on the right, and shoppers walking ahead.",
+          "answer": "No empty facings are visible here - the bread shelves on the left and the displays on the right all look fully stocked.",
+          "hazards": [],
+          "alert": false,
+          "count": [
+            "packaged bread loaf",
+            "bottle"
+          ]
+        },
+        "looked_by": "muse-spark-1.3 (Glimmer unavailable)",
+        "frame": "20261104T010624-7b945dd1.jpg",
+        "marked": "20261104T010624-7b945dd1-5125515412.jpg",
+        "audio": "20261104T010624-7b945dd1.wav",
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 6718,
+            "ok": true,
+            "note": "Glimmer unavailable (it failed in the last minutes); Muse Spark looked instead "
+          },
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 10869,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "shelf",
+            "model": "muse-spark-1.3 + sam-3.1",
+            "ms": 10937,
+            "ok": true,
+            "note": "0 gaps confirmed, 0 rejected by SAM 3.1"
+          },
+          {
+            "name": "count",
+            "model": "sam-3.1",
+            "ms": 4084,
+            "ok": true,
+            "note": "packaged bread loaf: 23, bottle: 14"
+          },
+          {
+            "name": "compose",
+            "model": "muse-spark-1.3",
+            "ms": 5885,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 4382,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 23933,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "crowd-spoken",
+      "frame": "store-crowd.jpg",
+      "wall_ms": 30749,
+      "answer": {
+        "answer_id": "20261104T010648-34cc3735",
+        "at": "2026-11-04T01:07:19.021040Z",
+        "mode": "crowd",
+        "kind": "question",
+        "question": "how dense is it ahead of me?",
+        "heard": "how dense is it ahead of me?",
+        "spoken": "Ahead is moderately busy at the checkouts but people still have room to move. This is an estimate from your view.",
+        "detail": "Estimate from this one frame: density ahead is light to moderate at the checkouts, with movement still free. Muse Glimmer described light to moderate spacing at checkouts and in the aisle. SAM 3.1 counted 17 persons, 5 shopping carts and 1 checkout counter in this frame, which matches a busy but not packed checkout area. The aisle to the left of the wearer looks open. No pushing, surging, people down, or blocked exit is visible in this frame.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "none",
+        "confidence": 0.78,
+        "hazards": [],
+        "counts": [
+          {
+            "concept": "person",
+            "count": 17,
+            "boxes": [
+              [
+                558.0,
+                133.0,
+                584.0,
+                181.0,
+                0.668
+              ],
+              [
+                8.0,
+                172.0,
+                30.0,
+                243.0,
+                0.887
+              ],
+              [
+                437.0,
+                157.0,
+                472.0,
+                299.0,
+                0.86
+              ],
+              [
+                48.0,
+                168.0,
+                58.0,
+                211.0,
+                0.617
+              ],
+              [
+                311.0,
+                142.0,
+                413.0,
+                443.0,
+                0.945
+              ],
+              [
+                765.0,
+                88.0,
+                959.0,
+                407.0,
+                0.836
+              ],
+              [
+                281.0,
+                145.0,
+                314.0,
+                195.0,
+                0.797
+              ],
+              [
+                146.0,
+                116.0,
+                246.0,
+                447.0,
+                0.961
+              ],
+              [
+                238.0,
+                136.0,
+                264.0,
+                194.0,
+                0.789
+              ],
+              [
+                129.0,
+                171.0,
+                150.0,
+                215.0,
+                0.71
+              ],
+              [
+                733.0,
+                95.0,
+                819.0,
+                214.0,
+                0.922
+              ],
+              [
+                311.0,
+                130.0,
+                347.0,
+                208.0,
+                0.746
+              ],
+              [
+                878.0,
+                117.0,
+                932.0,
+                177.0,
+                0.782
+              ],
+              [
+                395.0,
+                147.0,
+                453.0,
+                375.0,
+                0.926
+              ],
+              [
+                538.0,
+                117.0,
+                709.0,
+                539.0,
+                0.965
+              ],
+              [
+                475.0,
+                106.0,
+                576.0,
+                244.0,
+                0.871
+              ],
+              [
+                657.0,
+                124.0,
+                725.0,
+                245.0,
+                0.934
+              ]
+            ]
+          },
+          {
+            "concept": "shopping cart",
+            "count": 5,
+            "boxes": [
+              [
+                0.0,
+                202.0,
+                15.0,
+                243.0,
+                0.754
+              ],
+              [
+                108.0,
+                265.0,
+                345.0,
+                494.0,
+                0.895
+              ],
+              [
+                704.0,
+                337.0,
+                959.0,
+                539.0,
+                0.957
+              ],
+              [
+                33.0,
+                201.0,
+                50.0,
+                240.0,
+                0.73
+              ],
+              [
+                78.0,
+                257.0,
+                162.0,
+                442.0,
+                0.91
+              ]
+            ]
+          },
+          {
+            "concept": "checkout counter",
+            "count": 1,
+            "boxes": [
+              [
+                441.0,
+                254.0,
+                959.0,
+                539.0,
+                0.613
+              ]
+            ]
+          }
+        ],
+        "gaps": [],
+        "look": {
+          "scene": "The point-of-view shows a supermarket checkout aisle with several shoppers at checkouts and people walking with shopping carts in a brightly lit store.",
+          "answer": "From what is visible ahead the crowd is light to moderate with people spaced at checkouts and in the aisle and movement appears free; this is an estimate from one frame.",
+          "hazards": [
+            "No immediate crowd surge, pushing, people down or blocked exit visible in this frame"
+          ],
+          "alert": false,
+          "count": [
+            "person",
+            "shopping cart",
+            "checkout counter"
+          ]
+        },
+        "looked_by": "muse-glimmer-30b",
+        "frame": "20261104T010648-34cc3735.jpg",
+        "marked": "20261104T010648-34cc3735-5534794671.jpg",
+        "audio": "20261104T010648-34cc3735.wav",
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "hear",
+            "model": "muse-voice-transcribe-1.0",
+            "ms": 2280,
+            "ok": true,
+            "note": "how dense is it ahead of me?"
+          },
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 10509,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "count",
+            "model": "sam-3.1",
+            "ms": 6768,
+            "ok": true,
+            "note": "person: 17, shopping cart: 5, checkout counter: 1"
+          },
+          {
+            "name": "compose",
+            "model": "muse-spark-1.3",
+            "ms": 8696,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 2459,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 30723,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "crowd-patrol",
+      "frame": "store-checkout.jpg",
+      "wall_ms": 8805,
+      "answer": {
+        "answer_id": "20261104T010719-9d6a515b",
+        "at": "2026-11-04T01:07:27.834239Z",
+        "mode": "crowd",
+        "kind": "patrol",
+        "question": null,
+        "heard": null,
+        "spoken": "",
+        "detail": "The point-of-view shows a supermarket checkout aisle with staff in yellow shirts at registers and a few customers interacting at the counters, with product shelves in the background.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "none",
+        "confidence": 0.0,
+        "hazards": [],
+        "counts": [],
+        "gaps": [],
+        "look": {
+          "scene": "The point-of-view shows a supermarket checkout aisle with staff in yellow shirts at registers and a few customers interacting at the counters, with product shelves in the background.",
+          "answer": "",
+          "hazards": [],
+          "alert": false,
+          "count": [
+            "person",
+            "shopping cart",
+            "checkout counter"
+          ]
+        },
+        "looked_by": "muse-glimmer-30b",
+        "frame": "20261104T010719-9d6a515b.jpg",
+        "marked": null,
+        "audio": null,
+        "voice": null,
+        "stages": [
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 8784,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 8787,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "general-typed",
+      "frame": "store-checkout.jpg",
+      "wall_ms": 29150,
+      "answer": {
+        "answer_id": "20261104T010727-eb02c8b9",
+        "at": "2026-11-04T01:07:56.981248Z",
+        "mode": "general",
+        "kind": "question",
+        "question": "How many people are queueing here?",
+        "heard": null,
+        "spoken": "One person is queueing at the checkout to your left.",
+        "detail": "You are at a supermarket checkout with your cart ahead at the counter. SAM 3.1 counted 7 person boxes, 1 shopping cart, and 1 checkout counter in this frame. I can confirm the 7 includes staff and shoppers: the cashier in yellow ahead center scanning an item, the customer in teal at the left register, the yellow-shirted employee at the right register with her back to you, plus 4 more people in the background lanes to the right. Only one waiting customer is clearly visible queueing at the left checkout ahead left. Muse Glimmer's first look also reported one person queueing, which matches the queueing count, while the total person count is 7 per SAM 3.1.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "none",
+        "confidence": 0.85,
+        "hazards": [],
+        "counts": [
+          {
+            "concept": "person",
+            "count": 7,
+            "boxes": [
+              [
+                735.0,
+                170.0,
+                928.0,
+                528.0,
+                0.895
+              ],
+              [
+                27.0,
+                108.0,
+                222.0,
+                385.0,
+                0.953
+              ],
+              [
+                650.0,
+                189.0,
+                696.0,
+                316.0,
+                0.938
+              ],
+              [
+                578.0,
+                186.0,
+                639.0,
+                284.0,
+                0.922
+              ],
+              [
+                340.0,
+                64.0,
+                619.0,
+                500.0,
+                0.957
+              ],
+              [
+                540.0,
+                139.0,
+                579.0,
+                187.0,
+                0.914
+              ],
+              [
+                691.0,
+                203.0,
+                741.0,
+                314.0,
+                0.89
+              ]
+            ]
+          },
+          {
+            "concept": "shopping cart",
+            "count": 1,
+            "boxes": [
+              [
+                320.0,
+                407.0,
+                852.0,
+                539.0,
+                0.938
+              ]
+            ]
+          },
+          {
+            "concept": "checkout counter",
+            "count": 1,
+            "boxes": [
+              [
+                0.0,
+                317.0,
+                959.0,
+                539.0,
+                0.742
+              ]
+            ]
+          }
+        ],
+        "gaps": [],
+        "look": {
+          "scene": "The point-of-view shows a supermarket checkout area with a cashier in a yellow polo shirt scanning an item at a register in the foreground, a customer in a teal shirt at the left register, and another yellow-shirted employee at a register to the right with shelves of products behind.",
+          "answer": "One person is visible queueing at the left checkout in front of the wearer.",
+          "hazards": [],
+          "alert": false,
+          "count": [
+            "person",
+            "shopping cart",
+            "checkout counter"
+          ]
+        },
+        "looked_by": "muse-glimmer-30b",
+        "frame": "20261104T010727-eb02c8b9.jpg",
+        "marked": "20261104T010727-eb02c8b9-4428648357.jpg",
+        "audio": "20261104T010727-eb02c8b9.wav",
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 12312,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "count",
+            "model": "sam-3.1",
+            "ms": 3237,
+            "ok": true,
+            "note": "person: 7, shopping cart: 1, checkout counter: 1"
+          },
+          {
+            "name": "compose",
+            "model": "muse-spark-1.3",
+            "ms": 12447,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 1126,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 29134,
+        "walk_id": null,
+        "source": "upload"
+      }
+    }
+  ],
+  "walk": {
+    "answers": [
+      {
+        "case": "walk-warehouse-walk.jpg",
+        "frame": "warehouse-walk.jpg",
+        "wall_ms": 27438,
+        "answer": {
+          "answer_id": "20261104T010757-0824acdc",
+          "at": "2026-11-04T01:08:24.433603Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "spoken": "",
+          "detail": "One person is confirmed very close ahead on the right, walking away down the aisle - SAM 3.1 counts 1 person, matching that figure. No high-visibility vest is visible on them. Muse Glimmer flagged a forklift ahead in the aisle, but SAM 3.1 counts 0 forklifts and I cannot confirm a forklift in this frame - the distant central shape is indistinct racking/aisle, so models disagree and no vehicle hazard is confirmed. Muse Glimmer also flagged overhead load, but the overhead pallets SAM confirms (9 pallets total) are stored on the rack beams on both sides, not a suspended moving load. Aisle is flanked by tall racking with boxes and containers, no spill or blocked exit confirmed.",
+          "alert": false,
+          "verified": false,
+          "verified_by": [],
+          "severity": "caution",
+          "confidence": 0.85,
+          "hazards": [
+            {
+              "what": "person without high-visibility clothing",
+              "where": "ahead right, very close",
+              "severity": "caution"
+            }
+          ],
+          "counts": [
+            {
+              "concept": "person",
+              "count": 1,
+              "boxes": [
+                [
+                  436.0,
+                  24.0,
+                  959.0,
+                  539.0,
+                  0.992
+                ]
+              ]
+            },
+            {
+              "concept": "forklift",
+              "count": 0,
+              "boxes": []
+            },
+            {
+              "concept": "pallet",
+              "count": 9,
+              "boxes": [
+                [
+                  0.0,
+                  328.0,
+                  18.0,
+                  343.0,
+                  0.508
+                ],
+                [
+                  194.0,
+                  193.0,
+                  243.0,
+                  203.0,
+                  0.594
+                ],
+                [
+                  354.0,
+                  356.0,
+                  386.0,
+                  365.0,
+                  0.656
+                ],
+                [
+                  146.0,
+                  325.0,
+                  265.0,
+                  347.0,
+                  0.726
+                ],
+                [
+                  350.0,
+                  444.0,
+                  381.0,
+                  453.0,
+                  0.683
+                ],
+                [
+                  432.0,
+                  261.0,
+                  494.0,
+                  268.0,
+                  0.508
+                ],
+                [
+                  16.0,
+                  325.0,
+                  145.0,
+                  345.0,
+                  0.855
+                ],
+                [
+                  357.0,
+                  101.0,
+                  428.0,
+                  132.0,
+                  0.672
+                ],
+                [
+                  507.0,
+                  0.0,
+                  616.0,
+                  133.0,
+                  0.54
+                ]
+              ]
+            }
+          ],
+          "gaps": [],
+          "look": {
+            "scene": "The wearer is walking away from the camera down a narrow warehouse aisle flanked by tall pallet racking on both sides with stacked boxes and pallets overhead.",
+            "answer": "",
+            "hazards": [
+              "Missing high-visibility clothing on person near the wearer",
+              "Forklift ahead in the aisle the wearer is walking in",
+              "Overhead pallet/load suspended above the aisle ahead"
+            ],
+            "alert": false,
+            "count": [
+              "person",
+              "forklift",
+              "pallet"
+            ]
+          },
+          "looked_by": "muse-glimmer-30b",
+          "frame": "20261104T010757-0824acdc.jpg",
+          "marked": "20261104T010757-0824acdc-4831588525.jpg",
+          "audio": null,
+          "voice": null,
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 10418,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "count",
+              "model": "sam-3.1",
+              "ms": 4196,
+              "ok": true,
+              "note": "person: 1, forklift: 0, pallet: 9"
+            },
+            {
+              "name": "compose",
+              "model": "muse-spark-1.3",
+              "ms": 12796,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 27419,
+          "walk_id": "walk-20261104T010756-81ee1c",
+          "source": "upload"
+        }
+      },
+      {
+        "case": "walk-warehouse-forklift-ahead.jpg",
+        "frame": "warehouse-forklift-ahead.jpg",
+        "wall_ms": 38281,
+        "answer": {
+          "answer_id": "20261104T010824-60a9db9c",
+          "at": "2026-11-04T01:09:02.716535Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "spoken": "Forklift and its operator directly ahead without high-vis. Hang back and give it space.",
+          "detail": "Wearer is following a forklift in a narrow racking aisle. SAM 3.1 confirms 1 forklift ahead center [397,150,695,539] and 1 person at its controls [439,115,715,539], matching Muse Glimmer's first look. The operator ahead is not wearing high-visibility clothing, continuing the missing hi-vis theme from earlier in this walk. The forklift occupies the same lane the wearer is walking in, so vehicle-pedestrian proximity is confirmed. No shelf gaps were flagged. Racking and pallets are stocked, no spill, blocked exit, or overhead load issue visible in this frame.",
+          "alert": true,
+          "verified": true,
+          "verified_by": [
+            "muse-spark-1.3",
+            "muse-glimmer-30b",
+            "sam-3.1"
+          ],
+          "severity": "caution",
+          "confidence": 0.88,
+          "hazards": [
+            {
+              "what": "person operating forklift without high-visibility clothing",
+              "where": "ahead, close",
+              "severity": "caution"
+            },
+            {
+              "what": "forklift in aisle with pedestrian behind",
+              "where": "ahead",
+              "severity": "caution"
+            }
+          ],
+          "counts": [
+            {
+              "concept": "forklift",
+              "count": 1,
+              "boxes": [
+                [
+                  397.0,
+                  150.0,
+                  695.0,
+                  539.0,
+                  0.863
+                ]
+              ]
+            },
+            {
+              "concept": "person",
+              "count": 1,
+              "boxes": [
+                [
+                  439.0,
+                  115.0,
+                  715.0,
+                  539.0,
+                  0.977
+                ]
+              ]
+            },
+            {
+              "concept": "pallet",
+              "count": 18,
+              "boxes": [
+                [
+                  794.0,
+                  24.0,
+                  835.0,
+                  41.0,
+                  0.613
+                ],
+                [
+                  52.0,
+                  313.0,
+                  125.0,
+                  329.0,
+                  0.543
+                ],
+                [
+                  892.0,
+                  30.0,
+                  959.0,
+                  43.0,
+                  0.7
+                ],
+                [
+                  741.0,
+                  312.0,
+                  850.0,
+                  328.0,
+                  0.805
+                ],
+                [
+                  719.0,
+                  158.0,
+                  811.0,
+                  175.0,
+                  0.734
+                ],
+                [
+                  187.0,
+                  484.0,
+                  290.0,
+                  510.0,
+                  0.91
+                ],
+                [
+                  26.0,
+                  494.0,
+                  76.0,
+                  512.0,
+                  0.844
+                ],
+                [
+                  851.0,
+                  313.0,
+                  883.0,
+                  326.0,
+                  0.71
+                ],
+                [
+                  695.0,
+                  486.0,
+                  745.0,
+                  506.0,
+                  0.805
+                ],
+                [
+                  74.0,
+                  494.0,
+                  184.0,
+                  514.0,
+                  0.86
+                ],
+                [
+                  741.0,
+                  508.0,
+                  804.0,
+                  539.0,
+                  0.782
+                ],
+                [
+                  709.0,
+                  313.0,
+                  741.0,
+                  328.0,
+                  0.766
+                ],
+                [
+                  908.0,
+                  207.0,
+                  959.0,
+                  256.0,
+                  0.656
+                ],
+                [
+                  376.0,
+                  431.0,
+                  394.0,
+                  444.0,
+                  0.519
+                ],
+                [
+                  624.0,
+                  24.0,
+                  703.0,
+                  39.0,
+                  0.754
+                ],
+                [
+                  812.0,
+                  161.0,
+                  858.0,
+                  175.0,
+                  0.68
+                ],
+                [
+                  705.0,
+                  24.0,
+                  789.0,
+                  41.0,
+                  0.758
+                ],
+                [
+                  214.0,
+                  312.0,
+                  305.0,
+                  329.0,
+                  0.82
+                ]
+              ]
+            }
+          ],
+          "gaps": [],
+          "look": {
+            "scene": "The POV shows a warehouse aisle with tall pallet racking on both sides ahead, a forklift and its operator walking ahead in the lane between the racks.",
+            "answer": "",
+            "hazards": [
+              "Missing high-visibility clothing on person operating forklift ahead",
+              "Forklift ahead in pedestrian/aisle area"
+            ],
+            "alert": true,
+            "count": [
+              "forklift",
+              "person",
+              "pallet"
+            ]
+          },
+          "looked_by": "muse-glimmer-30b",
+          "frame": "20261104T010824-60a9db9c.jpg",
+          "marked": "20261104T010824-60a9db9c-1753093215.jpg",
+          "audio": "20261104T010824-60a9db9c.wav",
+          "voice": "Meta MMS-TTS (system voice if it fails)",
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 14204,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "count",
+              "model": "sam-3.1",
+              "ms": 4468,
+              "ok": true,
+              "note": "forklift: 1, person: 1, pallet: 18"
+            },
+            {
+              "name": "compose",
+              "model": "muse-spark-1.3",
+              "ms": 13352,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "speak",
+              "model": "Meta MMS-TTS (system voice if it fails)",
+              "ms": 6234,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 38270,
+          "walk_id": "walk-20261104T010756-81ee1c",
+          "source": "upload"
+        }
+      },
+      {
+        "case": "walk-warehouse-forklift-side.jpg",
+        "frame": "warehouse-forklift-side.jpg",
+        "wall_ms": 37322,
+        "answer": {
+          "answer_id": "20261104T010902-d0bee3e1",
+          "at": "2026-11-04T01:09:40.033682Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "spoken": "Forklift right next to you on the left, hang back and give it space. The operator ahead has no high-vis vest on.",
+          "detail": "Wearer is standing immediately next to an operating forklift. SAM 3.1 confirms 1 forklift filling left foreground, 1 person seated at controls, 1 hard hat. I confirm Glimmer's hazards: the operator ahead operating the controls is in a white shirt with no high-visibility vest visible, but is wearing a red hard hat. The mast and cab are within arm's reach on the left, so pedestrian-vehicle separation is lost.",
+          "alert": true,
+          "verified": true,
+          "verified_by": [
+            "muse-spark-1.3",
+            "muse-glimmer-30b",
+            "sam-3.1"
+          ],
+          "severity": "caution",
+          "confidence": 0.88,
+          "hazards": [
+            {
+              "what": "forklift beside wearer",
+              "where": "left, very close",
+              "severity": "caution"
+            },
+            {
+              "what": "forklift operator without high-visibility clothing",
+              "where": "ahead, close",
+              "severity": "caution"
+            }
+          ],
+          "counts": [
+            {
+              "concept": "forklift",
+              "count": 1,
+              "boxes": [
+                [
+                  0.0,
+                  0.0,
+                  702.0,
+                  539.0,
+                  0.64
+                ]
+              ]
+            },
+            {
+              "concept": "person",
+              "count": 1,
+              "boxes": [
+                [
+                  280.0,
+                  210.0,
+                  535.0,
+                  538.0,
+                  0.926
+                ]
+              ]
+            },
+            {
+              "concept": "hard hat",
+              "count": 1,
+              "boxes": [
+                [
+                  391.0,
+                  208.0,
+                  483.0,
+                  257.0,
+                  0.86
+                ]
+              ]
+            }
+          ],
+          "gaps": [],
+          "look": {
+            "scene": "The wearer\u2019s point-of-view shows the mast and cab of a forklift in the near left foreground with an operator seated in the cab ahead, in a large warehouse interior.",
+            "answer": "",
+            "hazards": [
+              "Missing high-visibility clothing on forklift operator ahead/near",
+              "Forklift in close proximity to the wearer near/left"
+            ],
+            "alert": true,
+            "count": [
+              "forklift",
+              "person",
+              "hard hat"
+            ]
+          },
+          "looked_by": "muse-glimmer-30b",
+          "frame": "20261104T010902-d0bee3e1.jpg",
+          "marked": "20261104T010902-d0bee3e1-901838276.jpg",
+          "audio": "20261104T010902-d0bee3e1.wav",
+          "voice": "Meta MMS-TTS (system voice if it fails)",
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 16482,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "count",
+              "model": "sam-3.1",
+              "ms": 7819,
+              "ok": true,
+              "note": "forklift: 1, person: 1, hard hat: 1"
+            },
+            {
+              "name": "compose",
+              "model": "muse-spark-1.3",
+              "ms": 8728,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "speak",
+              "model": "Meta MMS-TTS (system voice if it fails)",
+              "ms": 4264,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 37307,
+          "walk_id": "walk-20261104T010756-81ee1c",
+          "source": "upload"
+        }
+      }
+    ],
+    "report": {
+      "walk": {
+        "walk_id": "walk-20261104T010756-81ee1c",
+        "mode": "warehouse",
+        "note": "eval",
+        "started_at": "2026-11-04T01:07:56.996122Z",
+        "finished_at": "2026-11-04T01:09:40.055659Z",
+        "frames": 3
+      },
+      "summary": {
+        "summary": "The walk followed one person in the racked storage aisle who was first on foot and then operating a forklift close to the wearer. The operator was without high-visibility clothing in all views, and the forklift passed very close ahead and to the left with the wearer behind it. No spill, blocked exit, or overhead suspended load was confirmed; overhead pallets were stored on rack beams.",
+        "spoken": "Hang back and give the forklift ahead plenty of space.",
+        "hazards": [
+          {
+            "what": "person / forklift operator without high-visibility clothing",
+            "where": "in aisle ahead of wearer, walking away then operating forklift",
+            "severity": "caution",
+            "answer_ids": [
+              "20261104T010757-0824acdc",
+              "20261104T010824-60a9db9c",
+              "20261104T010902-d0bee3e1"
+            ],
+            "action": "Stop the operation and require high-visibility clothing for the operator and any pedestrians in forklift areas."
+          },
+          {
+            "what": "forklift operating in aisle with pedestrian close behind and beside",
+            "where": "storage aisle with tall racking, ahead then immediately to the left of wearer",
+            "severity": "caution",
+            "answer_ids": [
+              "20261104T010824-60a9db9c",
+              "20261104T010902-d0bee3e1"
+            ],
+            "action": "Hang back, maintain separation from the forklift, and wait until the aisle is clear before proceeding on foot."
+          }
+        ],
+        "restock": []
+      },
+      "answers": [
+        {
+          "answer_id": "20261104T010757-0824acdc",
+          "at": "2026-11-04T01:08:24.433603Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "spoken": "",
+          "detail": "One person is confirmed very close ahead on the right, walking away down the aisle - SAM 3.1 counts 1 person, matching that figure. No high-visibility vest is visible on them. Muse Glimmer flagged a forklift ahead in the aisle, but SAM 3.1 counts 0 forklifts and I cannot confirm a forklift in this frame - the distant central shape is indistinct racking/aisle, so models disagree and no vehicle hazard is confirmed. Muse Glimmer also flagged overhead load, but the overhead pallets SAM confirms (9 pallets total) are stored on the rack beams on both sides, not a suspended moving load. Aisle is flanked by tall racking with boxes and containers, no spill or blocked exit confirmed.",
+          "alert": false,
+          "verified": false,
+          "verified_by": [],
+          "severity": "caution",
+          "confidence": 0.85,
+          "hazards": [
+            {
+              "what": "person without high-visibility clothing",
+              "where": "ahead right, very close",
+              "severity": "caution"
+            }
+          ],
+          "counts": [
+            {
+              "concept": "person",
+              "count": 1,
+              "boxes": [
+                [
+                  436.0,
+                  24.0,
+                  959.0,
+                  539.0,
+                  0.992
+                ]
+              ]
+            },
+            {
+              "concept": "forklift",
+              "count": 0,
+              "boxes": []
+            },
+            {
+              "concept": "pallet",
+              "count": 9,
+              "boxes": [
+                [
+                  0.0,
+                  328.0,
+                  18.0,
+                  343.0,
+                  0.508
+                ],
+                [
+                  194.0,
+                  193.0,
+                  243.0,
+                  203.0,
+                  0.594
+                ],
+                [
+                  354.0,
+                  356.0,
+                  386.0,
+                  365.0,
+                  0.656
+                ],
+                [
+                  146.0,
+                  325.0,
+                  265.0,
+                  347.0,
+                  0.726
+                ],
+                [
+                  350.0,
+                  444.0,
+                  381.0,
+                  453.0,
+                  0.683
+                ],
+                [
+                  432.0,
+                  261.0,
+                  494.0,
+                  268.0,
+                  0.508
+                ],
+                [
+                  16.0,
+                  325.0,
+                  145.0,
+                  345.0,
+                  0.855
+                ],
+                [
+                  357.0,
+                  101.0,
+                  428.0,
+                  132.0,
+                  0.672
+                ],
+                [
+                  507.0,
+                  0.0,
+                  616.0,
+                  133.0,
+                  0.54
+                ]
+              ]
+            }
+          ],
+          "gaps": [],
+          "look": {
+            "scene": "The wearer is walking away from the camera down a narrow warehouse aisle flanked by tall pallet racking on both sides with stacked boxes and pallets overhead.",
+            "answer": "",
+            "hazards": [
+              "Missing high-visibility clothing on person near the wearer",
+              "Forklift ahead in the aisle the wearer is walking in",
+              "Overhead pallet/load suspended above the aisle ahead"
+            ],
+            "alert": false,
+            "count": [
+              "person",
+              "forklift",
+              "pallet"
+            ]
+          },
+          "looked_by": "muse-glimmer-30b",
+          "frame": "20261104T010757-0824acdc.jpg",
+          "marked": "20261104T010757-0824acdc-4831588525.jpg",
+          "audio": null,
+          "voice": null,
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 10418,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "count",
+              "model": "sam-3.1",
+              "ms": 4196,
+              "ok": true,
+              "note": "person: 1, forklift: 0, pallet: 9"
+            },
+            {
+              "name": "compose",
+              "model": "muse-spark-1.3",
+              "ms": 12796,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 27419,
+          "walk_id": "walk-20261104T010756-81ee1c",
+          "source": "upload"
+        },
+        {
+          "answer_id": "20261104T010824-60a9db9c",
+          "at": "2026-11-04T01:09:02.716535Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "spoken": "Forklift and its operator directly ahead without high-vis. Hang back and give it space.",
+          "detail": "Wearer is following a forklift in a narrow racking aisle. SAM 3.1 confirms 1 forklift ahead center [397,150,695,539] and 1 person at its controls [439,115,715,539], matching Muse Glimmer's first look. The operator ahead is not wearing high-visibility clothing, continuing the missing hi-vis theme from earlier in this walk. The forklift occupies the same lane the wearer is walking in, so vehicle-pedestrian proximity is confirmed. No shelf gaps were flagged. Racking and pallets are stocked, no spill, blocked exit, or overhead load issue visible in this frame.",
+          "alert": true,
+          "verified": true,
+          "verified_by": [
+            "muse-spark-1.3",
+            "muse-glimmer-30b",
+            "sam-3.1"
+          ],
+          "severity": "caution",
+          "confidence": 0.88,
+          "hazards": [
+            {
+              "what": "person operating forklift without high-visibility clothing",
+              "where": "ahead, close",
+              "severity": "caution"
+            },
+            {
+              "what": "forklift in aisle with pedestrian behind",
+              "where": "ahead",
+              "severity": "caution"
+            }
+          ],
+          "counts": [
+            {
+              "concept": "forklift",
+              "count": 1,
+              "boxes": [
+                [
+                  397.0,
+                  150.0,
+                  695.0,
+                  539.0,
+                  0.863
+                ]
+              ]
+            },
+            {
+              "concept": "person",
+              "count": 1,
+              "boxes": [
+                [
+                  439.0,
+                  115.0,
+                  715.0,
+                  539.0,
+                  0.977
+                ]
+              ]
+            },
+            {
+              "concept": "pallet",
+              "count": 18,
+              "boxes": [
+                [
+                  794.0,
+                  24.0,
+                  835.0,
+                  41.0,
+                  0.613
+                ],
+                [
+                  52.0,
+                  313.0,
+                  125.0,
+                  329.0,
+                  0.543
+                ],
+                [
+                  892.0,
+                  30.0,
+                  959.0,
+                  43.0,
+                  0.7
+                ],
+                [
+                  741.0,
+                  312.0,
+                  850.0,
+                  328.0,
+                  0.805
+                ],
+                [
+                  719.0,
+                  158.0,
+                  811.0,
+                  175.0,
+                  0.734
+                ],
+                [
+                  187.0,
+                  484.0,
+                  290.0,
+                  510.0,
+                  0.91
+                ],
+                [
+                  26.0,
+                  494.0,
+                  76.0,
+                  512.0,
+                  0.844
+                ],
+                [
+                  851.0,
+                  313.0,
+                  883.0,
+                  326.0,
+                  0.71
+                ],
+                [
+                  695.0,
+                  486.0,
+                  745.0,
+                  506.0,
+                  0.805
+                ],
+                [
+                  74.0,
+                  494.0,
+                  184.0,
+                  514.0,
+                  0.86
+                ],
+                [
+                  741.0,
+                  508.0,
+                  804.0,
+                  539.0,
+                  0.782
+                ],
+                [
+                  709.0,
+                  313.0,
+                  741.0,
+                  328.0,
+                  0.766
+                ],
+                [
+                  908.0,
+                  207.0,
+                  959.0,
+                  256.0,
+                  0.656
+                ],
+                [
+                  376.0,
+                  431.0,
+                  394.0,
+                  444.0,
+                  0.519
+                ],
+                [
+                  624.0,
+                  24.0,
+                  703.0,
+                  39.0,
+                  0.754
+                ],
+                [
+                  812.0,
+                  161.0,
+                  858.0,
+                  175.0,
+                  0.68
+                ],
+                [
+                  705.0,
+                  24.0,
+                  789.0,
+                  41.0,
+                  0.758
+                ],
+                [
+                  214.0,
+                  312.0,
+                  305.0,
+                  329.0,
+                  0.82
+                ]
+              ]
+            }
+          ],
+          "gaps": [],
+          "look": {
+            "scene": "The POV shows a warehouse aisle with tall pallet racking on both sides ahead, a forklift and its operator walking ahead in the lane between the racks.",
+            "answer": "",
+            "hazards": [
+              "Missing high-visibility clothing on person operating forklift ahead",
+              "Forklift ahead in pedestrian/aisle area"
+            ],
+            "alert": true,
+            "count": [
+              "forklift",
+              "person",
+              "pallet"
+            ]
+          },
+          "looked_by": "muse-glimmer-30b",
+          "frame": "20261104T010824-60a9db9c.jpg",
+          "marked": "20261104T010824-60a9db9c-1753093215.jpg",
+          "audio": "20261104T010824-60a9db9c.wav",
+          "voice": "Meta MMS-TTS (system voice if it fails)",
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 14204,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "count",
+              "model": "sam-3.1",
+              "ms": 4468,
+              "ok": true,
+              "note": "forklift: 1, person: 1, pallet: 18"
+            },
+            {
+              "name": "compose",
+              "model": "muse-spark-1.3",
+              "ms": 13352,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "speak",
+              "model": "Meta MMS-TTS (system voice if it fails)",
+              "ms": 6234,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 38270,
+          "walk_id": "walk-20261104T010756-81ee1c",
+          "source": "upload"
+        },
+        {
+          "answer_id": "20261104T010902-d0bee3e1",
+          "at": "2026-11-04T01:09:40.033682Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "spoken": "Forklift right next to you on the left, hang back and give it space. The operator ahead has no high-vis vest on.",
+          "detail": "Wearer is standing immediately next to an operating forklift. SAM 3.1 confirms 1 forklift filling left foreground, 1 person seated at controls, 1 hard hat. I confirm Glimmer's hazards: the operator ahead operating the controls is in a white shirt with no high-visibility vest visible, but is wearing a red hard hat. The mast and cab are within arm's reach on the left, so pedestrian-vehicle separation is lost.",
+          "alert": true,
+          "verified": true,
+          "verified_by": [
+            "muse-spark-1.3",
+            "muse-glimmer-30b",
+            "sam-3.1"
+          ],
+          "severity": "caution",
+          "confidence": 0.88,
+          "hazards": [
+            {
+              "what": "forklift beside wearer",
+              "where": "left, very close",
+              "severity": "caution"
+            },
+            {
+              "what": "forklift operator without high-visibility clothing",
+              "where": "ahead, close",
+              "severity": "caution"
+            }
+          ],
+          "counts": [
+            {
+              "concept": "forklift",
+              "count": 1,
+              "boxes": [
+                [
+                  0.0,
+                  0.0,
+                  702.0,
+                  539.0,
+                  0.64
+                ]
+              ]
+            },
+            {
+              "concept": "person",
+              "count": 1,
+              "boxes": [
+                [
+                  280.0,
+                  210.0,
+                  535.0,
+                  538.0,
+                  0.926
+                ]
+              ]
+            },
+            {
+              "concept": "hard hat",
+              "count": 1,
+              "boxes": [
+                [
+                  391.0,
+                  208.0,
+                  483.0,
+                  257.0,
+                  0.86
+                ]
+              ]
+            }
+          ],
+          "gaps": [],
+          "look": {
+            "scene": "The wearer\u2019s point-of-view shows the mast and cab of a forklift in the near left foreground with an operator seated in the cab ahead, in a large warehouse interior.",
+            "answer": "",
+            "hazards": [
+              "Missing high-visibility clothing on forklift operator ahead/near",
+              "Forklift in close proximity to the wearer near/left"
+            ],
+            "alert": true,
+            "count": [
+              "forklift",
+              "person",
+              "hard hat"
+            ]
+          },
+          "looked_by": "muse-glimmer-30b",
+          "frame": "20261104T010902-d0bee3e1.jpg",
+          "marked": "20261104T010902-d0bee3e1-901838276.jpg",
+          "audio": "20261104T010902-d0bee3e1.wav",
+          "voice": "Meta MMS-TTS (system voice if it fails)",
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 16482,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "count",
+              "model": "sam-3.1",
+              "ms": 7819,
+              "ok": true,
+              "note": "forklift: 1, person: 1, hard hat: 1"
+            },
+            {
+              "name": "compose",
+              "model": "muse-spark-1.3",
+              "ms": 8728,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "speak",
+              "model": "Meta MMS-TTS (system voice if it fails)",
+              "ms": 4264,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 37307,
+          "walk_id": "walk-20261104T010756-81ee1c",
+          "source": "upload"
+        }
+      ],
+      "chain_hashes": [
+        "fd8474826ae53c251453167592f9cce8a61611a06c55c2bcf7d636652dcafa18",
+        "a951a99ceb0002800aa2a53fd792e6d77bf39c7fd54c79cee84b0a53873a4852",
+        "4bd129d660e4f777bd609283c28c67cc077d4499e31e577a35905e3bb718569a"
+      ],
+      "model": "muse-spark-1.3",
+      "ms": 15922
+    },
+    "report_wall_ms": 15942
+  }
+}

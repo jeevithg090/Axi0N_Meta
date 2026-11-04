@@ -166,7 +166,8 @@ export function AskSignage() {
         <form
           onSubmit={(e) => void submit(e)}
           style={{
-            border: "3px solid var(--ink)",
+            border: "1px solid var(--color-rule)",
+            borderRadius: "var(--radius-card)",
             background: "var(--card)",
             padding: "var(--s3)",
             marginBottom: "var(--s4)",
@@ -196,7 +197,8 @@ export function AskSignage() {
             style={{
               width: "100%",
               padding: "12px",
-              border: "2px solid var(--ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               background: "var(--paper)",
               fontFamily: "var(--font-dm-mono, monospace)",
               fontSize: "14px",
@@ -231,7 +233,8 @@ export function AskSignage() {
             <div
               key={k}
               style={{
-                border: "2px solid var(--ink)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
                 background: "var(--paper-2)",
                 padding: "var(--s3)",
               }}

@@ -157,9 +157,9 @@ describe("DemoPage", () => {
     expect(screen.queryAllByRole("img")).toHaveLength(frames);
     expect(screen.getByText(/0 candidates and 0 alerts on a negative clip/)).toBeTruthy();
     expect(screen.getByTestId("verify-link").getAttribute("href")).toBe(run.verify_url);
-    for (const pending of PENDING_RUNS) {
-      expect(screen.getByLabelText(`Pending: ${pending.name}`)).toBeTruthy();
-    }
+    const note = screen.getByTestId("pending-note").textContent ?? "";
+    for (const pending of PENDING_RUNS) expect(note).toContain(pending.title);
+    expect(note).not.toContain("golden capture");
   });
 
   it("leads with the recorded live run and links the clip instead of a missing video", () => {

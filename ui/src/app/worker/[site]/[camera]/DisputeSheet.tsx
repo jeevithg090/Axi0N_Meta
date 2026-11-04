@@ -12,6 +12,8 @@ import {
   type WorkerStrings,
 } from "@/lib/worker";
 
+import styles from "./worker.module.css";
+
 interface Props {
   code: string;
   strings: WorkerStrings;
@@ -56,8 +58,13 @@ export function DisputeSheet({ code, strings, onClose, onDisputed }: Props) {
 
   const titleId = `dispute-${code}`;
   return (
-    <div className="sheet-backdrop">
-      <div className="sheet" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <div className={`sheet-backdrop ${styles.backdrop}`}>
+      <div
+        className={`sheet ${styles.sheet}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         <h2 id={titleId}>{strings.sheetTitle(code)}</h2>
         {outcome ? (
           <p role="status" className={`outcome outcome-${outcome}`}>
@@ -68,7 +75,7 @@ export function DisputeSheet({ code, strings, onClose, onDisputed }: Props) {
             <fieldset>
               <legend>{strings.reason}</legend>
               {DISPUTE_REASONS.map((choice, index) => (
-                <label key={choice} className="choice">
+                <label key={choice} className={`choice ${styles.choice}`}>
                   <input
                     type="radio"
                     name="reason"
@@ -81,7 +88,7 @@ export function DisputeSheet({ code, strings, onClose, onDisputed }: Props) {
                 </label>
               ))}
             </fieldset>
-            <label className="details">
+            <label className={`details ${styles.details}`}>
               {strings.details}
               <textarea
                 value={text}
@@ -98,12 +105,16 @@ export function DisputeSheet({ code, strings, onClose, onDisputed }: Props) {
                 {error}
               </p>
             )}
-            <button type="submit" className="tap primary" disabled={sending}>
+            <button
+              type="submit"
+              className={`tap primary ${styles.tap} ${styles.primary}`}
+              disabled={sending}
+            >
               {sending ? strings.sending : strings.submit}
             </button>
           </form>
         )}
-        <button type="button" className="tap" onClick={onClose}>
+        <button type="button" className={`tap ${styles.tap}`} onClick={onClose}>
           {strings.close}
         </button>
       </div>

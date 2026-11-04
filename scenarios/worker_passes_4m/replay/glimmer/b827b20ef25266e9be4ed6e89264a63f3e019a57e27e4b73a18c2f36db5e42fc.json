@@ -1,0 +1,61 @@
+{
+  "key": "b827b20ef25266e9be4ed6e89264a63f3e019a57e27e4b73a18c2f36db5e42fc",
+  "provider": "glimmer",
+  "model": "muse-glimmer-30b",
+  "recorded_at": "2026-11-02T23:44:02.090266Z",
+  "latency_ms": 14659,
+  "response": {
+    "status": 200,
+    "headers": {
+      "date": "Mon, 02 Nov 2026 23:44:02 GMT",
+      "content-type": "application/json; charset=utf-8",
+      "transfer-encoding": "chunked",
+      "connection": "keep-alive",
+      "server": "cloudflare",
+      "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+      "vary": "Origin",
+      "x-runpod-worker-id": "ag59si3c9xfz7t",
+      "cf-cache-status": "DYNAMIC",
+      "set-cookie": "__cflb=0H28v72BksC7jZHvNHSQvF5vHh5B9321iNdE3xuZUMT; HttpOnly; SameSite=None; Secure; Path=/; Expires=Tue, 03 Nov 2026 00:14:02 GMT",
+      "content-encoding": "gzip",
+      "cf-ray": "a54700e1ae0dacca-MSP"
+    },
+    "json": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "role": "assistant",
+            "content": "{\n  \"verdict\": \"violation\",\n  \"p_violation\": 0.99,\n  \"reason\": \"A pedestrian is within about 3.1 m of an orange forklift that is moving, so the 4 m separation requirement is not met.\",\n  \"scene_text\": \"\"\n}",
+            "reasoning_content": "Rule: Keep people at least 4 metres away from a moving forklift.\n\nMeasured value 3.09 m, moving true speed 0.25 m/s >0.2. So violation.\n\nFrames show person walking near forklift, distance line ~3m. No scene text visible.\n\nNeed output violation, p_violation high ~0.99, reason one sentence.\n\nscene_text empty.\n\n"
+          }
+        }
+      ],
+      "created": 1793663042,
+      "model": "muse-glimmer-30b",
+      "system_fingerprint": "b11669-620d2225c",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 160,
+        "prompt_tokens": 6115,
+        "total_tokens": 6275,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        }
+      },
+      "id": "chatcmpl-lOFreRXB1KjWHrDNGaa4HDUJbKTlHzGh",
+      "timings": {
+        "cache_n": 0,
+        "prompt_n": 6115,
+        "prompt_ms": 3886.261,
+        "prompt_per_token_ms": 0.6355291905151267,
+        "prompt_per_second": 1573.4918473051605,
+        "predicted_n": 160,
+        "predicted_ms": 10028.896,
+        "predicted_per_token_ms": 63.074817610062894,
+        "predicted_per_second": 15.85418773910907
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "extension": "ext:pallet_above_line@367981606c60",
+  "clip": "pexels-4294434.mp4",
+  "seconds": 8.0,
+  "fps": 5.0,
+  "sam_detections": 254,
+  "sam_objects": 16,
+  "sam_seconds": 11.7,
+  "samples": 41,
+  "samples_known": 41,
+  "samples_alerting": 30,
+  "alert_episodes": 1,
+  "engine_seconds": 0.03,
+  "first_alert_whys": [
+    "pallet above yellow line",
+    "pallet above yellow line",
+    "pallet above yellow line",
+    "pallet above yellow line",
+    "pallet above yellow line"
+  ]
+}

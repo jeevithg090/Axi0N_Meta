@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 
 from rulecam.act.notify import for_event
 from rulecam.bus import Bus, Topic
-from rulecam.contracts import Ack, ActionRecord, Clock, Notifier
+from rulecam.contracts import Ack, ActionRecord, Clock, Frozen, Notifier
 from rulecam.evidence.chain import EventChain
 from rulecam.log import get_logger
 from rulecam.runtime.loop import ActionDone
@@ -57,6 +57,24 @@ class _Step:
     body: str
     clip_path: str | None
     record: ActionRecord
+
+
+class PendingEscalation(Frozen):
+    """An open escalation as a client sees it (`EscalationManager.pending`).
+
+    Attributes:
+        event_id: The alert.
+        rule_id: The rule that fired.
+        notified: Roles notified so far, in order.
+        next_role: The role the next step goes to, `None` after the last step.
+        next_at: When that step fires unless someone acknowledges first.
+    """
+
+    event_id: str
+    rule_id: str | None
+    notified: tuple[str, ...]
+    next_role: str | None
+    next_at: datetime | None
 
 
 class EscalationManager:
@@ -198,6 +216,20 @@ class EscalationManager:
         ack = Ack(role=role, ts=self._clock.now())
         self._chain.append("ack", {"event_id": event_id, **ack.model_dump(mode="json")})
         return ack
+
+    def pending(self, event_id: str) -> PendingEscalation | None:
+        """The open escalation of an alert (who was told, who is next and when), else `None`."""
+        with self._lock:
+            state = self._open.get(event_id)
+            if state is None:
+                return None
+            return PendingEscalation(
+                event_id=state.event_id,
+                rule_id=state.rule_id,
+                notified=state.roles[: state.step],
+                next_role=state.roles[state.step] if state.step < len(state.roles) else None,
+                next_at=state.next_at,
+            )
 
     def is_open(self, event_id: str) -> bool:
         """Whether a chain is still waiting for an ack (also after its last step)."""

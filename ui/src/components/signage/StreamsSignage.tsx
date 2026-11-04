@@ -4,6 +4,7 @@ import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { api, type CameraInfo } from "../../lib/api";
 import { SampleDataTag } from "../SampleDataTag";
+import { ClipPlayer } from "../ClipPlayer";
 
 interface FleetCamera {
   id: string;
@@ -330,17 +331,17 @@ export function StreamsSignage() {
             style={{
               marginTop: "var(--s3)",
               padding: "var(--s3)",
-              background: "#0F1112",
-              color: "#ECEAE3",
-              border: "2px solid var(--yellow)",
+              background: "var(--color-scene)",
+              color: "var(--color-on-scene)",
+              border: "1px solid var(--color-scene-rule)",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
               <div>
-                <span className="mono" style={{ color: "#F2D100" }}>
+                <span className="mono" style={{ color: "var(--color-scene-accent)" }}>
                   LIVE STREAM INSPECTOR · {selectedCam.cameraId}
                 </span>
-                <h3 className="h3" style={{ color: "#ECEAE3", marginTop: "2px" }}>
+                <h3 className="h3" style={{ color: "var(--color-on-scene)", marginTop: "2px" }}>
                   {selectedCam.name} — {selectedCam.where}
                 </h3>
               </div>
@@ -348,7 +349,7 @@ export function StreamsSignage() {
                 <Link
                   href={`/worker?camera=${encodeURIComponent(selectedCam.cameraId)}`}
                   className="btn"
-                  style={{ background: "#F2D100", color: "#141414", padding: "6px 12px", fontSize: "13px" }}
+                  style={{ background: "var(--color-accent)", color: "var(--color-ink)", padding: "6px 12px", fontSize: "13px" }}
                 >
                   View Worker Rules Card
                 </Link>
@@ -356,14 +357,14 @@ export function StreamsSignage() {
                   type="button"
                   className="btn ghost"
                   onClick={() => setSelectedCam(null)}
-                  style={{ color: "#ECEAE3", borderColor: "#ECEAE3", padding: "6px 12px", fontSize: "13px" }}
+                  style={{ color: "var(--color-on-scene)", borderColor: "var(--color-on-scene)", padding: "6px 12px", fontSize: "13px" }}
                 >
                   Close ✕
                 </button>
               </div>
             </div>
             {selectedCam.videoSrc && (
-              <video
+              <ClipPlayer
                 src={selectedCam.videoSrc}
                 controls
                 autoPlay
@@ -393,8 +394,8 @@ export function StreamsSignage() {
                   c.state === "BLIND"
                     ? "4px solid var(--alert)"
                     : c.state === "BREACH"
-                      ? "4px solid #FF5A2B"
-                      : "4px solid var(--ink)",
+                      ? "4px solid var(--color-bad)"
+                      : "1px solid var(--color-rule-2)",
                 paddingTop: "var(--s2)",
                 background: "var(--paper)",
               }}
@@ -406,13 +407,13 @@ export function StreamsSignage() {
                     position: "relative",
                     width: "100%",
                     height: "190px",
-                    background: "#0a0c0e",
+                    background: "var(--color-scene)",
                     overflow: "hidden",
                     cursor: "pointer",
                   }}
                   title="Click to expand HD stream"
                 >
-                  <video
+                  <ClipPlayer
                     src={c.videoSrc}
                     autoPlay
                     loop
@@ -429,7 +430,7 @@ export function StreamsSignage() {
                       padding: "2px 7px",
                       fontFamily: "var(--font-dm-mono, monospace)",
                       fontSize: "10px",
-                      color: "#ECEAE3",
+                      color: "var(--color-on-scene)",
                       border: "1px solid rgba(255,255,255,0.2)",
                     }}
                   >
@@ -447,7 +448,7 @@ export function StreamsSignage() {
                           : "rgba(10, 12, 14, 0.85)",
                       padding: "3px 8px",
                       fontSize: "11px",
-                      color: c.state === "BREACH" ? "#fff" : "#3DB8FF",
+                      color: c.state === "BREACH" ? "#fff" : "var(--color-scene-cool)",
                       fontWeight: 700,
                       display: "flex",
                       justifyContent: "space-between",
@@ -467,11 +468,11 @@ export function StreamsSignage() {
                   <rect width="320" height="190" fill="#2A1510" />
                   <path
                     d="M0 40L140 0M0 100L200 0M0 160L260 0M40 190L320 20M120 190L320 80M200 190L320 140"
-                    stroke="#FF5A2B"
+                    stroke="var(--color-bad)"
                     strokeOpacity=".45"
                     strokeWidth="6"
                   />
-                  <rect x="30" y="68" width="260" height="54" fill="#0F1112" stroke="#FF5A2B" strokeWidth="2" />
+                  <rect x="30" y="68" width="260" height="54" fill="var(--color-scene)" stroke="var(--color-bad)" strokeWidth="2" />
                   <text
                     x="160"
                     y="92"
@@ -479,7 +480,7 @@ export function StreamsSignage() {
                     fontFamily="var(--font-barlow-condensed, sans-serif)"
                     fontWeight="700"
                     fontSize="19"
-                    fill="#FF5A2B"
+                    fill="var(--color-bad)"
                   >
                     OPTICAL FEED BLOCKED · BLIND
                   </text>
@@ -489,7 +490,7 @@ export function StreamsSignage() {
                     textAnchor="middle"
                     fontFamily="var(--font-dm-mono, monospace)"
                     fontSize="10"
-                    fill="#ECEAE3"
+                    fill="var(--color-on-scene)"
                   >
                     Coverage Watchdog: Rules Marked UNCHECKED
                   </text>
@@ -515,7 +516,7 @@ export function StreamsSignage() {
                 {c.where}
               </div>
 
-              <div className="kv" style={{ borderTop: "1px solid var(--ink)", padding: "6px 0", fontSize: "13px" }}>
+              <div className="kv" style={{ borderTop: "1px solid var(--color-rule)", padding: "6px 0", fontSize: "13px" }}>
                 <span>Enforced Rule</span>
                 <b className="dm" style={{ fontSize: "11px" }}>
                   {c.rules[0] ?? "UNCHECKED (Lens Blocked)"}

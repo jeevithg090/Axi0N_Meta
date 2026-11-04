@@ -7,6 +7,10 @@ templates:
 - `food_code`: leads with Food Code §2-103.11(G) (the person in charge monitors handwashing) and
   §2-301.12 (how to wash);
 - `f689`: the nursing-home supervision log (accidents and supervision);
+- `osha_pit`: forklifts (OSHA 29 CFR 1910.178, powered industrial trucks): leads with
+  1910.178(l)(4)(ii)(B) (refresher training after a near miss), then (m)(1) (never drive up to
+  a person standing in front of a fixed object) and (n)(4) (slow down and sound the horn where
+  vision is obstructed);
 - `generic`.
 
 **Privacy:** packs never contain clip or file paths: stills are inlined as data URIs. In anonymous
@@ -29,7 +33,7 @@ from pydantic import Field
 
 from rulecam.contracts import Frozen, PrivacyMode
 
-TemplateName = Literal["food_code", "f689", "generic"]
+TemplateName = Literal["food_code", "f689", "osha_pit", "generic"]
 Z_95 = 1.959963984540054
 IMAGE_TYPES: dict[str, str] = {
     ".png": "image/png",
@@ -41,11 +45,13 @@ IMAGE_TYPES: dict[str, str] = {
 LEAD_CLAUSES: dict[str, tuple[str, ...]] = {
     "food_code": ("§2-103.11(G)", "§2-301.12"),
     "f689": ("F689",),
+    "osha_pit": ("1910.178(l)(4)(ii)(B)", "1910.178(m)(1)", "1910.178(n)(4)"),
     "generic": (),
 }
 TITLES: dict[str, str] = {
     "food_code": "Food Code evidence pack",
     "f689": "F689 supervision log",
+    "osha_pit": "Forklift (powered industrial truck) evidence pack",
     "generic": "Rulecam evidence pack",
 }
 INTROS: dict[str, str] = {
@@ -58,6 +64,13 @@ INTROS: dict[str, str] = {
         "Supervision evidence for CMS F689 (accidents and supervision) on this unit: exit coverage "
         "and response to alerts, by corridor and role. It never covers individual residents or "
         "staff."
+    ),
+    "osha_pit": (
+        "OSHA 29 CFR 1910.178(l)(4)(ii)(B) requires refresher training for an operator involved "
+        "in an accident or near-miss incident. This pack shows every forklift near miss the "
+        "cameras measured, the training each one made due and whether it was done, and how much "
+        "of each shift the cameras watched. Vehicles are named by their unit numbers, never by a "
+        "person."
     ),
     "generic": "Rule compliance measured by Rulecam, with the share of time each camera watched.",
 }

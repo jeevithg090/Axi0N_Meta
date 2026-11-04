@@ -1,6 +1,6 @@
 ---
 name: demo-preflight
-description: Pre-demo checklist for Rulecam's live stack (Meta API only, API and site on the team's Mac behind Cloudflare tunnels) - check the local servers and tunnels, run the model and use-case checks, then the public API, owner auth and evidence checks, and report pass/fail. Use before a demo, a recording, judging or the finals, or when asked whether the live site is ready.
+description: Pre-demo checklist for Rulecam's live stack (Meta API only, site on Vercel, API on the team's Mac behind a Cloudflare tunnel) - check the local servers and tunnels, run the model and use-case checks, then the public API, owner auth and evidence checks, and report pass/fail. Use before a demo, a recording, judging or the finals, or when asked whether the live site is ready.
 ---
 
 # Demo preflight
@@ -10,18 +10,18 @@ first failure that would break the demo; do not "fix" the live stack without ask
 runs and how to restart it: `docs/deploy.md` "Meta API only". Never print key values.
 
 Since 4 Nov 2026 there are no GPUs to warm: every model call goes to the Meta API (Tier 1 is
-Muse Spark 1.3, Tier 2 is Muse Wonder 1.0, SAM 3.1 hosted). The API and site run on the team's
-Mac; the public addresses are Cloudflare quick tunnels (`PUBLIC_UI_URL` and `PUBLIC_TUNNEL_URL`
-in `.env.live`). A tunnel that restarted has a new address: the site must then be rebuilt with
-`NEXT_PUBLIC_RULECAM_API` set to the new API address (never `localhost`, or visitors count as
-the owner) and the docs updated (`SUBMISSION.md` says how).
+Muse Spark 1.3, Tier 2 is Muse Wonder 1.0, SAM 3.1 hosted). The site is the Vercel project
+`rulecam-live` (`PUBLIC_UI_URL`); the API runs on the team's Mac behind a Cloudflare quick tunnel
+(`PUBLIC_TUNNEL_URL` in `.env.live`). A tunnel that restarted has a new address: redeploy the site
+with `NEXT_PUBLIC_RULECAM_API` set to it (never `localhost`, or visitors count as the owner);
+`docs/deploy.md` "The site on Vercel" has the commands. The site's address does not change.
 
-## 1. Local servers and tunnels
+## 1. Local API and tunnel
 
 ```bash
 curl -s http://127.0.0.1:8000/health      # ok true, runtime true, models.tier1 muse-spark-1.3 (meta-api)
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/        # 200
-pgrep -fl cloudflared                      # two tunnels: :8000 and :3000
+pgrep -fl cloudflared                      # one tunnel, to :8000
+curl -s $PUBLIC_TUNNEL_URL/health          # same answer; if not, the tunnel dropped (see above)
 pgrep -fl caffeinate                       # keeps the Mac awake (closing the lid on battery still sleeps it)
 ```
 
@@ -47,7 +47,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X PUT $B/mode -H 'Content-Type: applic
 curl -s -o /dev/null -w '%{http_code}\n' -X PUT $B/mode -H 'X-Forwarded-For: 127.0.0.1' \
   -H 'Content-Type: application/json' -d '{"mode":"replay"}'   # 403
 curl -s $B/auth/me                                 # "owner":false … "login_enabled":true
-curl -s -o /dev/null -w '%{http_code}\n' $B/plans  # 200 with PUBLIC_DEMO=true, else 403
+curl -s -o /dev/null -w '%{http_code}\n' $B/plans  # 200 (PUBLIC_DEMO=true since 4 Nov), else 403
 curl -s -o /dev/null -w '%{http_code}\n' $B/connectors/cameras   # 403
 ```
 

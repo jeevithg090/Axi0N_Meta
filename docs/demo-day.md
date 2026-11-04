@@ -10,7 +10,8 @@ counted back from the start of the demo (T-0).
 
 | Piece | Where | Job |
 |---|---|---|
-| Rulecam API and the site | The team's Mac, public at `https://preferred-florist-labeled-trace.trycloudflare.com` through a Cloudflare tunnel | Everything the live site does |
+| The site | Vercel, `https://rulecam-live.vercel.app` | The pages; `/rulecam-api/*` is passed on to the API |
+| Rulecam API | The team's Mac, public through a Cloudflare tunnel (`PUBLIC_TUNNEL_URL` in `.env.live`) | Everything the live site does |
 | Muse Spark 1.3 | Meta API | Planner, Ask, the planner's guardrail pass, retail checks, and the Tier 1 check of every alert (through the Glimmer client) |
 | Muse Wonder 1.0 | Meta API | Tier 2: dispute review, plan audit, Ask answer review (through the Spark Open client) |
 | SAM 3.1 | Meta API (hosted) | Survey, probes, keyframes, counts |
@@ -42,17 +43,18 @@ Not running:
    ulimit -n 65536; uv run uvicorn rulecam.api.app:app --host 127.0.0.1 --port 8000
    ```
 
-   The site (`ui/`) and `cloudflared` keep running on the Mac. Keep the Mac awake and on the
-   network for the whole demo.
+   `cloudflared` keeps running on the Mac (the site itself is on Vercel). Keep the Mac awake and
+   on the network for the whole demo.
 2. Check that the public address answers:
 
    ```bash
-   curl -s https://preferred-florist-labeled-trace.trycloudflare.com/rulecam-api/health
+   curl -s https://rulecam-live.vercel.app/rulecam-api/health
    ```
 
    Expect `ok: true` and, under `models`, `muse-spark-1.3` (Tier 1), `muse-wonder-1.0` (Tier 2)
-   and `sam-3.1`, each on `meta-api`. If cloudflared restarted, the address changed: replace it
-   everywhere (the command is in [`SUBMISSION.md`](../SUBMISSION.md)).
+   and `sam-3.1`, each on `meta-api`. If this fails but `http://127.0.0.1:8000/health` answers,
+   the tunnel dropped: start a new one and redeploy the site with its address
+   ([`deploy.md`](deploy.md), "The site on Vercel").
 3. Prove the models answer through Rulecam's own clients, in a shell with `.env.live` loaded
    (as above):
 

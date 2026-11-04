@@ -75,7 +75,7 @@ recorded run" and switch to the recorded page (REPLAY). Start the API and run th
 proofs at T-30 min ([`docs/demo-day.md`](../demo-day.md)); there are no GPUs to warm. Plan once
 on the stage camera beforehand so the survey is reused.
 
-1. `https://preferred-florist-labeled-trace.trycloudflare.com/usecases/warehouse`: say or type the forklift rule in Spanish, press "Plan
+1. `https://rulecam-live.vercel.app/usecases/warehouse`: say or type the forklift rule in Spanish, press "Plan
    this rule". "Any language. Spark plans it, and it tells me what the camera can't see." On
    the Meta API this plan took 146 s on 4 Nov, longer than the live moment: start it before you
    speak and talk over it, or open the plan made beforehand. (On a surveyed camera it took
@@ -275,7 +275,7 @@ is listed in the repo, with the licence of everything we reused."
 - **Pilots:** one warehouse, one supermarket, one venue or station, on cameras they already own.
 - **Meta:** help putting glasses mode on Ray-Ban Meta glasses (the Wearables Device Access
   Toolkit), so a supervisor can walk the floor with it.
-- **You:** open `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1` and press **Verify it in your browser**.
+- **You:** open `https://rulecam-live.vercel.app/demo?demo=1` and press **Verify it in your browser**.
 
 **Speaker notes (20 s)**
 

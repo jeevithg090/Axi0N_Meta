@@ -14,10 +14,12 @@ only** were measured live on 4 Nov after the switch and are in
 
 ## Only the team can fill these (do them before pressing submit)
 
-- [x] **Live site:** `https://preferred-florist-labeled-trace.trycloudflare.com` (4 Nov 2026), a Cloudflare tunnel from the team's Mac; models on
-      the Meta API. The replay, the verify link, `/usecases/*`, `/staff` and `/glasses` open for
-      someone not logged in (checked 4 Nov). If cloudflared restarts, the address changes: replace
-      it everywhere with `git grep -l <old> | xargs sed -i '' 's#<old>#<new>#g'`.
+- [x] **Live site:** `https://rulecam-live.vercel.app` (4 Nov 2026): the site on Vercel, the API on
+      the team's Mac behind a Cloudflare tunnel, models on the Meta API. The replay, the verify
+      link, `/usecases/*`, `/staff`, `/glasses`, the live camera list and the live feed open for
+      someone not logged in (`PUBLIC_DEMO=true`, checked 4 Nov); changes need the owner login. The
+      address stays the same when the tunnel restarts; the site is redeployed with the new API
+      address (`docs/deploy.md`, "The site on Vercel").
 - [ ] **Video link** (3:00, public, plays for someone not logged in). Paste it in "Demo video"
       below, in the README "Try it now" table, and in the X post.
 - [ ] **X post link** for Most Viral (one post, linked in the form). Draft in
@@ -200,16 +202,16 @@ each report says where it ran.
 
 ### Demo (25%)
 
-- **Replay, no login:** `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1`. A recorded live run, step by step. The
+- **Replay, no login:** `https://rulecam-live.vercel.app/demo?demo=1`. A recorded live run, step by step. The
   header says REPLAY, and it makes no model calls.
 - **Verify it yourself:**
-  `https://preferred-florist-labeled-trace.trycloudflare.com/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35`.
+  `https://rulecam-live.vercel.app/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35`.
   The browser recomputes every SHA-256 of the evidence log and checks it against the day's
   Merkle root.
-- **The three worlds:** `https://preferred-florist-labeled-trace.trycloudflare.com/usecases/warehouse`, `/usecases/crowd`,
+- **The three worlds:** `https://rulecam-live.vercel.app/usecases/warehouse`, `/usecases/crowd`,
   `/usecases/supermarket`. The warehouse and supermarket pages run live on the Meta API; the
   crowd page shows its recorded 4 Nov runs, because crowd is not live now. **On a phone:**
-  `https://preferred-florist-labeled-trace.trycloudflare.com/staff`, `https://preferred-florist-labeled-trace.trycloudflare.com/glasses`.
+  `https://rulecam-live.vercel.app/staff`, `https://rulecam-live.vercel.app/glasses`.
 - **Video:** TODO. It shows the three worlds with each shot labelled LIVE, REPLAY, RESEARCH
   FOOTAGE or SAMPLE.
 
@@ -308,8 +310,8 @@ owner to approve.
 ## Links
 
 - Repository: https://github.com/jeevithg090/Axi0N_Meta
-- Replay, no login, no keys: `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1` (the header says REPLAY)
-- Live app: `https://preferred-florist-labeled-trace.trycloudflare.com` (the header says LIVE)
+- Replay, no login, no keys: `https://rulecam-live.vercel.app/demo?demo=1` (the header says REPLAY)
+- Live app: `https://rulecam-live.vercel.app` (the header says LIVE)
 - Video: **TODO**
 - Results: [`README.md#results`](README.md#results), [`eval/RESULTS.md`](eval/RESULTS.md) and
   [`reports/eval/`](reports/eval/)

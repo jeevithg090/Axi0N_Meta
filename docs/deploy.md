@@ -35,6 +35,33 @@ Requests from the same machine (loopback, no `Origin` header) count as the owner
 from the web UI, set `PUBLIC_UI_URL` (and `RULECAM_UI_EXTRA_ORIGINS` for any other UI host) to
 the UI's origin.
 
+### The site on Vercel
+
+The site is the Vercel project `rulecam-live` (`https://rulecam-live.vercel.app`, `ui/` is
+linked to it). The API stays on the Mac behind a Cloudflare quick tunnel:
+
+```bash
+cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8000   # prints https://<name>.trycloudflare.com
+```
+
+The project has two production settings: `NEXT_PUBLIC_RULECAM_API` (the tunnel address; it is
+built into the pages, and `/rulecam-api/*` is passed on to it) and `RULECAM_PROXY_SECRET` (the
+API's `UI_PROXY_SECRET`, marked sensitive). In `.env.live`, `PUBLIC_UI_URL` is the Vercel address,
+`PUBLIC_TUNNEL_URL` the tunnel and `PUBLIC_DEMO=true` (the cameras are stock clips).
+
+A quick tunnel's address is gone once it loses the network for long (on 4 Nov both tunnels
+dropped at 09:47 UTC and never came back). With a new address, from `ui/`:
+
+```bash
+npx vercel env rm NEXT_PUBLIC_RULECAM_API production --yes
+printf %s https://<new>.trycloudflare.com | npx vercel env add NEXT_PUBLIC_RULECAM_API production
+npx vercel deploy --prod --yes
+```
+
+then set `PUBLIC_TUNNEL_URL` in `.env.live`. The site's address does not change. `ui/vercel.json`
+sets `"framework": "nextjs"`: a project made from the CLI has no framework, and Vercel then
+served the build as plain files (404 on every page).
+
 A public deployment for showing the product. Visitors can watch; everything that changes state
 (mode switch, planning, plan approval, answering the planner, pairing, corrections, runtime plan)
 and the full evidence log are owner-only: from the API pod itself (loopback, over SSH) or from a

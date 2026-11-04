@@ -22,17 +22,18 @@ verdicts in the [1 Nov live campaign](reports/eval/2026-11-01-live-test-campaign
 
 ## Try it now
 
-Live site: **https://preferred-florist-labeled-trace.trycloudflare.com**. It is served from the team's Mac through a Cloudflare tunnel, and every
-model call goes to the Meta API. We run no GPUs of our own. If the tunnel restarts the address
-changes; the repo then gets the new one.
+Live site: **https://rulecam-live.vercel.app**. The site runs on Vercel, the Rulecam API runs on
+the team's Mac behind a Cloudflare tunnel, and every model call goes to the Meta API. We run no
+GPUs of our own. The four cameras are looped stock clips, so anyone can watch the live pages
+without logging in; changing anything needs the owner login.
 
 | What | Link | What you will see |
 |---|---|---|
 | The 3-minute video | **TODO: link at submission** | The three worlds below, live and recorded, each labelled |
-| Replay, no login, no keys | `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1` | A recorded live run, step by step: request, plan, Rule CI, runtime, evidence. The header says **REPLAY**. It makes no model calls |
-| Check the evidence yourself | `https://preferred-florist-labeled-trace.trycloudflare.com/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35` | Your browser recomputes every SHA-256 of the 35-record evidence log and checks it against the day's Merkle root. Nothing is trusted from us |
-| The three worlds | `https://preferred-florist-labeled-trace.trycloudflare.com/usecases/warehouse`, `/usecases/crowd`, `/usecases/supermarket` | Each world's story, step by step, read from what Rulecam recorded. The crowd page shows recorded runs only: crowd is not live now |
-| Staff phone app, glasses mode | `https://preferred-florist-labeled-trace.trycloudflare.com/staff`, `https://preferred-florist-labeled-trace.trycloudflare.com/glasses` | Open them on a phone |
+| Replay, no login, no keys | `https://rulecam-live.vercel.app/demo?demo=1` | A recorded live run, step by step: request, plan, Rule CI, runtime, evidence. The header says **REPLAY**. It makes no model calls |
+| Check the evidence yourself | `https://rulecam-live.vercel.app/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35` | Your browser recomputes every SHA-256 of the 35-record evidence log and checks it against the day's Merkle root. Nothing is trusted from us |
+| The three worlds | `https://rulecam-live.vercel.app/usecases/warehouse`, `/usecases/crowd`, `/usecases/supermarket` | Each world's story, step by step, read from what Rulecam recorded. The crowd page shows recorded runs only: crowd is not live now |
+| Staff phone app, glasses mode | `https://rulecam-live.vercel.app/staff`, `https://rulecam-live.vercel.app/glasses` | Open them on a phone |
 | Run it on your laptop | `cd ui && npm ci && npm run dev`, then `localhost:3000/demo?demo=1` | The same replay, offline |
 
 ![The Rulecam landing page as captured before 4 Nov: the recorded T02 run's verified alert, with the measured distance, Glimmer's verdict and the state of the GPUs we ran then.](docs/pitch/media/app-landing.jpg)
@@ -340,7 +341,7 @@ An earlier E3 figure came from a simulated harness and was withdrawn on Oct 31 (
 
 | Time | Open | What to look for |
 |---|---|---|
-| 0:00 | `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1` | The owner's plain-language request, the planner's steps, the compiled rule and its acceptance trace |
+| 0:00 | `https://rulecam-live.vercel.app/demo?demo=1` | The owner's plain-language request, the planner's steps, the compiled rule and its acceptance trace |
 | 0:30 | the Rule CI section of the same page | The rule was attacked with boundary scenes and mutants before anyone could approve it, re-run offline in CI |
 | 0:50 | **Verify it in your browser** | Your browser recomputes every SHA-256 of the evidence chain and its Merkle root |
 | 1:20 | [Results](#results), then [`reports/eval/`](reports/eval/) | Live runs on real video and on hand-labelled CCTV, every number tied to its run, date and commit |

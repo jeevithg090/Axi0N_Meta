@@ -285,6 +285,8 @@ class Settings(BaseSettings):
     # Chain a `coverage` record when a camera goes BLIND or recovers (`runtime.coverage_log`).
     # Off by default: moving-camera stock clips flap `moved`; turn it on for fixed site cameras.
     rulecam_coverage_log: bool = False
+    # Smart glasses (`/wearables`): how long a look waits for Glimmer before Muse Spark looks.
+    rulecam_wearables_glimmer_timeout_s: float = Field(default=25.0, gt=0.0, le=300.0)
 
     @property
     def replay_dir(self) -> Path:

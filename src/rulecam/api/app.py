@@ -94,6 +94,7 @@ from rulecam.api.prometheus import (
 )
 from rulecam.api.site_tools import build_site_tools
 from rulecam.api.validation import install_validation_handler
+from rulecam.api.wearables import build_wearables
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
     AskAgent,
@@ -1100,6 +1101,15 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 perception=perception,
                 planner=planner,
                 whatsapp=response.whatsapp,
+                dependencies=_OWNER,
+            ),
+            build_wearables(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                perception=perception,
+                chain=chain,
                 dependencies=_OWNER,
             ),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),

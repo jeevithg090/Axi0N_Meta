@@ -25,7 +25,7 @@ recorded live runs ([T02 and T04 goldens](scenarios/README.md); the same verdict
 |---|---|---|
 | The 3-minute video | **TODO: link at submission** | The three worlds below, live and recorded, each labelled |
 | Replay, no login, no keys | [rulecam.vercel.app/demo?demo=1](https://rulecam.vercel.app/demo?demo=1) | A recorded live run, step by step: request, plan, Rule CI, runtime, evidence. The header says **REPLAY**. It works with every GPU switched off |
-| Check the evidence yourself | **Verify it in your browser** on the replay page ([/verify](https://rulecam.vercel.app/verify)) | Your browser recomputes every SHA-256 of the evidence log and its Merkle root. Nothing is trusted from us |
+| Check the evidence yourself | [Verify the recorded run's evidence](https://rulecam.vercel.app/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35) (or **Verify it in your browser** on the replay page) | Your browser recomputes every SHA-256 of the 35-record evidence log and checks it against the day's Merkle root. Nothing is trusted from us |
 | The live app | [rulecam.vercel.app](https://rulecam.vercel.app) | The cockpit on the deployed stack. The header says **LIVE**. GPUs scale to zero when idle, so the first check can take a few minutes |
 | Run it on your laptop | `cd ui && npm ci && npm run dev`, then open `localhost:3000/demo?demo=1` | The same replay, offline |
 

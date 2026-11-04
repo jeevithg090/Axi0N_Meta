@@ -151,8 +151,9 @@ another part of the system. What surprised us:
 
 - **Replay, no login:** https://rulecam.vercel.app/demo?demo=1. A recorded live run, step by
   step. The header says REPLAY, and it works with every GPU off.
-- **Verify it yourself:** "Verify it in your browser" on that page. The browser recomputes every
-  SHA-256 of the evidence log and its Merkle root.
+- **Verify it yourself:** https://rulecam.vercel.app/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35
+  (or "Verify it in your browser" on the replay page). The browser recomputes every SHA-256 of
+  the evidence log and checks it against the day's Merkle root.
 - **Live app:** https://rulecam.vercel.app (header says LIVE).
 - **Video:** TODO. It shows the three worlds with each shot labelled LIVE or REPLAY.
 

@@ -177,7 +177,7 @@ export function AssessmentView({
           {fmt(seconds)} s
         </span>
         {a.phase && (
-          <span className={styles.badge} style={{ background: "#455a64" }}>
+          <span className={styles.badge} style={{ background: "var(--color-cool)" }}>
             {a.phase}
           </span>
         )}

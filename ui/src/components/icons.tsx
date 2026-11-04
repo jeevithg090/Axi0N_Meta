@@ -171,6 +171,26 @@ export const icons = {
       <path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z" />
     </Icon>
   ),
+  plug: (
+    <Icon>
+      <path d="M9 2v5M15 2v5M6 7h12v4a6 6 0 0 1-12 0Z" />
+      <path d="M12 17v5" />
+    </Icon>
+  ),
+  phone: (
+    <Icon>
+      <rect x="6" y="2" width="12" height="20" rx="2.5" />
+      <path d="M11 18h2" />
+    </Icon>
+  ),
+  seal: (
+    <Icon>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4" />
+      <path d="M14 3v5h5" />
+      <circle cx="16.5" cy="15.5" r="3.5" />
+      <path d="M14.5 18.5 14 22l2.5-1.2L19 22l-.5-3.5" />
+    </Icon>
+  ),
   plus: (
     <Icon>
       <path d="M12 5v14M5 12h14" />

@@ -137,7 +137,7 @@ export default function InspectorPage() {
     setAudiences((now) => (now.includes(a) ? now.filter((x) => x !== a) : [...now, a]));
 
   return (
-    <main className={styles.page}>
+    <div className={styles.page}>
       <h1>Proof portal</h1>
       <p className={styles.lede}>
         Make a proof pack for an inspector, an insurer, head office or the crew&apos;s
@@ -291,6 +291,6 @@ export default function InspectorPage() {
           ) : null}
         </section>
       ) : null}
-    </main>
+    </div>
   );
 }

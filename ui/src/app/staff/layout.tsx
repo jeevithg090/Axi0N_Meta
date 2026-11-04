@@ -15,7 +15,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0E1113",
+  themeColor: "#16191c",
 };
 
 /** The staff app fills the screen over the cockpit's shell: it is a phone app, not a page. */

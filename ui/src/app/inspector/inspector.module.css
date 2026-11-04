@@ -1,10 +1,12 @@
-/* Proof portal: simple, local styles on the shell's colour roles (the UI design pass restyles). */
+/* Hallmark · component: the proof portal (/inspector, /inspector/view) · genre: modern-minimal · theme: Console (deal 1/3) · states: 8 · contrast: pass · v2.0.0 */
+/* Proof portal on the Console tokens: hairline panels, the measured face for hashes and counts,
+   verdicts said in words with ok and bad, the amber primary for the one action. */
 
 .page {
   max-width: 1080px;
   margin: 0 auto;
-  padding: var(--s3) var(--s2) var(--s6);
-  color: var(--ink);
+  padding: var(--space-xl) var(--gut) var(--space-2xl);
+  color: var(--color-ink);
 }
 
 .lede {
@@ -13,9 +15,9 @@
 }
 
 .card {
-  background: var(--card);
-  border: 1px solid var(--rule-2);
-  border-radius: 6px;
+  background: var(--color-paper-2);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
   padding: var(--s2);
   margin: var(--s2) 0;
   overflow-x: auto;
@@ -38,34 +40,45 @@
 .field input,
 .field select {
   font: inherit;
-  padding: 6px 8px;
-  border: 1px solid var(--rule-2);
-  border-radius: 4px;
-  background: var(--paper);
-  color: var(--ink);
+  padding: var(--space-xs) var(--space-sm);
+  min-height: 40px;
+  border: var(--rule-hair) solid var(--color-rule-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-3);
+  color: var(--color-ink);
 }
 
 .button {
   font: inherit;
-  font-weight: 600;
-  padding: 8px 14px;
-  border-radius: 4px;
-  border: 2px solid var(--ink);
-  background: var(--ink);
-  color: var(--paper);
+  font-weight: 500;
+  min-height: 40px;
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-pill);
+  border: var(--rule-hair) solid var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
   cursor: pointer;
+  transition: background-color var(--dur-micro) var(--ease-out);
 }
+.button:hover { background: color-mix(in oklab, var(--color-accent) 88%, var(--color-ink)); }
+.button:active { transform: translateY(1px); }
 
 .button:disabled {
-  opacity: 0.5;
-  cursor: progress;
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  background: var(--color-paper-3);
+  border-color: var(--color-rule-2);
+  color: var(--color-muted);
 }
 
 .ghost {
   composes: button;
-  background: transparent;
-  color: var(--ink);
+  background: var(--color-paper-2);
+  border-color: var(--color-rule-2);
+  color: var(--color-ink);
 }
+.ghost:hover { background: var(--color-paper-3); }
 
 .table {
   width: 100%;
@@ -83,9 +96,9 @@
 }
 
 .table th {
-  font-size: 12px;
-  text-transform: uppercase;
-  color: var(--mute);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-muted);
 }
 
 .num {
@@ -95,8 +108,8 @@
 }
 
 .mono {
-  font-family: var(--font-dm-mono), ui-monospace, monospace;
-  font-size: 12px;
+  font-family: var(--font-outlier);
+  font-size: var(--text-xs);
   word-break: break-all;
   color: var(--ink-2);
 }
@@ -107,31 +120,37 @@
 }
 
 .ok {
-  color: #0a7d32;
-  font-weight: 700;
+  color: var(--color-ok);
+  font-weight: 500;
 }
 
 .bad {
-  color: var(--alert);
-  font-weight: 700;
+  color: var(--color-bad);
+  font-weight: 500;
 }
 
 .banner {
-  border: 3px solid var(--ink);
-  border-radius: 8px;
-  padding: var(--s2);
-  margin: var(--s2) 0;
-  font-size: 18px;
+  border: var(--rule-hair) solid var(--color-rule-2);
+  border-radius: var(--radius-card);
+  background: var(--color-paper-2);
+  padding: var(--space-md) var(--space-lg);
+  margin: var(--space-md) 0;
+  font: 500 var(--text-lg) / 1.35 var(--font-body);
+  overflow-wrap: anywhere;
 }
 
 .bannerOk {
   composes: banner;
-  border-color: #0a7d32;
+  border-color: var(--color-ok);
+  background: var(--color-ok-soft);
+  color: var(--color-ok);
 }
 
 .bannerBad {
   composes: banner;
-  border-color: var(--alert);
+  border-color: var(--color-bad);
+  background: var(--color-bad-soft);
+  color: var(--color-bad);
 }
 
 .checks {
@@ -159,15 +178,18 @@
 }
 
 .tabOn {
-  composes: button;
+  composes: ghost;
+  background: var(--color-cool-soft);
+  border-color: var(--color-cool);
   padding: 4px 10px;
   font-size: 14px;
 }
 
 .disclaimer {
-  border-left: 4px solid #b06000;
-  padding: 6px 10px;
-  background: color-mix(in srgb, #ffb300 12%, transparent);
+  border: var(--rule-hair) dashed var(--color-accent-text);
+  border-radius: var(--radius-pill);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--color-accent-soft);
 }
 
 .quote {
@@ -187,7 +209,9 @@
 .share img {
   width: 180px;
   height: 180px;
-  background: #fff;
+  background: var(--color-qr-ground);
+  border-radius: var(--radius-pill);
+  padding: var(--space-xs);
 }
 
 .stills img {
@@ -198,8 +222,8 @@
 
 .details summary {
   cursor: pointer;
-  color: var(--machine);
-  font-size: 13px;
+  color: var(--color-cool);
+  font-size: var(--text-sm);
 }
 
 @media (max-width: 640px) {
@@ -211,3 +235,5 @@
     height: 140px;
   }
 }
+
+.button:focus-visible, .ghost:focus-visible, .tab:focus-visible, .tabOn:focus-visible, .field input:focus-visible, .field select:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }

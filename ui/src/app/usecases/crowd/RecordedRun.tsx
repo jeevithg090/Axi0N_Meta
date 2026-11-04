@@ -44,9 +44,7 @@ export function RecordedRun() {
   return (
     <section className={styles.card} aria-label="Recorded live run">
       <div className={styles.row}>
-        <span className={styles.badge} style={{ background: "#455a64" }}>
-          {run.label}
-        </span>
+        <span className={styles.recorded}>{run.label}</span>
       </div>
       <p className={styles.small} style={{ margin: 0 }}>
         {run.about}

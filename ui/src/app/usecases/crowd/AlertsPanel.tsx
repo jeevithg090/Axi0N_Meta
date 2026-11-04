@@ -188,7 +188,7 @@ export function AlertsPanel({
                 <strong>[{a.lang}]</strong> {a.text}
                 {a.meaning && (
                   <span
-                    style={{ color: a.meaning === "different" ? "#c62828" : undefined }}
+                    style={{ color: a.meaning === "different" ? "var(--color-bad)" : undefined }}
                     title={a.heard ? `Heard back: ${a.heard} (WER ${a.wer})` : undefined}
                   >
                     {" "}

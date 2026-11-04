@@ -28,7 +28,7 @@ export function TallyCard({ tally }: { tally: ZoneTally | null }) {
         <h2>Three-way count: {tally.zone}</h2>
         <span
           className={styles.badge}
-          style={{ background: tally.disagree ? "#e65100" : "#2e7d32" }}
+          style={{ background: tally.disagree ? "var(--color-bad)" : "var(--color-ok)" }}
         >
           {tally.disagree ? "counts disagree" : "counts agree"}
         </span>

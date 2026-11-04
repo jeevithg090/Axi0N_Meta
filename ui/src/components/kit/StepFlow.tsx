@@ -32,6 +32,8 @@ export interface StepFlowProps {
   size?: "default" | "compact";
   /** The element each step name is set in, to keep heading levels in order. */
   as?: "h2" | "h3" | "h4" | "p";
+  /** Steps per row (default: all in one row); a long journey wraps, e.g. 7 steps at 4. */
+  columns?: number;
   className?: string;
 }
 
@@ -50,9 +52,10 @@ export function StepFlow({
   orientation = "row",
   size = "default",
   as: Name = "h3",
+  columns,
   className,
 }: StepFlowProps) {
-  const style = { "--flow-count": steps.length } as CSSProperties;
+  const style = { "--flow-count": columns ?? steps.length } as CSSProperties;
   return (
     <ol
       className={cx(styles.flow, className)}

@@ -63,6 +63,16 @@
   --color-scene-cool: oklch(77% 0.12 245);
   --color-scene-accent: oklch(82% 0.15 80);
   --color-scrim: oklch(16% 0.01 250 / 0.55);
+  --color-qr-ground: oklch(99% 0.003 85); /* a QR code needs a light ground in both themes */
+  /* graphite, fixed in both themes: the staff app stays dark on the floor */
+  --graphite-paper: oklch(17% 0.008 250); --graphite-paper-2: oklch(21% 0.009 250);
+  --graphite-paper-3: oklch(25% 0.01 250); --graphite-deep: oklch(12.5% 0.007 250);
+  --graphite-rule: oklch(31% 0.01 250); --graphite-ink: oklch(95% 0.005 250);
+  --graphite-ink-2: oklch(83% 0.008 250); --graphite-muted: oklch(71% 0.01 250);
+  --graphite-amber: oklch(82% 0.15 80); --graphite-amber-ink: oklch(88% 0.09 85);
+  --graphite-red: oklch(70% 0.17 25); --graphite-red-ink: oklch(84% 0.08 25);
+  --graphite-green: oklch(76% 0.15 150); --graphite-blue: oklch(77% 0.12 245);
+  --graphite-violet: oklch(74% 0.1 295);
 
   --font-display: var(--font-host), "Host Grotesk", ui-sans-serif, system-ui, sans-serif;
   --font-body: var(--font-display);
@@ -1142,6 +1152,18 @@ button.primary:not(.btn), .site-panel button[type="submit"]:not(.btn) {
   transition: background-color var(--dur-micro) var(--ease-out);
 }
 button.primary:not(.btn):hover { background: color-mix(in oklab, var(--color-accent) 88%, var(--color-ink)); }
+/* plain buttons on the simple screens: the outlined secondary */
+.site-page button:not([class]), .site-panel button:not([class]) {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-xs);
+  min-height: 40px; padding: var(--space-xs) var(--space-md);
+  border: var(--rule-hair) solid var(--color-rule-2); border-radius: var(--radius-pill);
+  background: var(--color-paper-2); color: var(--color-ink); font-weight: 500;
+  transition: background-color var(--dur-micro) var(--ease-out);
+}
+.site-page button:not([class]):hover, .site-panel button:not([class]):hover { background: var(--color-paper-3); }
+.site-page button:not([class]):active, .site-panel button:not([class]):active { transform: translateY(1px); }
+.site-page button:not([class]):disabled, .site-panel button:not([class]):disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.site-page > p, .site-page > h2 + p { max-width: 75ch; }
 button.primary:not(.btn):active { transform: translateY(1px); }
 button.primary:not(.btn):disabled { opacity: 0.55; cursor: not-allowed; }
 [role="alert"]:not([data-testid]) { color: var(--color-bad); }

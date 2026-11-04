@@ -497,10 +497,10 @@ export function useCrowdStatus(): {
 }
 
 export const LEVEL_COLOUR: Record<string, string> = {
-  normal: "#2e7d32",
-  watch: "#b8860b",
-  warning: "#e65100",
-  critical: "#c62828",
+  normal: "var(--color-ok)",
+  watch: "var(--color-accent-text)",
+  warning: "color-mix(in oklab, var(--color-bad) 70%, var(--color-accent-text))",
+  critical: "var(--color-bad)",
 };
 
 /** Colour for a density in people per m² (display only; blue low to red high, top at 6). */

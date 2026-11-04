@@ -5,6 +5,7 @@ import { useState } from "react";
 import { OwnerOnly } from "@/components/OwnerOnly";
 
 import { AlertsPanel } from "./AlertsPanel";
+import { CrowdJourney } from "./CrowdJourney";
 import styles from "./crowd.module.css";
 import type { Access, CrowdStatus, Link } from "./crowdApi";
 import { LEVEL_COLOUR, useCrowdStatus } from "./crowdApi";
@@ -41,14 +42,17 @@ export default function CrowdPage() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <h1 className={styles.title}>Crowd early warning</h1>
+          <h2 className={styles.title}>Crowd early warning</h2>
           <span className={styles.small}>
-            SAM 3.1 counts · Muse Spark judges and plans · Muse Glimmer checks the frames · Voice
-            Transcribe hears the announcements back · every alert chained
+            SAM 3.1 counts. Muse Spark judges and plans. Muse Glimmer checks the frames. Voice
+            Transcribe hears the announcements back. Every alert is chained.
           </span>
         </div>
-        <span className={styles.small}>{linkText(link, access)}</span>
+        <span className={styles.link} data-link={access === "ok" ? link : "none"}>
+          {linkText(link, access)}
+        </span>
       </header>
+      <CrowdJourney />
       {access === "owner" && (
         <OwnerOnly checking={false} what="The live crowd watch (cameras, alerts and controls)" />
       )}

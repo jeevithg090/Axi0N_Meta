@@ -75,7 +75,7 @@
   padding: 0;
   display: grid;
   grid-template-columns: repeat(var(--flow-count, 4), minmax(0, 1fr));
-  gap: var(--gap-columns);
+  gap: var(--space-xl) var(--gap-columns);
 }
 .flow[data-orientation="column"] { grid-template-columns: minmax(0, 1fr); gap: 0; }
 .flowStep { display: grid; gap: var(--space-xs); align-content: start; padding-top: var(--space-md); border-top: 2px solid var(--color-rule); min-width: 0; }
@@ -286,3 +286,5 @@
   .bone { animation: none; }
   .fill { transition: none; }
 }
+
+.smallBtn:focus-visible, .flowLink:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }

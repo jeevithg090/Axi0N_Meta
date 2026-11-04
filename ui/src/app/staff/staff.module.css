@@ -1,17 +1,24 @@
+/* Hallmark · component: the staff companion PWA (/staff) · genre: modern-minimal · theme: Console graphite (deal 1/3) · states: 8 · contrast: pass · v2.0.0 */
 /* The staff companion: phone first, one hand, big targets, readable on a dim warehouse floor. */
 
 .app {
-  --bg: #0e1113;
-  --card: #171b1f;
-  --card-2: #1f252a;
-  --line: #2c343a;
-  --ink: #f2f0ea;
-  --muted: #9aa3a9;
-  --amber: #f2c200;
-  --red: #e5482b;
-  --green: #2bb673;
-  --blue: #4ba3f2;
-  --violet: #a98bf5;
+  /* Console graphite, fixed: the floor app stays dark whatever the cockpit's theme. */
+  --bg: var(--graphite-paper);
+  --card: var(--graphite-paper-2);
+  --card-2: var(--graphite-paper-3);
+  --line: var(--graphite-rule);
+  --ink: var(--graphite-ink);
+  --ink-2: var(--graphite-ink-2);
+  --muted: var(--graphite-muted);
+  --amber: var(--graphite-amber);
+  --amber-ink: var(--graphite-amber-ink);
+  --red: var(--graphite-red);
+  --red-ink: var(--graphite-red-ink);
+  --green: var(--graphite-green);
+  --blue: var(--graphite-blue);
+  --violet: var(--graphite-violet);
+  --on-signal: var(--graphite-paper);
+  --scene: var(--graphite-deep);
   position: fixed;
   inset: 0;
   z-index: 2000;
@@ -19,7 +26,7 @@
   overscroll-behavior: contain;
   background: var(--bg);
   color: var(--ink);
-  font-family: var(--font-barlow), system-ui, sans-serif;
+  font-family: var(--font-body);
   font-size: 17px;
   line-height: 1.35;
   -webkit-tap-highlight-color: transparent;
@@ -43,17 +50,15 @@
   align-items: center;
   gap: 8px;
   padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
-  background: rgba(14, 17, 19, 0.94);
+  background: color-mix(in oklab, var(--bg) 94%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--line);
 }
 
 .brand {
-  font-family: var(--font-barlow-condensed), sans-serif;
-  font-weight: 800;
+  font-family: var(--font-display);
+  font-weight: 500;
   font-size: 20px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
   margin-right: auto;
   display: flex;
   align-items: center;
@@ -67,7 +72,7 @@
   background: var(--amber);
   display: inline-grid;
   place-items: center;
-  color: #111;
+  color: var(--on-signal);
   font-size: 14px;
 }
 
@@ -80,7 +85,7 @@
   padding: 0 14px;
   font: inherit;
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 500;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -95,7 +100,7 @@
 
 .dotLive {
   background: var(--green);
-  box-shadow: 0 0 0 4px rgba(43, 182, 115, 0.18);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--green) 18%, transparent);
 }
 
 .dotWarn {
@@ -120,7 +125,7 @@
   background: transparent;
   color: var(--muted);
   font: inherit;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .tabOn {
@@ -134,15 +139,15 @@
   padding: 10px 14px;
   border-radius: 12px;
   font-size: 15px;
-  background: rgba(242, 194, 0, 0.12);
-  border: 1px solid rgba(242, 194, 0, 0.4);
-  color: #ffe58a;
+  background: color-mix(in oklab, var(--amber) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--amber) 40%, transparent);
+  color: var(--amber-ink);
 }
 
 .bannerBad {
-  background: rgba(229, 72, 43, 0.12);
-  border-color: rgba(229, 72, 43, 0.45);
-  color: #ffb4a6;
+  background: color-mix(in oklab, var(--red) 12%, transparent);
+  border-color: color-mix(in oklab, var(--red) 45%, transparent);
+  color: var(--red-ink);
 }
 
 .list {
@@ -155,9 +160,7 @@
 .sectionLabel {
   margin: 8px 2px -4px;
   font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 500;
   color: var(--muted);
 }
 
@@ -188,16 +191,16 @@
 }
 
 .cardNew {
-  animation: arrive 1.4s ease-out;
+  animation: arrive 1.4s var(--ease-out);
 }
 
 @keyframes arrive {
   0% {
-    box-shadow: 0 0 0 0 rgba(242, 194, 0, 0.7);
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--amber) 70%, transparent);
     transform: translateY(-6px);
   }
   100% {
-    box-shadow: 0 0 0 18px rgba(242, 194, 0, 0);
+    box-shadow: 0 0 0 18px color-mix(in oklab, var(--amber) 0%, transparent);
     transform: none;
   }
 }
@@ -220,61 +223,59 @@
   border-radius: 6px;
   padding: 2px 7px;
   font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 500;
   background: var(--card-2);
   color: var(--ink);
 }
 
 .tagRed {
   background: var(--red);
-  color: #fff;
+  color: var(--ink);
 }
 
 .tagAmber {
   background: var(--amber);
-  color: #111;
+  color: var(--on-signal);
 }
 
 .tagGreen {
   background: var(--green);
-  color: #06120b;
+  color: var(--on-signal);
 }
 
 .tagViolet {
   background: var(--violet);
-  color: #120b24;
+  color: var(--on-signal);
 }
 
 .tagBlue {
   background: var(--blue);
-  color: #06111c;
+  color: var(--on-signal);
 }
 
 .title {
   margin: 0;
   font-size: 21px;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.2;
 }
 
 .translated {
   margin: 6px 0 0;
   font-size: 18px;
-  color: #ffe58a;
+  color: var(--amber-ink);
 }
 
 .why {
   margin: 6px 0 0;
   font-size: 15px;
-  font-weight: 600;
-  color: #ffe58a;
+  font-weight: 500;
+  color: var(--amber-ink);
 }
 
 .body {
   margin: 6px 0 0;
-  color: #d4d2cc;
+  color: var(--ink-2);
   font-size: 16px;
   white-space: pre-line;
 }
@@ -293,7 +294,7 @@
   border-radius: 10px;
   border: 1px solid var(--line);
   scroll-snap-align: start;
-  background: #000;
+  background: var(--scene);
 }
 
 .facts {
@@ -314,14 +315,12 @@
 .factLabel {
   display: block;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 500;
   color: var(--muted);
 }
 
 .factValue {
-  font-weight: 700;
+  font-weight: 500;
   font-size: 16px;
 }
 
@@ -348,8 +347,8 @@
   margin: 12px 14px 0;
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(229, 72, 43, 0.14);
-  border: 1px solid rgba(229, 72, 43, 0.5);
+  background: color-mix(in oklab, var(--red) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--red) 50%, transparent);
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -357,10 +356,10 @@
 }
 
 .countdownTime {
-  font-family: var(--font-dm-mono), monospace;
+  font-family: var(--font-outlier);
   font-size: 26px;
   font-weight: 500;
-  color: #ffb4a6;
+  color: var(--red-ink);
 }
 
 .doNow {
@@ -375,7 +374,7 @@
   background: var(--card-2);
   border-radius: 10px;
   padding: 8px 10px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* The timed loop */
@@ -393,7 +392,7 @@
 
 .loopSummary b {
   color: var(--ink);
-  font-family: var(--font-dm-mono), monospace;
+  font-family: var(--font-outlier);
   font-weight: 500;
 }
 
@@ -441,7 +440,7 @@
 }
 
 .stepTime {
-  font-family: var(--font-dm-mono), monospace;
+  font-family: var(--font-outlier);
   color: var(--muted);
   margin-right: 6px;
 }
@@ -460,20 +459,20 @@
   border-radius: 14px;
   border: none;
   background: var(--amber);
-  color: #111;
+  color: var(--on-signal);
   font: inherit;
   font-size: 21px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .primaryGo {
   background: var(--blue);
-  color: #06111c;
+  color: var(--on-signal);
 }
 
 .primaryDone {
   background: var(--green);
-  color: #06120b;
+  color: var(--on-signal);
 }
 
 .secondary {
@@ -484,11 +483,11 @@
   color: var(--ink);
   font: inherit;
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .secondaryDanger {
-  color: #ffb4a6;
+  color: var(--red-ink);
 }
 
 .iconButton {
@@ -499,7 +498,7 @@
   color: var(--ink);
   font: inherit;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 500;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -510,6 +509,8 @@
 .secondary:disabled,
 .iconButton:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
+  filter: saturate(0.4);
 }
 
 .message {
@@ -527,7 +528,7 @@
 .emptyTitle {
   color: var(--ink);
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 500;
   margin-bottom: 6px;
 }
 
@@ -539,7 +540,7 @@
   bottom: 0;
   z-index: 6;
   padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
-  background: linear-gradient(to top, rgba(14, 17, 19, 1) 70%, rgba(14, 17, 19, 0));
+  background: linear-gradient(to top, var(--bg) 70%, color-mix(in oklab, var(--bg) 0%, transparent));
 }
 
 .dockInner {
@@ -558,7 +559,7 @@
   color: var(--bg);
   font: inherit;
   font-size: 19px;
-  font-weight: 800;
+  font-weight: 500;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -567,13 +568,13 @@
 .askOn {
   background: var(--red);
   border-color: var(--red);
-  color: #fff;
+  color: var(--ink);
   animation: pulse 1s infinite;
 }
 
 @keyframes pulse {
   50% {
-    box-shadow: 0 0 0 10px rgba(229, 72, 43, 0.25);
+    box-shadow: 0 0 0 10px color-mix(in oklab, var(--red) 25%, transparent);
   }
 }
 
@@ -586,7 +587,7 @@
   color: var(--ink);
   font: inherit;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
   padding: 0 14px;
 }
 
@@ -644,7 +645,7 @@
   position: fixed;
   inset: 0;
   z-index: 10;
-  background: rgba(0, 0, 0, 0.6);
+  background: color-mix(in oklab, var(--scene) 60%, transparent);
   display: flex;
   align-items: flex-end;
 }
@@ -662,7 +663,7 @@
 
 .sheetTitle {
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 500;
   margin: 0 0 4px;
 }
 
@@ -674,12 +675,11 @@
 }
 
 .onboardTitle {
-  font-family: var(--font-barlow-condensed), sans-serif;
+  font-family: var(--font-display);
   font-size: 34px;
-  font-weight: 800;
+  font-weight: 500;
   line-height: 1;
   margin: 0;
-  text-transform: uppercase;
 }
 
 .onboardLead {
@@ -700,7 +700,7 @@
   color: var(--ink);
   font: inherit;
   font-size: 19px;
-  font-weight: 700;
+  font-weight: 500;
   text-align: left;
   padding: 0 16px;
   display: flex;
@@ -755,7 +755,7 @@
 
 .statKey {
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 500;
 }
 
 .statGrid {
@@ -765,7 +765,7 @@
 }
 
 .statNum {
-  font-family: var(--font-dm-mono), monospace;
+  font-family: var(--font-outlier);
   font-size: 20px;
 }
 
@@ -790,3 +790,9 @@
 .hidden {
   display: none;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .app *, .app *::before, .app *::after { animation: none !important; transition: none !important; }
+}
+
+.app :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }

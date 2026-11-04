@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Atkinson_Hyperlegible_Mono, Host_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 import type { ReactNode } from "react";
 
 import { DashboardShell } from "@/components/DashboardShell";
@@ -10,20 +10,19 @@ import { THEME_BOOT_SCRIPT, ThemeProvider } from "@/lib/theme";
 import "./globals.css";
 
 // Host Grotesk for what a person reads; Atkinson Hyperlegible Mono for what an instrument
-// measured (a distance, a score, a hash, a time). Two families, three weights.
-const host = Host_Grotesk({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+// measured (a distance, a score, a hash, a time). Two families, three weights. Both are
+// self-hosted (app/fonts, SIL OFL 1.1, see OFL.txt) so a build never touches the network.
+const host = localFont({
+  src: [{ path: "./fonts/HostGrotesk-latin-wght.woff2", weight: "400 500", style: "normal" }],
   variable: "--font-host",
   display: "swap",
+  fallback: ["ui-sans-serif", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
 });
 
-const mono = Atkinson_Hyperlegible_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const mono = localFont({
+  src: [{ path: "./fonts/AtkinsonHyperlegibleMono-latin-wght.woff2", weight: "400 500", style: "normal" }],
   variable: "--font-atkinson-mono",
   display: "swap",
-  // next/font has no metric overrides for this face yet; the fallback is ui-monospace.
   adjustFontFallback: false,
   fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
 });

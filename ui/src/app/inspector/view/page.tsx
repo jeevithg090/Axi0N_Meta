@@ -48,11 +48,11 @@ function SharedView() {
 
 export default function InspectorViewPage() {
   return (
-    <main className={styles.page}>
+    <div className={styles.page}>
       <p className={styles.muted}>Rulecam proof pack · read-only · checked in your browser</p>
       <Suspense fallback={<p className={styles.banner}>Loading…</p>}>
         <SharedView />
       </Suspense>
-    </main>
+    </div>
   );
 }

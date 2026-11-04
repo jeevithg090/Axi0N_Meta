@@ -34,7 +34,7 @@ describe("UseCaseFrame", () => {
     ]);
   });
 
-  it("frames the page with its promise, the switcher, the journey and the live status", async () => {
+  it("frames the page with its promise, the switcher, its still and the live status", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ ok: true, mode: "live", gpus: { glimmer: { state: "warm" } } }))),
@@ -53,13 +53,9 @@ describe("UseCaseFrame", () => {
       "/usecases/warehouse",
       "/usecases/crowd",
     ]);
-    const journey = screen.getByRole("list", { name: "How Rulecam works for a warehouse" });
-    expect(within(journey).getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
-      "Describe",
-      "Plan",
-      "Prove",
-      "Trust",
-    ]);
+    // Each page tells its own journey with real data; the frame carries the world's still.
+    expect(screen.getByTestId("still-warehouse")).toBeTruthy();
+    expect(screen.queryByTestId("step-flow")).toBeNull();
     expect(screen.getByText("live data")).toBeTruthy();
     await waitFor(() => expect(screen.getByTestId("usecase-status").textContent).toContain("LIVE"));
     expect(screen.getByTestId("usecase-status").textContent).toContain("warm");

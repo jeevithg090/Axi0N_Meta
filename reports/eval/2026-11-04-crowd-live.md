@@ -153,6 +153,15 @@ polygon around the packed area) and "गेट का मुंह" (the gate mo
 which is where the gate is. The runs used the sample's measured zones and floor points so that
 they could be scored; the proposed zones were not scored.
 
+## Ask over the crowd tables
+
+`POST /ask` "On camera phone-8, when was the gate approach most crowded, how dense did it get,
+and for how long was it above 6 people per square metre?" (43 s): Spark queried
+`crowd_readings`, re-counted the peak with `crowd_scan`, and answered 8.25 per m² (33 people)
+at 01:14:02–01:14:08, above 6 per m² for five readings, about 24–30 s. Truth for the same
+seconds: 9.0 per m² at that second (9.5 at the true peak), above 6 per m² from clip second 1.6
+to 35.8, 33 s: the 6 s readings start late and end early on it.
+
 ## Live page and stream
 
 `/usecases/crowd` showed each run as it happened over `GET /crowd/stream`. The Next.js rewrite

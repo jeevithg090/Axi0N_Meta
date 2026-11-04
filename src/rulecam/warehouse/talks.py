@@ -175,13 +175,19 @@ def incident_from_records(
 
 def _frames(paths: object, stills_root: Path | None, event_id: str) -> list[Path]:
     listed = [Path(p) for p in paths if isinstance(p, str)] if isinstance(paths, list) else []
-    if not listed and stills_root is not None and (stills_root / event_id).is_dir():
-        listed = sorted((stills_root / event_id).glob("*.jpg"))
+    if not listed and stills_root is not None:  # `<root>/<event>/` or `<root>/<camera>/<event>/`
+        folders = [stills_root / event_id, *stills_root.glob(f"*/{event_id}")]
+        found = next((f for f in folders if f.is_dir()), None)
+        listed = sorted(found.glob("*.jpg"), key=_frame_order) if found is not None else []
     existing = [p for p in listed if p.is_file()]
     if len(existing) <= MAX_FRAMES:
         return existing
     step = (len(existing) - 1) / (MAX_FRAMES - 1)
     return [existing[round(i * step)] for i in range(MAX_FRAMES)]
+
+
+def _frame_order(path: Path) -> tuple[int, str]:
+    return (int(path.stem), "") if path.stem.isdigit() else (1 << 30, path.stem)
 
 
 def incident_text(incident: Incident) -> str:

@@ -17,13 +17,14 @@ duty it creates; this does, with the models deciding:
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal, Protocol, TypeVar
 
 from pydantic import BaseModel
 
-from rulecam.clients.meta_hosted.grounding import Grounded
+from rulecam.clients.meta_hosted.grounding import Grounded, SearchSource
 from rulecam.contracts import Clock, EventRecord
 from rulecam.log import get_logger
 from rulecam.warehouse.models import ClauseDraft, DutyDraft, GroundedClause, RefresherDuty
@@ -47,8 +48,8 @@ CLAUSE_SYSTEM = (
     "refresher training after an operator is involved in a near-miss incident (29 CFR "
     "1910.178(l)(4)(ii)(B)). Search the web, prefer osha.gov or ecfr.gov, and quote the clause "
     "text exactly as the page gives it. Put the citation in `clause`, the paragraph heading in "
-    "`title`, the quoted text in `text` and the page you quote in `source_url`. "
-    + DATA_NOT_INSTRUCTIONS
+    "`title`, the quoted text in `text` and, in `source_url`, the page you quote: only a page "
+    "your search returned. " + DATA_NOT_INSTRUCTIONS
 )
 DUTY_SYSTEM = (
     "You are a warehouse safety officer. A camera rule recorded a near miss between a person on "
@@ -61,6 +62,23 @@ DUTY_SYSTEM = (
     "the vehicle is how the operator is found. List up to 4 things the refresher should cover "
     "(`training_focus`) and when it is due (`due`). " + DATA_NOT_INSTRUCTIONS
 )
+
+
+def _words(text: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9]+", text.lower()))
+
+
+def verified_source(found: Grounded[ClauseDraft]) -> SearchSource | None:
+    """The returned page behind the quote, or `None` when no returned page backs it.
+
+    That is the cited page if the search returned it, else a returned page whose text contains
+    the quoted words.
+    """
+    page = found.retrieved(found.answer.source_url)
+    if page is not None:
+        return page
+    quote = _words(found.answer.text)
+    return next((s for s in found.sources if quote and quote in _words(s.snippet)), None)
 
 
 class GroundedModel(Protocol):
@@ -132,12 +150,18 @@ class DutyWriter:
                 ],
                 schema=ClauseDraft,
             )
-            page = found.retrieved(found.answer.source_url)
+            page = verified_source(found)
+            _log.info(
+                "osha_clause_lookup",
+                cited=found.answer.source_url,
+                returned=[source.url for source in found.sources][:10],
+                verified=page is not None,
+            )
             clause = GroundedClause(
                 clause=found.answer.clause,
                 title=found.answer.title,
                 text=found.answer.text,
-                source_url=found.answer.source_url,
+                source_url=page.url if page is not None else found.answer.source_url,
                 source_retrieved=page is not None,
                 source_title=page.title if page is not None else "",
                 model=SPARK_MODEL,

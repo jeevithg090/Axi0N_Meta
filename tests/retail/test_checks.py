@@ -216,6 +216,28 @@ def test_shelf_finding_with_gaps(tmp_path: Path, frame: Path) -> None:
     assert finding.evidence.marked is not None
 
 
+def test_glimmer_vetoes_a_gap_it_sees_product_in(tmp_path: Path, frame: Path) -> None:
+    two: dict[str, object] = {
+        "gaps": [
+            {"box": [0, 0, 400, 400], "section": "shelf 1", "neighbours": "TEA", "facings": 2},
+            {"box": [500, 500, 900, 900], "section": "shelf 3", "neighbours": "RICE", "facings": 4},
+        ]
+    }
+    scanner = ShelfScanner(
+        spark=FakeLLM([two]), files=Files(), sam=FakeSam({}), out_dir=tmp_path / "shelf"
+    )
+    glimmer = FakeLLM([{"not_empty": [2], "why": "box 2 holds rice bags"}])
+    checker = ShelfChecker(
+        scanner, SITE, FakeClock(AT), glimmer=glimmer, glimmer_model="muse-glimmer-30b"
+    )
+    finding = checker.check_image(frame)
+    assert finding.metric == 1.0
+    assert "TEA" in finding.staff_message
+    assert "RICE" not in finding.staff_message
+    assert finding.detail["rejected"][-1]["reason"] == "Glimmer sees product"  # type: ignore[index]
+    assert {c.role for c in finding.calls} == {"gap finder + SAM 3.1 check", "gap second look"}
+
+
 def test_shelf_check_on_a_camera_without_video(tmp_path: Path) -> None:
     scanner = ShelfScanner(spark=FakeLLM(), files=Files(), sam=FakeSam({}), out_dir=tmp_path)
     with pytest.raises(RetailError):

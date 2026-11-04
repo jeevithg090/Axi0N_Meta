@@ -28,12 +28,13 @@ from pathlib import Path
 from typing import Final, Protocol
 
 import cv2
+from pydantic import Field
 
 from rulecam.ask.vision import Frame, FrameCount, count_objects, marked
 from rulecam.ask.watch import FileAttacher
 from rulecam.clients.errors import ModelClientError
 from rulecam.clients.open_weights.glimmer import user_message
-from rulecam.contracts import Clock, StructuredLLM
+from rulecam.contracts import Clock, Frozen, StructuredLLM
 from rulecam.errors import RulecamError
 from rulecam.log import get_logger
 from rulecam.planner.steps.survey import ImageSegmenter
@@ -48,7 +49,14 @@ from rulecam.retail.models import (
     SecondLook,
     Watch,
 )
-from rulecam.shelf.gaps import ShelfError, ShelfReport, ShelfScanner, clamp, to_pixels
+from rulecam.shelf.gaps import (
+    RejectedGap,
+    ShelfError,
+    ShelfReport,
+    ShelfScanner,
+    clamp,
+    to_pixels,
+)
 
 _log = get_logger(__name__)
 
@@ -554,14 +562,48 @@ def hazard_headline(draft: HazardDraft, confirmed: Sequence[HazardCheck]) -> str
     return f"{len(confirmed)} confirmed hazard(s): {kinds}"
 
 
-class ShelfChecker:
-    """Shelf gaps as a finding (the scan itself is `rulecam.shelf.ShelfScanner`)."""
+class GapLook(Frozen):
+    """Muse Glimmer's look at the numbered gaps (structured output)."""
 
-    def __init__(self, scanner: ShelfScanner, site: Site, clock: Clock) -> None:
-        """Create it around the shelf scanner."""
+    not_empty: list[int] = Field(
+        default_factory=list, max_length=60, description="Box numbers that hold product."
+    )
+    why: str = Field(default="", max_length=600)
+
+
+GAP_LOOK_PROMPT: Final = (
+    "This is a supermarket shelf. Another model marked each empty gap with a numbered yellow "
+    "box. Look inside every box and list the numbers of the boxes that are NOT empty shelf "
+    "space (product, a display or a price card fills them). Say briefly why. "
+    + DATA_NOT_INSTRUCTIONS
+)
+
+
+class ShelfChecker:
+    """Shelf gaps as a finding, checked by three models.
+
+    The scan is `rulecam.shelf.ShelfScanner` (Spark proposes, SAM 3.1 finds no product inside);
+    then one Muse Glimmer look at the numbered gaps can veto any of them.
+    """
+
+    def __init__(
+        self,
+        scanner: ShelfScanner,
+        site: Site,
+        clock: Clock,
+        *,
+        glimmer: StructuredLLM | None = None,
+        glimmer_model: str = "",
+        glimmer_wait_s: float = GLIMMER_WAIT_S,
+    ) -> None:
+        """Create it around the shelf scanner (with Glimmer when it is configured)."""
         self._scanner = scanner
         self._site = site
         self._clock = clock
+        self._glimmer = glimmer
+        self._glimmer_model = glimmer_model
+        self._wait = glimmer_wait_s
+        self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="shelf-glimmer")
 
     def check(self, camera_id: str, at: datetime, watch: Watch | None = None) -> Finding:
         """Scan `camera_id`'s recorded frame at `at`.
@@ -589,15 +631,54 @@ class ShelfChecker:
             raise RetailError(str(exc)) from exc
         return self._finding(report, start, watch)
 
+    def _glimmer_look(self, report: ShelfReport, timer: Timer) -> GapLook | None:
+        if self._glimmer is None or not report.gaps or not report.marked_image:
+            return None
+        glimmer = self._glimmer
+        board = Path(report.marked_image)
+
+        def call() -> GapLook:
+            future = self._pool.submit(
+                glimmer.structured,
+                model=self._glimmer_model,
+                messages=[user_message(GAP_LOOK_PROMPT, [board])],
+                schema=GapLook,
+            )
+            try:
+                return future.result(timeout=self._wait)
+            except FutureTimeout as exc:
+                msg = f"Glimmer did not answer within {self._wait:.0f} s (cold start?)"
+                raise RetailError(msg) from exc
+
+        try:
+            return timer.run(self._glimmer_model, "gap second look", call)
+        except (RetailError, ModelClientError, ValueError) as exc:
+            _log.warning("shelf_second_look_failed", error=type(exc).__name__)
+            return None
+
     def _finding(self, report: ShelfReport, start: float, watch: Watch | None) -> Finding:
-        seconds = round(time.monotonic() - start, 2)
-        gaps = report.gaps
-        facings = sum(g.facings for g in gaps)
+        scan_s = round(time.monotonic() - start, 2)
+        timer = Timer()
+        timer.calls.append(
+            ModelCall(model=report.model, role="gap finder + SAM 3.1 check", seconds=scan_s)
+        )
+        look = self._glimmer_look(report, timer)
+        vetoed = set(look.not_empty) if look is not None else set()
+        kept = [g for g in report.gaps if g.number not in vetoed]
+        dropped = [
+            RejectedGap(box_xyxy=g.box_xyxy, section=g.section, reason="Glimmer sees product")
+            for g in report.gaps
+            if g.number in vetoed
+        ]
+        report = report.model_copy(update={"gaps": kept, "rejected": [*report.rejected, *dropped]})
+        facings = sum(g.facings for g in kept)
         headline = (
-            f"{len(gaps)} shelf gap(s), about {facings} facings to refill"
-            if gaps
+            f"{len(kept)} shelf gap(s), about {facings} facings to refill"
+            if kept
             else "No empty facings confirmed"
         )
+        detail = report.model_dump(mode="json", exclude={"image", "marked_image"})
+        detail["glimmer"] = look.model_dump(mode="json") if look is not None else None
         return Finding(
             id=new_id("f"),
             kind="shelf",
@@ -606,19 +687,17 @@ class ShelfChecker:
             at=report.at,
             checked_at=self._clock.now(),
             watch_id=watch.id if watch else None,
-            act=bool(gaps),
+            act=bool(kept),
             headline=headline,
-            staff_message=restock_message(report) if gaps else "",
-            detail=report.model_dump(mode="json", exclude={"image", "marked_image"}),
+            staff_message=restock_message(report) if kept else "",
+            detail=detail,
             evidence=Evidence(
                 frames=[Path(report.image).name],
                 marked=Path(report.marked_image).name if report.marked_image else None,
             ),
-            calls=[
-                ModelCall(model=report.model, role="gap finder + SAM 3.1 check", seconds=seconds)
-            ],
-            seconds=seconds,
-            metric=float(len(gaps)),
+            calls=timer.calls,
+            seconds=round(time.monotonic() - start, 2),
+            metric=float(len(kept)),
         )
 
 

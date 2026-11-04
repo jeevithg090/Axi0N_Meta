@@ -111,7 +111,7 @@ def build_retail(
     scanner = ShelfScanner(
         spark=spark, files=spark, sam=perception.hosted, out_dir=shelf_marked, frames=frames
     )
-    shelf = ShelfChecker(scanner, site, clock)
+    shelf = ShelfChecker(scanner, site, clock, glimmer=glimmer, glimmer_model=glimmer_model)
     checkers: dict[CheckKind, Checker] = {"queue": queue, "hazard": hazard, "shelf": shelf}
     image_checkers: dict[CheckKind, ImageChecker] = {"hazard": hazard, "shelf": shelf}
     desk = StaffDesk(

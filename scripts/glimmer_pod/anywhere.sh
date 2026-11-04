@@ -34,16 +34,26 @@ fetch() {  # fetch <file>: download until the file has the size the CDN reports
     have="$(stat -c %s "$DIR/$name" 2>/dev/null || echo 0)"
     [[ "$have" == "$size" ]] && return 0
     log "$name: $have of $size bytes (attempt $attempt)"
-    curl -fsSL --retry 3 -C - -o "$DIR/$name" "$url" || sleep 2
+    # A stalled transfer (under 2 MB/s for 30 s) is dropped and resumed with a fresh CDN link.
+    curl -fsSL --retry 3 --speed-limit 2000000 --speed-time 30 -C - -o "$DIR/$name" "$url" \
+      || sleep 2
   done
   log "ERROR: $name is incomplete"
   return 1
 }
 
 started=$(date +%s)
-fetch "$MMPROJ" &
-fetch "$MODEL"
-wait
+# Hugging Face's Xet client fetches chunks in parallel (several times faster than one curl);
+# plain curl is the fallback when it cannot be installed.
+if pip install -q --root-user-action=ignore "huggingface_hub[hf_xet]>=0.34" 2>/dev/null \
+  && HF_XET_HIGH_PERFORMANCE=1 hf download meta-models/Muse-Glimmer-30B-GGUF \
+    "$MODEL" "$MMPROJ" --local-dir "$DIR" > /dev/null; then
+  log "downloaded with hf"
+else
+  fetch "$MMPROJ" &
+  fetch "$MODEL"
+  wait
+fi
 log "weights ready in $(( $(date +%s) - started )) s"
 
 exec /app/llama-server -m "$DIR/$MODEL" --mmproj "$DIR/$MMPROJ" \

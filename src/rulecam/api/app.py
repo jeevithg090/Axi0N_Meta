@@ -167,6 +167,7 @@ from rulecam.runtime.idle_stop import IdleGpuStop
 from rulecam.runtime.loop import ActivePlan, LoopMetrics, RuntimeLoop, plan_concepts
 from rulecam.runtime.response import Response, ResponseStatus, build_response
 from rulecam.runtime.serverless import GpuHealth, RunPodServerless
+from rulecam.staff.factory import build_staff
 from rulecam.verify.tier2 import SparkOpenVerifier
 from rulecam.voice_out.tts import MmsTts
 from rulecam.worker import DisputeService, worker_router
@@ -1044,6 +1045,19 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             extensions.router(_OWNER),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
+            build_staff(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                response=response,
+                chain_root=chain_root,
+                segmenter=perception.hosted,
+                ask_agent=ask_agent,
+                false_alarm=false_alarm,
+                plans_dir=PLANS_DIR,
+                dependencies=_OWNER,
+            ),
         ),
     )
 

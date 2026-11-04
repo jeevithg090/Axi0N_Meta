@@ -83,6 +83,7 @@ from rulecam.ask.watch import (
     spaced,
     watch,
 )
+from rulecam.clients.errors import ModelClientError
 from rulecam.contracts import Clock, StructuredLLM
 from rulecam.crowd.zones import CrowdZone
 from rulecam.errors import RulecamError
@@ -98,6 +99,7 @@ SPARK_MODEL: Final = "muse-spark-1.3"
 SAM_MODEL: Final = "sam-3.1"
 MAX_STEPS: Final = 8
 REVIEW_STEPS: Final = 3
+GLIMMER_PAUSE_S: Final = 300.0  # after a failed look, skip looks this long instead of re-waiting
 DEFAULT_MAX_ACTIONS: Final = 6
 MAX_CONVERSATIONS: Final = 64
 STOPPED: Final = "Stopped before an answer: the request went away."
@@ -343,6 +345,7 @@ class AskAgent:
         self._crowd = crowd
         self._conversations: OrderedDict[str, list[AskAnswer]] = OrderedDict()
         self._lock = threading.Lock()
+        self._glimmer_down: tuple[float, str] | None = None  # (monotonic until, why)
 
     def ask(
         self,
@@ -645,18 +648,54 @@ class AskAgent:
                 counts = count_objects(self._segmenter, frames, action.concept or "person")
                 found = [c.model_dump(mode="json") for c in counts]
                 return _Outcome({"frames": found, **_notes(notes)}, SAM_MODEL, shown)
-            labels: dict[str, str] = {}
-            if action.marks and self._marks_dir is not None:
-                frames = [self._mark(f, tables, labels) for f in frames]
-            answer = look(self._glimmer, self._glimmer_model, frames, action.question or "")
-            return _Outcome(
-                {**answer.model_dump(), "marks": labels, **_notes(notes)},
-                self._glimmer_model,
-                tuple(f.path for f in frames),
-            )
+            return self._look(action, frames, notes, tables)
         except (SqlError, ValueError, RulecamError, OSError) as exc:
             _log.info("ask_step_failed", action=action.action, error=str(exc))
             return _Outcome({"error": str(exc)})
+
+    def _look(
+        self, action: AskAction, frames: list[Frame], notes: Sequence[str], tables: TrackTables
+    ) -> _Outcome:
+        """Glimmer answers the question about the frames (skipped while Glimmer is paused)."""
+        skipped = self._glimmer_skipped()
+        if skipped is not None:
+            return _Outcome({"error": skipped})
+        labels: dict[str, str] = {}
+        if action.marks and self._marks_dir is not None:
+            frames = [self._mark(f, tables, labels) for f in frames]
+        try:
+            answer = look(self._glimmer, self._glimmer_model, frames, action.question or "")
+        except ModelClientError as exc:
+            self._glimmer_failed(exc)
+            raise
+        return _Outcome(
+            {**answer.model_dump(), "marks": labels, **_notes(notes)},
+            self._glimmer_model,
+            tuple(f.path for f in frames),
+        )
+
+    def _glimmer_failed(self, error: ModelClientError) -> None:
+        """Remember that Glimmer did not answer, so the next looks fail at once.
+
+        A serverless Glimmer that is scaling up takes minutes; without this every look of a
+        question would wait out its own full timeout.
+        """
+        why = f"{type(error).__name__}: {error}"[:200]
+        with self._lock:
+            self._glimmer_down = (time.monotonic() + GLIMMER_PAUSE_S, why)
+        _log.warning("ask_glimmer_paused", seconds=GLIMMER_PAUSE_S, error=why)
+
+    def _glimmer_skipped(self) -> str | None:
+        """Why a look is skipped (Glimmer failed in the last few minutes), else `None`."""
+        with self._lock:
+            down = self._glimmer_down
+        if down is None or time.monotonic() >= down[0]:
+            return None
+        left = round(down[0] - time.monotonic())
+        return (
+            f"Muse Glimmer is not answering ({down[1]}); looks are skipped for another {left} s. "
+            "Use watch (Muse Spark watches the clip) or count_objects (SAM 3.1) instead."
+        )
 
     def _crowd_scan(self, action: AskAction) -> _Outcome:
         """The crowd at each asked instant, with its heatmap as the step's frame."""

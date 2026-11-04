@@ -6,11 +6,13 @@ import json
 from collections.abc import Sequence
 from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from rulecam.ask import AskAgent, FrameGrabber, SqlError, TrackTables, open_tables
 from rulecam.clients.errors import StructuredOutputError
+from rulecam.clients.transport import ModelTransportError
 from rulecam.contracts import Detection, Mask, Track, TrackPoint
 from rulecam.rules.store import ParquetTrackStore
 from tests.fakes import EPOCH, FakeClock, FakeLLM, make_chunk
@@ -210,3 +212,37 @@ def test_a_broken_spark_reply_ends_with_an_apology(tracks_root: Path, tmp_path: 
     reply = agent(BrokenSpark(), FakeLLM(), tracks_root, tmp_path, Sam()).ask("q")
     assert reply.answer.startswith("Sorry")
     assert "StructuredOutputError" in reply.steps[-1].action.thought
+
+
+class DownGlimmer(FakeLLM):
+    """A Glimmer that times out, counting how often it was asked."""
+
+    def structured(self, **kwargs: object) -> Any:
+        self.calls.append(dict(kwargs))
+        raise ModelTransportError("POST /chat/completions failed: ReadTimeout")
+
+
+def test_a_glimmer_that_times_out_is_not_waited_for_again(
+    tracks_root: Path, tmp_path: Path
+) -> None:
+    at = (EPOCH + timedelta(seconds=6)).isoformat()
+    looking: dict[str, object] = {
+        "thought": "look",
+        "action": "look",
+        "camera_id": "checkout",
+        "times": [at],
+        "question": "How many queue?",
+    }
+    spark = FakeLLM(
+        [
+            turn(looking),
+            turn(looking),
+            turn({"thought": "done", "action": "answer", "answer": "From SAM instead."}),
+        ]
+    )
+    glimmer = DownGlimmer()
+    reply = agent(spark, glimmer, tracks_root, tmp_path, Sam()).ask("q")
+    assert len(glimmer.calls) == 1
+    assert "ReadTimeout" in reply.steps[0].result["error"]  # type: ignore[index]
+    assert "looks are skipped" in reply.steps[1].result["error"]  # type: ignore[index]
+    assert reply.answer == "From SAM instead."

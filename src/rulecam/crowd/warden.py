@@ -196,6 +196,11 @@ class Watch(Frozen):
         max_length=64,
         description="What SAM 3.1 looks for to see a steward arrive after an acknowledgement.",
     )
+    steward_zone: CrowdZone | None = Field(
+        default=None,
+        description="Where stewards should appear after an acknowledgement (default: the "
+        "alert's zone).",
+    )
 
 
 class CrowdAlert(Frozen):
@@ -521,6 +526,8 @@ class CrowdWarden:
         grid: int | None = None,
         escalate_to: Sequence[str] = (),
         ack_within_s: float = ACK_WITHIN_S,
+        steward_concept: str = STEWARD_CONCEPT,
+        steward_zone: CrowdZone | None = None,
     ) -> Watch:
         """Start (or replace) the operator's standing instruction for a camera.
 
@@ -539,6 +546,8 @@ class CrowdWarden:
             grid=grid,
             escalate_to=[r for r in escalate_to if r.strip()],
             ack_within_s=ack_within_s,
+            steward_concept=steward_concept.strip() or STEWARD_CONCEPT,
+            steward_zone=steward_zone,
         )
         self._start(made)
         self._save()
@@ -1409,7 +1418,11 @@ class CrowdWarden:
         return None
 
     def _start_arrival(self, alert: CrowdAlert, watch: Watch) -> Arrival:
-        zone = next((z.name for z in watch.zones if z.name in alert.assessment.zones), "view")
+        zone = (
+            watch.steward_zone.name
+            if watch.steward_zone is not None
+            else next((z.name for z in watch.zones if z.name in alert.assessment.zones), "view")
+        )
         arrival = Arrival(concept=watch.steward_concept, zone=zone, since=self._clock.now())
         with self._lock:
             self._arrivals[alert.alert_id] = arrival
@@ -1425,7 +1438,8 @@ class CrowdWarden:
         """Count stewards (SAM 3.1, the watch's steward concept) in the alert's zone now."""
         with self._lock:
             arrival = self._arrivals[alert.alert_id]
-        polygon = next((z.polygon_px for z in watch.zones if z.name == arrival.zone), None)
+        zones = [*watch.zones, *([watch.steward_zone] if watch.steward_zone else [])]
+        polygon = next((z.polygon_px for z in zones if z.name == arrival.zone), None)
         try:
             seen = self._memory.count(
                 watch.camera_id, latest.at, arrival.concept, polygon=polygon, grid=watch.grid

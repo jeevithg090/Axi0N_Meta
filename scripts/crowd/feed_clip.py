@@ -8,8 +8,9 @@ sample folder's files are applied to it (`CAMERA` in them becomes the new camera
 - `truth.json` -> `PUT /crowd/truth/{camera}` (ground truth, for the report's score),
 - `watch.json` -> `POST /crowd/watch` (the operator's instruction, floor points and zones).
 
-With `--setup`, Muse Spark's proposal for the camera (`POST /crowd/setup`) is also fetched, on
-its own thread so the feed keeps the clip's pace, and saved next to the feed log.
+`--loops 2` plays the clip twice back to back (the second pass is not scored: the truth covers
+one pass). With `--setup`, Muse Spark's proposal for the camera (`POST /crowd/setup`) is also
+fetched, on its own thread so the feed keeps the clip's pace, and saved next to the feed log.
 
 Usage:
     uv run python scripts/crowd/feed_clip.py --clip small-030_c_56_h0.mp4
@@ -29,7 +30,7 @@ import httpx
 
 from rulecam.eval.client import HttpApiClient, Pairing
 from rulecam.eval.errors import EvalRunError
-from rulecam.eval.runner import split_clip
+from rulecam.eval.runner import CHUNK_SECONDS, split_clip
 
 TOO_MANY = "429"
 
@@ -90,6 +91,9 @@ def main() -> None:
     parser.add_argument("--label", default="Crowd replay")
     parser.add_argument("--setup", action="store_true", help="Ask Spark for a proposal first.")
     parser.add_argument(
+        "--loops", type=int, default=1, help="Play the clip this many times back to back."
+    )
+    parser.add_argument(
         "--alias",
         action="append",
         default=[],
@@ -106,13 +110,15 @@ def main() -> None:
     log: dict[str, object] = {"camera_id": pairing.camera_id, "chunks": []}
     sent: list[dict[str, object]] = []
     start = time.monotonic()
-    for chunk in chunks:
-        wait = start + chunk.clip_start_s - time.monotonic()
+    length = chunks[-1].clip_start_s + CHUNK_SECONDS
+    for loop, chunk in ((k, c) for k in range(args.loops) for c in chunks):
+        wait = start + loop * length + chunk.clip_start_s - time.monotonic()
         if wait > 0:
             time.sleep(wait)
         at = datetime.now(UTC).isoformat()
         sent.append(
             {
+                "loop": loop,
                 "index": chunk.index,
                 "clip_start_s": chunk.clip_start_s,
                 "sent_utc": at,
@@ -120,7 +126,7 @@ def main() -> None:
             }
         )
         log["chunks"] = sent
-        if chunk.index == 0:
+        if loop == 0 and chunk.index == 0:
             configure(http, args.sample, pairing.camera_id, log, aliases)
             if args.setup:  # on its own thread: the feed must keep the clip's pace
                 threading.Thread(

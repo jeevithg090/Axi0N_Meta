@@ -2,11 +2,58 @@
  "description": "SAMPLE layout for the demo, drawn over two runs of the Jülich bottleneck experiment played at once (not a real venue): an entry corridor 5.6 m wide narrows to the main gate into the hall; a second queue waits at side door B, which also leads into the hall. The outer queue can be held at the barrier before both.",
  "sample": true,
  "places": [
-  {"name": "Outer queue barrier", "kind": "holding point", "leads_to": ["Entry corridor", "Side queue"], "note": "stewards can stop the inflow here"},
-  {"name": "Entry corridor", "kind": "corridor", "leads_to": ["Main gate"], "camera_id": "CAMERA", "zone": "entry corridor", "note": "5.6 m wide"},
-  {"name": "Main gate", "kind": "gate", "leads_to": ["Hall"], "camera_id": "CAMERA", "zone": "gate approach (2 x 2 m)", "note": "narrow, one person at a time"},
-  {"name": "Side queue", "kind": "queue", "leads_to": ["Side door B"], "camera_id": "SIDE_CAMERA", "zone": "side queue"},
-  {"name": "Side door B", "kind": "gate", "leads_to": ["Hall"], "camera_id": "SIDE_CAMERA", "zone": "side door approach (2 x 2 m)", "note": "narrow; people can be redirected here from the main gate"},
-  {"name": "Hall", "kind": "hall", "note": "has room"}
+  {
+   "name": "Outer queue barrier",
+   "kind": "holding point",
+   "leads_to": [
+    "Entry corridor",
+    "Side queue"
+   ],
+   "note": "stewards can stop the inflow here"
+  },
+  {
+   "name": "Entry corridor",
+   "kind": "corridor",
+   "leads_to": [
+    "Main gate"
+   ],
+   "camera_id": "CAMERA",
+   "zone": "entry corridor",
+   "note": "5.6 m wide"
+  },
+  {
+   "name": "Main gate",
+   "kind": "gate",
+   "leads_to": [
+    "Hall"
+   ],
+   "camera_id": "CAMERA",
+   "zone": "gate approach (2 x 2 m)",
+   "note": "narrow, one person at a time"
+  },
+  {
+   "name": "Side queue",
+   "kind": "queue",
+   "leads_to": [
+    "Side door B"
+   ],
+   "camera_id": "SIDE_CAMERA",
+   "zone": "side queue"
+  },
+  {
+   "name": "Side door B",
+   "kind": "gate",
+   "leads_to": [
+    "Hall"
+   ],
+   "camera_id": "SIDE_CAMERA",
+   "zone": "side door approach (2 x 2 m)",
+   "note": "the planned overflow route from the main gate; narrow"
+  },
+  {
+   "name": "Hall",
+   "kind": "hall",
+   "note": "has room"
+  }
  ]
 }

@@ -94,6 +94,14 @@ class WatchRequest(BaseModel):
     ack_within_s: float = Field(
         default=60.0, gt=0.0, le=3600.0, description="Seconds to wait for a tap per role."
     )
+    steward_concept: str = Field(
+        default="high-visibility vest",
+        max_length=64,
+        description="What SAM 3.1 looks for to see a steward arrive (what stewards wear here).",
+    )
+    steward_zone: CrowdZone | None = Field(
+        default=None, description="Where stewards should appear after an acknowledgement."
+    )
 
 
 class SetupRequest(BaseModel):
@@ -329,6 +337,8 @@ def crowd_router(  # noqa: C901, PLR0915 - one small handler per route
                 grid=body.grid,
                 escalate_to=body.escalate_to,
                 ack_within_s=body.ack_within_s,
+                steward_concept=body.steward_concept,
+                steward_zone=body.steward_zone,
             )
         except PerceptionError as exc:
             raise HTTPException(HTTP_UNPROCESSABLE, f"floor points: {exc}") from exc

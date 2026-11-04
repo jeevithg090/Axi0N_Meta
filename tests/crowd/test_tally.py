@@ -160,3 +160,35 @@ def test_the_phase_meter_counts_stop_and_go_swings() -> None:
     assert view.phase.speed_per_min is not None
     assert view.phase.speed_per_min < 0
     assert forecast(history[:2])[0].phase is None
+
+
+def test_stewards_are_looked_for_where_the_watch_says_they_stand(
+    tmp_path: Path, crowd: CrowdMemory, grabber: FrameGrabber
+) -> None:
+    staff = CrowdZone(name="staff side", polygon_px=[(0, 0), (60, 0), (60, 300), (0, 300)])
+    chosen = CrowdWarden(
+        memory=crowd,
+        frames=grabber,
+        spark=FakeLLM([warning()]),
+        glimmer=FakeLLM([{"agrees": True, "seen": "Packed.", "confidence": 0.9}]),
+        glimmer_model="muse-glimmer",
+        chain=None,
+        notifier=None,
+        tts=None,
+        clock=FakeClock(EPOCH),
+        out_dir=tmp_path / "crowd",
+    )
+    watch = chosen.watch("gate", INSTRUCTION, steward_concept="blue vest", steward_zone=staff)
+    chosen.assess(watch, latest(crowd))
+    (alert,) = chosen.alerts()
+    chosen.ack(alert.alert_id, "stewards")
+    chosen.tick()
+
+    def looked() -> bool:
+        arrival = chosen.ack_state(alert.alert_id).arrival
+        return arrival is not None and arrival.checks > 0
+
+    wait_for(looked)
+    arrival = chosen.ack_state(alert.alert_id).arrival
+    assert arrival is not None
+    assert (arrival.concept, arrival.zone, arrival.people) == ("blue vest", "staff side", 1)

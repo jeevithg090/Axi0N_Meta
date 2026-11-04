@@ -9,8 +9,8 @@ Since 4 Nov 2026 (about 05:50 UTC) the live system uses only the Meta API: no Ru
 of our own. Numbers from 1–4 Nov are copied from committed reports and linked; they were
 measured before that switch, with Muse Glimmer 30B on our own GPUs (and Muse Spark Open on
 8 x H100 where a run used it), and we say so where we quote them. Numbers marked **Meta API
-only** were measured live on 4 Nov after the switch; the model proofs are in the message of
-commit `1d98493`, and the rest are not yet in a committed report.
+only** were measured live on 4 Nov after the switch and are in
+[reports/eval/2026-11-04-meta-api-only.md](reports/eval/2026-11-04-meta-api-only.md).
 
 ## Only the team can fill these (do them before pressing submit)
 

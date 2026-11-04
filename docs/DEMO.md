@@ -2,7 +2,7 @@
 
 Two ways to show Rulecam (PLAN-9.5 §9):
 
-- **The golden REPLAY** (`https://rulecam.vercel.app/demo?demo=1`): a recorded live run, replayed
+- **The golden REPLAY** (`$PUBLIC_UI_URL/demo?demo=1`, the address in `README.md`): a recorded live run, replayed
   with no model calls and labelled REPLAY. Anyone can open it; it works when every pod is off.
   Use it as the opener, and as the fallback whenever something live misbehaves.
 - **The live demo** below: the owner's phone as the camera, on the deployed stack, labelled
@@ -66,10 +66,11 @@ rows inside the §2 targets.
 
 **T-60 min, the stack**
 
-- [ ] `scripts/deploy/runpod_status.sh`: API, SAM and Glimmer pods `RUNNING` and `ok`.
-- [ ] `curl https://rulecam.vercel.app/rulecam-api/mode` → `{"mode":"live","badge":"LIVE"}`
-      (if it says REPLAY or record, fix `.env` and restart before anything else).
-- [ ] On the API pod: `uv run --no-sync python -m rulecam.replay.preflight` all green.
+- [ ] On the Mac serving the demo (since 4 Nov, Meta API only, no pods): the API, the site and
+      both Cloudflare tunnels are up (`.claude/skills/demo-preflight` step 1).
+- [ ] `curl $PUBLIC_UI_URL/rulecam-api/mode` → `{"mode":"live","badge":"LIVE"}`
+      (if it says REPLAY or record, fix `.env.live` and restart before anything else).
+- [ ] With `.env.live` loaded: `uv run python scripts/ops/model_proofs.py` all PASS.
 - [ ] `uv run rulecam scorecard --checks auto --api <public API URL>`: no new FAIL since the last
       run (`scene_text_firewall` stays FAIL until `HF_TOKEN` + the `ml` extra are installed).
 - [ ] `/runtime/metrics`: `verifier.state` is `closed`, `response.actions_dry_run` is what you

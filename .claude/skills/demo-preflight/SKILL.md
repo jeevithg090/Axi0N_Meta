@@ -1,30 +1,46 @@
 ---
 name: demo-preflight
-description: Pre-demo checklist for Rulecam's live stack - warm the serverless GPUs, then run the docs/deploy.md checks (public API, owner auth, evidence, GPU health, metrics) and report pass/fail. Use before a demo, a recording, judging or the finals, or when asked whether the live site is ready.
+description: Pre-demo checklist for Rulecam's live stack (Meta API only, API and site on the team's Mac behind Cloudflare tunnels) - check the local servers and tunnels, run the model and use-case checks, then the public API, owner auth and evidence checks, and report pass/fail. Use before a demo, a recording, judging or the finals, or when asked whether the live site is ready.
 ---
 
 # Demo preflight
 
 Run these in order and report a table: check, expected, got, pass/fail. Stop and say so at the
-first failure that would break the demo; do not "fix" the live stack without asking. IDs and
-rollback steps are in the `rulecam-ops` skill. Never print key values.
+first failure that would break the demo; do not "fix" the live stack without asking. How it
+runs and how to restart it: `docs/deploy.md` "Meta API only". Never print key values.
 
-## 1. Warm up (10 to 15 min before; costs $1.34/h per GPU while warm)
+Since 4 Nov 2026 there are no GPUs to warm: every model call goes to the Meta API (Tier 1 is
+Muse Spark 1.3, Tier 2 is Muse Wonder 1.0, SAM 3.1 hosted). The API and site run on the team's
+Mac; the public addresses are Cloudflare quick tunnels (`PUBLIC_UI_URL` and `PUBLIC_TUNNEL_URL`
+in `.env.live`). A tunnel that restarted has a new address: the site must then be rebuilt with
+`NEXT_PUBLIC_RULECAM_API` set to the new API address (never `localhost`, or visitors count as
+the owner) and the docs updated (`SUBMISSION.md` says how).
+
+## 1. Local servers and tunnels
 
 ```bash
-scripts/ops/warm.sh status      # workers.max should be 2 (SAM) and 3 (Glimmer); idle 300 s
-scripts/ops/warm.sh on          # min 1 on both, waits until both /ping answer 200
+curl -s http://127.0.0.1:8000/health      # ok true, runtime true, models.tier1 muse-spark-1.3 (meta-api)
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/        # 200
+pgrep -fl cloudflared                      # two tunnels: :8000 and :3000
+pgrep -fl caffeinate                       # keeps the Mac awake (closing the lid on battery still sleeps it)
 ```
 
-`warm.sh` needs `RUNPOD_API_KEY` in the environment. If `workers.max` dropped (RunPod's idle
-scale-down), say so: someone has to raise it in the RunPod console. **After the demo: `scripts/ops/warm.sh off`.**
-
-## 2. Public API (through the Vercel site)
+## 2. Models and use cases (from the repo root, live settings loaded)
 
 ```bash
-B=https://rulecam.vercel.app/rulecam-api
-curl -s $B/health                                  # ok true, revision = the SHA we meant to ship,
-                                                   # gpus.sam / gpus.glimmer warm (not unhealthy)
+set -a; . ./.env.live; set +a
+uv run python scripts/ops/model_proofs.py                         # Tier 1, Tier 2, plan audit, Ask review: all PASS
+uv run python scripts/ops/preflight_usecases.py --api http://127.0.0.1:8000
+```
+
+Expected: supermarket and warehouse lines green. `api / models` stays yellow while Prompt Guard 2
+is not loaded, and `crowd / assess` yellow while no crowd camera runs.
+
+## 3. Public API (through the site)
+
+```bash
+B=$PUBLIC_UI_URL/rulecam-api
+curl -s $B/health                                  # ok true, models all meta-api
 curl -s $B/mode                                    # {"mode":"live","badge":"LIVE"}
 curl -s -o /dev/null -w '%{http_code}\n' -X PUT $B/mode -H 'Content-Type: application/json' \
   -d '{"mode":"replay"}'                           # 403
@@ -32,11 +48,13 @@ curl -s -o /dev/null -w '%{http_code}\n' -X PUT $B/mode -H 'X-Forwarded-For: 127
   -H 'Content-Type: application/json' -d '{"mode":"replay"}'   # 403
 curl -s $B/auth/me                                 # "owner":false … "login_enabled":true
 curl -s -o /dev/null -w '%{http_code}\n' $B/plans  # 200 with PUBLIC_DEMO=true, else 403
+curl -s -o /dev/null -w '%{http_code}\n' $B/connectors/cameras   # 403
 ```
 
-Compare `revision` with `git rev-parse HEAD` of the branch that should be live.
+Then for a visitor (no login): `$PUBLIC_UI_URL/demo?demo=1`, the verify link in `README.md`,
+`/usecases/warehouse`, `/staff` and `/glasses` answer 200.
 
-## 3. Evidence
+## 4. Evidence
 
 Pick today's (or the demo's) day as `YYYY-MM-DD`:
 
@@ -46,31 +64,17 @@ curl -s -o /dev/null -w '%{http_code}\n' $B/evidence/<day>/hashes   # 200
 curl -s -o /dev/null -w '%{http_code}\n' $B/evidence/<day>/root     # 200
 ```
 
-Then open `https://rulecam.vercel.app/rulecam-api/verify/?day=<day>`: the hashes match the root.
-
-## 4. GPUs and metrics
-
-```bash
-curl -s https://7nv0ifjo2tmk00-8000.proxy.runpod.net/metrics | grep -E 'rulecam_dependency_(up|state)'
-```
-
-Expect `rulecam_dependency_up{service="glimmer"} 1` and `{service="sam"} 1`; while warm, state
-`warm`. Do not curl the GPU URLs' `/health` directly (that wakes and bills workers); the
-authenticated `/ping` in `warm.sh` is the GPU check.
+Then open `$PUBLIC_UI_URL/rulecam-api/verify/?day=<day>`: the hashes match the root.
 
 ## 5. By hand (ask the user to do these in the browser)
 
-- Log in at `https://rulecam.vercel.app/login`: cookie `__Host-rulecam_owner` is HttpOnly,
-  Secure, SameSite Strict; the planner, approve and questions controls appear; "Owner · Log out"
-  removes them.
-- The camera or the replay the demo uses shows live events on the dashboard.
-
-## 6. On the API pod (optional, over SSH)
-
-`uv run python -m rulecam.replay.preflight` with the key files exported, from `/workspace/rulecam`.
-Run it detached if the session is flaky (see `rulecam-ops` gotchas).
+- Log in at `$PUBLIC_UI_URL/login`: cookie `__Host-rulecam_owner` is HttpOnly, Secure, SameSite
+  Strict; the planner, approve and questions controls appear; "Owner · Log out" removes them.
+- The sidebar lists Tier 1, Tier 2 and SAM 3.1 on the Meta API, and the cameras show live
+  events on the dashboard.
 
 ## After
 
-`scripts/ops/warm.sh off` as soon as the demo ends, then `scripts/ops/warm.sh status` to confirm
-min is 0 on both.
+Nothing to switch off: the Meta API bills per call. A looped clip on a camera with a
+high-severity rule keeps calling hosted SAM 3.1 (`/runtime/metrics` shows the spend); remove
+that camera (`DELETE /connectors/cameras/<id>` from the Mac) when the demo is over.

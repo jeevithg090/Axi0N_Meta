@@ -1,4 +1,4 @@
-# Deployment: Vercel UI + RunPod API + RunPod Glimmer
+# Deployment
 
 ## Meta API only (since 4 Nov 2026)
 

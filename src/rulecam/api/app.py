@@ -93,6 +93,7 @@ from rulecam.api.prometheus import (
     serverless_gpu_rate,
 )
 from rulecam.api.site_tools import build_site_tools
+from rulecam.api.validation import install_validation_handler
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
     AskAgent,
@@ -666,6 +667,7 @@ def create_app(services: AppServices) -> FastAPI:
         publish) and starts the runtime loop if there is one; on shutdown it stops it.
     """
     app = FastAPI(title="Rulecam", version="0.1.0", lifespan=_lifespan(services))
+    install_validation_handler(app)
     auth = services.auth or OwnerAuth(clock=SystemClock(), allowed_origins=services.viewer_origins)
     app.dependency_overrides[require_owner] = auth.require_owner
     for router in _routers(services, auth):

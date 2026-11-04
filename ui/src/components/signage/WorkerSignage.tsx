@@ -108,7 +108,8 @@ export function WorkerSignage() {
           margin: "0 auto var(--s4)",
           padding: "14px 18px",
           background: "var(--paper-2)",
-          border: "2px solid var(--ink)",
+          border: "1px solid var(--color-rule)",
+          borderRadius: "var(--radius-card)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
@@ -173,7 +174,7 @@ export function WorkerSignage() {
             className="btn ghost"
             style={{ padding: "6px 12px", fontSize: "12px" }}
           >
-            🖨 {isEn ? "Printable QR Poster" : "Póster QR Imprimible"}
+            {isEn ? "Printable QR Poster" : "Póster QR Imprimible"}
           </a>
         </div>
       </div>
@@ -194,8 +195,8 @@ export function WorkerSignage() {
           className="root"
           style={{
             width: "100%",
-            border: "4px solid var(--ink)",
-            boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
+            border: "1px solid var(--color-rule-2)",
+            boxShadow: "none",
             background: "var(--paper)",
             paddingBottom: "var(--s3)",
           }}
@@ -206,7 +207,7 @@ export function WorkerSignage() {
               justifyContent: "space-between",
               alignItems: "center",
               padding: "10px 16px",
-              borderBottom: "2px solid var(--ink)",
+              borderBottom: "1px solid var(--color-rule)",
               background: "var(--ink)",
               color: "var(--paper)",
             }}
@@ -214,7 +215,7 @@ export function WorkerSignage() {
             <span className="dm" style={{ fontSize: "13px", fontWeight: 700 }}>
               {cameraId} · {page?.site_name?.toUpperCase() ?? "DEMO"}
             </span>
-            <span className="dm" style={{ fontSize: "12px", color: "#F2D100" }}>
+            <span className="dm" style={{ fontSize: "12px", color: "var(--color-accent)" }}>
               {isEn ? "ZERO IDENTITY LOGGED" : "CERO IDENTIDAD REGISTRADA"}
             </span>
           </div>
@@ -233,8 +234,9 @@ export function WorkerSignage() {
                   style={{
                     marginTop: "14px",
                     padding: "12px",
-                    background: "var(--card, #FBFAF6)",
-                    border: "2px solid var(--ink)",
+                    background: "var(--card)",
+                    border: "1px solid var(--color-rule)",
+                    borderRadius: "var(--radius-card)",
                   }}
                 >
                   <div className="dm" style={{ fontSize: "12px", fontWeight: 700 }}>
@@ -250,7 +252,7 @@ export function WorkerSignage() {
                         display: "flex",
                         gap: "12px",
                         fontSize: "12px",
-                        borderTop: "1px dashed var(--ink)",
+                        borderTop: "1px dashed var(--color-rule-2)",
                         paddingTop: "8px",
                       }}
                     >
@@ -274,9 +276,10 @@ export function WorkerSignage() {
           <div
             style={{
               margin: "8px 16px 0",
-              background: "var(--card, #FBFAF6)",
-              color: "#141414",
-              border: "2px solid var(--ink)",
+              background: "var(--card)",
+              color: "var(--color-ink)",
+              border: "1px solid var(--color-rule)",
+              borderRadius: "var(--radius-card)",
               padding: "18px 18px 12px",
               position: "relative",
             }}
@@ -303,8 +306,9 @@ export function WorkerSignage() {
         {/* Right: Anonymous Event Codes & Live Dispute Filing */}
         <div
           style={{
-            border: "3px solid var(--ink)",
-            background: "var(--card, #FBFAF6)",
+            border: "1px solid var(--color-rule)",
+            borderRadius: "var(--radius-card)",
+            background: "var(--card)",
             padding: "22px",
           }}
         >
@@ -321,8 +325,8 @@ export function WorkerSignage() {
             <div
               style={{
                 padding: "10px 12px",
-                background: "var(--alert)",
-                color: "#fff",
+                background: "var(--color-bad-soft)",
+                color: "var(--color-bad)",
                 marginBottom: "12px",
                 fontWeight: 600,
                 fontSize: "14px",
@@ -336,22 +340,22 @@ export function WorkerSignage() {
             <div
               style={{
                 margin: "0 0 16px",
-                border: "3px solid #C93410",
-                color: "#C93410",
+                border: "3px solid var(--color-bad)",
+                color: "var(--color-bad)",
                 padding: "12px",
-                background: "#fff",
+                background: "var(--color-paper-2)",
                 textAlign: "center",
               }}
             >
               <div
                 className="cd"
-                style={{ fontWeight: 800, fontSize: "24px", lineHeight: 1, textTransform: "uppercase" }}
+                style={{ fontWeight: 800, fontSize: "24px", lineHeight: 1 }}
               >
                 {isEn
                   ? `DISPUTE #${lastResult.code} · ${lastResult.outcome.toUpperCase()}`
                   : `DISPUTA #${lastResult.code} · ${lastResult.outcome.toUpperCase()}`}
               </div>
-              <div className="dm" style={{ fontSize: "12px", marginTop: "6px", color: "#141414" }}>
+              <div className="dm" style={{ fontSize: "12px", marginTop: "6px", color: "var(--color-ink)" }}>
                 {isEn
                   ? `Chained to SHA-256 ledger · Rule ${lastResult.rule_id} now has ${lastResult.counts.disputes} dispute(s)`
                   : `Anclado a la cadena SHA-256 · Regla ${lastResult.rule_id} tiene ${lastResult.counts.disputes} disputa(s)`}
@@ -376,7 +380,7 @@ export function WorkerSignage() {
                         padding: "10px 12px",
                         border:
                           selectedCode === ev.code
-                            ? "2px solid var(--ink)"
+                            ? "1px solid var(--color-rule)"
                             : "1px solid rgba(20,20,20,0.3)",
                         background: selectedCode === ev.code ? "var(--yellow)" : "var(--paper)",
                         cursor: "pointer",
@@ -411,7 +415,8 @@ export function WorkerSignage() {
                   style={{
                     width: "100%",
                     padding: "10px",
-                    border: "2px solid var(--ink)",
+                    border: "1px solid var(--color-rule)",
+                    borderRadius: "var(--radius-card)",
                     background: "var(--paper)",
                     fontSize: "14px",
                     fontWeight: 600,
@@ -444,7 +449,8 @@ export function WorkerSignage() {
                   style={{
                     width: "100%",
                     padding: "10px",
-                    border: "2px solid var(--ink)",
+                    border: "1px solid var(--color-rule)",
+                    borderRadius: "var(--radius-card)",
                     background: "var(--paper)",
                     fontFamily: "inherit",
                     fontSize: "14px",

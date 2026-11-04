@@ -197,14 +197,14 @@ body {
 ::selection { background: color-mix(in oklab, var(--color-accent) 35%, transparent); color: var(--color-ink); }
 :focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 a { color: inherit; text-decoration: none; }
-p a, li a, td a, dd a, .link {
+p a:not([class]), li a:not([class]), td a:not([class]), dd a:not([class]), .link {
   text-decoration: underline;
   text-decoration-color: var(--color-rule-2);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.18em;
   transition: color var(--dur-micro) var(--ease-out), text-decoration-color var(--dur-micro) var(--ease-out);
 }
-p a:hover, li a:hover, td a:hover, dd a:hover, .link:hover {
+p a:not([class]):hover, li a:not([class]):hover, td a:not([class]):hover, dd a:not([class]):hover, .link:hover {
   color: var(--color-accent-text);
   text-decoration-color: currentColor;
 }
@@ -590,6 +590,12 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
 .sweep { height: 4px; background: var(--color-rule); border-radius: var(--radius-chip); overflow: hidden; }
 .sweep i { display: block; height: 100%; background: var(--color-cool); }
 
+@media (max-width: 60rem) {
+  :root { --gutter: 24px; --section-gap-s: 80px; --section-gap: 96px; --section-gap-l: 120px; --gap-columns: 24px; }
+}
+@media (max-width: 40rem) {
+  :root { --gutter: 16px; --section-gap-s: 56px; --section-gap: 72px; --section-gap-l: 96px; --gap-columns: 16px; }
+}
 @media (max-width: 1100px) {
   :root { --gut: var(--space-lg); --gap: var(--space-lg); }
   .grid > * { grid-column: 1 / -1 !important; }

@@ -207,7 +207,7 @@ export function IncidentsSignage() {
         <div className="grid">
           {/* Queue List (4 cols) */}
           <div className="s4" style={{ padding: 0 }}>
-            <div style={{ borderTop: "2px solid var(--ink)" }}>
+            <div style={{ borderTop: "1px solid var(--color-rule)" }}>
               {loading && incidents.length === 0 ? (
                 <div style={{ padding: "var(--s3)" }} className="mono">
                   Loading chained incidents…
@@ -228,8 +228,8 @@ export function IncidentsSignage() {
                         background: isSel ? "var(--paper-2)" : "transparent",
                         color: "var(--ink)",
                         border: 0,
-                        borderBottom: "1px solid var(--ink)",
-                        borderLeft: isSel ? "6px solid var(--ink)" : "6px solid transparent",
+                        borderBottom: "1px solid var(--color-rule)",
+                        borderLeft: isSel ? "1px solid var(--color-rule-2)" : "6px solid transparent",
                         padding: "var(--s2)",
                         cursor: "pointer",
                       }}
@@ -313,9 +313,10 @@ export function IncidentsSignage() {
                     style={{
                       marginBottom: "var(--s3)",
                       padding: "10px 14px",
-                      background: "var(--yellow)",
-                      color: "#141414",
-                      border: "2px solid var(--ink)",
+                      background: "var(--color-accent-soft)",
+                      color: "var(--color-ink)",
+                      border: "1px solid var(--color-rule)",
+                      borderRadius: "var(--radius-card)",
                       fontWeight: 700,
                     }}
                   >
@@ -331,7 +332,8 @@ export function IncidentsSignage() {
                     gap: "12px",
                     padding: "12px 16px",
                     background: "var(--paper-2)",
-                    border: "2px solid var(--ink)",
+                    border: "1px solid var(--color-rule)",
+                    borderRadius: "var(--radius-card)",
                     marginBottom: "var(--s3)",
                   }}
                 >
@@ -380,8 +382,9 @@ export function IncidentsSignage() {
                 >
                   <div
                     style={{
-                      background: "#0a0c0e",
-                      border: "2px solid var(--ink)",
+                      background: "var(--color-scene)",
+                      border: "1px solid var(--color-rule)",
+                      borderRadius: "var(--radius-card)",
                       position: "relative",
                     }}
                   >
@@ -400,8 +403,8 @@ export function IncidentsSignage() {
                         padding: "6px 10px",
                         fontFamily: "var(--font-dm-mono, monospace)",
                         fontSize: "11px",
-                        color: "#ECEAE3",
-                        background: "#141414",
+                        color: "var(--color-on-scene)",
+                        background: "var(--color-scene)",
                         display: "flex",
                         justifyContent: "space-between",
                       }}
@@ -421,9 +424,10 @@ export function IncidentsSignage() {
                           display: "flex",
                           alignItems: "center",
                           gap: "10px",
-                          background: "#141414",
-                          color: "#ECEAE3",
-                          border: "1px solid var(--ink)",
+                          background: "var(--color-scene)",
+                          color: "var(--color-on-scene)",
+                          border: "1px solid var(--color-rule)",
+                          borderRadius: "var(--radius-card)",
                           padding: "4px 8px",
                         }}
                       >
@@ -440,10 +444,10 @@ export function IncidentsSignage() {
                           }}
                         />
                         <div style={{ minWidth: 0 }}>
-                          <div className="dm" style={{ fontSize: "11px", color: "#F2D100" }}>
+                          <div className="dm" style={{ fontSize: "11px", color: "var(--color-accent)" }}>
                             SAMPLE STILL #{idx + 1}
                           </div>
-                          <div className="dm" style={{ fontSize: "11px", color: "#B9C0C3" }}>
+                          <div className="dm" style={{ fontSize: "11px", color: "var(--color-on-scene-2)" }}>
                             Built-in, not this incident&apos;s evidence
                           </div>
                         </div>
@@ -457,7 +461,7 @@ export function IncidentsSignage() {
                   <h3 className="h3" style={{ fontSize: "20px", marginBottom: "var(--s2)" }}>
                     Cryptographic Event Timeline ({report.timeline.length} Chained Records)
                   </h3>
-                  <div style={{ borderTop: "2px solid var(--ink)" }}>
+                  <div style={{ borderTop: "1px solid var(--color-rule)" }}>
                     {report.timeline.map((entry) => (
                       <div
                         key={entry.seq}
@@ -466,7 +470,7 @@ export function IncidentsSignage() {
                           gridTemplateColumns: "70px 90px 100px 1fr 130px",
                           gap: "10px",
                           padding: "10px 8px",
-                          borderBottom: "1px solid var(--ink)",
+                          borderBottom: "1px solid var(--color-rule)",
                           alignItems: "baseline",
                           fontSize: "14px",
                         }}
@@ -478,12 +482,12 @@ export function IncidentsSignage() {
                         <span
                           className="dm"
                           style={{
-                            textTransform: "uppercase",
                             fontSize: "11px",
                             fontWeight: 700,
                             padding: "2px 6px",
                             background: "var(--paper-2)",
-                            border: "1px solid var(--ink)",
+                            border: "1px solid var(--color-rule)",
+                            borderRadius: "var(--radius-card)",
                             textAlign: "center",
                           }}
                         >

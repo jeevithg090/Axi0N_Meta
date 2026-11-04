@@ -23,6 +23,9 @@ from rulecam.advisor.api import AdviceStore
 from rulecam.advisor.ledger import AdviceLedger, PreregistrationError
 from rulecam.advisor.measurement import read_out
 from rulecam.advisor.recompute import NumberCheck, RecomputeReport
+from rulecam.chain.retail import RetailLimits, store_fit, store_observations
+from rulecam.chain.retail import observations as chain_observations
+from rulecam.chain.scorecard import chain_scorecard
 from rulecam.contracts import Clock
 from rulecam.evidence.chain import ChainReport, EventChain, read_chain, verify_chain
 from rulecam.evidence.incident import PdfPrinter, render_incident_html, report_document
@@ -418,6 +421,34 @@ class RetailService:
         if fmt == "html":
             return html.encode("utf-8"), "text/html"
         return report_document(html, self._printer)
+
+    def scorecard(self, limits: RetailLimits) -> dict[str, object]:
+        """This store's retail work as a Chain Mode scorecard row (the last 24 hours).
+
+        Returns:
+            `{fit, scorecard}`: the retail rules as a fitted pack, and Chain Mode's scorecard
+            of this store's outcomes (recorded provenance, small-crew floor, Wilson intervals).
+        """
+        now = self._clock.now()
+        start = since_day(now)
+        store = self._chain.site if self._chain is not None else "store"
+        recorded = {
+            cam: (max(first, start), last)
+            for cam, (first, last) in self._frames.cameras().items()
+            if last > start
+        }
+        day = self.findings.recent(limit=2000, since=start)
+        observed = store_observations(
+            [t for t in self.tasks.all() if (t.seen_at or t.created_at) >= start],
+            day,
+            answered={f.id: self.desk.answered(f) for f in day if f.alert_id},
+            recorded=recorded,
+            limits=limits,
+            now=now,
+        )
+        fit = store_fit(store, self._profile or store, sorted(recorded), limits)
+        card = chain_scorecard([fit], chain_observations(store, observed, start, now))
+        return {"fit": fit.model_dump(mode="json"), "scorecard": card.model_dump(mode="json")}
 
     def receipt(self, sha: str) -> Receipt:
         """An Ask answer's receipt with the text that was hashed.

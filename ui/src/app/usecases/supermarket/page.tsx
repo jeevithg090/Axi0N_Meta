@@ -9,7 +9,7 @@ import { ApiError, errorText } from "@/lib/api";
 import type { AskAnswer } from "@/lib/ask";
 
 import { AskPanel } from "./AskPanel";
-import { AdvicePanel, BriefPanel, TasksPanel, WatchPanel } from "./StoryPanels";
+import { AdvicePanel, BriefPanel, StoreRowPanel, TasksPanel, WatchPanel } from "./StoryPanels";
 import {
   type Brief,
   type Camera,
@@ -216,6 +216,7 @@ export default function SupermarketPage() {
               void refresh();
             }}
           />
+          <StoreRowPanel />
         </Step>
       </div>
     </main>

@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 
 from rulecam.ask import AskAgent, AskAnswer
 from rulecam.capture.pair_phone.service import qr_png_base64
+from rulecam.chain.retail import RetailLimits
 from rulecam.clients.errors import ModelClientError
 from rulecam.contracts import Frozen
 from rulecam.retail.advice import Receipt, RetailCard
@@ -305,6 +306,15 @@ def _advice_routes(router: APIRouter, svc: Callable[[], RetailService]) -> None:
         """Write the owner's brief from the last 24 hours."""
         s = svc()
         return await _run(lambda: s.brief(body.lang))
+
+    @router.get("/scorecard")
+    def scorecard(
+        hazard_minutes: Annotated[float, Query(gt=0, le=1440)] = 15.0,
+        restock_minutes: Annotated[float, Query(gt=0, le=1440)] = 60.0,
+    ) -> dict[str, object]:
+        """This store's retail work as a Chain Mode scorecard row (the last 24 hours)."""
+        limits = RetailLimits(hazard_minutes=hazard_minutes, restock_minutes=restock_minutes)
+        return svc().scorecard(limits)
 
     @router.get("/brief")
     def last_brief() -> Brief | None:

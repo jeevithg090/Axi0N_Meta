@@ -19,6 +19,7 @@ import {
   retail,
   type RetailCard,
   type StaffTask,
+  type StoreRow,
   type Watch,
 } from "./api";
 import styles from "./supermarket.module.css";
@@ -533,6 +534,64 @@ export function TasksPanel({ tasks, onChange }: { tasks: StaffTask[]; onChange: 
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+const STATUS_WORDS: Record<string, string> = {
+  ok: "ok",
+  below_chain: "below the chain",
+  camera_blind: "camera blind",
+  too_few: "too few to show a rate",
+  not_ready: "not running",
+};
+
+/** This store's retail work scored the Chain Mode way (Wilson interval, small-crew floor). */
+export function StoreRowPanel() {
+  const [busy, error, run] = useAction();
+  const [row, setRow] = useState<StoreRow | null>(null);
+  const says = new Map(row?.fit.rules.map((r) => [r.rule_id, r.says]) ?? []);
+  return (
+    <div className={styles.card} data-testid="store-row">
+      <div className={styles.row}>
+        <strong>Chain scorecard row</strong>
+        <button
+          type="button"
+          className={styles.ghost}
+          disabled={busy}
+          onClick={() => void run(async () => setRow(await retail.scorecard()), "No scorecard.")}
+        >
+          Score the last 24 h
+        </button>
+      </div>
+      {error && <p className={styles.error}>{error}</p>}
+      {row && (
+        <table className={styles.table}>
+          <tbody>
+            {row.scorecard.scores.map((s) => (
+              <tr key={s.rule_id}>
+                <td>{says.get(s.rule_id) ?? s.rule_id}</td>
+                <td>
+                  {s.compliant} on time · {s.violations} late
+                  {s.blind ? ` · ${s.blind} not watched` : ""}
+                </td>
+                <td>
+                  {s.rate !== null
+                    ? `${Math.round(s.rate * 100)}% (95%: ${Math.round((s.lo ?? 0) * 100)}–${Math.round((s.hi ?? 0) * 100)}%)`
+                    : "–"}
+                </td>
+                <td className={styles.muted}>{STATUS_WORDS[s.status] ?? s.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {row && (
+        <span className={styles.muted}>
+          {row.fit.pack_id} · store {row.fit.store_id} · {row.scorecard.provenance} data, the same
+          scorecard HQ uses for every store.
+        </span>
+      )}
     </div>
   );
 }

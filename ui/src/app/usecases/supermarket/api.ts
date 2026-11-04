@@ -194,6 +194,23 @@ export interface Camera {
   last: string;
 }
 
+export interface RuleScore {
+  rule_id: string;
+  status: "ok" | "below_chain" | "camera_blind" | "too_few" | "not_ready";
+  compliant: number;
+  violations: number;
+  blind: number;
+  rate: number | null;
+  lo: number | null;
+  hi: number | null;
+}
+
+/** `GET /retail/scorecard`: this store's retail work as a Chain Mode scorecard row. */
+export interface StoreRow {
+  fit: { store_id: string; pack_id: string; rules: { rule_id: string; says: string }[] };
+  scorecard: { provenance: string; start: string; end: string; scores: RuleScore[] };
+}
+
 export interface Overview {
   cameras: Camera[];
   watches: Watch[];
@@ -257,6 +274,7 @@ export const retail = {
       post({ state, start: start.toISOString(), end: end.toISOString() }),
     ),
   brief: (lang: string) => call<Brief>("/retail/brief", post({ lang })),
+  scorecard: () => call<StoreRow>("/retail/scorecard"),
   receipt: (sha: string, link: string | null) =>
     call<Receipt>(`/retail/receipts/${sha}${link ? `?link=${encodeURIComponent(link)}` : ""}`),
   askVoice: (wav: Blob, lang: string | null, conversationId: string | null) => {

@@ -444,6 +444,9 @@ def test_routes(tmp_path: Path) -> None:
     assert client.delete(f"/retail/watches/{watch['id']}").json()["active"] is False
     assert client.get("/retail/asks").json()[0]["receipt"] == RECEIPT
     assert client.get("/retail/brief").json() is None
+    row = client.get("/retail/scorecard", params={"hazard_minutes": 10}).json()
+    assert row["scorecard"]["pack_id"] == "supermarket-retail"
+    assert row["fit"]["rules"][0]["knobs"] == {"minutes": 10.0}
     assert client.post("/retail/ask/voice", files={"audio": ("a.wav", b"x")}).status_code == 503
 
     down = FastAPI()

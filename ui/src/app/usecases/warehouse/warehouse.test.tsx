@@ -5,7 +5,7 @@ import { ApiError } from "@/lib/api";
 
 import { HeatmapView, NearMissPanel } from "./NearMissPanel";
 import WarehousePage from "./page";
-import { StoryPanel } from "./StoryPanel";
+import { PlanningTimeline, StoryPanel } from "./StoryPanel";
 import {
   accessOf,
   fresh,
@@ -147,6 +147,35 @@ describe("visitors and servers without the warehouse routes", () => {
     expect(accessOf(new ApiError(401, "x"))).toBe("owner");
     expect(accessOf(new ApiError(404, "x"))).toBe("missing");
     expect(accessOf(new DOMException("t", "TimeoutError"))).toBe("down");
+  });
+});
+
+describe("planning timeline", () => {
+  it("shows each step's time, the running one and what the survey reused", () => {
+    render(
+      <PlanningTimeline
+        planning={{
+          plan_id: "plan-1",
+          started_at: "2026-11-04T02:00:00Z",
+          total_s: null,
+          steps: [
+            { step: "understand", status: "done", seconds: 0.2, detail: "" },
+            {
+              step: "survey",
+              status: "done",
+              seconds: 0.4,
+              detail: "reused phone-1's survey from plan-0 (95 s old, same scene)",
+            },
+            { step: "probe", status: "running", seconds: 6.3, detail: "" },
+            { step: "gauge", status: "pending", seconds: null, detail: "" },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByText(/Planning now/)).toBeTruthy();
+    expect(screen.getByText("survey 0.4 s")).toBeTruthy();
+    expect(screen.getByText(/probe 6.3 s/)).toBeTruthy();
+    expect(screen.getByText(/reused phone-1's survey/)).toBeTruthy();
   });
 });
 

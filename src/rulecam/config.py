@@ -181,6 +181,11 @@ class Settings(BaseSettings):
     spark_open_edge_key: SecretStr | None = None
     spark_open_model: str = "muse-spark-open"
     spark_open_hardware: str = "runpod-8xH100-llama.cpp-Q4_K_S"
+    # Hosted Spark Open used only when the server above gives no usable answer (e.g. Routeway,
+    # https://api.routeway.ai/v1, model `muse-spark-open`; its key is the bearer).
+    spark_open_fallback_base_url: str | None = None
+    spark_open_fallback_api_key: SecretStr | None = None
+    spark_open_fallback_model: str = "muse-spark-open"
     # Llama Guard 4 (12B) on an OpenAI-compatible server (`clients.open_weights.llama_guard`):
     # the plan-time screen that refuses rules about who people are. Same key scheme as Spark Open.
     llama_guard_base_url: str | None = None
@@ -201,6 +206,9 @@ class Settings(BaseSettings):
     # Hosted OpenAI-compatible Glimmer (e.g. Routeway) may honour JSON mode but not a strict
     # schema: also state the schema in a system message. Off for llama-server (grammar-enforced).
     glimmer_schema_in_prompt: bool = False
+    # A standby Glimmer endpoint (same keys and model, any region; docs/deploy.md "Standby
+    # Glimmer") tried when GLIMMER_BASE_URL and the extra URLs give no usable answer.
+    glimmer_standby_base_url: str | None = None
     # Automatic fallback when our Glimmer GPU gives no usable answer (no HTTP answer, 404, 429,
     # 5xx): the same request, rewritten for a hosted OpenAI-compatible Glimmer (e.g. Routeway,
     # https://api.routeway.ai/v1 with model `muse-glimmer-30b`, or `muse-glimmer-30b:free`).

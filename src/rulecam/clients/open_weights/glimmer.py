@@ -159,15 +159,18 @@ def hosted_rewrite(model: str) -> RequestRewrite:
 
 
 def glimmer_fallback(settings: Settings, primary: Transport) -> Transport:
-    """Wrap `primary` with the hosted Glimmer of `GLIMMER_FALLBACK_BASE_URL`, when it is set.
+    """Chain `primary` to the standby endpoint, then to the hosted Glimmer, as configured.
 
     Args:
-        settings: Application settings (`GLIMMER_FALLBACK_*`).
+        settings: Application settings (`GLIMMER_STANDBY_BASE_URL`, `GLIMMER_FALLBACK_*`).
         primary: Our own llama-server(s).
 
     Returns:
-        A `FailoverTransport` to the hosted server, or `primary` unchanged.
+        `primary`, wrapped in a `FailoverTransport` per configured fallback (standby first).
     """
+    if settings.glimmer_standby_base_url:
+        standby = glimmer_transport(settings.glimmer_standby_base_url, settings)
+        primary = FailoverTransport(primary, standby, name="glimmer-standby")
     if not settings.glimmer_fallback_base_url:
         return primary
     key = settings.glimmer_fallback_api_key

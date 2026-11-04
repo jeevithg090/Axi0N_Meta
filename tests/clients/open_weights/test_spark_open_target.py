@@ -15,9 +15,11 @@ from rulecam.clients.open_weights.spark_open import (
     PROVIDER,
     SparkOpenClient,
     SparkOpenConfig,
+    spark_open_fallback,
     spark_open_target,
+    with_model,
 )
-from rulecam.clients.transport import HttpxTransport
+from rulecam.clients.transport import FailoverTransport, HttpxTransport
 from rulecam.config import Settings
 from tests.fakes import FakeClock
 
@@ -100,3 +102,34 @@ def test_own_server_request_carries_both_keys_and_alias(tmp_path: Path) -> None:
     assert request.headers["authorization"] == "Bearer rp"
     assert request.headers[KEY_HEADER] == "model"
     assert json.loads(request.content)["model"] == "muse-spark-open"
+
+
+def test_hosted_fallback_answers_when_our_server_is_down(tmp_path: Path) -> None:
+    seen: list[httpx.Request] = []
+
+    def ours(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(502, json={"error": {"message": "no worker"}})
+
+    def hosted(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        message = {"content": '{"ok": true}', "reasoning_content": "hosted"}
+        return httpx.Response(200, json={"choices": [{"message": message}]})
+
+    primary = HttpxTransport(RUNPOD, "rp", client=httpx.Client(transport=httpx.MockTransport(ours)))
+    fallback = HttpxTransport(
+        "https://hosted.test/v1", "hk", client=httpx.Client(transport=httpx.MockTransport(hosted))
+    )
+    transport = FailoverTransport(primary, fallback, rewrite=with_model("hosted-spark"))
+    client = SparkOpenClient(transport, clock=FakeClock(), reasoning=ReasoningStore(tmp_path))
+    reply = client.reason([{"role": "user", "content": "ok?"}], Verdict)
+    assert reply.answer.ok
+    assert reply.reasoning == "hosted"
+    assert json.loads(seen[0].content)["model"] == "hosted-spark"
+    assert seen[0].headers["authorization"] == "Bearer hk"
+
+
+def test_fallback_is_only_wired_when_configured() -> None:
+    primary = HttpxTransport(RUNPOD, "rp")
+    assert spark_open_fallback(settings(), primary) is primary
+    configured = settings(spark_open_fallback_base_url="https://hosted.test/v1")
+    assert isinstance(spark_open_fallback(configured, primary), FailoverTransport)

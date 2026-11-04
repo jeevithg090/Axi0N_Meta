@@ -146,3 +146,16 @@ def test_client_answers_through_the_hosted_server_when_ours_is_down(tmp_path: Pa
     body = json.loads(seen[0].content)
     assert body["model"] == "muse-glimmer-30b:free"
     assert seen[0].headers["authorization"] == "Bearer hosted-key"
+
+
+def test_standby_then_hosted_are_chained_in_order() -> None:
+    settings = Settings(
+        _env_file=None,
+        glimmer_standby_base_url="https://standby.test/v1",
+        glimmer_fallback_base_url="https://hosted.test/v1",
+    )
+    chained = glimmer_fallback(settings, Recorder(OK))
+    assert isinstance(chained, FailoverTransport)
+    assert isinstance(chained._primary, FailoverTransport)
+    only_standby = Settings(_env_file=None, glimmer_standby_base_url="https://standby.test/v1")
+    assert isinstance(glimmer_fallback(only_standby, Recorder(OK)), FailoverTransport)

@@ -8,8 +8,9 @@
 #   scripts/ops/demo_warm.sh status        # min / max / workers by status, per endpoint
 #
 # Endpoints and what a warm worker costs (RunPod serverless prices read on 4 Nov 2026):
-#   sam          imz4qu1vzwp4z6  SAM 3.1 + DINOv2 + OSNet, 1 x RTX 4090           $1.34/h
-#   glimmer      z000o8uch2wj4i  Muse Glimmer 30B (llama.cpp), 1 x RTX 4090       $1.34/h
+#   sam          imz4qu1vzwp4z6  SAM 3.1 + DINOv2 + OSNet, 1 x 24-48 GB GPU       $0.75-1.75/h
+#   glimmer      z000o8uch2wj4i  Muse Glimmer 30B (llama.cpp), 1 x 24-48 GB GPU   $0.75-1.75/h
+#   glimmer_sb   kkj76vah84y5uj  standby Glimmer, no volume, any region            $0.75-1.75/h
 #   llama_guard  vzi5ij5gclndjc  Llama Guard 4 12B (vLLM FP8), 1 x 24-48 GB GPU   $0.75-1.75/h
 #   spark_open   hljmhlgjyaacyv  Muse Spark Open 816B-A42B (llama.cpp), 8 x H100  $43.12/h
 # SPARK=0 leaves Spark Open out (it is the expensive one, and its cold start is the longest:
@@ -20,8 +21,9 @@
 # HOLD_MIN minutes (default 120; 0 = hold until Ctrl-C) every min goes back to 0, also on Ctrl-C.
 #
 # Needs RUNPOD_API_KEY (never printed; curl reads it from stdin). Overrides: SAM_ENDPOINT_ID,
-# GLIMMER_ENDPOINT_ID, LLAMA_GUARD_ENDPOINT_ID, SPARK_OPEN_ENDPOINT_ID, LEAD_MIN (30), HOLD_MIN,
-# WAIT_S (1500), PING_EVERY_S (60), RUNPOD_REST. Exit: 0 ok, 1 an endpoint never got warm, 2 usage.
+# GLIMMER_ENDPOINT_ID, GLIMMER_STANDBY_ENDPOINT_ID, LLAMA_GUARD_ENDPOINT_ID, SPARK_OPEN_ENDPOINT_ID,
+# LEAD_MIN (30), HOLD_MIN, WAIT_S (1500), PING_EVERY_S (60), RUNPOD_REST.
+# Exit: 0 ok, 1 an endpoint never got warm, 2 usage.
 set -euo pipefail
 
 REST=${RUNPOD_REST:-https://api.runpod.io/v2}
@@ -34,8 +36,9 @@ USER_AGENT="rulecam-ops/1.0"
 PING_TIMEOUT_S=150
 
 ENDPOINTS=(
-  "sam ${SAM_ENDPOINT_ID:-imz4qu1vzwp4z6} 1.34"
-  "glimmer ${GLIMMER_ENDPOINT_ID:-z000o8uch2wj4i} 1.34"
+  "sam ${SAM_ENDPOINT_ID:-imz4qu1vzwp4z6} 1.75"
+  "glimmer ${GLIMMER_ENDPOINT_ID:-z000o8uch2wj4i} 1.75"
+  "glimmer_sb ${GLIMMER_STANDBY_ENDPOINT_ID:-kkj76vah84y5uj} 1.75"
   "llama_guard ${LLAMA_GUARD_ENDPOINT_ID:-vzi5ij5gclndjc} 1.75"
 )
 [ "$SPARK" = 1 ] && ENDPOINTS+=("spark_open ${SPARK_OPEN_ENDPOINT_ID:-hljmhlgjyaacyv} 43.12")
@@ -64,7 +67,8 @@ set_min() {  # set_min ID N
 fallback_hint() {
   case $1 in
     sam) echo "the API falls back to hosted SAM 3.1 by itself (watch sam_fallbacks in /runtime/metrics)" ;;
-    glimmer) echo "unverified Tier 1 goes to the human queue; switch GLIMMER_BASE_URL to the hosted fallback (docs/demo-day.md)" ;;
+    glimmer) echo "Tier 1 calls fail over to the standby endpoint, then to hosted Glimmer (GLIMMER_STANDBY_BASE_URL, GLIMMER_FALLBACK_*)" ;;
+    glimmer_sb) echo "the primary Glimmer and the hosted fallback still answer" ;;
     llama_guard) echo "the plan-time screen is skipped; the planner's own guardrails still decline identity rules" ;;
     spark_open) echo "Tier 2 / plan audit / Ask review are skipped (Tier 1 decides alone, unsure goes to a person)" ;;
   esac

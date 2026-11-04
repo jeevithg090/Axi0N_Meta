@@ -35,7 +35,13 @@ from rulecam.clients.open_weights.llama_edge import KEY_HEADER
 from rulecam.clients.open_weights.reasoning import ReasoningStore, reasoning_id
 from rulecam.clients.ratelimit import TokenBucket
 from rulecam.clients.relay import ModelUsed, publish_model_used
-from rulecam.clients.transport import HttpxTransport, RetryPolicy, Sender, Transport
+from rulecam.clients.transport import (
+    FailoverTransport,
+    HttpxTransport,
+    RetryPolicy,
+    Sender,
+    Transport,
+)
 from rulecam.config import Settings
 from rulecam.contracts import Clock
 from rulecam.log import get_logger
@@ -113,6 +119,40 @@ class SparkOpenTarget:
     provider: str
     model: str
     hardware: str
+
+
+def with_model(model: str) -> Callable[[Mapping[str, object]], Mapping[str, object]]:
+    """A request rewrite that only swaps the chat body's `model` (for a hosted fallback)."""
+
+    def rewrite(request: Mapping[str, object]) -> Mapping[str, object]:
+        body = request.get("json")
+        if not isinstance(body, Mapping):
+            return request
+        return {**request, "json": {**body, "model": model}}
+
+    return rewrite
+
+
+def spark_open_fallback(settings: Settings, primary: Transport) -> Transport:
+    """Wrap `primary` with the hosted Spark Open of `SPARK_OPEN_FALLBACK_BASE_URL`, when set.
+
+    Args:
+        settings: Application settings (`SPARK_OPEN_FALLBACK_*`).
+        primary: Our own server (or Baseten).
+
+    Returns:
+        A `FailoverTransport`, or `primary` unchanged.
+    """
+    if not settings.spark_open_fallback_base_url:
+        return primary
+    key = settings.spark_open_fallback_api_key
+    hosted = HttpxTransport(
+        settings.spark_open_fallback_base_url,
+        key.get_secret_value() if key is not None else "",
+        timeout_s=DEFAULT_TIMEOUT_S,
+    )
+    rewrite = with_model(settings.spark_open_fallback_model)
+    return FailoverTransport(primary, hosted, rewrite=rewrite, name="spark_open")
 
 
 def spark_open_target(settings: Settings) -> SparkOpenTarget:
@@ -230,7 +270,9 @@ class SparkOpenClient:
             headers=target.headers,
         )
         return cls(
-            cache.wrap_transport(target.provider, config.model, http),
+            cache.wrap_transport(
+                target.provider, config.model, spark_open_fallback(settings, http)
+            ),
             clock=clock,
             reasoning=ReasoningStore(settings.rulecam_data_dir / "reasoning"),
             config=config,

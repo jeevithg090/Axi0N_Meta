@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Ship the web UI (ui/) to the fallback UI pod on RunPod and serve its production build on :3000
-# (scripts/ops/ui_server.mjs: `next start` with no-store on pages, because the RunPod proxy caches
-# them), reachable at https://<pod-id>-3000.proxy.runpod.net. Used while Vercel cannot deploy.
+# Ship the web UI (ui/) to the fallback UI pod on RunPod and serve its production build on
+# UI_PORT (scripts/ops/ui_server.mjs: `next start` with no-store on pages, because the RunPod
+# proxy caches them), reachable at https://<pod-id>-<UI_PORT>.proxy.runpod.net. Used while Vercel
+# cannot deploy. The live host: pod 6sdun41izdaxul (rulecam-ui), port 3001.
 #
 #   RULECAM_UI_SSH_HOST=<ip> RULECAM_UI_SSH_PORT=<port> scripts/ops/ship_ui_runpod.sh [ref]
 #
@@ -11,15 +12,16 @@
 #    from nodejs.org if missing (checked against its SHASUMS256), then `npm ci` and
 #    `npm run build` with NEXT_PUBLIC_RULECAM_API baked in. Earlier builds' hashed files are
 #    copied in (pages a proxy still holds keep loading), the running server is replaced and the
-#    script waits until the new build answers on http://127.0.0.1:3000/.
+#    script waits until the new build answers on http://127.0.0.1:<UI_PORT>/.
 # 3. This script polls the result file and prints the remote log. Exit 0 live, 1 failed.
 #
 # Environment: RULECAM_UI_SSH_HOST and RULECAM_UI_SSH_PORT (required; `runpodctl pod get
 # <ui-pod-id>`, the port mapped to 22 changes on every pod restart), RULECAM_UI_SSH_KEY
 # (~/.runpod/ssh/runpodctl-ssh-key), RULECAM_API_URL (the live API, the same value as the Vercel
 # project's NEXT_PUBLIC_RULECAM_API), RULECAM_PROXY_SECRET (optional; the API's UI_PROXY_SECRET),
-# NODE_MAJOR (22), SHIP_TIMEOUT_S (1200). The container disk is wiped when the pod restarts: run
-# this script again after a restart.
+# NODE_MAJOR (22), UI_PORT (3001; port 3000 was retired because the proxy kept a year-long cache
+# of its first build's pages), SHIP_TIMEOUT_S (1200). The container disk is wiped when the pod
+# restarts: run this script again after a restart.
 set -euo pipefail
 
 HOST=${RULECAM_UI_SSH_HOST:-}
@@ -28,6 +30,7 @@ KEY=${RULECAM_UI_SSH_KEY:-$HOME/.runpod/ssh/runpodctl-ssh-key}
 API_URL=${RULECAM_API_URL:-https://7nv0ifjo2tmk00-8000.proxy.runpod.net}
 PROXY_SECRET=${RULECAM_PROXY_SECRET:-}
 NODE_MAJOR=${NODE_MAJOR:-22}
+UI_PORT=${UI_PORT:-3001}
 SHIP_TIMEOUT_S=${SHIP_TIMEOUT_S:-1200}
 REF=${1:-HEAD}
 ROOT_DIR=/root/rulecam-ui
@@ -72,7 +75,7 @@ git -C "$root" archive --format=tar "$SHA" ui scripts/ops/ui_server.mjs | "${SSH
 # The remote half: install Node if needed, build, swap the server, wait for it.
 remote_script=$(cat << 'EOF'
 set -euo pipefail
-REL=$1 API_URL=$2 NODE_MAJOR=$3 ROOT_DIR=$4
+REL=$1 API_URL=$2 NODE_MAJOR=$3 ROOT_DIR=$4 UI_PORT=$5
 STATUS=$REL/ship.status
 echo running > "$STATUS"
 trap 'echo failed > "$STATUS"' ERR
@@ -93,7 +96,7 @@ for old in "$ROOT_DIR"/releases/*/ui/.next/static; do
   [ "$old" = "$REL/ui/.next/static" ] || cp -rn "$old/." "$REL/ui/.next/static/" || true
 done
 cp "$REL/scripts/ops/ui_server.mjs" "$REL/ui/ui_server.mjs"
-# Stop the running server (`next start` renames itself `next-server`), wait for :3000 to be free.
+# Stop the running server (`next start` renames itself `next-server`) and wait until it is gone.
 SERVERS="ui_server.mjs|next-server|next start"
 pkill -f "$SERVERS" || true
 for _ in $(seq 1 30); do
@@ -107,11 +110,11 @@ set -a
 # shellcheck disable=SC1091
 [ -f "$ROOT_DIR/ui.env" ] && . "$ROOT_DIR/ui.env"
 set +a
-NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0 \
+NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=$UI_PORT HOSTNAME=0.0.0.0 \
   setsid nohup node ui_server.mjs >> "$ROOT_DIR/next.log" 2>&1 < /dev/null &
 want=$(cd "$ROOT_DIR/current/ui" && pwd -P)
 for _ in $(seq 1 60); do
-  if curl -fsS -o /dev/null -m 5 http://127.0.0.1:3000/; then
+  if curl -fsS -o /dev/null -m 5 "http://127.0.0.1:$UI_PORT/"; then
     # Live only when the server answering is the new build (its working directory).
     for pid in $(pgrep -f "ui_server.mjs" || true); do
       if [ "$(readlink "/proc/$pid/cwd")" = "$want" ]; then echo ok > "$STATUS"; exit 0; fi
@@ -131,7 +134,7 @@ if [ -n "$PROXY_SECRET" ]; then
 fi
 printf '%s\n' "$remote_script" | "${SSH[@]}" "cat > $REL/ship_remote.sh"
 log "building on the pod (detached; log $REL/ship.log)"
-remote "setsid nohup bash $REL/ship_remote.sh $REL $API_URL $NODE_MAJOR $ROOT_DIR \
+remote "setsid nohup bash $REL/ship_remote.sh $REL $API_URL $NODE_MAJOR $ROOT_DIR $UI_PORT \
   > $REL/ship.log 2>&1 < /dev/null &"
 
 deadline=$(($(date +%s) + SHIP_TIMEOUT_S))
@@ -143,7 +146,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 done
 remote "tail -n 25 $REL/ship.log" >&2 || true
 if [ "$state" = ok ]; then
-  log "live: $SHA (ui_server.mjs on :3000)"
+  log "live: $SHA (ui_server.mjs on :$UI_PORT)"
   exit 0
 fi
 log "not live (state: ${state:-none}); see $REL/ship.log on the pod"

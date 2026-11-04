@@ -115,6 +115,7 @@ from rulecam.clients.meta_hosted import SparkClient, VoiceTranscribeClient
 from rulecam.clients.open_weights.glimmer import GlimmerClient
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
+from rulecam.compliance.api import build_proof_router
 from rulecam.config import Settings, get_settings
 from rulecam.contracts import TTS, Calibration, Chunk, Clock, PrivacyMode, SitePlan
 from rulecam.crowd.memory import Calibrations, CrowdMemory, ModelCalibration
@@ -1044,6 +1045,19 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             extensions.router(_OWNER),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
+            build_proof_router(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                chain_root=chain_root,
+                site=site,
+                privacy_mode=lambda: (
+                    runtime.plan.privacy_mode if runtime and runtime.plan else None
+                ),
+                dependencies=_OWNER,
+                plans_dir=PLANS_DIR,
+            ),
         ),
     )
 

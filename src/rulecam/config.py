@@ -235,6 +235,8 @@ class Settings(BaseSettings):
     planner_survey_window_s: float = (
         60.0  # seconds of recent chunks the planner samples frames from
     )
+    # Proof portal (`compliance/`): signs share links; default a random key in <data>/compliance.
+    rulecam_share_secret: SecretStr | None = None
 
     @property
     def replay_dir(self) -> Path:

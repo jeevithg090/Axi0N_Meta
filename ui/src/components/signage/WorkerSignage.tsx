@@ -134,7 +134,9 @@ export function WorkerSignage() {
               }}
               style={{
                 padding: "6px 10px",
-                border: "1.5px solid var(--ink)",
+                border: "1px solid var(--color-rule-2)",
+                borderRadius: "var(--radius-pill)",
+                maxWidth: "100%",
                 background: "var(--paper)",
                 fontFamily: "var(--font-dm-mono, monospace)",
                 fontSize: "13px",
@@ -150,7 +152,7 @@ export function WorkerSignage() {
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
           <button
             type="button"
             className="tab"
@@ -185,7 +187,7 @@ export function WorkerSignage() {
           maxWidth: "880px",
           margin: "0 auto",
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(360px, 100%), 1fr))",
           gap: "var(--s4)",
           alignItems: "start",
         }}
@@ -208,8 +210,8 @@ export function WorkerSignage() {
               alignItems: "center",
               padding: "10px 16px",
               borderBottom: "1px solid var(--color-rule)",
-              background: "var(--ink)",
-              color: "var(--paper)",
+              background: "var(--color-paper-3)",
+              color: "var(--color-ink)",
             }}
           >
             <span className="dm" style={{ fontSize: "13px", fontWeight: 700 }}>
@@ -477,7 +479,9 @@ export function WorkerSignage() {
               style={{
                 padding: "16px",
                 background: "var(--paper)",
-                border: "1.5px solid var(--ink)",
+                border: "1px solid var(--color-rule-2)",
+                borderRadius: "var(--radius-pill)",
+                maxWidth: "100%",
               }}
             >
               <p className="small">

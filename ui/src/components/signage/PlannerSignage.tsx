@@ -410,7 +410,7 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1.5px solid var(--ink)",
+                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,
@@ -438,7 +438,7 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1.5px solid var(--ink)",
+                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,
@@ -456,7 +456,7 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1.5px solid var(--ink)",
+                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,
@@ -478,7 +478,7 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1.5px solid var(--ink)",
+                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,

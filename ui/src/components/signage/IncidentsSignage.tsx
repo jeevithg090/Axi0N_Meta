@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { API_PROXY } from "../../lib/config";
 import { withCsrf } from "../../lib/api";
 import { SampleDataTag } from "../SampleDataTag";
+import { EmptyState, Skeleton } from "../kit";
 
 interface IncidentSummary {
   event_id: string;
@@ -74,6 +75,8 @@ export function IncidentsSignage() {
   const [selectedId, setSelectedId] = useState<string>("");
   const [report, setReport] = useState<IncidentReport | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  // Why the queue is empty, when it is: the API refused (incidents are the owner's) or failed.
+  const [access, setAccess] = useState<"ok" | "forbidden" | "error">("ok");
   const [verdictFilter, setVerdictFilter] = useState<"all" | "violation" | "no_violation">("all");
   const [localStatus, setLocalStatus] = useState<Record<string, string>>({});
   const [actionBanner, setActionBanner] = useState<string | null>(null);
@@ -82,6 +85,7 @@ export function IncidentsSignage() {
     setLoading(true);
     try {
       const res = await fetch(`${API_PROXY}/incidents`, { cache: "no-store" });
+      setAccess(res.ok ? "ok" : res.status === 401 || res.status === 403 ? "forbidden" : "error");
       if (res.ok) {
         const data = (await res.json()) as IncidentSummary[];
         setIncidents(data);
@@ -90,6 +94,8 @@ export function IncidentsSignage() {
           setSelectedId(first.event_id);
         }
       }
+    } catch {
+      setAccess("error");
     } finally {
       setLoading(false);
     }
@@ -160,12 +166,17 @@ export function IncidentsSignage() {
         <div className="grid">
           <div className="s8">
             <div className="ctx">
-              Chained Incident Queue &nbsp;·&nbsp; <b>GET /incidents ({incidents.length} events)</b>{" "}
-              &nbsp;·&nbsp; {violationsCount} confirmed breaches · {suppressedCount} VLM-suppressed
+              Chained incident queue{" "}
+              <b>
+                GET /incidents (
+                {access === "ok" ? `${incidents.length} events` : access === "forbidden" ? "owner only" : "no answer"})
+              </b>
+              {access === "ok" && ` ${violationsCount} confirmed breaches, ${suppressedCount} suppressed by Glimmer`}
             </div>
             <h1 className="h1">
-              {violationsCount} confirmed breaches.{" "}
-              <span className="hi">Nothing is punished</span> without verifiable chain proof.
+              {access === "ok" ? `${violationsCount} confirmed breaches.` : "Every incident, with its proof."}
+              <br />
+              Nothing is punished without verifiable chain proof.
             </h1>
           </div>
           <div className="s4 stack end">
@@ -209,9 +220,30 @@ export function IncidentsSignage() {
           <div className="s4" style={{ padding: 0 }}>
             <div style={{ borderTop: "1px solid var(--color-rule)" }}>
               {loading && incidents.length === 0 ? (
-                <div style={{ padding: "var(--s3)" }} className="mono">
-                  Loading chained incidents…
+                <div style={{ padding: "var(--s3) 0" }}>
+                  <Skeleton lines={4} label="Loading chained incidents" />
                 </div>
+              ) : access === "forbidden" ? (
+                <EmptyState
+                  title="Incidents are the site owner's"
+                  icon="shield"
+                  action={
+                    <a className="btn" href="/login">
+                      Owner login
+                    </a>
+                  }
+                >
+                  The API keeps each incident&apos;s records for the owner. Everyone else gets the
+                  hashes, which anyone can check on the verify page.
+                </EmptyState>
+              ) : access === "error" ? (
+                <EmptyState title="Could not load incidents" tone="error" icon="alert">
+                  The Rulecam API did not answer. Try again in a moment.
+                </EmptyState>
+              ) : incidents.length === 0 ? (
+                <EmptyState title="No incidents yet" icon="alert">
+                  An incident appears here when an approved rule fires and Glimmer has checked it.
+                </EmptyState>
               ) : (
                 filtered.map((it) => {
                   const isSel = it.event_id === selectedId;

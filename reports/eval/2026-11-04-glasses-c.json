@@ -1,0 +1,1446 @@
+{
+  "label": "c: parallel looks, first line spoken at once (after), team serverless Glimmer warm",
+  "status": {
+    "ready": true,
+    "look": "muse-glimmer-30b",
+    "glimmer": "up",
+    "compose": "muse-spark-1.3",
+    "count": "sam-3.1",
+    "transcribe": "muse-voice-transcribe-1.0",
+    "voice": "Meta MMS-TTS (system voice if it fails)",
+    "modes": [
+      "aisle",
+      "warehouse",
+      "crowd",
+      "general"
+    ],
+    "glimmer_timeout_s": 25.0,
+    "phrases": {
+      "looking": "phrase-looking.wav",
+      "agree": "phrase-agree.wav",
+      "not_heard": "phrase-not_heard.wav"
+    }
+  },
+  "cases": [
+    {
+      "case": "warehouse-typed",
+      "frame": "warehouse-forklift-ahead.jpg",
+      "wall_ms": 10504,
+      "answer": {
+        "answer_id": "20261104T020305-2aec7e50",
+        "at": "2026-11-04T02:03:15.760398Z",
+        "mode": "warehouse",
+        "kind": "question",
+        "question": "Is it safe to walk ahead?",
+        "heard": null,
+        "first": {
+          "text": "No, forklift ahead in aisle; wait for it to pass before walking ahead.",
+          "audio": "20261104T020305-2aec7e50-2.wav",
+          "by": "muse-glimmer-30b",
+          "at_ms": 9233
+        },
+        "spoken": "Both models agree.",
+        "detail": "Glimmer: Warehouse aisle with tall racking and palletized goods, a forklift and driver ahead between racks. No, forklift ahead in aisle; wait for it to pass before walking ahead. | Spark: No, forklift operating directly ahead, wait back.",
+        "alert": true,
+        "verified": true,
+        "verified_by": [
+          "muse-spark-1.3",
+          "muse-glimmer-30b"
+        ],
+        "severity": "caution",
+        "confidence": 0.85,
+        "hazards": [
+          {
+            "what": "forklift operating",
+            "where": "directly ahead",
+            "severity": "caution"
+          }
+        ],
+        "counts": [],
+        "gaps": [],
+        "look": {
+          "scene": "Warehouse aisle with tall racking and palletized goods, a forklift and driver ahead between racks.",
+          "answer": "No, forklift ahead in aisle; wait for it to pass before walking ahead.",
+          "hazards": [
+            "Forklift with driver ahead in vehicle lane directly in path",
+            "Person in vehicle lane ahead operating forklift"
+          ],
+          "alert": true
+        },
+        "spark_look": {
+          "spoken": "No, forklift operating directly ahead, wait back.",
+          "alert": true,
+          "severity": "caution",
+          "hazards": [
+            {
+              "what": "forklift operating",
+              "where": "directly ahead",
+              "severity": "caution"
+            }
+          ],
+          "count": [],
+          "confidence": 0.85
+        },
+        "rejected": [],
+        "privacy_edits": 0,
+        "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+        "frame": "20261104T020305-2aec7e50.jpg",
+        "marked": null,
+        "audio": "phrase-agree.wav",
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 8469,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak first",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 763,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 8629,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 10494,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "warehouse-spoken",
+      "frame": "warehouse-forklift-side.jpg",
+      "wall_ms": 10742,
+      "answer": {
+        "answer_id": "20261104T020315-57ab9652",
+        "at": "2026-11-04T02:03:26.504541Z",
+        "mode": "warehouse",
+        "kind": "question",
+        "question": "Is this aisle safe to walk down?",
+        "heard": "Is this aisle safe to walk down?",
+        "first": {
+          "text": "No, forklift operating right ahead, hold back.",
+          "audio": "20261104T020315-57ab9652-4.wav",
+          "by": "muse-spark-1.3",
+          "at_ms": 10739
+        },
+        "spoken": "Both models agree.",
+        "detail": "Glimmer: A forklift with a driver is positioned in the aisle ahead of the wearer. No. Forklift ahead in aisle, driver has hard hat. Do not enter. | Spark: No, forklift operating right ahead, hold back.",
+        "alert": true,
+        "verified": true,
+        "verified_by": [
+          "muse-spark-1.3",
+          "muse-glimmer-30b"
+        ],
+        "severity": "danger",
+        "confidence": 0.9,
+        "hazards": [
+          {
+            "what": "forklift operating",
+            "where": "directly ahead close",
+            "severity": "danger"
+          }
+        ],
+        "counts": [],
+        "gaps": [],
+        "look": {
+          "scene": "A forklift with a driver is positioned in the aisle ahead of the wearer.",
+          "answer": "No. Forklift ahead in aisle, driver has hard hat. Do not enter.",
+          "hazards": [
+            "Forklift operating ahead in aisle",
+            "Driver present in vehicle ahead"
+          ],
+          "alert": true
+        },
+        "spark_look": {
+          "spoken": "No, forklift operating right ahead, hold back.",
+          "alert": true,
+          "severity": "danger",
+          "hazards": [
+            {
+              "what": "forklift operating",
+              "where": "directly ahead close",
+              "severity": "danger"
+            }
+          ],
+          "count": [],
+          "confidence": 0.9
+        },
+        "rejected": [],
+        "privacy_edits": 0,
+        "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+        "frame": "20261104T020315-57ab9652.jpg",
+        "marked": null,
+        "audio": "phrase-agree.wav",
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "hear",
+            "model": "muse-voice-transcribe-1.0",
+            "ms": 2563,
+            "ok": true,
+            "note": "Is this aisle safe to walk down?"
+          },
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 7844,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 8121,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak first",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 331,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 10739,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "warehouse-patrol",
+      "frame": "warehouse-walk.jpg",
+      "wall_ms": 17251,
+      "answer": {
+        "answer_id": "20261104T020326-0687e6a4",
+        "at": "2026-11-04T02:03:43.755502Z",
+        "mode": "warehouse",
+        "kind": "patrol",
+        "question": null,
+        "heard": null,
+        "first": null,
+        "spoken": "",
+        "detail": "Glimmer: Warehouse aisle with tall racking and a worker walking ahead down the lane. Ahead, worker in vehicle lane without high-visibility; no immediate alert. | Spark: Person ahead walking without high-visibility clothing.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "info",
+        "confidence": 0.8,
+        "hazards": [
+          {
+            "what": "person without high-visibility clothing",
+            "where": "ahead close, walking away",
+            "severity": "info"
+          }
+        ],
+        "counts": [],
+        "gaps": [],
+        "look": {
+          "scene": "Warehouse aisle with tall racking and a worker walking ahead down the lane.",
+          "answer": "Ahead, worker in vehicle lane without high-visibility; no immediate alert.",
+          "hazards": [
+            "Person walking in vehicle lane ahead",
+            "No high-visibility safety equipment visible on person ahead"
+          ],
+          "alert": false
+        },
+        "spark_look": {
+          "spoken": "Person ahead walking without high-visibility clothing.",
+          "alert": false,
+          "severity": "info",
+          "hazards": [
+            {
+              "what": "person without high-visibility clothing",
+              "where": "ahead close, walking away",
+              "severity": "info"
+            }
+          ],
+          "count": [],
+          "confidence": 0.8
+        },
+        "rejected": [],
+        "privacy_edits": 0,
+        "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+        "frame": "20261104T020326-0687e6a4.jpg",
+        "marked": null,
+        "audio": null,
+        "voice": null,
+        "stages": [
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 12173,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 13837,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 17248,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "aisle-spoken",
+      "frame": "bread-8.jpg",
+      "wall_ms": 36176,
+      "answer": {
+        "answer_id": "20261104T020343-2e6063ae",
+        "at": "2026-11-04T02:04:19.932135Z",
+        "mode": "aisle",
+        "kind": "question",
+        "question": "Which shelf facings are empty here??",
+        "heard": "Which shelf facings are empty here??",
+        "first": {
+          "text": "Several empty facings on bread shelves to your left.",
+          "audio": "20261104T020343-2e6063ae-3.wav",
+          "by": "muse-spark-1.3",
+          "at_ms": 8534
+        },
+        "spoken": "Four empty facings on upper left bread shelf need restocking.",
+        "detail": "Confirmed 1 gap of 4 facings on left bay upper shelf. Second reported gap shows white packs in view and was dropped.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "info",
+        "confidence": 0.65,
+        "hazards": [],
+        "counts": [],
+        "gaps": [
+          {
+            "number": 1,
+            "section": "left bay, shelf 2",
+            "neighbours": "below white sliced bread packs, above red packs on top shelf",
+            "facings": 4
+          },
+          {
+            "number": 2,
+            "section": "second bay from front, shelf 3",
+            "neighbours": "next to white bread packs with blue labels, below assorted buns",
+            "facings": 3
+          }
+        ],
+        "look": {
+          "scene": "Store aisle with bakery shelves on left and a person bending ahead in the aisle.",
+          "answer": "Left shelves ahead show stocked bread; no clear empty facings visible from here.",
+          "hazards": [
+            "Person bending ahead in aisle, left side",
+            "Shopper with cart on right side, ahead"
+          ],
+          "alert": false
+        },
+        "spark_look": {
+          "spoken": "Several empty facings on bread shelves to your left.",
+          "alert": false,
+          "severity": "info",
+          "hazards": [],
+          "count": [],
+          "confidence": 0.7
+        },
+        "rejected": [],
+        "privacy_edits": 0,
+        "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+        "frame": "20261104T020343-2e6063ae.jpg",
+        "marked": "20261104T020343-2e6063ae-9602493437.jpg",
+        "audio": "20261104T020343-2e6063ae-7.wav",
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "hear",
+            "model": "muse-voice-transcribe-1.0",
+            "ms": 1348,
+            "ok": true,
+            "note": "Which shelf facings are empty here??"
+          },
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 6595,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak first",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 421,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 9321,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "shelf",
+            "model": "muse-spark-1.3 + sam-3.1",
+            "ms": 19741,
+            "ok": true,
+            "note": "2 gaps confirmed, 0 rejected by SAM 3.1"
+          },
+          {
+            "name": "check",
+            "model": "muse-spark-1.3",
+            "ms": 12468,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 397,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 36172,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "aisle-typed",
+      "frame": "bread-0.jpg",
+      "wall_ms": 10473,
+      "answer": {
+        "answer_id": "20261104T020419-0dad57f0",
+        "at": "2026-11-04T02:04:30.406834Z",
+        "mode": "aisle",
+        "kind": "question",
+        "question": "Which shelf facings are empty here?",
+        "heard": null,
+        "first": {
+          "text": "No empty facings visible on this aisle.",
+          "audio": "20261104T020419-0dad57f0-2.wav",
+          "by": "muse-spark-1.3",
+          "at_ms": 5873
+        },
+        "spoken": "",
+        "detail": "Glimmer: Manager walks down a bread aisle with a cart, shelves on left and right, a shopper ahead. No empty facings visible on left shelves ahead; aisle clear. | Spark: No empty facings visible on this aisle.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "none",
+        "confidence": 0.9,
+        "hazards": [],
+        "counts": [],
+        "gaps": [],
+        "look": {
+          "scene": "Manager walks down a bread aisle with a cart, shelves on left and right, a shopper ahead.",
+          "answer": "No empty facings visible on left shelves ahead; aisle clear.",
+          "hazards": [
+            "No spills, trip hazards, blocked aisles or damaged stock visible."
+          ],
+          "alert": false
+        },
+        "spark_look": {
+          "spoken": "No empty facings visible on this aisle.",
+          "alert": false,
+          "severity": "none",
+          "hazards": [],
+          "count": [],
+          "confidence": 0.9
+        },
+        "rejected": [],
+        "privacy_edits": 0,
+        "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+        "frame": "20261104T020419-0dad57f0.jpg",
+        "marked": null,
+        "audio": null,
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 4123,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak first",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 306,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 7927,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "shelf",
+            "model": "muse-spark-1.3 + sam-3.1",
+            "ms": 10469,
+            "ok": true,
+            "note": "0 gaps confirmed, 0 rejected by SAM 3.1"
+          }
+        ],
+        "total_ms": 10470,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "crowd-spoken",
+      "frame": "store-crowd.jpg",
+      "wall_ms": 9502,
+      "answer": {
+        "answer_id": "20261104T020430-de5a997c",
+        "at": "2026-11-04T02:04:39.910078Z",
+        "mode": "crowd",
+        "kind": "question",
+        "question": "how dense is it ahead of me?",
+        "heard": "how dense is it ahead of me?",
+        "first": {
+          "text": "Estimate: moderately crowded ahead at checkouts, still moving freely.",
+          "audio": "20261104T020430-de5a997c-3.wav",
+          "by": "muse-spark-1.3",
+          "at_ms": 8662
+        },
+        "spoken": "",
+        "detail": "Glimmer: Supermarket checkout area with shoppers at tills and trolleys in the aisle. Ahead right, moderate queue density, movement still possible. Estimate only. | Spark: Estimate: moderately crowded ahead at checkouts, still moving freely.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "none",
+        "confidence": 0.75,
+        "hazards": [],
+        "counts": [],
+        "gaps": [],
+        "look": {
+          "scene": "Supermarket checkout area with shoppers at tills and trolleys in the aisle.",
+          "answer": "Ahead right, moderate queue density, movement still possible. Estimate only.",
+          "hazards": [
+            "No pushing, surges or blocked exits visible ahead, left or right."
+          ],
+          "alert": false
+        },
+        "spark_look": {
+          "spoken": "Estimate: moderately crowded ahead at checkouts, still moving freely.",
+          "alert": false,
+          "severity": "none",
+          "hazards": [],
+          "count": [],
+          "confidence": 0.75
+        },
+        "rejected": [],
+        "privacy_edits": 0,
+        "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+        "frame": "20261104T020430-de5a997c.jpg",
+        "marked": null,
+        "audio": null,
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "hear",
+            "model": "muse-voice-transcribe-1.0",
+            "ms": 1344,
+            "ok": true,
+            "note": "how dense is it ahead of me?"
+          },
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 5442,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak first",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 361,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 8153,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 9498,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "crowd-patrol",
+      "frame": "store-checkout.jpg",
+      "wall_ms": 8933,
+      "answer": {
+        "answer_id": "20261104T020439-ab2c74a0",
+        "at": "2026-11-04T02:04:48.840158Z",
+        "mode": "crowd",
+        "kind": "patrol",
+        "question": null,
+        "heard": null,
+        "first": null,
+        "spoken": "",
+        "detail": "Glimmer: Checkout area with cashiers serving customers and stocked shelves visible, estimated low crowd density. Ahead checkout lanes are calm, movement looks free, no surge or blocked exits visible.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "none",
+        "confidence": 0.9,
+        "hazards": [],
+        "counts": [],
+        "gaps": [],
+        "look": {
+          "scene": "Checkout area with cashiers serving customers and stocked shelves visible, estimated low crowd density.",
+          "answer": "Ahead checkout lanes are calm, movement looks free, no surge or blocked exits visible.",
+          "hazards": [],
+          "alert": false
+        },
+        "spark_look": {
+          "spoken": "",
+          "alert": false,
+          "severity": "none",
+          "hazards": [],
+          "count": [],
+          "confidence": 0.9
+        },
+        "rejected": [],
+        "privacy_edits": 0,
+        "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+        "frame": "20261104T020439-ab2c74a0.jpg",
+        "marked": null,
+        "audio": null,
+        "voice": null,
+        "stages": [
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 6541,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 8926,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 8926,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "general-typed",
+      "frame": "store-checkout.jpg",
+      "wall_ms": 41626,
+      "answer": {
+        "answer_id": "20261104T020448-573bc925",
+        "at": "2026-11-04T02:05:30.466935Z",
+        "mode": "general",
+        "kind": "question",
+        "question": "How many people are queueing here?",
+        "heard": null,
+        "first": {
+          "text": "Ahead, one person is at the checkout; no queue is visible.",
+          "audio": "20261104T020448-573bc925-2.wav",
+          "by": "muse-glimmer-30b",
+          "at_ms": 8238
+        },
+        "spoken": "One person at the next till, no queue ahead.",
+        "detail": "One customer is being served at the left till; no line is formed behind you. Central and right figures in yellow are cashiers, background figures are at other tills.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "none",
+        "confidence": 0.85,
+        "hazards": [],
+        "counts": [
+          {
+            "concept": "customer in queue",
+            "count": 7,
+            "boxes": [
+              [
+                735.0,
+                170.0,
+                928.0,
+                527.0,
+                0.82
+              ],
+              [
+                27.0,
+                108.0,
+                221.0,
+                385.0,
+                0.832
+              ],
+              [
+                650.0,
+                189.0,
+                696.0,
+                316.0,
+                0.723
+              ],
+              [
+                578.0,
+                186.0,
+                639.0,
+                284.0,
+                0.672
+              ],
+              [
+                340.0,
+                64.0,
+                619.0,
+                499.0,
+                0.871
+              ],
+              [
+                540.0,
+                139.0,
+                579.0,
+                187.0,
+                0.664
+              ],
+              [
+                691.0,
+                203.0,
+                741.0,
+                314.0,
+                0.714
+              ]
+            ]
+          }
+        ],
+        "gaps": [],
+        "look": {
+          "scene": "Checkout area with staff and customers at a supermarket counter ahead.",
+          "answer": "Ahead, one person is at the checkout; no queue is visible.",
+          "hazards": [
+            "No immediate hazards visible in frame."
+          ],
+          "alert": false
+        },
+        "spark_look": {
+          "spoken": "Two shoppers queueing at tills ahead.",
+          "alert": false,
+          "severity": "none",
+          "hazards": [],
+          "count": [
+            "customer in queue"
+          ],
+          "confidence": 0.65
+        },
+        "rejected": [
+          "1 customer in queue: cashier at right till, not a customer",
+          "5 customer in queue: cashier in centre, not a customer",
+          "3 customer in queue: background figure at other till, not in this queue",
+          "4 customer in queue: partial background figure, not in this queue",
+          "6 customer in queue: partial face behind cashier, not queueing",
+          "7 customer in queue: background shopper, not in this queue"
+        ],
+        "privacy_edits": 0,
+        "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+        "frame": "20261104T020448-573bc925.jpg",
+        "marked": "20261104T020448-573bc925-6956000696.jpg",
+        "audio": "20261104T020448-573bc925-6.wav",
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 7875,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak first",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 363,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 12783,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "count",
+            "model": "sam-3.1",
+            "ms": 1935,
+            "ok": true,
+            "note": "customer in queue: 7"
+          },
+          {
+            "name": "check",
+            "model": "muse-spark-1.3",
+            "ms": 24968,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 339,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 41616,
+        "walk_id": null,
+        "source": "upload"
+      }
+    },
+    {
+      "case": "warehouse-count",
+      "frame": "warehouse-forklift-side.jpg",
+      "wall_ms": 19551,
+      "answer": {
+        "answer_id": "20261104T020530-87b02b38",
+        "at": "2026-11-04T02:05:50.022503Z",
+        "mode": "warehouse",
+        "kind": "question",
+        "question": "How many people are at the forklift, and is anyone wearing a hard hat?",
+        "heard": null,
+        "first": {
+          "text": "One person at forklift ahead, hard hat worn.",
+          "audio": "20261104T020530-87b02b38-2.wav",
+          "by": "muse-glimmer-30b",
+          "at_ms": 7060
+        },
+        "spoken": "One person on forklift ahead wearing hard hat.",
+        "detail": "SAM 3.1 found one person box on the driver matching one hard-hat box. Glimmer and first look confirm one operator wearing head protection.",
+        "alert": false,
+        "verified": false,
+        "verified_by": [],
+        "severity": "none",
+        "confidence": 0.9,
+        "hazards": [],
+        "counts": [
+          {
+            "concept": "person",
+            "count": 1,
+            "boxes": [
+              [
+                280.0,
+                210.0,
+                535.0,
+                538.0,
+                0.926
+              ]
+            ]
+          },
+          {
+            "concept": "person wearing hard hat",
+            "count": 1,
+            "boxes": [
+              [
+                280.0,
+                210.0,
+                535.0,
+                538.0,
+                0.832
+              ]
+            ]
+          }
+        ],
+        "gaps": [],
+        "look": {
+          "scene": "A forklift operator is seated in a forklift inside a warehouse.",
+          "answer": "One person at forklift ahead, hard hat worn.",
+          "hazards": [],
+          "alert": false
+        },
+        "spark_look": {
+          "spoken": "One person on forklift ahead wearing hard hat.",
+          "alert": false,
+          "severity": "none",
+          "hazards": [],
+          "count": [
+            "person",
+            "person wearing hard hat"
+          ],
+          "confidence": 0.9
+        },
+        "rejected": [],
+        "privacy_edits": 0,
+        "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+        "frame": "20261104T020530-87b02b38.jpg",
+        "marked": "20261104T020530-87b02b38-3287036284.jpg",
+        "audio": "20261104T020530-87b02b38-6.wav",
+        "voice": "Meta MMS-TTS (system voice if it fails)",
+        "stages": [
+          {
+            "name": "look",
+            "model": "muse-glimmer-30b",
+            "ms": 6745,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak first",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 314,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "look",
+            "model": "muse-spark-1.3",
+            "ms": 8383,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "count",
+            "model": "sam-3.1",
+            "ms": 1613,
+            "ok": true,
+            "note": "person: 1, person wearing hard hat: 1"
+          },
+          {
+            "name": "check",
+            "model": "muse-spark-1.3",
+            "ms": 7572,
+            "ok": true,
+            "note": ""
+          },
+          {
+            "name": "speak",
+            "model": "Meta MMS-TTS (system voice if it fails)",
+            "ms": 318,
+            "ok": true,
+            "note": ""
+          }
+        ],
+        "total_ms": 19546,
+        "walk_id": null,
+        "source": "upload"
+      }
+    }
+  ],
+  "walk": {
+    "answers": [
+      {
+        "case": "walk-warehouse-walk.jpg",
+        "frame": "warehouse-walk.jpg",
+        "wall_ms": 12208,
+        "answer": {
+          "answer_id": "20261104T020550-8ff3dd9f",
+          "at": "2026-11-04T02:06:02.235126Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "first": null,
+          "spoken": "",
+          "detail": "Glimmer: Warehouse aisle with tall racking and a worker walking ahead down the lane. Ahead, worker in vehicle lane without high-visibility; no immediate alert. | Spark: Person ahead without high-visibility clothing.",
+          "alert": false,
+          "verified": false,
+          "verified_by": [],
+          "severity": "caution",
+          "confidence": 0.85,
+          "hazards": [
+            {
+              "what": "person without high-visibility clothing",
+              "where": "ahead",
+              "severity": "caution"
+            }
+          ],
+          "counts": [],
+          "gaps": [],
+          "look": {
+            "scene": "Warehouse aisle with tall racking and a worker walking ahead down the lane.",
+            "answer": "Ahead, worker in vehicle lane without high-visibility; no immediate alert.",
+            "hazards": [
+              "Person walking in vehicle lane ahead",
+              "No high-visibility safety equipment visible on person ahead"
+            ],
+            "alert": false
+          },
+          "spark_look": {
+            "spoken": "Person ahead without high-visibility clothing.",
+            "alert": false,
+            "severity": "caution",
+            "hazards": [
+              {
+                "what": "person without high-visibility clothing",
+                "where": "ahead",
+                "severity": "caution"
+              }
+            ],
+            "count": [],
+            "confidence": 0.85
+          },
+          "rejected": [],
+          "privacy_edits": 0,
+          "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+          "frame": "20261104T020550-8ff3dd9f.jpg",
+          "marked": null,
+          "audio": null,
+          "voice": null,
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-spark-1.3",
+              "ms": 11836,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 12205,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 12205,
+          "walk_id": "walk-20261104T020550-0457d8",
+          "source": "upload"
+        }
+      },
+      {
+        "case": "walk-warehouse-forklift-ahead.jpg",
+        "frame": "warehouse-forklift-ahead.jpg",
+        "wall_ms": 9785,
+        "answer": {
+          "answer_id": "20261104T020602-0b79db8d",
+          "at": "2026-11-04T02:06:12.019968Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "first": null,
+          "spoken": "",
+          "detail": "Glimmer: A forklift driver is ahead in an aisle between pallet racks. Ahead, forklift driver, no high-visibility gear visible. | Spark: Person ahead without high-visibility clothing near forklift.",
+          "alert": false,
+          "verified": false,
+          "verified_by": [],
+          "severity": "caution",
+          "confidence": 0.9,
+          "hazards": [
+            {
+              "what": "person without high-visibility clothing",
+              "where": "ahead near forklift",
+              "severity": "caution"
+            }
+          ],
+          "counts": [],
+          "gaps": [],
+          "look": {
+            "scene": "A forklift driver is ahead in an aisle between pallet racks.",
+            "answer": "Ahead, forklift driver, no high-visibility gear visible.",
+            "hazards": [
+              "Missing high-visibility clothing: driver ahead"
+            ],
+            "alert": false
+          },
+          "spark_look": {
+            "spoken": "Person ahead without high-visibility clothing near forklift.",
+            "alert": false,
+            "severity": "caution",
+            "hazards": [
+              {
+                "what": "person without high-visibility clothing",
+                "where": "ahead near forklift",
+                "severity": "caution"
+              }
+            ],
+            "count": [],
+            "confidence": 0.9
+          },
+          "rejected": [],
+          "privacy_edits": 0,
+          "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+          "frame": "20261104T020602-0b79db8d.jpg",
+          "marked": null,
+          "audio": null,
+          "voice": null,
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 8394,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "look",
+              "model": "muse-spark-1.3",
+              "ms": 9780,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 9782,
+          "walk_id": "walk-20261104T020550-0457d8",
+          "source": "upload"
+        }
+      },
+      {
+        "case": "walk-warehouse-forklift-side.jpg",
+        "frame": "warehouse-forklift-side.jpg",
+        "wall_ms": 9826,
+        "answer": {
+          "answer_id": "20261104T020612-d758a1b8",
+          "at": "2026-11-04T02:06:21.847003Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "first": null,
+          "spoken": "",
+          "detail": "Glimmer: A forklift driver is operating a forklift in a warehouse aisle. Ahead, forklift driver with head protection, no immediate hazards visible. | Spark: Driver ahead on forklift without high-visibility clothing.",
+          "alert": false,
+          "verified": false,
+          "verified_by": [],
+          "severity": "caution",
+          "confidence": 0.85,
+          "hazards": [
+            {
+              "what": "person without high-visibility clothing",
+              "where": "ahead on forklift",
+              "severity": "caution"
+            }
+          ],
+          "counts": [],
+          "gaps": [],
+          "look": {
+            "scene": "A forklift driver is operating a forklift in a warehouse aisle.",
+            "answer": "Ahead, forklift driver with head protection, no immediate hazards visible.",
+            "hazards": [],
+            "alert": false
+          },
+          "spark_look": {
+            "spoken": "Driver ahead on forklift without high-visibility clothing.",
+            "alert": false,
+            "severity": "caution",
+            "hazards": [
+              {
+                "what": "person without high-visibility clothing",
+                "where": "ahead on forklift",
+                "severity": "caution"
+              }
+            ],
+            "count": [],
+            "confidence": 0.85
+          },
+          "rejected": [],
+          "privacy_edits": 0,
+          "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+          "frame": "20261104T020612-d758a1b8.jpg",
+          "marked": null,
+          "audio": null,
+          "voice": null,
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-spark-1.3",
+              "ms": 7271,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 9822,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 9822,
+          "walk_id": "walk-20261104T020550-0457d8",
+          "source": "upload"
+        }
+      }
+    ],
+    "report": {
+      "walk": {
+        "walk_id": "walk-20261104T020550-0457d8",
+        "mode": "warehouse",
+        "note": "eval",
+        "started_at": "2026-11-04T02:05:50.026392Z",
+        "finished_at": "2026-11-04T02:06:21.851766Z",
+        "frames": 3
+      },
+      "summary": {
+        "summary": "Safety walk through warehouse aisles with tall pallet racking observed repeated lack of high-visibility clothing. A worker ahead in the vehicle lane was without high-visibility clothing and was later seen at a forklift, and a separate driver operating a forklift ahead was also without high-visibility clothing while wearing head protection. No blocked exits, spills, or overhead load issues were reported in these frames.",
+        "spoken": "Caution ahead - workers and a forklift driver without high-visibility clothing in the aisle.",
+        "hazards": [
+          {
+            "what": "Person without high-visibility clothing",
+            "where": "ahead walking in warehouse aisle between racking and then at forklift",
+            "severity": "caution",
+            "answer_ids": [
+              "20261104T020550-8ff3dd9f",
+              "20261104T020602-0b79db8d"
+            ],
+            "action": "Stop pedestrian and vehicle movement in the aisle and provide high-visibility clothing to the worker before continuing."
+          },
+          {
+            "what": "Forklift driver without high-visibility clothing",
+            "where": "ahead operating forklift",
+            "severity": "caution",
+            "answer_ids": [
+              "20261104T020612-d758a1b8"
+            ],
+            "action": "Require the driver to wear high-visibility clothing and verify compliance before continuing forklift operation."
+          }
+        ],
+        "restock": []
+      },
+      "answers": [
+        {
+          "answer_id": "20261104T020550-8ff3dd9f",
+          "at": "2026-11-04T02:06:02.235126Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "first": null,
+          "spoken": "",
+          "detail": "Glimmer: Warehouse aisle with tall racking and a worker walking ahead down the lane. Ahead, worker in vehicle lane without high-visibility; no immediate alert. | Spark: Person ahead without high-visibility clothing.",
+          "alert": false,
+          "verified": false,
+          "verified_by": [],
+          "severity": "caution",
+          "confidence": 0.85,
+          "hazards": [
+            {
+              "what": "person without high-visibility clothing",
+              "where": "ahead",
+              "severity": "caution"
+            }
+          ],
+          "counts": [],
+          "gaps": [],
+          "look": {
+            "scene": "Warehouse aisle with tall racking and a worker walking ahead down the lane.",
+            "answer": "Ahead, worker in vehicle lane without high-visibility; no immediate alert.",
+            "hazards": [
+              "Person walking in vehicle lane ahead",
+              "No high-visibility safety equipment visible on person ahead"
+            ],
+            "alert": false
+          },
+          "spark_look": {
+            "spoken": "Person ahead without high-visibility clothing.",
+            "alert": false,
+            "severity": "caution",
+            "hazards": [
+              {
+                "what": "person without high-visibility clothing",
+                "where": "ahead",
+                "severity": "caution"
+              }
+            ],
+            "count": [],
+            "confidence": 0.85
+          },
+          "rejected": [],
+          "privacy_edits": 0,
+          "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+          "frame": "20261104T020550-8ff3dd9f.jpg",
+          "marked": null,
+          "audio": null,
+          "voice": null,
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-spark-1.3",
+              "ms": 11836,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 12205,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 12205,
+          "walk_id": "walk-20261104T020550-0457d8",
+          "source": "upload"
+        },
+        {
+          "answer_id": "20261104T020602-0b79db8d",
+          "at": "2026-11-04T02:06:12.019968Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "first": null,
+          "spoken": "",
+          "detail": "Glimmer: A forklift driver is ahead in an aisle between pallet racks. Ahead, forklift driver, no high-visibility gear visible. | Spark: Person ahead without high-visibility clothing near forklift.",
+          "alert": false,
+          "verified": false,
+          "verified_by": [],
+          "severity": "caution",
+          "confidence": 0.9,
+          "hazards": [
+            {
+              "what": "person without high-visibility clothing",
+              "where": "ahead near forklift",
+              "severity": "caution"
+            }
+          ],
+          "counts": [],
+          "gaps": [],
+          "look": {
+            "scene": "A forklift driver is ahead in an aisle between pallet racks.",
+            "answer": "Ahead, forklift driver, no high-visibility gear visible.",
+            "hazards": [
+              "Missing high-visibility clothing: driver ahead"
+            ],
+            "alert": false
+          },
+          "spark_look": {
+            "spoken": "Person ahead without high-visibility clothing near forklift.",
+            "alert": false,
+            "severity": "caution",
+            "hazards": [
+              {
+                "what": "person without high-visibility clothing",
+                "where": "ahead near forklift",
+                "severity": "caution"
+              }
+            ],
+            "count": [],
+            "confidence": 0.9
+          },
+          "rejected": [],
+          "privacy_edits": 0,
+          "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+          "frame": "20261104T020602-0b79db8d.jpg",
+          "marked": null,
+          "audio": null,
+          "voice": null,
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 8394,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "look",
+              "model": "muse-spark-1.3",
+              "ms": 9780,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 9782,
+          "walk_id": "walk-20261104T020550-0457d8",
+          "source": "upload"
+        },
+        {
+          "answer_id": "20261104T020612-d758a1b8",
+          "at": "2026-11-04T02:06:21.847003Z",
+          "mode": "warehouse",
+          "kind": "patrol",
+          "question": null,
+          "heard": null,
+          "first": null,
+          "spoken": "",
+          "detail": "Glimmer: A forklift driver is operating a forklift in a warehouse aisle. Ahead, forklift driver with head protection, no immediate hazards visible. | Spark: Driver ahead on forklift without high-visibility clothing.",
+          "alert": false,
+          "verified": false,
+          "verified_by": [],
+          "severity": "caution",
+          "confidence": 0.85,
+          "hazards": [
+            {
+              "what": "person without high-visibility clothing",
+              "where": "ahead on forklift",
+              "severity": "caution"
+            }
+          ],
+          "counts": [],
+          "gaps": [],
+          "look": {
+            "scene": "A forklift driver is operating a forklift in a warehouse aisle.",
+            "answer": "Ahead, forklift driver with head protection, no immediate hazards visible.",
+            "hazards": [],
+            "alert": false
+          },
+          "spark_look": {
+            "spoken": "Driver ahead on forklift without high-visibility clothing.",
+            "alert": false,
+            "severity": "caution",
+            "hazards": [
+              {
+                "what": "person without high-visibility clothing",
+                "where": "ahead on forklift",
+                "severity": "caution"
+              }
+            ],
+            "count": [],
+            "confidence": 0.85
+          },
+          "rejected": [],
+          "privacy_edits": 0,
+          "looked_by": "muse-glimmer-30b + muse-spark-1.3",
+          "frame": "20261104T020612-d758a1b8.jpg",
+          "marked": null,
+          "audio": null,
+          "voice": null,
+          "stages": [
+            {
+              "name": "look",
+              "model": "muse-spark-1.3",
+              "ms": 7271,
+              "ok": true,
+              "note": ""
+            },
+            {
+              "name": "look",
+              "model": "muse-glimmer-30b",
+              "ms": 9822,
+              "ok": true,
+              "note": ""
+            }
+          ],
+          "total_ms": 9822,
+          "walk_id": "walk-20261104T020550-0457d8",
+          "source": "upload"
+        }
+      ],
+      "chain_hashes": [
+        "723499b2bc0a53527459b45296cfdd9612e9ac88ab54bfc33637da576c868b7e",
+        "e5b2ab998302ba403ce22d811992f898e9c8a526bc01b666e02e05114f9cf9dd",
+        "3cc1453870c2ff441ec37ce588ecd5c083551da0745977374a64272c7b0afee4"
+      ],
+      "model": "muse-spark-1.3",
+      "ms": 10353
+    },
+    "report_wall_ms": 10358
+  }
+}

@@ -60,7 +60,7 @@ class Composed(Frozen):
     hazards: list[Hazard] = Field(default_factory=list)
     rejected: list[str] = Field(
         default_factory=list,
-        description="SAM 3.1 labels that do not fit the frame, e.g. '1 hard hat: a warning light'.",
+        description="SAM 3.1 labels that do not fit, as 'number label: what it really is'.",
     )
     confidence: float = Field(ge=0.0, le=1.0)
 

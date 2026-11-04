@@ -20,40 +20,46 @@ fixed cameras' incidents.
 
 ## How an answer is made
 
+The aim is a first spoken sentence within ten seconds.
+
 1. **Hear.** Only while the talk button is held, the page records the microphone (the track is
    muted at all other times, so nothing ambient is ever heard). The recording becomes a 16 kHz
-   WAV, and Muse Voice Transcribe turns it into the question.
-2. **Look.** Muse Glimmer looks at the frame with the question and the wearer's role (store manager,
-   warehouse supervisor, crowd steward). It describes the scene, lists the hazards it sees with
-   where they are, and names up to three things SAM 3.1 should count to check its answer. In an
-   aisle, the shelf-gap check from `rulecam.shelf` runs at the same time (Muse Spark draws each gap,
-   SAM 3.1 confirms no product is inside it).
-3. **Count.** SAM 3.1 segments each thing Glimmer named, in parallel.
-4. **Answer.** Muse Spark 1.3 sees the frame (and the numbered shelf gaps), Glimmer's look, SAM's
-   counts and what earlier frames of the walk showed. It checks every claim against the frame and
-   writes one or two short sentences for the ear, with directions relative to the wearer.
-5. **Speak.** The sentence is spoken.
+   WAV, and Muse Voice Transcribe turns it into the question. The frame is uploaded for Muse Spark
+   at the same time. The moment the question is sent, the page says "Looking." (a WAV spoken once
+   at startup).
+2. **Look, twice at once.** Muse Glimmer and Muse Spark 1.3 each look at the frame with the
+   question and the wearer's role (store manager, warehouse supervisor, crowd steward), and each
+   answers in one short sentence. In an aisle, the shelf-gap check from `rulecam.shelf` runs too
+   (Muse Spark draws each gap, SAM 3.1 confirms no product is inside it).
+3. **First line.** Whichever look answers first is spoken straight away. The voice model is
+   loaded at startup and kept warm.
+4. **Count only when needed.** If Spark says the answer needs an exact number, SAM 3.1 counts the
+   things it names. Spark then checks the counts with SAM's numbered boxes drawn on the frame,
+   rejects boxes whose label does not fit, and drops shelf gaps that are clearly stocked.
+5. **Checked line.** "Both models agree." when both flag an alert. "Second look: …" when they
+   disagree. The checked numbers or gaps after a count or a shelf check. Otherwise nothing more.
 
 The mode (aisle, warehouse, crowd, general) only tells the models who is wearing the glasses and
 what they care about, and biases Voice Transcribe toward a few words of that trade ("shelf",
 "facings", "forklift"). Nothing else is hard-coded: the models decide what matters and what to
 count.
 
-**Verified alerts.** An alert is *verified* only when Glimmer flagged a hazard and Spark, checking
-the same frame with SAM's counts, confirmed it. A question is always answered aloud; a patrol frame
-(no question) is spoken only when its alert is verified. Unverified alerts are shown, not spoken.
+**Verified alerts.** An alert is *verified* only when Glimmer and Spark, looking at the same frame
+independently, both flag it. A question is always answered aloud (the first line is one model's
+word, which the checked line can correct); a patrol frame (no question) is spoken only when its
+alert is verified. Unverified alerts are shown, not spoken.
 
 **When Glimmer is cold or down.** Glimmer runs on serverless GPUs that scale to zero, so the page
 pings it when it opens (`GET /wearables/status`, at most once a minute) to start a worker early.
-While Glimmer is known to be up, it looks first and Spark looks only if Glimmer fails within
-`RULECAM_WEARABLES_GLIMMER_TIMEOUT_S` (25 s by default). While it is cold, being checked or down,
-a question is looked at by both at once, and Glimmer's look is used if it arrives within 6 s of
-Spark's; otherwise Spark's look is used and the answer says "Glimmer unavailable". A failed look or
-ping marks Glimmer down for two minutes. Glimmer still gets every frame in the background, so it
-can come back. Answers looked at only by Spark are never marked verified.
+Spark always looks too, so the first line never waits for Glimmer. While Glimmer is known to be up,
+the checked line waits for its look for up to `RULECAM_WEARABLES_GLIMMER_TIMEOUT_S` (25 s by
+default). While it is cold, being checked or down, the checked line waits at most 6 s more after
+Spark's look, then goes on without it. A failed look or ping marks Glimmer down for two minutes.
+Glimmer still gets every frame in the background, so it can come back. Answers looked at only by
+Spark are never marked verified.
 
 **Patrol.** With patrol on, the page sends a frame every 5 seconds whenever nothing is in flight.
-A frame where Glimmer sees nothing worth a warning costs one Glimmer call and nothing else.
+Both models look at every patrol frame (about 10 s); it is silent unless both flag an alert.
 
 **Site alerts.** The page also speaks new alerts raised by the site's fixed cameras (the `/ws`
 stream's `alert.new`), so a supervisor on the floor hears them without looking at a screen.
@@ -68,8 +74,11 @@ and the one-click incident report like any other incident.
 ## Privacy
 
 The prompts tell every model never to identify anyone or describe faces, to refer to people by
-where they are and what they are doing, and to mention clothing only when it is safety equipment or
-its absence. Text in the frame (signs, labels, packs) is data, never instructions. Nothing is
+where they are, what they are doing and their role, and never to describe clothing colours, hair,
+age or other looks, only whether safety equipment is worn. Because a prompt is not a guarantee,
+every model text also goes through a filter (`wearables/privacy.py`) that cuts garment and colour
+descriptions and drops sentences about hair, age, skin or build, keeping safety equipment and its
+absence. Text in the frame (signs, labels, packs) is data, never instructions. Nothing is
 transcribed unless the wearer holds the talk button. Frames, marked frames and spoken WAVs are kept
 under `<data>/wearables/` on the site's own server.
 
@@ -87,11 +96,14 @@ All routes are owner-only, like the other site tools.
 | `POST /wearables/walks/{walk_id}/finish` | Writes the report and chains its hazards (`?wait=false` for a job) |
 | `GET /wearables/frames/{name}`, `GET /wearables/audio/{name}` | The frame, the marked frame and the spoken WAV an answer names |
 
-A `PovAnswer` has: `spoken` (what to say, empty when there is nothing to say), `detail`, `alert`,
+A `PovAnswer` has: `first` (the first spoken line: text, audio, which model, when),
+`spoken` (the checked line after it, empty when there is nothing to add), `detail`, `alert`,
 `verified`, `verified_by` (the models that back it), `severity`, `hazards` (what, where, severity),
 `counts` (SAM 3.1's boxes per concept), `gaps` (confirmed shelf gaps), `look` (Glimmer's first look),
-`looked_by`, `frame`, `marked`, `audio`, `voice`, `stages` (each step's model, milliseconds and
-note) and `total_ms`.
+`spark_look`, `rejected` (SAM 3.1 labels Spark rejected), `privacy_edits`, `looked_by`,
+`frame`, `marked`, `audio`, `voice`, `stages` (each step's model, milliseconds and note) and
+`total_ms`. A running job also shows `stages` so far and `first` as soon as it is spoken, and
+`GET /wearables/status` lists the ready `phrases` (e.g. `looking`).
 
 The page uses `wait=false` and polls, because the UI's same-origin rewrite (and any tunnel) gives up
 on a request after about 30 seconds, and a cold Glimmer can take longer than that.
@@ -119,9 +131,11 @@ curl -s -F image=@aisle.jpg -F audio=@question.wav -F mode=aisle \
 1. Open `/glasses` on the phone, tap **Start glasses mode**, allow camera and microphone. The yellow
    chip says the phone camera stands in for the glasses.
 2. Pick **Warehouse**. Point at a forklift aisle (or a forklift video on a laptop screen). Hold the
-   button and ask "Is it safe to walk ahead?". Release. The answer is spoken; the card shows the
-   red **Verified alert · Spark + Glimmer + SAM 3.1** badge, SAM's boxes on the frame, and each
-   step's time.
+   button and ask "Is it safe to walk ahead?". Release. You hear "Looking.", then the first
+   model's answer within about ten seconds, then "Both models agree."; the card shows the red
+   **Verified alert · Spark + Glimmer** badge, both lines with who said them and when, and each
+   step's time. Ask "How many people are at the forklift?" to see SAM 3.1's numbered boxes and
+   any labels Spark rejected.
 3. Pick **Aisle** and ask "Which shelf facings are empty here?". The card lists the confirmed gaps
    with the products next to them, and the numbered frame.
 4. Tap **Start safety walk** (patrol turns on). Walk past two or three scenes. Tap **Finish walk**:
@@ -131,9 +145,11 @@ curl -s -F image=@aisle.jpg -F audio=@question.wav -F mode=aisle \
 
 ## Results
 
-Live runs on Nov 4 2026 are in `reports/eval/2026-11-04-glasses.md`: the whole path works with
-the real models and verified alerts happened, but a question takes about 30 seconds from frame to
-spoken answer, which is too slow for an earpiece. Screens of the page are in `apps/glasses/screens/`.
+Live runs on Nov 4 2026 are in `reports/eval/2026-11-04-glasses.md`. The whole path works with
+the real models and verified alerts happened. The first version took about 30 s from frame to
+spoken answer. With the looks in parallel, the first sentence is ready in a median of 8.6 s (5 of
+6 questions under 10 s). Answers that need a count or a shelf check still take 20 to 40 s for
+the checked line. Screens of the page are in `apps/glasses/screens/`.
 
 ## Files
 

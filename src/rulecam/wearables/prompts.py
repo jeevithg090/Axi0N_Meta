@@ -71,7 +71,7 @@ CHECK_PROMPT: Final = (
     "Check an answer for the ear of {role}, from their smart glasses.{site} You get the frame "
     "with SAM 3.1's numbered boxes, Muse Glimmer's and your own first looks, SAM 3.1's counts "
     "and any shelf gaps (Muse Spark drew each, SAM 3.1 found no product in it; numbered on a "
-    "second image). SAM 3.1 labels can be wrong, e.g. a warning light boxed as a hard hat: drop "
+    "second image). SAM 3.1 boxes look-alikes too, so look at every numbered box: drop "
     "any box whose label does not fit what you see or what Glimmer saw, list it in `rejected`, "
     "and do not count it. Drop any gap that is clearly stocked. `spoken`: one sentence, at most "
     "20 words, with the checked numbers. `detail`: at most two sentences. `alert` only for a "

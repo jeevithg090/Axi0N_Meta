@@ -39,7 +39,7 @@ GARMENT_PHRASE: Final = re.compile(
 )
 PEOPLE: Final = (
     "person|people|man|men|woman|women|worker|workers|employee|employees|staff|operator|driver|"
-    "cashier|customer|customers|shopper|shoppers|steward|picker|child|children|someone|he|she|"
+    "cashier|customer|customers|figure|figures|shopper|shoppers|steward|picker|child|children|someone|he|she|"
     "they|guard|attendant"
 )
 COLOUR_WORN: Final = re.compile(  # "the cashier in yellow": a colour worn, said of a person

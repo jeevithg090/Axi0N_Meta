@@ -36,6 +36,10 @@ from rulecam.wearables.schemas import Hazard
             "A man with grey hair is waiting. Two people are queueing.",
             "Two people are queueing.",
         ),
+        (
+            "Central and right figures in yellow are cashiers.",
+            "Central and right figures are cashiers.",
+        ),
     ],
 )
 def test_appearance_is_cut(said: str, kept: str) -> None:

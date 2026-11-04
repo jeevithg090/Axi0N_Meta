@@ -141,7 +141,8 @@ export function IncidentPanel({ near, planId }: { near: NearMiss; planId: string
       <h3>Phone alert</h3>
       {alerts.length === 0 && (
         <p className={styles.muted}>
-          No phone alert for this event (actions in dry-run are recorded as “would …”).
+          No open phone alert for this event: in dry-run the alert is chained as “would notify …”,
+          and the alert list starts empty when the API restarts.
         </p>
       )}
       {alerts.map((alert) => (

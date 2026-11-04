@@ -1,3 +1,4 @@
+/* Hallmark · component: the Rulecam kit · genre: modern-minimal · theme: Console (deal 1/3) · states: 8 · contrast: pass · v2.0.0 */
 /* Rulecam kit. Every colour, face and length is a token from app/globals.css (Console).
    Amber is a person or a deviation; cool is an instrument; ok and bad are status only. */
 
@@ -155,6 +156,7 @@
 .metric[data-tone="bad"] .metricValue { color: var(--color-bad); }
 .metric[data-tone="cool"] .metricValue { color: var(--color-cool); }
 .metric[data-tone="accent"] .metricValue { color: var(--color-accent-text); }
+.metricUnknown { font: 400 var(--text-lg) / 1.4 var(--font-body); letter-spacing: 0; color: var(--color-muted); }
 .metricUnit { font-size: 0.5em; letter-spacing: 0; color: var(--color-muted); margin-left: var(--space-2xs); }
 .metricLabel { margin: 0; font-weight: 500; font-size: var(--text-sm); color: var(--color-ink); }
 .metricNote { margin: 0; font-size: var(--text-sm); color: var(--color-muted); }
@@ -207,13 +209,15 @@
 .alertFacts div { display: grid; gap: 0; }
 .alertFacts dt { color: var(--color-muted); }
 .alertFacts dd { margin: 0; font-family: var(--font-outlier); }
+/* evidence inside an alert sits on the alert's own surface: one containment layer */
+.alert .evidence { padding: 0; border: 0; background: none; border-radius: 0; }
 .alertActions { display: flex; flex-wrap: wrap; gap: var(--space-xs); padding-top: var(--space-sm); border-top: var(--rule-hair) solid var(--color-rule); }
 
 /* ---------- ZoneDensityBar ---------- */
 .zones { margin: 0; display: grid; gap: var(--space-sm); min-width: 0; }
 .zonesHead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--space-xs); font-size: var(--text-sm); color: var(--color-muted); }
 .zonesList { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-sm); }
-.zone { display: grid; grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr) minmax(5.5rem, max-content); align-items: center; gap: var(--space-md); }
+.zone { display: grid; grid-template-columns: minmax(6rem, 10rem) minmax(0, 1fr) 9rem; align-items: center; gap: var(--space-md); }
 .zoneName { font-weight: 500; font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .track { position: relative; height: 12px; border-radius: var(--radius-chip); background: var(--color-paper-3); box-shadow: inset 0 0 0 1px var(--color-rule); overflow: visible; }
 .fill {

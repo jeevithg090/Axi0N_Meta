@@ -149,9 +149,9 @@ describe("MetricTile", () => {
     expect(screen.getByRole("link", { name: "r.json" }).getAttribute("href")).toBe("/r.json");
   });
 
-  it("reads unknown as a dash, never zero, and can show a skeleton", () => {
+  it("reads unknown as unknown, never zero, and can show a skeleton", () => {
     render(<MetricTile label="Cameras" value={null} unit="cams" />);
-    expect(screen.getByTestId("metric-tile").textContent).toContain("—");
+    expect(screen.getByTestId("metric-tile").textContent).toContain("unknown");
     expect(screen.getByTestId("metric-tile").textContent).not.toContain("cams");
     cleanup();
     render(<MetricTile label="Cameras" value={3} loading />);

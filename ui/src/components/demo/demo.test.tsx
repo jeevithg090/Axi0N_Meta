@@ -58,7 +58,7 @@ describe("LiveAlerts", () => {
     render(<LiveAlerts />);
     const section = screen.getByTestId("live-alerts");
     expect(section.textContent).toContain(
-      "RECORDED LIVE RUN · 1 NOV 2026 · NOT A REPLAY, NOT LIVE NOW",
+      "Recorded live run, 1 Nov 2026. Not a replay, not live now.",
     );
     expect(screen.getByRole("link", { name: CAMPAIGN.source }).getAttribute("href")).toContain(
       CAMPAIGN.source,

@@ -86,7 +86,7 @@ export function LiveAlerts() {
   return (
     <section className={styles.live} aria-label="Recorded live run" data-testid="live-alerts">
       <span className={styles.recorded}>
-        RECORDED LIVE RUN · 1 NOV 2026 · NOT A REPLAY, NOT LIVE NOW
+        Recorded live run, 1 Nov 2026. Not a replay, not live now.
       </span>
       <h2 className={styles.h2}>Verified alerts from a live run</h2>
       <p>

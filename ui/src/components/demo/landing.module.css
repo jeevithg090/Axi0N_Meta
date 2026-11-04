@@ -1,3 +1,4 @@
+/* Hallmark · page: the judge landing (/), stamped in app/globals.css · genre: modern-minimal · theme: Console (deal 1/3) · states: 8 · contrast: pass · v2.0.0 */
 /* The judge landing (/). Console material: hairline panels on a stepped ground, Host Grotesk
    for what a person reads, the measured face for what the run recorded. */
 
@@ -19,6 +20,7 @@
   letter-spacing: var(--tracking-display);
   line-height: 1.02;
   max-width: 14ch;
+  text-wrap: balance;
   overflow-wrap: break-word;
   min-width: 0;
 }

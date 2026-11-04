@@ -2,6 +2,9 @@
  * hero: Stage (/) · nav: a grouped sidebar (use cases, build, run, trust, system), a wordmark bar on / · footer: a mast, the wordmark over its links (/) · imagery: the product, one verified alert built from the 1 Nov live run · signature: the proof of one alert, its reading, Glimmer's verdict and its hash · console: paper (light), graphite (dark)
  * axes: dark/grotesk-sans/chromatic-amber · posture: restrained · modes: light+dark · states: loading, empty, error, full · contrast: pass · fold: pass · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H4 E4 S5 R4 V4 · weakest: E, the signage boards keep their owners' copy (dotted meta, capitals); the shell, the kit and the landing carry every gate */
+/* Hallmark · dismissed 56 · the sidebar and the header are sticky in two different columns; they never overlap */
+/* Hallmark · dismissed 41 · .site-panel and the quiet boards take paper-2, which is light in the paper colourway and swaps with the ink in graphite */
+/* Hallmark · answered F15 · app screens run full width inside the shell; prose screens cap at 1120px, the landing at 1440px */
 /* Hallmark · honesty labels: LIVE, REPLAY, SAMPLE and OFFLINE are the API's own badge strings, set verbatim in the measured face so a judge can never mistake a replay for live */
 
 /* ------------------------------------------------------------------------------------------
@@ -409,7 +412,7 @@ details > summary { cursor: pointer; }
   color: var(--color-ink);
   border-bottom-color: var(--color-accent-text);
 }
-.tab:disabled { opacity: 0.55; }
+.tab:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .tag {
   display: inline-block;
@@ -633,10 +636,10 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
 .site-items {
   display: grid;
   gap: var(--space-sm);
-  padding-left: 18px;
+  padding-left: var(--space-md);
 }
 .site-items p {
-  margin: 2px 0;
+  margin: var(--space-3xs) 0;
   overflow-wrap: anywhere;
 }
 .site-image {
@@ -673,8 +676,8 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
   gap: var(--space-xs);
 }
 .ask-turn {
-  padding: 6px 8px;
-  border-left: 4px solid var(--line);
+  padding: var(--space-xs);
+  border-left: 1px solid var(--color-rule-2);
   min-width: 0;
 }
 .ask-turn-thinking,
@@ -685,12 +688,12 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
   border-left-color: var(--live);
 }
 .ask-actions {
-  margin-top: 6px;
+  margin-top: var(--space-xs);
 }
 .ask-action {
   border: 1px solid var(--line);
   border-radius: var(--radius-pill);
-  padding: 4px 8px;
+  padding: var(--space-2xs) var(--space-xs);
   min-width: 0;
 }
 .ask-action-running {
@@ -702,7 +705,7 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
 }
 .ask-meta {
   float: right;
-  margin-left: 8px;
+  margin-left: var(--space-xs);
   font-size: var(--text-xs);
   color: var(--muted);
 }
@@ -736,7 +739,7 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
 .ask-table th,
 .ask-table td {
   border: 1px solid var(--line);
-  padding: 2px 6px;
+  padding: var(--space-3xs) var(--space-xs);
   text-align: left;
   white-space: nowrap;
 }
@@ -776,19 +779,19 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
 }
 .ask-answer {
   border-top: 1px solid var(--line);
-  padding-top: 8px;
+  padding-top: var(--space-xs);
 }
 .ask-answer-text {
   white-space: pre-wrap;
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-2xs);
 }
 .ask-moments {
-  margin: 4px 0;
-  padding-left: 18px;
+  margin: var(--space-2xs) 0;
+  padding-left: var(--space-md);
 }
 .ask-review {
-  padding: 6px 8px;
-  border-left: 4px dashed var(--line);
+  padding: var(--space-xs);
+  border-left: 1px dashed var(--color-rule-2);
   min-width: 0;
 }
 .ask-review-accept {
@@ -801,8 +804,8 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
   border-left-color: var(--replay);
 }
 .ask-review-problems {
-  margin: 4px 0;
-  padding-left: 18px;
+  margin: var(--space-2xs) 0;
+  padding-left: var(--space-md);
 }
 .ask-error {
   color: var(--high);
@@ -914,13 +917,16 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
   border-right: var(--rule-hair) solid var(--color-rule);
   display: flex;
   flex-direction: column;
-  position: sticky;
-  top: 0;
+  position: fixed;
+  inset-block: 0;
+  left: 0;
   height: 100dvh;
   overflow: hidden;
   z-index: var(--z-sticky-nav);
 }
 .shell-sidebar[data-collapsed="true"] { width: var(--sidebar-w-collapsed); min-width: var(--sidebar-w-collapsed); }
+.app[data-chrome="app"] > .shell-main-col { margin-left: var(--sidebar-w); }
+.app[data-chrome="app"]:has(> .shell-sidebar[data-collapsed="true"]) > .shell-main-col { margin-left: var(--sidebar-w-collapsed); }
 
 .side-head {
   height: var(--header-h);
@@ -1079,11 +1085,9 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
 
 /* the wordmark bar on / */
 .site-header {
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sticky-nav);
-  background: color-mix(in oklab, var(--color-paper) 90%, transparent);
-  backdrop-filter: saturate(1.2) blur(8px);
+  position: relative;
+  z-index: var(--z-raised);
+  background: var(--color-paper);
   border-bottom: var(--rule-hair) solid var(--color-rule);
 }
 .site-header-in { display: flex; align-items: center; gap: var(--space-lg); height: 64px; }
@@ -1100,10 +1104,9 @@ strong.code, span.code, b.code { font-family: var(--font-outlier); background: n
   .site-nav { display: none; }
 }
 @media (max-width: 760px) {
+  .app[data-chrome="app"] > .shell-main-col,
+  .app[data-chrome="app"]:has(> .shell-sidebar[data-collapsed="true"]) > .shell-main-col { margin-left: 0; }
   .shell-sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
     width: min(var(--sidebar-w), 86vw);
     min-width: 0;
     transform: translateX(-100%);
@@ -1140,7 +1143,7 @@ button.primary:not(.btn), .site-panel button[type="submit"]:not(.btn) {
 }
 button.primary:not(.btn):hover { background: color-mix(in oklab, var(--color-accent) 88%, var(--color-ink)); }
 button.primary:not(.btn):active { transform: translateY(1px); }
-button.primary:not(.btn):disabled { opacity: 0.55; }
+button.primary:not(.btn):disabled { opacity: 0.55; cursor: not-allowed; }
 [role="alert"]:not([data-testid]) { color: var(--color-bad); }
 
 /* golden replay (/demo) */
@@ -1198,7 +1201,7 @@ button.primary:not(.btn):disabled { opacity: 0.55; }
 .tap:hover { background: var(--color-paper-3); }
 .tap:active { transform: translateY(1px); }
 .tap[aria-pressed="true"] { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-ink); }
-.tap:disabled { opacity: 0.55; }
+.tap:disabled { opacity: 0.55; cursor: not-allowed; }
 .worker-rules, .worker-events, .never-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-xs); }
 .worker-rule, .worker-event {
   display: grid;

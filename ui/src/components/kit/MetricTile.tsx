@@ -7,7 +7,7 @@ import { cx } from "./cx";
 export interface MetricTileProps {
   /** What the number is, in words: "Event to checked decision". */
   label: string;
-  /** The figure itself. `null` reads as unknown (a dash), never as zero. */
+  /** The figure itself. `null` reads as "unknown", never as zero. */
   value: ReactNode | null;
   /** Its unit, set smaller beside it: "s", "m", "people/m²". */
   unit?: string;
@@ -43,7 +43,7 @@ export function MetricTile({
         <Skeleton label={`Loading ${label}`} height="2.5rem" shape="block" />
       ) : (
         <p className={styles.metricValue}>
-          {unknown ? <span title="Unknown">—</span> : value}
+          {unknown ? <span className={styles.metricUnknown}>unknown</span> : value}
           {!unknown && unit && <span className={styles.metricUnit}>{unit}</span>}
         </p>
       )}

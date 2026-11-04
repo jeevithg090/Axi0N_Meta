@@ -244,7 +244,7 @@ async def test_the_stream_sends_a_snapshot_then_changed_items(rig: Rig) -> None:
     assert changed.startswith("event: item")
     assert json.loads(changed.split("data: ", 1)[1])["item"]["status"] == "on_my_way"
     beat = await asyncio.wait_for(anext(events), 5)
-    assert beat == ": keep-alive\n\n"
+    assert beat.startswith("event: ping")
     with contextlib.suppress(StopAsyncIteration):
         await events.aclose()
 

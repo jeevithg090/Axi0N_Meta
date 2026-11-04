@@ -129,6 +129,51 @@ def _sent_order(alert: Alert) -> int:
     return int(tail) if tail.isdigit() else 0
 
 
+def chained_sends(entry: EventRecords) -> tuple[dict[str, datetime], bool]:
+    """Who an event's chained actions told (or, in dry run, would have told), and when.
+
+    Returns:
+        Role → first time it was told, and whether those were dry-run records.
+    """
+    sends: dict[str, datetime] = {}
+    dry = False
+    for action in entry.actions:
+        detail = str(action.get("detail", ""))
+        ts = _ts(action.get("ts")) or _ts(action.get("_ts"))
+        role = action.get("role")
+        would = WOULD.match(detail)
+        if ts is None:
+            continue
+        if would is not None:
+            dry = True
+            for name in _roles(would.group(2)):
+                sends.setdefault(name, ts)
+        elif action.get("kind") in {"notify", "escalate"} and isinstance(role, str):
+            if STEP.search(detail) or detail.startswith(("alert ", "notified ")):
+                sends.setdefault(role, ts)
+    return sends, dry
+
+
+def needs_review(entry: EventRecords) -> bool:
+    """Whether the policy sent the event to a person (the human queue) instead of acting."""
+    routed = any(_dict(v.get("decision")).get("route") == "human_queue" for v in entry.verdicts)
+    return routed or any("needs review" in str(a.get("detail", "")) for a in entry.actions)
+
+
+def strip_frames(clip: Path, event_id: str) -> list[Path]:
+    """Every frame of an alert's evidence strip, from the one still the alert carries.
+
+    The runtime writes a strip as numbered stills in a folder named after the event
+    (`<strips>/<camera>/<event_id>/1.jpg`), but chains its candidate before the strip is drawn,
+    so the alert's picture is the only path on record; its siblings are the rest of the strip.
+    """
+    folder = clip.parent
+    if folder.name != event_id or not folder.is_dir():
+        return [clip]
+    frames = [p for p in folder.glob("*.jpg") if p.stem.isdigit()]
+    return sorted(frames, key=lambda p: int(p.stem)) or [clip]
+
+
 def _roles(text: str) -> tuple[str, ...]:
     """Roles from a rule's role spec (`a, b`) or a dry-run line (`a → b`)."""
     return tuple(r.strip() for r in re.split(r",|→", text) if r.strip())
@@ -229,11 +274,15 @@ def _action_steps(entry: EventRecords) -> list[Step]:
     for action in entry.actions:
         ts, detail = _ts(action.get("_ts")), str(action.get("detail", ""))
         role, kind = action.get("role"), action.get("kind")
-        skip = action.get("source") == "staff_app" or kind == "notify"
-        if ts is None or skip or detail.startswith("dry-run: would"):
+        sends = kind in {"notify", "escalate"}  # sends are the `assigned` steps
+        step = STEP.search(detail)
+        if step is not None and kind == "escalate" and int(step.group(1)) > 1 and ts is not None:
+            who = role if isinstance(role, str) else None
+            steps.append(("escalated", ts, f"Nobody acknowledged: sent on to {who}", who))
             continue
-        stage: Stage = "escalated" if kind == "escalate" else "record"
-        steps.append((stage, ts, detail or str(kind), role if isinstance(role, str) else None))
+        if ts is None or sends or action.get("source") == "staff_app":
+            continue
+        steps.append(("record", ts, detail or str(kind), role if isinstance(role, str) else None))
     return steps
 
 
@@ -356,6 +405,7 @@ class StaffFeed:
         on_false_alarm: FalseAlarmSink | None = None,
         timezone: str = "UTC",
         plan_roles: Callable[[], set[str]] | None = None,
+        camera_labels: Callable[[], Mapping[str, str]] | None = None,
     ) -> None:
         """Create the feed.
 
@@ -374,6 +424,7 @@ class StaffFeed:
             on_false_alarm: Records a *False alarm* as a Rule CI regression.
             timezone: The site's IANA time zone (shifts).
             plan_roles: Roles the site's plans name.
+            camera_labels: Camera id → the label it was paired with (Pair-a-Phone).
         """
         self._notifier = notifier
         self._escalation = escalation
@@ -390,6 +441,15 @@ class StaffFeed:
         self._tz = ZoneInfo(timezone)
         self._timezone = timezone
         self._plan_roles = plan_roles
+        self._labels = camera_labels
+
+    def _name(self, camera_id: str | None) -> str | None:
+        """A camera's friendly name: configured, else its pairing label (never just its id)."""
+        if camera_id is None:
+            return None
+        label = self._labels().get(camera_id) if self._labels is not None else None
+        name = self._names.get(camera_id) or label
+        return name if name and name != camera_id else None
 
     @property
     def signal(self) -> Signal:
@@ -438,7 +498,7 @@ class StaffFeed:
         tasks = {task.task_id: task for task in self._store.tasks()}
         cards = [self._task_card(t, groups.get(t.task_id, [])) for t in tasks.values()]
         cards += [self._alert_card(k, a) for k, a in groups.items() if k not in tasks]
-        cards += self._dry_cards(skip=set(groups) | set(tasks))
+        cards += self._chain_cards(skip=set(groups) | set(tasks))
         for card in cards:
             card.item = card.item.model_copy(update=loop_of(card.item, card.entry, card.reached))
         return sorted(cards, key=lambda c: c.item.ts, reverse=True)
@@ -483,7 +543,7 @@ class StaffFeed:
         return {
             "severity": str(candidate.get("severity") or ""),
             "camera_id": camera_id,
-            "camera_name": self._names.get(camera_id) if camera_id else None,
+            "camera_name": self._name(camera_id),
             "rule_text": str(_dict(rule.get("source")).get("text") or "") or None,
             "measurement": measurement_text(candidate),
             "verdict": verdict_view(entry),
@@ -504,42 +564,39 @@ class StaffFeed:
                 found.append({"lang": match.group(1), "text": match.group(2)})
         return found
 
-    def _dry_cards(self, skip: set[str]) -> list[_Card]:
-        """Chained alerts that dry run kept from being sent: who would have been told."""
+    def _chain_cards(self, skip: set[str]) -> list[_Card]:
+        """Chained alerts the notifier does not hold: dry-run ones, and any from before a restart.
+
+        In dry run nothing is sent, but the chain says who *would* have been told. The notifier
+        keeps alerts in memory only, so after an API restart the chain's notify and escalation
+        steps still say who was told, and the card comes back (without a running timer).
+        """
         cards = []
         for event_id in self._view.event_ids():
             entry = self._view.get(event_id)
             if event_id in skip or entry is None:
                 continue
-            would = [
-                (m, _ts(a.get("ts")) or _ts(a.get("_ts")))
-                for a in entry.actions
-                if (m := WOULD.match(str(a.get("detail", ""))))
-            ]
-            if not would:
+            sends, dry = chained_sends(entry)
+            if not sends:
                 continue
-            roles = tuple(dict.fromkeys(r for m, _ in would for r in _roles(m.group(2))))
-            ts = would[0][1] or entry.candidate_ts or self._clock.now()
+            ts = min(sends.values(), default=None) or entry.candidate_ts or self._clock.now()
             candidate = entry.candidate or {}
             rule_id = str(candidate.get("rule_id") or "") or None
             media = self._media(candidate, [], event_id)
             context = self._context(event_id, entry)
             text = context["rule_text"] or rule_id or "rule"
-            human = any("(needs review)" in str(a.get("detail", "")) for a in entry.actions)
+            human = needs_review(entry)
             item = StaffItem(
                 item_id=event_id,
                 source="review" if human else self._source(event_id, rule_id, ""),
                 title=f"{'Needs review' if human else 'Alert'}: {text}",
                 body=f"Camera {candidate.get('camera_id', '?')} at {ts:%H:%M:%S} UTC",
-                roles=roles,
+                roles=tuple(sends),
                 ts=ts,
                 status=self._status(event_id, [], entry),
                 thumbnails=len(media),
-            ).model_copy(update={**context, "dry_run": True})
-            reached = dict.fromkeys(roles, ts)
-            cards.append(
-                _Card(item=item, reached=reached, media=media, rule_id=rule_id, entry=entry)
-            )
+            ).model_copy(update={**context, "dry_run": dry})
+            cards.append(_Card(item=item, reached=sends, media=media, rule_id=rule_id, entry=entry))
         return cards
 
     def _task_card(self, task: ShelfTask, alerts: Sequence[Alert]) -> _Card:
@@ -558,7 +615,7 @@ class StaffFeed:
             roles=tuple(reached),
             severity="task",
             camera_id=task.camera_id,
-            camera_name=self._names.get(task.camera_id),
+            camera_name=self._name(task.camera_id),
             ts=task.ts,
             status=self._status(task.task_id, alerts, EventRecords()),
             verdict=VerdictView(
@@ -620,7 +677,12 @@ class StaffFeed:
     def _media(self, candidate: Mapping[str, object], clips: Sequence[str], key: str) -> list[Path]:
         strips = candidate.get("strip_paths")
         raw = [str(p) for p in strips] if isinstance(strips, list) else []
-        raw += [c for c in clips if c not in raw]
+        camera = candidate.get("camera_id")
+        if not raw and not clips and isinstance(camera, str):  # e.g. after an API restart
+            folders = [root / camera / key / "1.jpg" for root in self._roots]
+            clips = [str(f) for f in folders if f.is_file()][:1]
+        for clip in clips:
+            raw += [str(p) for p in strip_frames(Path(clip), key) if str(p) not in raw]
         return self._allowed(raw) + self._allowed(self._store.photos(key))
 
     def _allowed(self, raw: Sequence[str]) -> list[Path]:

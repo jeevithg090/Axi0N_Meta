@@ -1056,6 +1056,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 ask_agent=ask_agent,
                 false_alarm=false_alarm,
                 plans_dir=PLANS_DIR,
+                camera_labels=lambda: {c.camera_id: c.label for c in pair.registry.cameras()},
                 dependencies=_OWNER,
             ),
         ),

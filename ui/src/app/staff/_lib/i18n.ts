@@ -70,6 +70,8 @@ export interface Words {
   heard: string;
   noRole: string;
   reportNearMiss: string;
+  needsPerson: string;
+  notChecked: string;
 }
 
 const en: Words = {
@@ -158,6 +160,8 @@ const en: Words = {
   heard: "You asked",
   noRole: "Pick a role first",
   reportNearMiss: "Report a near miss",
+  needsPerson: "A person must check",
+  notChecked: "not checked (verifier down)",
 };
 
 const es: Words = {
@@ -246,6 +250,8 @@ const es: Words = {
   heard: "Preguntaste",
   noRole: "Elige un puesto primero",
   reportNearMiss: "Reportar un casi accidente",
+  needsPerson: "Una persona debe revisarlo",
+  notChecked: "sin verificar (verificador caído)",
 };
 
 const hi: Words = {
@@ -334,6 +340,8 @@ const hi: Words = {
   heard: "आपने पूछा",
   noRole: "पहले भूमिका चुनें",
   reportNearMiss: "बाल-बाल बचे हादसे की रिपोर्ट",
+  needsPerson: "किसी व्यक्ति को जाँचना होगा",
+  notChecked: "जाँच नहीं हुई (वेरिफ़ायर बंद)",
 };
 
 export const WORDS: Record<Lang, Words> = { en, es, hi };

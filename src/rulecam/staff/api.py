@@ -4,7 +4,8 @@
 - `GET /staff/roles`: the roles the site uses (plans, alerts, tasks).
 - `GET /staff/feed?role=`: the role's items, newest first (`?role=` omitted: everything).
 - `GET /staff/stream?role=`: the same as server-sent events: `snapshot` once, then `item` for
-  every item that changes (each with `sent_at`), with a keep-alive comment every 15 s. It wakes
+  every item that changes (each with `sent_at`), and a `ping` every 15 s of quiet (the phone
+  reopens a stream that has gone silent for 40 s). It wakes
   on the bus (`alert.new`, `verdict.new`, `action.done`) and on staff taps, and re-checks every
   2 s for chained records that arrive without a bus message.
 - `GET /staff/items/{item_id}`: one item with its timed loop.
@@ -68,7 +69,8 @@ MAX_UPLOAD_BYTES: Final = 15 * 1024 * 1024
 MAX_AUDIO_BYTES: Final = 8 * 1024 * 1024
 PHOTO_SUFFIXES: Final = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 WAKE_TOPICS: Final = frozenset({Topic.ALERT_NEW, Topic.VERDICT_NEW, Topic.ACTION_DONE})
-_STREAM_HEADERS: Final = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+# `no-transform` keeps proxies (the UI's Next.js rewrite) from gzipping, and so holding, events.
+_STREAM_HEADERS: Final = {"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"}
 _MEDIA_TYPES: Final = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 
 ItemId = Annotated[str, Field(pattern=ITEM_ID_PATTERN)]
@@ -125,7 +127,7 @@ async def stream_feed(
         bus: Woken by alerts, verdicts and actions.
         clock: For `sent_at`.
         role: The role (`None`: every item).
-        heartbeat_s: Seconds of silence before a keep-alive comment.
+        heartbeat_s: Seconds of silence before a `ping` event.
         recheck_s: Seconds between re-checks without a wake-up.
 
     Yields:
@@ -168,7 +170,7 @@ async def stream_feed(
             quiet = 0.0 if changed else quiet + recheck_s
             if quiet >= heartbeat_s:
                 quiet = 0.0
-                yield ": keep-alive\n\n"
+                yield _sse("ping", {"sent_at": clock.now().isoformat()})
     finally:
         pumping.cancel()
         feed.signal.forget(wake)

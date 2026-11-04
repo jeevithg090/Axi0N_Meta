@@ -7,7 +7,7 @@ acts on the same alerts and chains as every other channel instead of running its
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -90,6 +90,7 @@ def build_staff(
     false_alarm: FalseAlarmSink | None,
     plans_dir: Path,
     near_miss_voice: bool = False,
+    camera_labels: Callable[[], Mapping[str, str]] | None = None,
     dependencies: Sequence[Any] = (),
 ) -> APIRouter:
     """The `/staff` router, wired to the site's alerts, chains, models and speech.
@@ -106,6 +107,7 @@ def build_staff(
         false_alarm: Records *False alarm* taps as Rule CI regressions.
         plans_dir: The plan files (the roles they name).
         near_miss_voice: The API also serves the warehouse's voice near-miss reports.
+        camera_labels: Camera id → its pairing label (shown when no name is configured).
         dependencies: Authentication for every route.
 
     Returns:
@@ -129,6 +131,7 @@ def build_staff(
         on_false_alarm=false_alarm,
         timezone=settings.rulecam_site_timezone,
         plan_roles=plan_roles(plans_dir),
+        camera_labels=camera_labels,
     )
     spark = _spark(settings, cache=cache, clock=clock, bus=bus)
     engines = default_engines(bus)

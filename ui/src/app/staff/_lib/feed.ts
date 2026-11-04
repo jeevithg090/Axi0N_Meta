@@ -13,6 +13,7 @@ export type Connection = "live" | "reconnecting" | "offline";
 
 const CACHE_KEY = "rulecam.staff.feed";
 const POLL_MS = 5000;
+const WATCHDOG_MS = 40_000;
 
 interface Envelope {
   items?: StaffItem[];
@@ -119,12 +120,18 @@ export function useStaffFeed(
       poll = null;
     };
 
-    if (typeof EventSource === "undefined") {
-      void refresh();
-      startPolling();
-    } else {
+    // A stream that silently stops (a proxy holding a dead upstream) is reopened: the API
+    // sends a `ping` every 15 s of quiet, so 40 s of silence means the connection is gone.
+    let last = Date.now();
+    let watchdog: number | null = null;
+    const touch = () => {
+      last = Date.now();
+    };
+    const open = () => {
+      source?.close();
       source = new EventSource(streamUrl(role));
       source.addEventListener("snapshot", (event) => {
+        touch();
         const data = JSON.parse((event as MessageEvent<string>).data) as Envelope;
         setItems([]);
         accept(data.items ?? [], false);
@@ -132,20 +139,41 @@ export function useStaffFeed(
         stopPolling();
       });
       source.addEventListener("item", (event) => {
+        touch();
         const data = JSON.parse((event as MessageEvent<string>).data) as Envelope;
         if (data.item) accept([data.item], true);
         setConnection("live");
       });
+      source.addEventListener("ping", touch);
       source.onerror = () => {
         if (closed) return;
         setConnection("reconnecting");
         startPolling();
+        if (source?.readyState === EventSource.CLOSED) {
+          window.setTimeout(() => {
+            if (!closed) open();
+          }, 3000);
+        }
       };
+    };
+
+    if (typeof EventSource === "undefined") {
+      void refresh();
+      startPolling();
+    } else {
+      open();
+      watchdog = window.setInterval(() => {
+        if (Date.now() - last < WATCHDOG_MS) return;
+        touch();
+        setConnection("reconnecting");
+        open();
+      }, 5000);
     }
     return () => {
       closed = true;
       source?.close();
       stopPolling();
+      if (watchdog !== null) window.clearInterval(watchdog);
     };
   }, [accept, enabled, refresh, role]);
 

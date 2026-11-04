@@ -33,6 +33,21 @@ function ago(ts: string, now: number): string {
   return duration((now - Date.parse(ts)) / 1000);
 }
 
+/**
+ * What the card leads with. A human-queue review says why a person must look (the verifier was
+ * down, unsure, or vetoed) under the rule itself, instead of a technical title.
+ */
+export function headline(item: StaffItem): { title: string; why: string | null; body: string } {
+  const rule = item.rule_text;
+  const body =
+    rule && item.body.startsWith(rule)
+      ? item.body.slice(rule.length).replace(/^[.\s]+/, "")
+      : item.body;
+  if (item.source !== "review" || !rule) return { title: item.title, why: null, body };
+  const reason = item.title.replace(/^Needs review:\s*/, "").split(" — ")[0] ?? "";
+  return { title: rule, why: reason || null, body };
+}
+
 /** The next tap that moves the item on: Acknowledge → On my way → Done. */
 export function nextAction(item: StaffItem): StaffAction | null {
   if (item.status === "open") return "acknowledge";
@@ -131,7 +146,9 @@ export function ItemCard({
   const closed = CLOSED.has(item.status);
   const left = item.escalates_at ? Date.parse(item.escalates_at) - now : 0;
   const where = item.camera_name ?? item.camera_id;
-  const confidence = item.verdict?.confidence ?? null;
+  const unchecked = item.verdict?.reason.startsWith("verifier_error") ?? false;
+  const confidence = unchecked ? null : (item.verdict?.confidence ?? null);
+  const { title, why, body } = headline(item);
 
   return (
     <article className={cardClass(item, fresh)} aria-label={item.title} data-item={item.item_id}>
@@ -150,25 +167,25 @@ export function ItemCard({
           </span>
           {where ? <span>· {where}</span> : null}
         </div>
-        <h2 className={styles.title}>{item.title}</h2>
+        <h2 className={styles.title}>{title}</h2>
+        {why ? (
+          <p className={styles.why}>
+            {words.needsPerson}: {why}
+          </p>
+        ) : null}
         {translated ? (
           <p className={styles.translated} lang="und">
             {translated}
           </p>
         ) : null}
-        <p className={styles.body}>{item.body}</p>
+        {body ? <p className={styles.body}>{body}</p> : null}
       </div>
 
       {item.thumbnails > 0 ? (
         <div className={styles.strip} aria-label="Evidence">
           {Array.from({ length: Math.min(item.thumbnails, 8) }, (_, k) => (
             // eslint-disable-next-line @next/next/no-img-element -- evidence stills come from the API
-            <img
-              key={k}
-              src={mediaUrl(item.item_id, k)}
-              alt={`Evidence still ${k + 1}`}
-              loading="lazy"
-            />
+            <img key={k} src={mediaUrl(item.item_id, k)} alt={`Evidence still ${k + 1}`} />
           ))}
         </div>
       ) : null}
@@ -180,7 +197,7 @@ export function ItemCard({
               {words.verifiedBy} {item.verdict.model}
             </span>
             <span className={styles.factValue}>
-              {item.verdict.verdict}
+              {unchecked ? words.notChecked : item.verdict.verdict}
               {confidence !== null ? ` · ${Math.round(confidence * 100)}%` : ""}
             </span>
             {confidence !== null ? (
@@ -204,7 +221,9 @@ export function ItemCard({
           <span className={styles.factValue}>{item.roles.map(roleWords).join(" → ")}</span>
         </div>
       </div>
-      {item.verdict?.reason ? <p className={styles.reason}>“{item.verdict.reason}”</p> : null}
+      {item.verdict?.reason && !unchecked ? (
+        <p className={styles.reason}>“{item.verdict.reason}”</p>
+      ) : null}
 
       {escalating ? (
         <div className={styles.countdown} role="timer" aria-live="off">

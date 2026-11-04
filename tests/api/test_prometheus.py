@@ -291,6 +291,30 @@ def test_http_health(
     assert http_health("http://x/health") == expected
 
 
+def test_hosted_api_without_health_is_probed_on_models(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Meta API serving Tier 1 has no `/health`: `/models` with our key says it is up."""
+    calls: list[tuple[str, object]] = []
+    models_status = [200, 401]
+
+    def get(url: str, *, headers: object = None, timeout: float) -> httpx.Response:
+        calls.append((url, headers))
+        if url.endswith("/health"):
+            return httpx.Response(404)
+        return httpx.Response(models_status.pop(0), json={"data": []})
+
+    monkeypatch.setattr(httpx, "get", get)
+    key = {"Authorization": "Bearer k"}
+    (probe,) = dependency_probes("https://api.meta.ai/v1", None, glimmer_headers=key)
+    probe.ttl_s = 0.0
+    assert (probe.service, probe.url) == ("glimmer", "https://api.meta.ai/health")
+    assert probe.up()
+    assert not probe.up()  # a refused key is down
+    assert calls[:2] == [
+        ("https://api.meta.ai/health", None),
+        ("https://api.meta.ai/v1/models", key),
+    ]
+
+
 def test_http_health_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
     def refuse(url: str, timeout: float) -> httpx.Response:
         raise httpx.ConnectError("refused")

@@ -84,6 +84,17 @@ def test_request_is_schema_constrained(tmp_path: Path) -> None:
     assert fmt["type"] == "json_schema"
     assert fmt["json_schema"]["name"] == "Answer"
     assert fmt["json_schema"]["schema"]["required"] == ["verdict", "p"]
+    assert fmt["json_schema"]["strict"] is True
+
+
+def test_strict_schema_can_be_turned_off_for_the_meta_api(tmp_path: Path) -> None:
+    transport = QueueTransport(chat_reply({"verdict": "ok", "p": 0.2}))
+    client = make_client(transport, tmp_path)
+    client._config = GlimmerConfig(strict_schema=False)
+    ask(client)
+    body = transport.requests[0]["json"]
+    assert isinstance(body, dict)
+    assert body["response_format"]["json_schema"]["strict"] is False
 
 
 def test_malformed_json_retries_once_then_raises(tmp_path: Path) -> None:

@@ -115,7 +115,7 @@ from rulecam.capture.pair_phone import PairPhone, build_router, require_owner
 from rulecam.chain.api import chain_router
 from rulecam.clients.errors import ClientConfigError
 from rulecam.clients.meta_hosted import SparkClient, VoiceTranscribeClient
-from rulecam.clients.open_weights.glimmer import GlimmerClient
+from rulecam.clients.open_weights.glimmer import GlimmerClient, glimmer_headers
 from rulecam.clients.open_weights.spark_open import SparkOpenClient
 from rulecam.clock import SystemClock
 from rulecam.compliance.api import build_proof_router
@@ -908,6 +908,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
         settings.sam_base_url,
         glimmer_runpod=RunPodServerless.for_service(settings, settings.glimmer_edge_key).fetch,
         sam_runpod=RunPodServerless.for_service(settings, settings.sam_edge_key).fetch,
+        glimmer_headers=glimmer_headers(settings),
     )
     glimmer = next((probe.up for probe in probes if probe.service == "glimmer"), None)
     response = build_response(

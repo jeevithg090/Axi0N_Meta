@@ -108,6 +108,8 @@ class SparkOpenConfig:
         hardware: What serves it, for the evidence log.
         schema_in_prompt: Also state the JSON schema in a system message (llama-server's
             Muse Spark template does not enforce `response_format`, 4 Nov 2026).
+        strict_schema: `strict` in `response_format`; false for hosts that apply OpenAI
+            strict-mode rules to the schema (the Meta API), the reply being validated here.
     """
 
     model: str = "meta-models/muse-spark-open-1026"
@@ -116,6 +118,7 @@ class SparkOpenConfig:
     segment: str = "verify"
     hardware: str = "baseten"
     schema_in_prompt: bool = False
+    strict_schema: bool = True
 
 
 @dataclass(frozen=True)
@@ -274,6 +277,7 @@ class SparkOpenClient:
             images_supported=settings.spark_open_images_supported,
             hardware=target.hardware,
             schema_in_prompt=target.schema_in_prompt,
+            strict_schema=settings.spark_open_strict_schema,
         )
         http = HttpxTransport(
             target.base_url,
@@ -326,7 +330,7 @@ class SparkOpenClient:
                 "type": "json_schema",
                 "json_schema": {
                     "name": schema.__name__,
-                    "strict": True,
+                    "strict": self._config.strict_schema,
                     "schema": schema.model_json_schema(),
                 },
             },

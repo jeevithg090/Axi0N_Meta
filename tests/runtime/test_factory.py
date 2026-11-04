@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import timedelta
 from pathlib import Path
 
+import httpx
 import pytest
 from pydantic import SecretStr
 
@@ -37,6 +38,7 @@ from rulecam.runtime.factory import (
     crop_segmenter,
     geometry_estimator,
     glimmer_health_url,
+    glimmer_probe,
     hosted_sam,
     person_tracker,
     self_hosted_worker,
@@ -257,6 +259,25 @@ def test_glimmer_health_url_drops_the_api_suffix() -> None:
     assert glimmer_health_url("https://pod-8080.proxy.runpod.net/v1/") == (
         "https://pod-8080.proxy.runpod.net/health"
     )
+
+
+def test_glimmer_probe_falls_back_to_models_with_the_key(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Tier 1 on the Meta API: no `/health` there, so `/models` with the key is the probe."""
+    calls: list[tuple[str, object]] = []
+
+    def get(url: str, *, headers: object = None, timeout: float) -> httpx.Response:
+        calls.append((url, headers))
+        return httpx.Response(404 if url.endswith("/health") else 200)
+
+    monkeypatch.setattr(httpx, "get", get)
+    hosted = settings(tmp_path, glimmer_base_url="https://api.meta.ai/v1", glimmer_api_key="k")
+    assert glimmer_probe(hosted)()
+    assert calls == [
+        ("https://api.meta.ai/health", None),
+        ("https://api.meta.ai/v1/models", {"Authorization": "Bearer k"}),
+    ]
 
 
 # --- image mode (RULECAM_RUNTIME_SAM_MODE, WS2b) ----------------------------------------------

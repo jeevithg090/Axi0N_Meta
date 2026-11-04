@@ -345,6 +345,8 @@ class GlimmerConfig:
         segment: Relay HUD segment name.
         schema_in_prompt: Also state the schema in a system message, for hosts that do not
             enforce `response_format` strictly.
+        strict_schema: `strict` in `response_format`; false for hosts that apply OpenAI
+            strict-mode rules to the schema (the Meta API), the reply being validated here.
     """
 
     model: str = "muse-glimmer-30b"
@@ -355,6 +357,7 @@ class GlimmerConfig:
     reasoning_budget_tokens: int = NO_BUDGET
     segment: str = "verify"
     schema_in_prompt: bool = False
+    strict_schema: bool = True
 
 
 class GlimmerClient:
@@ -414,6 +417,7 @@ class GlimmerClient:
             quant=settings.glimmer_quant,
             hardware=settings.glimmer_hardware,
             schema_in_prompt=settings.glimmer_schema_in_prompt,
+            strict_schema=settings.glimmer_strict_schema,
             max_tokens=settings.glimmer_max_tokens,
             max_tokens_ceiling=settings.glimmer_max_tokens_ceiling,
             reasoning_budget_tokens=settings.glimmer_reasoning_budget_tokens,
@@ -462,7 +466,7 @@ class GlimmerClient:
                 "type": "json_schema",
                 "json_schema": {
                     "name": schema.__name__,
-                    "strict": True,
+                    "strict": self._config.strict_schema,
                     "schema": schema.model_json_schema(),
                 },
             },

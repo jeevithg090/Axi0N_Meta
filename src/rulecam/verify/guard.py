@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Literal
 
@@ -273,12 +273,20 @@ class CircuitBreaker:
             )
 
 
-def http_probe(url: str, *, timeout_s: float = PROBE_TIMEOUT_S) -> Callable[[], bool]:
-    """A health probe: `GET url` answers 200 within `timeout_s` (llama-server's `/health`)."""
+def http_probe(
+    url: str,
+    *,
+    timeout_s: float = PROBE_TIMEOUT_S,
+    headers: Mapping[str, str] | None = None,
+) -> Callable[[], bool]:
+    """A health probe: `GET url` answers 200 within `timeout_s` (llama-server's `/health`).
+
+    `headers` carries a key for a guarded URL, e.g. a hosted API's `GET /models`.
+    """
 
     def probe() -> bool:
         try:
-            return httpx.get(url, timeout=timeout_s).status_code == HTTP_OK
+            return httpx.get(url, headers=headers, timeout=timeout_s).status_code == HTTP_OK
         except httpx.HTTPError:
             return False
 

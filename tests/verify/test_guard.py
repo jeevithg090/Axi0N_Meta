@@ -306,7 +306,7 @@ def test_http_probe(monkeypatch: pytest.MonkeyPatch) -> None:
     replies: list[object] = [httpx.Response(200), httpx.Response(503), httpx.ConnectError("no")]
     urls: list[str] = []
 
-    def get(url: str, *, timeout: float) -> httpx.Response:
+    def get(url: str, *, headers: object = None, timeout: float) -> httpx.Response:
         urls.append(url)
         reply = replies.pop(0)
         if isinstance(reply, Exception):
@@ -318,3 +318,15 @@ def test_http_probe(monkeypatch: pytest.MonkeyPatch) -> None:
     probe = http_probe("http://glimmer:8080/health")
     assert [probe(), probe(), probe()] == [True, False, False]
     assert urls == ["http://glimmer:8080/health"] * 3
+
+
+def test_http_probe_sends_headers(monkeypatch: pytest.MonkeyPatch) -> None:
+    sent: list[object] = []
+
+    def get(url: str, *, headers: object = None, timeout: float) -> httpx.Response:
+        sent.append(headers)
+        return httpx.Response(200)
+
+    monkeypatch.setattr(httpx, "get", get)
+    assert http_probe("https://api.example/v1/models", headers={"Authorization": "Bearer k"})()
+    assert sent == [{"Authorization": "Bearer k"}]

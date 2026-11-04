@@ -187,6 +187,8 @@ class Settings(BaseSettings):
     # State the JSON schema in a system message too: llama-server's Muse Spark template does not
     # enforce `response_format` (checked 4 Nov 2026). Applies to SPARK_OPEN_BASE_URL only.
     spark_open_schema_in_prompt: bool = True
+    # `strict` in `response_format`; false for the Meta API (see GLIMMER_STRICT_SCHEMA).
+    spark_open_strict_schema: bool = True
     # Hosted Spark Open used only when the server above gives no usable answer (e.g. Routeway,
     # https://api.routeway.ai/v1, model `muse-spark-open`; its key is the bearer).
     spark_open_fallback_base_url: str | None = None
@@ -212,6 +214,10 @@ class Settings(BaseSettings):
     # Hosted OpenAI-compatible Glimmer (e.g. Routeway) may honour JSON mode but not a strict
     # schema: also state the schema in a system message. Off for llama-server (grammar-enforced).
     glimmer_schema_in_prompt: bool = False
+    # `strict` in `response_format`. A host applying OpenAI strict-mode rules (the Meta API: every
+    # property required) rejects our pydantic schemas, which have defaults; false sends
+    # `strict: false` and the reply is validated here, as `SparkClient` does.
+    glimmer_strict_schema: bool = True
     # A standby Glimmer endpoint (same keys and model, any region; docs/deploy.md "Standby
     # Glimmer") tried when GLIMMER_BASE_URL and the extra URLs give no usable answer.
     glimmer_standby_base_url: str | None = None

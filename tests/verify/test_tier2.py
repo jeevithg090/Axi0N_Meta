@@ -237,6 +237,28 @@ def test_malformed_answer_is_asked_for_again_with_the_schema(tmp_path: Path) -> 
     assert "validation errors" in second["messages"][-1]["content"]
 
 
+def test_strict_schema_follows_settings(tmp_path: Path) -> None:
+    settings = Settings(
+        _env_file=None,
+        spark_open_base_url="https://api.meta.ai/v1",
+        spark_open_api_key="k",
+        spark_open_strict_schema=False,
+        rulecam_data_dir=tmp_path,
+    )
+    cache = ReplayCache(tmp_path / "replay", "replay", clock=FakeClock())
+    client = SparkOpenClient.from_settings(settings, cache=cache, clock=FakeClock())
+    from rulecam.verify.tier2 import DevilAnswer  # noqa: PLC0415
+
+    body = client._body([], DevilAnswer, "low")
+    assert body["response_format"]["json_schema"]["strict"] is False  # type: ignore[index]
+    assert (
+        make(tmp_path)[2]._body([], DevilAnswer, "low")["response_format"][  # type: ignore[index]
+            "json_schema"
+        ]["strict"]
+        is True
+    )
+
+
 def test_reasoning_store_rejects_paths(tmp_path: Path) -> None:
     store = ReasoningStore(tmp_path)
     ref = store.save("x")

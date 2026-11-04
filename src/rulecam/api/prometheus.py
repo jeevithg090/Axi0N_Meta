@@ -136,6 +136,33 @@ def health_url(base_url: str, *, strip_suffix: str = "") -> str:
     return f"{base}/health"
 
 
+def health_or_models(models_url: str, headers: Mapping[str, str]) -> Fetch:
+    """`http_health`, else an OpenAI-style `GET /models` with the client's key.
+
+    A hosted model API (the Meta API serving Tier 1) has no open `/health`; its `/models`
+    answering 200 to our key means requests would be served.
+
+    Args:
+        models_url: `<base>/models`.
+        headers: The client's auth headers.
+
+    Returns:
+        The fetch: the `/health` body, `{}` when only `/models` answered, else `None`.
+    """
+
+    def fetch(url: str) -> Mapping[str, object] | None:
+        body = http_health(url)
+        if body is not None:
+            return body
+        try:
+            response = httpx.get(models_url, headers=dict(headers), timeout=PROBE_TIMEOUT_S)
+        except httpx.HTTPError:
+            return None
+        return {} if response.status_code == HTTP_OK else None
+
+    return fetch
+
+
 def no_runpod_key(_: str) -> Mapping[str, object]:
     """The serverless body when no RunPod reader is configured: state `unknown`."""
     health = GpuHealth(state="unknown", up=False, serverless=True, error=NO_KEY)
@@ -143,7 +170,12 @@ def no_runpod_key(_: str) -> Mapping[str, object]:
 
 
 def dependency_probe(
-    service: str, base_url: str, *, strip_suffix: str = "", runpod: Fetch | None = None
+    service: str,
+    base_url: str,
+    *,
+    strip_suffix: str = "",
+    runpod: Fetch | None = None,
+    headers: Mapping[str, str] | None = None,
 ) -> HealthProbe:
     """The probe for one dependency: its open `/health`, or RunPod's state for an endpoint.
 
@@ -153,13 +185,19 @@ def dependency_probe(
         strip_suffix: A path suffix the base URL carries for its API (Glimmer's `/v1`).
         runpod: Reads a serverless endpoint's state (`RunPodServerless.fetch`); without it a
             serverless base URL reports `unknown`. The GPU URL itself is never polled.
+        headers: The client's auth headers: with them, a URL without `/health` falls back to
+            `GET <base_url>/models` (`health_or_models`).
 
     Returns:
         The probe.
     """
     endpoint = endpoint_id(base_url)
     if endpoint is None:
-        return HealthProbe(service, health_url(base_url, strip_suffix=strip_suffix))
+        url = health_url(base_url, strip_suffix=strip_suffix)
+        if headers is None:
+            return HealthProbe(service, url)
+        models = base_url.rstrip("/") + "/models"
+        return HealthProbe(service, url, fetch=health_or_models(models, headers))
     return HealthProbe(service, endpoint, fetch=runpod or no_runpod_key, serverless=True)
 
 
@@ -169,6 +207,7 @@ def dependency_probes(
     *,
     glimmer_runpod: Fetch | None = None,
     sam_runpod: Fetch | None = None,
+    glimmer_headers: Mapping[str, str] | None = None,
 ) -> list[HealthProbe]:
     """Probes for the configured dependencies: llama-server (Glimmer) and SAM.
 
@@ -177,6 +216,7 @@ def dependency_probes(
         sam_base_url: `SAM_BASE_URL`; `None` when runtime SAM is hosted.
         glimmer_runpod: Reads Glimmer's serverless state (with its RunPod key).
         sam_runpod: Reads SAM's serverless state (with its RunPod key).
+        glimmer_headers: Glimmer's auth headers, for a hosted API without `/health`.
 
     Returns:
         One probe per configured service.
@@ -184,7 +224,13 @@ def dependency_probes(
     probes = []
     if glimmer_base_url:
         probes.append(
-            dependency_probe("glimmer", glimmer_base_url, strip_suffix="/v1", runpod=glimmer_runpod)
+            dependency_probe(
+                "glimmer",
+                glimmer_base_url,
+                strip_suffix="/v1",
+                runpod=glimmer_runpod,
+                headers=glimmer_headers,
+            )
         )
     if sam_base_url:
         probes.append(dependency_probe("sam", sam_base_url, runpod=sam_runpod))

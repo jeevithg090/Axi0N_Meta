@@ -52,7 +52,7 @@ from rulecam.bus import Bus
 from rulecam.clients.errors import ClientConfigError
 from rulecam.clients.meta_hosted.sam import HostedSam31
 from rulecam.clients.meta_hosted.sam_wire import SAM_MODEL
-from rulecam.clients.open_weights.glimmer import GlimmerClient
+from rulecam.clients.open_weights.glimmer import GlimmerClient, glimmer_headers
 from rulecam.clients.transport import HttpxTransport, Transport
 from rulecam.config import Settings
 from rulecam.contracts import Chunk, Clock, EventRecord, Track
@@ -388,13 +388,13 @@ def build_tier1(
 
     A failure never passes silently: it becomes a `verifier_error` verdict that the policy sends
     to a person (`verify.guard`). While the circuit is open, the API's ticker runs `probe` (the
-    API passes Glimmer's dependency probe), by default llama-server's `/health`. With `tier0`
+    API passes Glimmer's dependency probe), by default `glimmer_probe`. With `tier0`
     (`build_tier0`), its crop-zoom findings are added to each prompt.
     """
     if settings.rulecam_mode == "replay":
         probe = None
     elif probe is None and endpoint_id(settings.glimmer_base_url) is None:
-        probe = http_probe(glimmer_health_url(settings.glimmer_base_url))
+        probe = glimmer_probe(settings)
     client = GlimmerClient.from_settings(settings, cache=cache, clock=clock, bus=bus)
     policy = BreakerPolicy(
         retries=settings.rulecam_verify_retries,
@@ -412,6 +412,19 @@ def build_tier1(
 def glimmer_health_url(base_url: str) -> str:
     """llama-server's `/health` for an OpenAI-style base URL (`…/v1` → `…/health`)."""
     return base_url.rstrip("/").removesuffix("/v1") + "/health"
+
+
+def glimmer_probe(settings: Settings) -> Callable[[], bool]:
+    """Whether the Tier 1 server answers: llama-server's `/health`, else `GET /models` with key.
+
+    A hosted OpenAI-compatible API (the Meta API serving Muse Spark as Tier 1) has no open
+    `/health`; its `/models` answers 200 to a valid key.
+    """
+    health = http_probe(glimmer_health_url(settings.glimmer_base_url))
+    models = http_probe(
+        settings.glimmer_base_url.rstrip("/") + "/models", headers=glimmer_headers(settings)
+    )
+    return lambda: health() or models()
 
 
 def build_runtime(

@@ -8,8 +8,9 @@ into chat or a file in the repo). Times are counted back from the start of the d
 
 | Model | Where | Endpoint | Warm cost |
 |---|---|---|---|
-| SAM 3.1 + DINOv2 + OSNet re-ID | RunPod serverless, RTX 4090, US-IL-1 **and US-NC-1** | `imz4qu1vzwp4z6` | $1.34/h |
-| Muse Glimmer 30B (llama.cpp) | RunPod serverless, RTX 4090, US-IL-1 **and US-NC-1** | `z000o8uch2wj4i` | $1.34/h |
+| SAM 3.1 + DINOv2 + OSNet re-ID | RunPod serverless, 24-48 GB GPUs, US-NC-1 and US-TX-3 | `imz4qu1vzwp4z6` | $0.75-1.75/h |
+| Muse Glimmer 30B (llama.cpp) | RunPod serverless, 24-48 GB GPUs, US-IL-1, US-NC-1, US-TX-3 | `z000o8uch2wj4i` | $0.75-1.75/h |
+| Muse Glimmer 30B, standby | RunPod serverless, 24-48 GB GPUs, any data center (no volume) | `kkj76vah84y5uj` | $0.75-1.75/h |
 | Muse Spark Open 816B-A42B (llama.cpp, Q4_K_S) | RunPod serverless, 8 x H100, EUR-NO-2 | `hljmhlgjyaacyv` | $43.12/h |
 | Llama Guard 4 12B (vLLM, FP8) | RunPod serverless, any 24-48 GB GPU, any region | `vzi5ij5gclndjc` | $0.75-1.75/h |
 | Llama Prompt Guard 2 86M | CPU, inside the API process | API pod `7nv0ifjo2tmk00` | none |
@@ -17,8 +18,9 @@ into chat or a file in the repo). Times are counted back from the start of the d
 | Hosted Glimmer (fallback only) | Routeway | `api.routeway.ai` | per call (`:free` model costs nothing) |
 
 SAM and Glimmer workers read their code and weights from one network volume per data center:
-`11ymk65bni` (US-IL-1) and `4q7tspgi9t` (US-NC-1). US-IL-1 often has no RTX 4090 left; the
-second data center is why the GPUs came back on the night of 3 to 4 Nov.
+`11ymk65bni` (US-IL-1, Glimmer only), `4q7tspgi9t` (US-NC-1) and `ysopmf0fjp` (US-TX-3). US-IL-1
+often has no RTX 4090 left; the other data centers and GPU types are why the GPUs came back on
+the night of 3 to 4 Nov.
 
 ## T-60 min
 
@@ -71,8 +73,8 @@ second data center is why the GPUs came back on the night of 3 to 4 Nov.
 
 | Symptom | What happens by itself | What to do |
 |---|---|---|
-| SAM endpoint cold or out of GPUs | The runtime falls back to hosted SAM 3.1 per camera (`sam_fallback_to_hosted` in the API log, `sam_fallbacks` in `/runtime/metrics`) | Nothing for the demo. Afterwards check `demo_warm.sh status` for throttled workers |
-| Glimmer endpoint down | With `GLIMMER_FALLBACK_BASE_URL` set, each Tier 1 call that gets no answer goes to hosted Glimmer instead (`model_failover` in the API log; 10 to 60 s a call). Without it, unverified candidates go to the human queue | If neither, say "it waits for a person" and show the queue |
+| SAM endpoint cold or out of GPUs | The runtime falls back to hosted SAM 3.1 per call after `SAM_HTTP_TIMEOUT_S` x `SAM_HTTP_ATTEMPTS` (set 25 x 1 for demos; `sam_fallback_to_hosted` in the API log, `sam_fallbacks` in `/runtime/metrics`) | Nothing for the demo. Afterwards check `demo_warm.sh status` for throttled workers |
+| Glimmer endpoint down | A Tier 1 call that gets no answer goes to the standby endpoint (`GLIMMER_STANDBY_BASE_URL`), then to hosted Glimmer (`GLIMMER_FALLBACK_*`; 10 to 60 s a call); `model_failover` in the API log. If all fail, unverified candidates go to the human queue | Say "it waits for a person" and show the queue |
 | Spark Open not warm or failing | Tier 2, plan audit and Ask review are skipped: Tier 1 decides alone and anything unsure goes to a person; Ask answers without the second check | Warm it 20 min earlier next time (`demo_warm.sh up`); do not wait for it on stage |
 | Llama Guard 4 down | The plan-time screen is skipped; the planner's own guardrails still decline identity rules | Nothing |
 | Prompt Guard 2 not loaded | `/runtime/metrics` shows `firewall: degraded`; candidates with scene text go to a person | Check `HF_TOKEN` on the API pod |

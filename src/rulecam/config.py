@@ -236,6 +236,11 @@ class Settings(BaseSettings):
     # SAM_BASE_URL is a RunPod serverless load balancer: its edge takes this RunPod API key as
     # `Authorization`, and SAM_API_KEY goes in `X-Rulecam-Key` to the worker.
     sam_edge_key: SecretStr | None = None
+    # Seconds one self-hosted SAM call may take (a RunPod cold start included) and how many tries
+    # it gets before the runtime falls back to hosted SAM for that call. 60 s x 2 waits up to
+    # 2 minutes on a throttled endpoint; for live demos 25 s x 1 (docs/demo-day.md).
+    sam_http_timeout_s: float = Field(default=60.0, gt=0.0, le=300.0)
+    sam_http_attempts: int = Field(default=2, ge=1, le=4)
     kasa_plug_host: str | None = None
     kasa_light_host: str | None = None
     whatsapp_token: SecretStr | None = None

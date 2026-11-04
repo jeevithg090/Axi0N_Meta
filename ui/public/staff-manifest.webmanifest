@@ -1,0 +1,24 @@
+{
+  "name": "Rulecam Staff",
+  "short_name": "Rulecam",
+  "description": "Camera alerts and tasks for the people on the floor: act, escalate, prove it.",
+  "id": "/staff",
+  "start_url": "/staff",
+  "scope": "/staff",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0E1113",
+  "theme_color": "#0E1113",
+  "lang": "en",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    { "src": "/staff-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/staff-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/staff-icon-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

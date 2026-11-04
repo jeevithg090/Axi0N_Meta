@@ -1,17 +1,22 @@
 "use client";
 
 import { DeclinedCardTile, RuleCardTile } from "@/components/ops/GalleryCards";
+import { OwnerOnly } from "@/components/OwnerOnly";
 import { useStream } from "@/lib/stream";
 import { usePlans } from "@/lib/usePlans";
 
 export default function CardGalleryPage() {
   const state = useStream();
-  const { plans, error } = usePlans();
+  const { plans, error, forbidden } = usePlans();
   const entries = Object.values(plans);
   return (
     <section aria-label="Rule cards">
       <h2>Rule cards</h2>
-      {error && <p className="muted">{error}</p>}
+      {forbidden ? (
+        <OwnerOnly what="The rule cards of this site" checking={false} />
+      ) : (
+        error && <p className="muted">{error}</p>
+      )}
       {entries.length === 0 && !error && <p className="muted">No approved plan yet.</p>}
       {entries.map(({ latest }) => (
         <div key={latest.plan_id}>

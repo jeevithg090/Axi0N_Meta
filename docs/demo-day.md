@@ -33,19 +33,16 @@ Not running:
 
 ## T-30 min
 
-1. On the Mac, start the API with the Meta API settings in `.env.live` (not `.env`: the tests
-   read `.env`, and `RULECAM_PROTOTYPE_MODE=true` or `RULECAM_MODE=live` there changes what they
-   expect):
+1. On the Mac, check that the API, the tunnel watchdog and keep-awake run (launchd starts them;
+   the API uses the Meta API settings in `.env.live`, not `.env`, which the tests read):
 
    ```bash
-   uv sync
-   set -a; . ./.env.live; set +a
-   ulimit -n 65536; uv run uvicorn rulecam.api.app:app --host 127.0.0.1 --port 8000
+   uv run python scripts/ops/mac_services.py status    # three lines: active
    ```
 
-   The tunnel watchdog keeps running on the Mac (`pgrep -fl tunnel_watchdog`; the site itself is
-   on Vercel). It replaces a dead tunnel and redeploys the site within about 2 minutes. Keep the
-   Mac awake and on the network for the whole demo.
+   If they do not, `uv run python scripts/ops/mac_services.py install`. The watchdog replaces a
+   dead tunnel and redeploys the site (on Vercel) within about 2 minutes. Keep the Mac on the
+   network for the whole demo.
 2. Check that the public address answers:
 
    ```bash

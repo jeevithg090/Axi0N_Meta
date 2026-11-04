@@ -39,11 +39,23 @@ the UI's origin.
 
 The site is the Vercel project `rulecam-live` (`https://rulecam-live.vercel.app`, `ui/` is
 linked to it). The API stays on the Mac behind a Cloudflare quick tunnel, which the watchdog
-starts and keeps up:
+starts and keeps up. Three launchd agents run them and start them again if they exit:
 
 ```bash
-uv run python scripts/ops/tunnel_watchdog.py >> data/tunnel/watchdog.log 2>&1
+uv run python scripts/ops/mac_services.py install    # or: status, uninstall
 ```
+
+- `com.rulecam.api` runs `scripts/ops/run_api_live.sh` (the API with `.env.live`; log
+  `data/logs/api.log`).
+- `com.rulecam.tunnel` runs `scripts/ops/tunnel_watchdog.py` (log `data/tunnel/watchdog.log`).
+- `com.rulecam.awake` runs `caffeinate -dims`.
+
+macOS does not let launchd jobs read `~/Documents`, `~/Desktop` or `~/Downloads`, so the repo
+lives in `~/Code/Axi0N_Meta`, with a link at its old place in `~/Documents/Meta Hack`. The agents
+start at login only from `~/Library/LaunchAgents`; on this Mac that folder belonged to root, and
+until `sudo chown $USER ~/Library/LaunchAgents` (then `install` again) the agents run but do not
+start at login (`install` says so). Tested on 4 Nov: after `kill -9` of the API, launchd had it
+back in 9 s with its four camera loops.
 
 Every 30 s it checks the API on 127.0.0.1, the tunnel and the site's `/rulecam-api/health`. When
 the tunnel fails four times in a row (or no cloudflared runs) it starts a new tunnel, sets the
@@ -51,8 +63,8 @@ site's API address to it, redeploys the site and writes `PUBLIC_TUNNEL_URL` in `
 only the site fails four times it redeploys the site. Deploys are at least 5 minutes apart. It
 keeps a tunnel that already answers, and its tunnel outlives it. Tested on 4 Nov by killing the
 tunnel: noticed after 23 s, new tunnel 9 s later, site redeployed 52 s after that. The
-phone-pairing link reads `PUBLIC_TUNNEL_URL` when the API starts, so restart the API after a
-tunnel change before pairing a phone.
+phone-pairing link reads `PUBLIC_TUNNEL_URL` when the API starts, so after a new tunnel the
+login service also restarts the API (`--after-new-tunnel`).
 
 The project has two production settings: `NEXT_PUBLIC_RULECAM_API` (the tunnel address; it is
 built into the pages, and `/rulecam-api/*` is passed on to it) and `RULECAM_PROXY_SECRET` (the

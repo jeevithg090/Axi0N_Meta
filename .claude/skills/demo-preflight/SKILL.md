@@ -19,6 +19,7 @@ with `NEXT_PUBLIC_RULECAM_API` set to it (never `localhost`, or visitors count a
 ## 1. Local API and tunnel
 
 ```bash
+uv run python scripts/ops/mac_services.py status   # api, tunnel, awake: active
 curl -s http://127.0.0.1:8000/health      # ok true, runtime true, models.tier1 muse-spark-1.3 (meta-api)
 pgrep -fl cloudflared                      # one tunnel, to :8000
 pgrep -fl tunnel_watchdog                  # replaces a dead tunnel and redeploys the site

@@ -16,7 +16,8 @@ this checks the API on 127.0.0.1, the tunnel and the site's `/rulecam-api/health
 At start it keeps the tunnel in the env file's `PUBLIC_TUNNEL_URL` while that answers. Its
 cloudflared runs in its own session, so stopping the watchdog leaves the tunnel up. Site deploys
 are at least `--deploy-gap` seconds apart (Vercel Hobby allows 100 a day). The phone-pairing link
-reads `PUBLIC_TUNNEL_URL` when the API starts: restart the API after a change to pair a phone.
+reads `PUBLIC_TUNNEL_URL` when the API starts, so `--after-new-tunnel` takes a command that
+restarts the API (the login service passes `launchctl kickstart -k ...`).
 """
 
 # ruff: noqa: S603, S607 - cloudflared, pgrep and the Vercel CLI, fixed arguments
@@ -31,7 +32,7 @@ import shutil
 import subprocess
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
@@ -160,6 +161,7 @@ class Watchdog:
     cloudflared: str
     vercel: list[str]
     deploy_gap_s: float
+    after_new_tunnel: list[str] = field(default_factory=list)
     url: str | None = None
     last_deploy: float = float("-inf")
     clock: Callable[[], float] = time.monotonic
@@ -208,11 +210,7 @@ class Watchdog:
             url = tunnel_url(out.read_text())
             if url and answers(f"{url}/health"):
                 log.info("new tunnel %s (pid %d, log %s)", url, process.pid, out)
-                self.url = url
-                self.env_file.write_text(
-                    with_setting(self.env_file.read_text(), "PUBLIC_TUNNEL_URL", url)
-                )
-                self.redeploy()
+                self.switch_to(url)
                 return True
             if process.poll() is not None:
                 break
@@ -220,6 +218,17 @@ class Watchdog:
         log.warning("no working tunnel after %.0f s; see %s", wait_s, out)
         process.kill()
         return False
+
+    def switch_to(self, url: str) -> None:
+        """Use `url` from now on: write it in the env file, redeploy the site, run the hook."""
+        self.url = url
+        self.env_file.write_text(with_setting(self.env_file.read_text(), "PUBLIC_TUNNEL_URL", url))
+        self.redeploy()
+        if self.after_new_tunnel:
+            done = subprocess.run(
+                self.after_new_tunnel, capture_output=True, text=True, check=False
+            )
+            log.info("after-new-tunnel command exited %d", done.returncode)
 
     def redeploy(self) -> bool:
         """Set the site's API address to the tunnel and deploy it to production."""
@@ -290,6 +299,7 @@ def main() -> None:
     parser.add_argument("--cloudflared", default=shutil.which("cloudflared") or "cloudflared")
     parser.add_argument("--vercel", default="npx --yes vercel@65.7.0", help="Vercel CLI command")
     parser.add_argument("--deploy-gap", type=float, default=300.0, help="seconds between deploys")
+    parser.add_argument("--after-new-tunnel", default="", help="command to run after a new tunnel")
     options = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per check is noise
@@ -301,6 +311,7 @@ def main() -> None:
         cloudflared=options.cloudflared,
         vercel=shlex.split(options.vercel),
         deploy_gap_s=options.deploy_gap,
+        after_new_tunnel=shlex.split(options.after_new_tunnel),
     ).run(options.every, options.failures)
 
 

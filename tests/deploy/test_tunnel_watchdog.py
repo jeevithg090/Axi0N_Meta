@@ -149,3 +149,17 @@ def test_no_deploy_when_the_address_cannot_be_set(
     monkeypatch.setenv("FAIL_env_add", "1")
     assert not dog.redeploy()
     assert [c["args"][0:2] for c in read_calls(calls)] == [["env", "rm"], ["env", "add"]]
+
+
+def test_switch_to_writes_the_address_redeploys_and_runs_the_hook(
+    watchdog: tuple[Any, Path, Clock], tmp_path: Path
+) -> None:
+    dog, calls, _ = watchdog
+    dog.env_file.write_text("A=1\nPUBLIC_TUNNEL_URL=https://old.trycloudflare.com\n")
+    marker = tmp_path / "api-restarted"
+    dog.after_new_tunnel = [sys.executable, "-c", f"open({str(marker)!r}, 'w').close()"]
+    dog.switch_to("https://next.trycloudflare.com")
+    assert dog.url == "https://next.trycloudflare.com"
+    assert "PUBLIC_TUNNEL_URL=https://next.trycloudflare.com" in dog.env_file.read_text()
+    assert read_calls(calls)[1]["stdin"] == "https://next.trycloudflare.com"
+    assert marker.exists()

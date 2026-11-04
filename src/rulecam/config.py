@@ -235,6 +235,8 @@ class Settings(BaseSettings):
     planner_survey_window_s: float = (
         60.0  # seconds of recent chunks the planner samples frames from
     )
+    # Smart glasses (`/wearables`): how long a look waits for Glimmer before Muse Spark looks.
+    rulecam_wearables_glimmer_timeout_s: float = Field(default=25.0, gt=0.0, le=300.0)
 
     @property
     def replay_dir(self) -> Path:

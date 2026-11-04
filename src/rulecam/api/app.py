@@ -93,6 +93,7 @@ from rulecam.api.prometheus import (
     serverless_gpu_rate,
 )
 from rulecam.api.site_tools import build_site_tools
+from rulecam.api.wearables import build_wearables
 from rulecam.api.ws import mirror_bus
 from rulecam.ask import (
     AskAgent,
@@ -1042,6 +1043,15 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 dependencies=_OWNER,
             ),
             extensions.router(_OWNER),
+            build_wearables(
+                settings,
+                cache=cache,
+                clock=clock,
+                bus=bus,
+                perception=perception,
+                chain=chain,
+                dependencies=_OWNER,
+            ),
             *((webhook,) if (webhook := response.webhook_router(false_alarm)) is not None else ()),
             *((links,) if (links := response.telegram_links_router(_OWNER)) is not None else ()),
         ),

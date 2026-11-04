@@ -239,7 +239,8 @@ class Settings(BaseSettings):
     # frames instead of leaving every one pending for a person (`worker.spark_review`).
     rulecam_dispute_spark_fallback: bool = True
     # Chain a `coverage` record when a camera goes BLIND or recovers (`runtime.coverage_log`).
-    rulecam_coverage_log: bool = True
+    # Off by default: moving-camera stock clips flap `moved`; turn it on for fixed site cameras.
+    rulecam_coverage_log: bool = False
 
     @property
     def replay_dir(self) -> Path:

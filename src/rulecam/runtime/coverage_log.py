@@ -7,6 +7,10 @@ new chunk of every camera (the first chunk's first frame is the camera's referen
 one `coverage` record per confirmed change: camera id, `state` (`blind` / `ok`), `reason`,
 `moved` and the change's camera time. It only records: it changes no rule decision.
 
+Off by default (`RULECAM_COVERAGE_LOG`): on stock clips filmed by a moving camera the watchdog
+reads the view change as `moved` and flaps every few chunks (222 records in one evening of
+warehouse test runs, 4 Nov). Turn it on for fixed site cameras.
+
 The API runs `poll` back to back in a worker thread (`AppServices.pollers`).
 """
 
@@ -75,9 +79,18 @@ class CoverageLog:
         self._sleep = sleep
         self._poll_s = poll_s
         self._done: dict[str, datetime] = {}
+        self._referenced: set[str] = set()
+        self._primed = False
 
     def poll(self) -> None:
-        """Observe every camera's new chunks, then wait `poll_s`."""
+        """Observe every camera's new chunks, then wait `poll_s`.
+
+        The first poll only notes where each camera's recording stands: chunks recorded before
+        the API started are history, not coverage the watchdog saw live.
+        """
+        if not self._primed:
+            self._done.update(self._chunks.last_seen())
+            self._primed = True
         for camera_id, last in sorted(self._chunks.last_seen().items()):
             since = self._done.get(camera_id)
             for chunk in self._chunks.chunks(camera_id, since or EPOCH, last):
@@ -91,8 +104,9 @@ class CoverageLog:
         """Observe one chunk; chain and return a `coverage` record if the state changed."""
         try:
             frames = read_frames(Path(chunk.path), chunk.n_frames)
-            if chunk.camera_id not in self._done:
+            if chunk.camera_id not in self._referenced:
                 self._watchdog.set_reference(chunk.camera_id, make_reference(frames[0]))
+                self._referenced.add(chunk.camera_id)
             verdict = self._watchdog.observe(chunk, frames)
         except (ValueError, OSError) as exc:  # unreadable or out-of-order chunk: skip it
             _log.warning("coverage_chunk_skipped", chunk_id=chunk.chunk_id, error=str(exc))

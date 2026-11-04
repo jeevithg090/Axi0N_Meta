@@ -65,6 +65,7 @@ def test_dark_spell_is_chained_once_going_blind_and_once_coming_back(tmp_path: P
     lister = Chunks([])
     chain = EventChain(tmp_path / "chain", "demo", clock=FakeClock(EPOCH))
     log = CoverageLog(lister, chain, sleep=lambda _: None)
+    log.poll()  # primes on an empty index
     for index, dark in enumerate(pattern):
         lister.known.append(_chunk(tmp_path, index, dark=dark))
         log.poll()
@@ -74,6 +75,15 @@ def test_dark_spell_is_chained_once_going_blind_and_once_coming_back(tmp_path: P
     assert states == [("blind", "dark"), ("ok", None)]
     assert {r.kind for r in records} == {"coverage"}
     assert records[0].payload["camera_id"] == "cam1"
+
+
+def test_chunks_recorded_before_start_are_not_observed(tmp_path: Path) -> None:
+    lister = Chunks([_chunk(tmp_path, 0, dark=True), _chunk(tmp_path, 1, dark=True)])
+    chain = EventChain(tmp_path / "chain", "demo", clock=FakeClock(EPOCH))
+    log = CoverageLog(lister, chain, sleep=lambda _: None)
+    log.poll()
+    with pytest.raises(FileNotFoundError):
+        read_chain(chain.path_for(EPOCH.date()))
 
 
 def test_unreadable_chunk_is_skipped(tmp_path: Path) -> None:

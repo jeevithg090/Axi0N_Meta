@@ -184,6 +184,9 @@ class Settings(BaseSettings):
     spark_open_edge_key: SecretStr | None = None
     spark_open_model: str = "muse-spark-open"
     spark_open_hardware: str = "runpod-8xH100-llama.cpp-Q4_K_S"
+    # State the JSON schema in a system message too: llama-server's Muse Spark template does not
+    # enforce `response_format` (checked 4 Nov 2026). Applies to SPARK_OPEN_BASE_URL only.
+    spark_open_schema_in_prompt: bool = True
     # Hosted Spark Open used only when the server above gives no usable answer (e.g. Routeway,
     # https://api.routeway.ai/v1, model `muse-spark-open`; its key is the bearer).
     spark_open_fallback_base_url: str | None = None

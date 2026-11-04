@@ -8,8 +8,12 @@ refuses it when the model flags one of the identity categories of its hazard tax
 - **S10 Hate**: rules that single people out by a protected attribute (race, religion, origin,
   disability, gender, ...).
 
-Other categories Llama Guard reports (violence, crimes, ...) are returned for the planner to
-show, but do not refuse on their own: a safety rule is often *about* a hazard.
+The screen asks only about those two: the other categories are left out of the model's prompt
+(`excluded_category_keys`, a chat-template argument of Llama Guard 4 that vLLM passes through).
+With all fourteen, Llama Guard filed "flag customers who look Muslim" under S2 (crimes) instead
+of S10, and loss-prevention rules ("someone bags a product without paying") risk the same; with
+only S7 and S10 every identity request in our checks was refused and every safety rule passed.
+`classify` can still be called with every category.
 
 Llama Guard 4 runs on an OpenAI-compatible server (vLLM; `scripts/llama_guard_pod/`): one
 `POST /chat/completions` with the request as the user turn; the model answers `safe`, or `unsafe`
@@ -72,6 +76,7 @@ CATEGORY_NAMES: Mapping[str, str] = {
 # The categories that make a rule about who people are: refused at plan time.
 IDENTITY_CATEGORIES = frozenset({"S7", "S10"})
 _CODE = re.compile(r"\bS(1[0-4]|[1-9])\b")
+NOT_IDENTITY = tuple(code for code in CATEGORY_NAMES if code not in IDENTITY_CATEGORIES)
 
 
 @dataclass(frozen=True)
@@ -188,11 +193,14 @@ class LlamaGuardClient:
         """The served model name."""
         return self._model
 
-    def classify(self, text: str) -> tuple[bool, tuple[str, ...], int]:
+    def classify(
+        self, text: str, *, exclude: tuple[str, ...] = ()
+    ) -> tuple[bool, tuple[str, ...], int]:
         """Classify one user turn.
 
         Args:
             text: The text to screen (cut to `MAX_TEXT_CHARS`).
+            exclude: Category codes left out of the model's prompt.
 
         Returns:
             `(safe, categories, latency_ms)`.
@@ -202,12 +210,14 @@ class LlamaGuardClient:
             ModelHTTPError: If the server keeps failing.
             ModelTransportError: On timeouts and connection errors.
         """
-        body = {
+        body: dict[str, object] = {
             "model": self._model,
             "messages": [{"role": "user", "content": text[:MAX_TEXT_CHARS]}],
             "max_tokens": MAX_TOKENS,
             "temperature": 0.0,
         }
+        if exclude:
+            body["chat_template_kwargs"] = {"excluded_category_keys": list(exclude)}
         started = self._monotonic()
         try:
             reply = self._sender.send({"method": "POST", "path": CHAT_PATH, "json": body})
@@ -241,7 +251,7 @@ def screen_rule_text(text: str, client: LlamaGuardClient) -> GuardVerdict:
     """
     if not text.strip():
         return GuardVerdict(True, (), False, "", 0, client.model)
-    safe, codes, latency_ms = client.classify(text)
+    safe, codes, latency_ms = client.classify(text, exclude=NOT_IDENTITY)
     refused = any(code in IDENTITY_CATEGORIES for code in codes)
     return GuardVerdict(
         safe=safe,

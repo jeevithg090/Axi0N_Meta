@@ -92,6 +92,16 @@ def test_wire_format_sends_both_keys_and_one_user_turn() -> None:
     assert body["model"] == "llama-guard-4-12b"
     assert body["messages"] == [{"role": "user", "content": "wear a hard hat in zone A"}]
     assert body["temperature"] == 0.0
+    assert "chat_template_kwargs" not in body
+
+
+def test_screen_asks_only_about_the_identity_categories() -> None:
+    seen: list[httpx.Request] = []
+    screen_rule_text("track the cashier named John", client_for("unsafe\nS7", seen))
+    excluded = json.loads(seen[0].content)["chat_template_kwargs"]["excluded_category_keys"]
+    assert "S7" not in excluded
+    assert "S10" not in excluded
+    assert len(excluded) == 12
 
 
 def test_missing_content_is_an_error() -> None:

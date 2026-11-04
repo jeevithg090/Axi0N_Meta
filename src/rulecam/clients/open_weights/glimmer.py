@@ -225,7 +225,7 @@ def request_hash(body: Mapping[str, object]) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def _strip_fence(content: str) -> str:
+def strip_fence(content: str) -> str:
     """Drop a Markdown code fence some hosts wrap JSON replies in."""
     text = content.strip()
     if text.startswith("```"):
@@ -293,7 +293,7 @@ def parse_completion(body: object) -> Completion:
         raise ModelResponseError(msg)
     reasoning = message.get("reasoning_content")
     return Completion(
-        content=_strip_fence(content),
+        content=strip_fence(content),
         reasoning=reasoning if isinstance(reasoning, str) else "",
         finish_reason=finish,
         usage=usage_of(body) if isinstance(body, Mapping) else {},

@@ -20,6 +20,7 @@ Every call asks for JSON-schema-constrained output, goes through the replay cach
 
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
@@ -30,7 +31,12 @@ from pydantic import BaseModel, ValidationError
 from rulecam.bus import Bus
 from rulecam.clients.errors import ModelResponseError
 from rulecam.clients.open_weights.evidence_log import EvidenceLog, InferenceLine
-from rulecam.clients.open_weights.glimmer import request_hash
+from rulecam.clients.open_weights.glimmer import (
+    RETRY_PROMPT,
+    SCHEMA_PROMPT,
+    request_hash,
+    strip_fence,
+)
 from rulecam.clients.open_weights.llama_edge import KEY_HEADER
 from rulecam.clients.open_weights.reasoning import ReasoningStore, reasoning_id
 from rulecam.clients.ratelimit import TokenBucket
@@ -67,6 +73,7 @@ DEFAULT_TIMEOUT_S = 90.0
 DEFAULT_MAX_TOKENS = 4096
 TEAM_RPM = 120.0
 AUTH_SCHEME = "Api-Key"
+JSON_ATTEMPTS = 2  # a reply that does not match the schema is asked for once more
 Effort = Literal["low", "medium", "high"]
 
 
@@ -99,6 +106,8 @@ class SparkOpenConfig:
         max_tokens: Output cap, including reasoning.
         segment: Relay HUD segment name.
         hardware: What serves it, for the evidence log.
+        schema_in_prompt: Also state the JSON schema in a system message (llama-server's
+            Muse Spark template does not enforce `response_format`, 4 Nov 2026).
     """
 
     model: str = "meta-models/muse-spark-open-1026"
@@ -106,6 +115,7 @@ class SparkOpenConfig:
     max_tokens: int = DEFAULT_MAX_TOKENS
     segment: str = "verify"
     hardware: str = "baseten"
+    schema_in_prompt: bool = False
 
 
 @dataclass(frozen=True)
@@ -119,6 +129,7 @@ class SparkOpenTarget:
     provider: str
     model: str
     hardware: str
+    schema_in_prompt: bool = False
 
 
 def with_model(model: str) -> Callable[[Mapping[str, object]], Mapping[str, object]]:
@@ -179,6 +190,7 @@ def spark_open_target(settings: Settings) -> SparkOpenTarget:
             provider=OWN_PROVIDER,
             model=settings.spark_open_model,
             hardware=settings.spark_open_hardware,
+            schema_in_prompt=settings.spark_open_schema_in_prompt,
         )
     key = settings.baseten_api_key.get_secret_value() if settings.baseten_api_key else ""
     return SparkOpenTarget(
@@ -261,6 +273,7 @@ class SparkOpenClient:
             model=target.model,
             images_supported=settings.spark_open_images_supported,
             hardware=target.hardware,
+            schema_in_prompt=target.schema_in_prompt,
         )
         http = HttpxTransport(
             target.base_url,
@@ -297,6 +310,13 @@ class SparkOpenClient:
     def _body(
         self, messages: list[dict[str, object]], schema: type[BaseModel], effort: Effort
     ) -> dict[str, object]:
+        if self._config.schema_in_prompt:
+            text = json.dumps(schema.model_json_schema(), separators=(",", ":"))
+            hint: dict[str, object] = {
+                "role": "system",
+                "content": SCHEMA_PROMPT.format(schema=text),
+            }
+            messages = [hint, *messages]
         return {
             "model": self._config.model,
             "messages": messages,
@@ -332,27 +352,38 @@ class SparkOpenClient:
             The answer, the verbatim reasoning and its stored reference.
 
         Raises:
-            ModelResponseError: If the reply is missing or does not match the schema.
+            ModelResponseError: If the reply is missing or twice does not match the schema.
             ModelHTTPError: If the API keeps failing.
             ModelTransportError: On timeouts and connection errors.
         """
-        body = self._body(messages, schema, effort)
         started = self._monotonic()
-        request_id: str | None = None
-        ok = False
-        try:
-            reply = self._sender.send({"method": "POST", "path": CHAT_PATH, "json": body})
-            content, reasoning, request_id = _parse(reply.reply.body)
-            answer = schema.model_validate_json(content)
-            ok = True
-        except ValidationError as exc:
-            msg = f"Spark Open answer does not match {schema.__name__}"
-            raise ModelResponseError(msg) from exc
-        finally:
-            latency_ms = max(0, round((self._monotonic() - started) * 1000))
-            self._record(body, latency_ms, ok=ok, request_id=request_id, camera_id=camera_id)
-        reasoning_ref = self._reasoning.save(reasoning)
-        return SparkReply(answer, reasoning, reasoning_ref, request_id, latency_ms)
+        for attempt in range(1, JSON_ATTEMPTS + 1):
+            body = self._body(messages, schema, effort)
+            request_id: str | None = None
+            ok = False
+            try:
+                reply = self._sender.send({"method": "POST", "path": CHAT_PATH, "json": body})
+                content, reasoning, request_id = _parse(reply.reply.body)
+                answer = schema.model_validate_json(strip_fence(content))
+                ok = True
+            except ValidationError as exc:
+                if attempt == JSON_ATTEMPTS:
+                    msg = f"Spark Open answer does not match {schema.__name__} twice"
+                    raise ModelResponseError(msg) from exc
+                error = f"{exc.error_count()} validation errors"
+                _log.warning("spark_open_malformed_json", attempt=attempt, error=error)
+                messages = [
+                    *messages,
+                    {"role": "user", "content": RETRY_PROMPT.format(error=error)},
+                ]
+                continue
+            finally:
+                latency_ms = max(0, round((self._monotonic() - started) * 1000))
+                self._record(body, latency_ms, ok=ok, request_id=request_id, camera_id=camera_id)
+            reasoning_ref = self._reasoning.save(reasoning)
+            return SparkReply(answer, reasoning, reasoning_ref, request_id, latency_ms)
+        msg = "unreachable: the loop returns or raises"
+        raise AssertionError(msg)
 
     def _record(
         self,

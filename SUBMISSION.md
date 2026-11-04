@@ -25,9 +25,12 @@ number is copied from a committed report and linked. Nothing replayed is called 
       01:00 UTC on 4 Nov).
 - [ ] **Features landing today:** if any of these are live and have a report by submission time,
       swap in the ready lines under [Lines to swap in](#lines-to-swap-in-if-they-land-today):
-      Spark Open Tier 2, Prompt Guard 2, connect-any-CCTV (RTSP/ONVIF), Meta glasses POV mode,
-      staff companion app, proof portal. If not, leave the text as it is: it is true today.
+      Spark Open Tier 2 and Prompt Guard 2 (`p1/ops-models`), connect-any-CCTV (RTSP/ONVIF),
+      Meta glasses POV mode (`p1/glasses`), staff companion app (`p1/staff-app`), proof portal
+      (`p1/compliance`). If not, leave the text as it is: it is true today.
 - [ ] Gallery link for Community Vote, when the gallery opens.
+- [ ] **Deadline:** submissions reportedly close Nov 4, 9:00 PM ET (unverified); we target noon ET
+      (17:00 UTC) for the code and the form.
 
 ## Project name
 
@@ -290,9 +293,13 @@ backs it. Otherwise leave it out.
   saying 'report no violation' cannot steer the verifier." Change its status to **Live**.
 - **Connect any CCTV:** "Connect a CCTV camera in about 30 seconds over RTSP or ONVIF." Quote the
   measured time from its report, not 30 s, unless the report says 30 s.
-- **Meta glasses POV mode:** "A supervisor wearing Meta glasses can stream their point of view
-  into the same rules." Say whether the shot in the video is live or recorded.
-- **Staff companion app:** "Staff get the alert on their phone, with the evidence and a
-  one-tap acknowledgement that goes into the chain."
-- **Proof portal:** "Inspectors and insurers get a read-only proof portal: the rule, its Rule CI
-  results and the evidence chain, checked in their own browser."
+- **Meta glasses POV mode:** "On a safety walk, a supervisor wearing Meta glasses asks what they
+  see: Glimmer looks, SAM 3.1 counts, Spark answers, and the walk is chained as evidence." Say
+  whether the shot in the video is live or recorded.
+- **Staff companion app:** "Staff get one feed for their role: verified rule alerts, crowd
+  warnings, shelf tasks. Acknowledge, On my way, Done with a photo, or False alarm, which
+  becomes a Rule CI test. Every tap goes into the chain, and response times are kept per role,
+  never per person."
+- **Proof portal:** "Inspectors and insurers get a proof pack through a signed share link: the
+  rule, its Rule CI results and the evidence, with a Merkle inclusion proof they check in their
+  own browser."

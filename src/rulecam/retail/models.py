@@ -14,7 +14,7 @@ from pydantic import Field
 
 from rulecam.contracts import Frozen
 
-CheckKind = Literal["queue", "hazard", "shelf"]
+CheckKind = Literal["queue", "hazard", "shelf", "exit"]
 TaskStatus = Literal["open", "on_my_way", "done", "false_alarm"]
 BoxGrid = list[float]
 """`[x1, y1, x2, y2]` on a 0-1000 grid over an image's width and height."""
@@ -199,6 +199,7 @@ class Watch(Frozen):
     every_s: float = Field(ge=15, le=86400)
     role: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,31}$")
     focus: str = Field(default="", max_length=500)
+    max_blocked_s: float | None = Field(default=None, ge=0, le=86400)
     advice_id: str | None = None
     created_at: datetime
     active: bool = True
@@ -213,6 +214,9 @@ class WatchRequest(Frozen):
     every_s: float = Field(default=60, ge=15, le=86400)
     role: str = Field(default="floor", pattern=r"^[a-z][a-z0-9_-]{0,31}$")
     focus: str = Field(default="", max_length=500)
+    max_blocked_s: float | None = Field(
+        default=None, ge=0, le=86400, description="Exit watches: alert after blocked this long."
+    )
 
 
 class StaffTask(Frozen):

@@ -190,13 +190,32 @@ class RetailService:
         finding = checker.check(camera_id, instant, watch)
         if not finding.act:
             self._close_seen_fixed(finding)
+        already = self._open_task(finding)
+        if already is not None:  # staff already have this one: no second alert or task
+            return self.findings.add(finding.model_copy(update={"task_id": already.id}))
         finding = self.desk.dispatch(finding, role or (watch.role if watch else None))
         return self.findings.add(finding)
 
+    def _open_task(self, finding: Finding) -> StaffTask | None:
+        """The open task for the same camera and kind, when the finding would open another."""
+        if not finding.act or finding.kind not in {"shelf", "hazard", "exit"}:
+            return None
+        kind = task_kind(finding.kind)
+        return next(
+            (
+                t
+                for t in self.tasks_for(open_only=True)
+                if t.kind == kind and t.camera_id == finding.camera_id
+            ),
+            None,
+        )
+
     def _close_seen_fixed(self, finding: Finding) -> None:
         """A clean re-check of a camera closes its open tasks of that kind: seen fixed."""
+        if finding.kind == "queue":
+            return
         for task in self.tasks_for(open_only=True):
-            if task.kind == finding.kind and task.camera_id == finding.camera_id:
+            if task.kind == task_kind(finding.kind) and task.camera_id == finding.camera_id:
                 self._close(
                     task,
                     "camera",
@@ -232,6 +251,7 @@ class RetailService:
             every_s=request.every_s,
             role=request.role,
             focus=request.focus,
+            max_blocked_s=request.max_blocked_s,
             advice_id=advice_id,
             created_at=self._clock.now(),
         )
@@ -550,6 +570,11 @@ class RetailService:
             "asks": self.asks(8),
             "brief": self.last_brief.model_dump(mode="json") if self.last_brief else None,
         }
+
+
+def task_kind(kind: str) -> str:
+    """The staff task a check opens: `shelf` for gaps, `hazard` for spills and blocked exits."""
+    return "shelf" if kind == "shelf" else "hazard"
 
 
 def image_resolver(dirs: Sequence[Path]) -> Callable[[str], Path | None]:

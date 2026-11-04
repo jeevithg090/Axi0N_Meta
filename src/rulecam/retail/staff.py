@@ -24,10 +24,12 @@ from rulecam.retail.store import TaskBoard
 _log = get_logger(__name__)
 
 BUTTONS: Final = ("On my way", "False alarm")
-DEFAULT_ROLES: Final = {"queue": "tills", "hazard": "floor", "shelf": "stock"}
+DEFAULT_ROLES: Final = {"queue": "tills", "hazard": "floor", "shelf": "stock", "exit": "floor"}
 DETECTED_LABEL: Final = "retail_finding"
+TASK_KINDS: Final = frozenset({"shelf", "hazard", "exit"})
 FIXED_LABELS: Final = {"hazard": "hazard_cleared", "shelf": "gap_refilled"}
 TITLES: Final = {
+    "exit": "Fire exit blocked",
     "queue": "Checkout",
     "hazard": "Floor hazard",
     "shelf": "Restock",
@@ -75,7 +77,7 @@ class StaffDesk:
         if not finding.act:
             return finding
         who = role or DEFAULT_ROLES[finding.kind]
-        task = self._task(finding, who) if finding.kind in {"shelf", "hazard"} else None
+        task = self._task(finding, who) if finding.kind in TASK_KINDS else None
         picture = self._image(finding.evidence.marked) if finding.evidence.marked else None
         title = f"{TITLES[finding.kind]}: {finding.camera_name or finding.camera_id}"
         body = finding.staff_message or finding.headline
@@ -187,6 +189,8 @@ def task_items(finding: Finding) -> list[str]:
             for g in (gaps if isinstance(gaps, list) else [])
             if isinstance(g, dict)
         ]
+    if finding.kind == "exit":
+        return [f"fire exit: {finding.detail.get('what') or 'blocked'}"]
     hazards = finding.detail.get("hazards")
     items = []
     for h in hazards if isinstance(hazards, list) else []:

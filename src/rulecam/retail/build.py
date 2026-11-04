@@ -24,6 +24,7 @@ from rulecam.retail.advice import AdviceWriter
 from rulecam.retail.api import Transcribe, retail_router
 from rulecam.retail.brief import BriefWriter
 from rulecam.retail.checks import HazardChecker, QueueChecker, ShelfChecker, Site
+from rulecam.retail.exits import ExitChecker
 from rulecam.retail.models import CheckKind
 from rulecam.retail.proof import ProofChecker
 from rulecam.retail.service import CardBook, Checker, ImageChecker, RetailService, image_resolver
@@ -112,7 +113,24 @@ def build_retail(
         spark=spark, files=spark, sam=perception.hosted, out_dir=shelf_marked, frames=frames
     )
     shelf = ShelfChecker(scanner, site, clock, glimmer=glimmer, glimmer_model=glimmer_model)
-    checkers: dict[CheckKind, Checker] = {"queue": queue, "hazard": hazard, "shelf": shelf}
+    exits = ExitChecker(
+        spark=spark,
+        files=spark,
+        sam=perception.hosted,
+        frames=frames,
+        site=site,
+        clock=clock,
+        marks_dir=marks,
+        history=lambda cam, kind: [
+            f for f in findings.recent(limit=50, kind=kind) if f.camera_id == cam
+        ],
+    )
+    checkers: dict[CheckKind, Checker] = {
+        "queue": queue,
+        "hazard": hazard,
+        "shelf": shelf,
+        "exit": exits,
+    }
     image_checkers: dict[CheckKind, ImageChecker] = {"hazard": hazard, "shelf": shelf}
     desk = StaffDesk(
         notifier=outbound(response),

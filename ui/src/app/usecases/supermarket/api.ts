@@ -4,7 +4,7 @@
 import { ApiError, withCsrf } from "@/lib/api";
 import { API_PROXY } from "@/lib/config";
 
-export type CheckKind = "queue" | "hazard" | "shelf";
+export type CheckKind = "queue" | "hazard" | "shelf" | "exit";
 export type TaskStatus = "open" | "on_my_way" | "done" | "false_alarm";
 
 export interface ModelCall {

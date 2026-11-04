@@ -309,7 +309,7 @@ export function FindingCard({ finding }: { finding: Finding }) {
   );
 }
 
-const KINDS: CheckKind[] = ["queue", "hazard", "shelf"];
+const KINDS: CheckKind[] = ["queue", "hazard", "shelf", "exit"];
 
 export function WatchPanel({
   cameras,

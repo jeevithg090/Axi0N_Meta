@@ -20,9 +20,14 @@ describe("Landing", () => {
 
   it("shows the four steps and every Meta model with its status", () => {
     render(<Landing />);
-    for (const s of STEPS) expect(screen.getByText(new RegExp(`· ${s.name}$`))).toBeTruthy();
+    const steps = screen.getByRole("list", { name: "How a rule goes live" });
+    for (const s of STEPS) {
+      expect(within(steps).getByRole("heading", { name: s.name })).toBeTruthy();
+      expect(within(steps).getByText(s.text)).toBeTruthy();
+    }
+    const table = screen.getByRole("table");
     for (const m of MODELS) {
-      const row = screen.getByText(m.model).closest("tr")!;
+      const row = within(table).getByText(m.model).closest("tr")!;
       expect(within(row).getByText(m.status)).toBeTruthy();
     }
   });

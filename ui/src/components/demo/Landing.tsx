@@ -1,16 +1,22 @@
 import Link from "next/link";
 
+import { icons } from "@/components/icons";
+import { ModelChip, StepFlow, VerdictPill, formatMs, type FlowStep } from "@/components/kit";
 import { GOLDEN_RUNS } from "@/fixtures/golden";
 import {
   CAMPAIGN,
   campaignTest,
+  distanceLimit,
   firstEvent,
   repoFile,
   REPO_URL,
   SERVERLESS_LOAD,
 } from "@/fixtures/live-campaign";
 
-import styles from "./demo.module.css";
+import { WORLDS } from "@/components/usecases/worlds";
+
+import { SystemStatus } from "./SystemStatus";
+import styles from "./landing.module.css";
 
 export const PITCH =
   "Tell it what worries you. It works out what to watch, proves the rule, and has a second " +
@@ -35,6 +41,14 @@ export const STEPS = [
     text: "Glimmer checks every alert on the video frames. Every decision goes into a hash-chained log you can check yourself.",
   },
 ] as const;
+
+/** Which models carry each step, with the state the model map below gives them today. */
+const STEP_MODELS: Record<(typeof STEPS)[number]["name"], FlowStep["models"]> = {
+  Describe: ["Muse Voice Transcribe", "Muse Spark 1.3"],
+  Plan: ["Muse Spark 1.3", "SAM 3.1"],
+  Prove: [{ model: "Rule CI", meta: false }, { model: "Muse Image", state: "off" }],
+  Trust: ["Muse Glimmer 30B", { model: "Muse Spark Open", state: "skipped" }],
+};
 
 /** Which Meta model does what, with the status the README's model map gives it today. */
 export const MODELS = [
@@ -65,7 +79,14 @@ export const MODELS = [
     status: "Wired; skipped here (no Baseten key)",
   },
   { model: "Muse Image", job: "Test scenes for Rule CI", status: "Built; switched off in the app" },
+  {
+    model: "Muse Code",
+    job: "Writes a new check when the rule language cannot say it; runs only after the owner approves",
+    status: "Built; owner-only (Extensions)",
+  },
 ] as const;
+
+export { WORLDS } from "@/components/usecases/worlds";
 
 interface Headline {
   value: string;
@@ -107,100 +128,239 @@ export function headlines(): Headline[] {
   ];
 }
 
+/**
+ * The signature: one alert from the 1 Nov live run, proved end to end. Every value is read from
+ * the committed result file; nothing is typed by hand.
+ */
+function AlertProof() {
+  const test = campaignTest("T02");
+  const event = firstEvent(test);
+  const rule = test.rules[0];
+  const limit = rule ? distanceLimit(rule.predicate) : null;
+  const value = event.measurement?.value ?? null;
+  const at = event.ts_start.slice(11, 19);
+  return (
+    <figure className={styles.proof} aria-labelledby="proof-caption" data-testid="alert-proof">
+      <div className={styles.proofHead}>
+        <span className={styles.proofKind}>{event.decision.alert ? "Verified alert" : "Rejected"}</span>
+        <span className={styles.proofWhen}>
+          <span className="visually-hidden">Test </span>
+          {test.id}
+          <span aria-hidden="true"> </span>
+          <time dateTime={event.ts_start}>{`${test.started_at.slice(0, 10)} ${at} UTC`}</time>
+        </span>
+      </div>
+
+      <blockquote className={styles.proofRequest}>
+        <p>“{test.request}”</p>
+      </blockquote>
+
+      <div className={styles.reading}>
+        <p className={styles.readingValue}>
+          {value !== null ? value.toFixed(2) : "—"}
+          <span className={styles.readingUnit}>{event.measurement?.unit ?? "m"}</span>
+        </p>
+        <p className={styles.readingNote}>
+          {limit !== null ? (
+            <>
+              Measured on the calibrated floor. The rule says under <b className="measured">{limit} m</b>.
+            </>
+          ) : (
+            "Measured on the calibrated floor."
+          )}
+        </p>
+      </div>
+
+      <div className={styles.proofVerdict}>
+        <VerdictPill verdict={event.verdict.verdict} confidence={event.verdict.score} model="Glimmer" />
+        <p className={styles.proofReason}>{event.verdict.reason}</p>
+      </div>
+
+      <ul className={styles.proofChain} aria-label="Models in this alert">
+        <li>
+          <ModelChip model="Muse Spark 1.3" job="planned the rule" ms={test.plan_s * 1000} />
+        </li>
+        <li>
+          <ModelChip model="SAM 3.1" job="measured the gap" />
+        </li>
+        <li>
+          <ModelChip model="Muse Glimmer 30B" job="checked the frames" ms={event.verdict.latency_ms} />
+        </li>
+      </ul>
+
+      <figcaption id="proof-caption" className={styles.proofCaption}>
+        <span>
+          Event to checked decision <b className="measured">{formatMs(event.event_to_decision_s * 1000)}</b>.
+          Recorded on the deployed stack; not live now.
+        </span>
+        <a href={repoFile(CAMPAIGN.source)} className={styles.proofSource}>
+          The run&apos;s record
+        </a>
+      </figcaption>
+    </figure>
+  );
+}
+
 /** The judge landing page: what Rulecam is, real numbers, and the no-login demo. */
 export function Landing() {
   const golden = GOLDEN_RUNS[0];
   return (
     <div className={styles.page} data-testid="landing">
-      <section aria-label="Rulecam" className="stack">
-        <p className={styles.kicker}>
-          Meta Global AI Developer Hackathon · built 26 Oct – 4 Nov 2026
-        </p>
-        <h1 className={styles.title}>Rulecam</h1>
-        <p className={styles.pitch}>{PITCH}</p>
-        <div className={styles.buttons}>
-          <Link href="/demo?demo=1" className="btn alert" data-testid="cta-demo">
-            Open the demo · no login
-          </Link>
-          {golden && (
-            <a href={golden.verify_url} className="btn o" data-testid="cta-verify">
-              Check the evidence yourself
-            </a>
-          )}
-        </div>
-        <p className={styles.note}>
-          The demo replays a recorded run with no model calls (labelled REPLAY), so it works with
-          every GPU switched off. The verify page recomputes every SHA-256 in your browser.
-        </p>
-      </section>
-
-      <section aria-label="How it works">
-        <h2 className={styles.h2}>How it works</h2>
-        <div className={styles.cards}>
-          {STEPS.map((s, i) => (
-            <div key={s.name} className={styles.card}>
-              <p className={styles.step}>
-                {i + 1} · {s.name}
-              </p>
-              <p>{s.text}</p>
+      <section aria-labelledby="hero-title" className={styles.hero}>
+        <div className={`container ${styles.heroGrid}`}>
+          <div className={styles.heroText}>
+            <h1 id="hero-title" className={styles.display}>
+              Plain words in.
+              <br />
+              Verified alerts out.
+            </h1>
+            <p className={styles.pitch}>{PITCH}</p>
+            <div className={styles.actions}>
+              <Link href="/demo?demo=1" className="btn primary lg" data-testid="cta-demo">
+                Open the demo
+                {icons.arrowRight}
+              </Link>
+              {golden && (
+                <a href={golden.verify_url} className="btn lg" data-testid="cta-verify">
+                  Check the evidence yourself
+                </a>
+              )}
             </div>
-          ))}
+            <p className={styles.note}>
+              The demo replays a recorded run with no model calls (labelled REPLAY), so it works with
+              every GPU switched off. The verify page recomputes every SHA-256 in your browser.
+            </p>
+          </div>
+          <AlertProof />
         </div>
       </section>
 
-      <section aria-label="Measured">
-        <h2 className={styles.h2}>Measured, not promised</h2>
-        <div className={styles.cards}>
-          {headlines().map((h) => (
-            <div key={h.where + h.value} className={styles.card} data-testid="headline">
-              <p className={styles.big}>{h.value}</p>
-              <p>{h.text}</p>
-              <p className={styles.src}>
-                {h.where} · <a href={repoFile(h.source)}>{h.source}</a>
-              </p>
-            </div>
-          ))}
+      <SystemStatus />
+
+      <section id="how" aria-labelledby="how-title" className={styles.section}>
+        <div className="container">
+          <div className={styles.head}>
+            <h2 id="how-title" className={styles.h2}>
+              From a worry to a proven rule
+            </h2>
+            <p className={styles.headLine}>Nothing runs until a person approves a plan that passed every check.</p>
+          </div>
+          <StepFlow
+            label="How a rule goes live"
+            steps={STEPS.map((s) => ({ name: s.name, text: s.text, models: STEP_MODELS[s.name] }))}
+          />
         </div>
-        <p className={styles.note}>
-          Weak results are published too, next to these:{" "}
-          <a href={`${REPO_URL}#results`}>the README results table</a>.
-        </p>
       </section>
 
-      <section aria-label="Meta models">
-        <h2 className={styles.h2}>Which Meta model does what</h2>
-        <div className="scroll-x">
-          <table className={styles.models}>
-            <thead>
-              <tr>
-                <th>Model</th>
-                <th>Job</th>
-                <th>Today</th>
-              </tr>
-            </thead>
-            <tbody>
-              {MODELS.map((m) => (
-                <tr key={m.model}>
-                  <td>
-                    <strong>{m.model}</strong>
-                  </td>
-                  <td>{m.job}</td>
-                  <td className={styles.status}>{m.status}</td>
+      <section id="worlds" aria-labelledby="worlds-title" className={`${styles.section} ${styles.band}`}>
+        <div className={`container ${styles.split}`}>
+          <div className={styles.splitHead}>
+            <h2 id="worlds-title" className={styles.h2}>
+              One engine, three worlds
+            </h2>
+            <p className={styles.headLine}>
+              The same planner, Rule CI and verifier, pointed at three kinds of site.
+            </p>
+          </div>
+          <ul className={styles.worlds}>
+            {WORLDS.map((w) => (
+              <li key={w.slug} className={styles.world}>
+                <Link href={`/usecases/${w.slug}`} className={styles.worldLink} data-testid={`world-${w.slug}`}>
+                  <span className={styles.worldName}>
+                    <span className={styles.worldIcon}>{icons[w.icon]}</span>
+                    {w.name}
+                  </span>
+                  <span className={styles.worldPromise}>{w.promise}</span>
+                  <span className={styles.worldLine}>{w.line}</span>
+                  <span className={styles.worldModels}>
+                    {w.models.map((m) => (
+                      <ModelChip key={m} model={m} />
+                    ))}
+                  </span>
+                  <span className={styles.worldGo} aria-hidden="true">
+                    {icons.arrowRight}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section id="models" aria-labelledby="models-title" className={styles.section}>
+        <div className="container">
+          <div className={styles.head}>
+            <h2 id="models-title" className={styles.h2}>
+              Which Meta model does what
+            </h2>
+            <p className={styles.headLine}>What runs in the deployed app today, said plainly.</p>
+          </div>
+          <div className="scroll-x">
+            <table className={styles.models}>
+              <thead>
+                <tr>
+                  <th scope="col">Model</th>
+                  <th scope="col">Job</th>
+                  <th scope="col">Today</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {MODELS.map((m) => (
+                  <tr key={m.model}>
+                    <th scope="row">{m.model}</th>
+                    <td>{m.job}</td>
+                    <td className={styles.modelStatus} data-live={m.status.startsWith("Live") ? "true" : "false"}>
+                      {m.status}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
 
-      <section aria-label="Links" className={styles.buttons}>
-        <Link href="/demo?demo=1" className="btn">
-          Open the demo
-        </Link>
-        <a href={REPO_URL} className="btn o">
-          Code on GitHub
-        </a>
+      <section id="measured" aria-labelledby="measured-title" className={`${styles.section} ${styles.sectionLast}`}>
+        <div className="container">
+          <div className={styles.head}>
+            <h2 id="measured-title" className={styles.h2}>
+              Measured, not promised
+            </h2>
+            <p className={styles.headLine}>
+              Each figure is read from a committed result file. Weak results are published too:{" "}
+              <a href={`${REPO_URL}#results`}>the README results table</a>.
+            </p>
+          </div>
+          <ul className={styles.figures}>
+            {headlines().map((h) => (
+              <li key={h.where + h.value} className={styles.figure} data-testid="headline">
+                <p className={styles.figureValue}>{h.value}</p>
+                <p className={styles.figureText}>{h.text}</p>
+                <p className={styles.figureSource}>
+                  <span>{h.where}</span>
+                  <a href={repoFile(h.source)}>{h.source}</a>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
       </section>
+
+      <footer className={styles.footer}>
+        <div className={`container ${styles.footerGrid}`}>
+          <p className={styles.footerMark}>Rulecam</p>
+          <nav aria-label="Rulecam links" className={styles.footerLinks}>
+            <Link href="/demo?demo=1">Golden replay</Link>
+            {golden && <a href={golden.verify_url}>Verify the evidence</a>}
+            <Link href="/monitor">The console</Link>
+            <a href={REPO_URL}>Code on GitHub</a>
+          </nav>
+          <p className={styles.footerNote}>
+            Built for the Meta Global AI Developer Hackathon, 26 Oct to 4 Nov 2026. No faces are
+            recognised; the crew can see every rule and dispute any alert.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

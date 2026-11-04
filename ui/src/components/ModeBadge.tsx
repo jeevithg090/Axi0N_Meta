@@ -13,7 +13,6 @@ export function ModeBadge({ state }: { state: UiState }) {
       role="status"
       aria-live="polite"
     >
-      <span className="badge-dot" aria-hidden="true" />
       {label}
     </span>
   );

@@ -1,0 +1,61 @@
+/* The shared use-case frame (/usecases/*): the world's promise, the three-world switcher, the
+   live status chip and the journey, above the page's own live data. */
+
+.frame { display: grid; min-width: 0; }
+
+.hero {
+  display: grid;
+  gap: var(--space-xl);
+  padding: var(--space-xl) var(--gut) var(--space-xl);
+  background: var(--color-paper-2);
+  border-bottom: var(--rule-hair) solid var(--color-rule);
+}
+.heroTop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+
+.switcher {
+  display: inline-flex;
+  gap: var(--space-3xs);
+  padding: var(--space-3xs);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-3);
+  max-width: 100%;
+  overflow-x: auto;
+}
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 36px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-chip);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-muted);
+  white-space: nowrap;
+  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+}
+.switch:hover { color: var(--color-ink); }
+.switch[aria-current="page"] { background: var(--color-paper-2); color: var(--color-ink); box-shadow: 0 0 0 1px var(--color-rule-2); }
+.switch[aria-current="page"] svg { color: var(--color-accent-text); }
+.switch svg { width: 16px; height: 16px; }
+
+.status { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); margin: 0; font-size: var(--text-sm); color: var(--color-muted); min-width: 160px; }
+.statusText b { font: 500 var(--text-sm) var(--font-outlier); color: var(--color-cool); }
+
+.heroBody { display: grid; gap: var(--space-sm); max-width: 62rem; }
+.title {
+  font-size: var(--text-display-s);
+  letter-spacing: var(--tracking-display);
+  line-height: 1.04;
+  max-width: 20ch;
+}
+.line { font-size: var(--text-lead); line-height: 1.45; color: var(--color-ink-2); max-width: 60ch; }
+
+.journey { max-width: var(--container); }
+
+.body { min-width: 0; }
+
+@media (max-width: 760px) {
+  .hero { padding: var(--space-lg) var(--space-md); gap: var(--space-lg); }
+}

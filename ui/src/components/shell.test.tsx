@@ -68,10 +68,12 @@ describe("DashboardShell", () => {
 
     render(<DashboardShell>page</DashboardShell>);
 
-    await waitFor(() => expect(document.body.textContent).toContain("WARM"));
-    expect(document.body.textContent).toContain("COLD-READY");
-    expect(document.body.textContent).toContain("CAMERAS: 1");
-    expect(document.body.textContent).not.toContain("LOGGED");
+    await waitFor(() => expect(document.body.textContent).toContain("warm"));
+    expect(document.body.textContent).toContain("cold-ready");
+    expect(screen.getByTestId("shell-cameras").textContent).toBe("Cameras 1");
+    // Incidents answered 403: no count is shown for it, rather than a made-up one.
+    const incidents = screen.getAllByRole("link").find((a) => a.textContent?.includes("Incidents"));
+    expect(incidents?.textContent).toBe("Incidents");
     expect(fetchSpy).toHaveBeenCalledWith("/rulecam-api/health", { cache: "no-store" });
     for (const text of MADE_UP) expect(document.body.textContent).not.toContain(text);
   });
@@ -80,7 +82,7 @@ describe("DashboardShell", () => {
     vi.stubGlobal("fetch", vi.fn(async () => respond({}, 404)));
     pathname = "/ci";
     render(<DashboardShell>page</DashboardShell>);
-    expect(document.querySelector(".shell-crumb")?.textContent).toContain("Rule CI Matrix");
+    expect(document.querySelector(".shell-crumb")?.textContent).toContain("Rule CI");
     cleanup();
 
     for (const path of ["/", "/demo"]) {
@@ -101,8 +103,41 @@ describe("DashboardShell", () => {
 
     render(<DashboardShell>page</DashboardShell>);
 
-    await waitFor(() => expect(document.body.textContent).toContain("UNKNOWN"));
-    expect(document.body.textContent).toContain("CAMERAS: —");
+    await waitFor(() => expect(document.body.textContent).toContain("unknown"));
+    expect(screen.getByTestId("shell-cameras").textContent).toBe("Cameras —");
+  });
+});
+
+describe("DashboardShell information architecture", () => {
+  it("groups the app as use cases, build, run, trust and system", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => respond({}, 404)));
+    render(<DashboardShell>page</DashboardShell>);
+    const nav = screen.getByRole("navigation", { name: "Primary navigation" });
+    for (const group of ["Use cases", "Build", "Run", "Trust", "System"]) {
+      expect(screen.getByRole("list", { name: group })).toBeTruthy();
+    }
+    const useCases = screen.getByRole("list", { name: "Use cases" });
+    expect(
+      Array.from(useCases.querySelectorAll("a")).map((a) => a.getAttribute("href")),
+    ).toEqual(["/usecases/supermarket", "/usecases/warehouse", "/usecases/crowd"]);
+    const current = nav.querySelector('[aria-current="page"]');
+    expect(current?.textContent).toContain("Monitor");
+  });
+
+  it("gives the landing page a wordmark bar and the worker QR page a bare frame", () => {
+    vi.stubGlobal("fetch", vi.fn(async () => respond({}, 404)));
+    pathname = "/";
+    render(<DashboardShell>page</DashboardShell>);
+    expect(document.querySelector(".shell-sidebar")).toBeNull();
+    expect(document.querySelector(".site-header")).not.toBeNull();
+    expect(screen.getByTestId("mode-badge")).toBeTruthy();
+    cleanup();
+
+    pathname = "/worker/plan-1/phone-1";
+    render(<DashboardShell>page</DashboardShell>);
+    expect(document.querySelector(".shell-sidebar")).toBeNull();
+    expect(document.querySelector(".bare-header")).not.toBeNull();
+    expect(screen.getByTestId("mode-badge")).toBeTruthy();
   });
 });
 

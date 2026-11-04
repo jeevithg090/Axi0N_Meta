@@ -1,195 +1,79 @@
-/* Judge path: the landing page (/) and the recorded live-run section on /demo.
-   Uses the signage tokens from globals.css; mobile first (375 px), no horizontal scroll. */
+/* The recorded live run on /demo (LiveAlerts). Console panels: one surface, hairline seams,
+   the measured face for every value the run recorded. */
 
-.page {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--s4) var(--s2) var(--s5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s4);
-  overflow-wrap: anywhere;
-}
-
-.kicker {
-  font:
-    500 12px/1.4 var(--font-dm-mono, monospace),
-    monospace;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: var(--ink-2);
-  margin: 0;
-}
-
-.title {
-  font:
-    800 40px/1.05 var(--font-barlow-condensed, "Barlow Condensed"),
-    sans-serif;
-  text-transform: uppercase;
-  margin: 0;
-}
-
-.pitch {
-  font-size: 20px;
-  line-height: 1.4;
-  margin: 0;
-  max-width: 46ch;
-}
-
-.buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--s2);
-}
-
-.buttons a {
-  text-decoration: none;
-  flex: 1 1 240px;
-}
-
-.note {
-  font-size: 14px;
-  color: var(--ink-2);
-  margin: 0;
-}
-
-.h2 {
-  font:
-    700 26px/1.1 var(--font-barlow-condensed, "Barlow Condensed"),
-    sans-serif;
-  text-transform: uppercase;
-  margin: 0 0 var(--s2);
-}
-
-.cards {
+.live {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--s2);
-}
-
-.card {
-  background: var(--card);
-  color: #141414;
-  border: 2px solid var(--ink);
-  padding: var(--s2);
-  display: flex;
-  flex-direction: column;
-  gap: var(--s1);
+  gap: var(--space-md);
   min-width: 0;
 }
 
-.card p {
+.recorded {
+  justify-self: start;
+  display: inline-block;
+  padding: var(--space-3xs) var(--space-xs);
+  border: var(--rule-hair) solid var(--color-cool);
+  border-radius: var(--radius-chip);
+  background: var(--color-cool-soft);
+  color: var(--color-cool);
+  font: 500 var(--text-xs) / 1.5 var(--font-outlier);
+}
+
+.h2 {
   margin: 0;
+  font-size: var(--text-2xl);
+  letter-spacing: -0.025em;
 }
 
-.step {
-  font:
-    700 22px/1.1 var(--font-barlow-condensed, "Barlow Condensed"),
-    sans-serif;
-  text-transform: uppercase;
+.live > p { color: var(--color-ink-2); max-width: 72ch; }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: var(--space-md);
+  margin-top: var(--space-xs);
 }
 
-.big {
-  font:
-    700 40px/1 var(--font-barlow-condensed, "Barlow Condensed"),
-    sans-serif;
-}
-
-.src {
-  font:
-    500 12px/1.4 var(--font-dm-mono, monospace),
-    monospace;
-  color: #4a4a46;
-}
-
-.src a {
-  color: inherit;
-}
-
-.models {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.models th,
-.models td {
-  text-align: left;
-  vertical-align: top;
-  padding: 10px 12px 10px 0;
-  border-bottom: 1px solid var(--ink);
-  font-size: 15px;
-}
-
-.models th {
-  border-bottom-width: 2px;
-}
-
-.status {
-  font:
-    500 12px/1.4 var(--font-dm-mono, monospace),
-    monospace;
-}
-
-/* Recorded live run section on /demo */
-.live {
-  border: 2px solid var(--ink);
-  padding: var(--s2);
+.card {
   display: flex;
   flex-direction: column;
-  gap: var(--s2);
-  margin: var(--s2) 0 var(--s4);
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.recorded {
-  display: inline-block;
-  align-self: flex-start;
-  padding: 2px 8px;
-  background: #f2d100;
-  color: #141414;
-  border: 2px solid #141414;
-  font:
-    500 12px/1.4 var(--font-dm-mono, monospace),
-    monospace;
-}
+.alertCard { border-color: color-mix(in oklab, var(--color-bad) 45%, var(--color-rule)); }
+.rejectCard { border-color: color-mix(in oklab, var(--color-ok) 45%, var(--color-rule)); }
 
-.alertCard {
-  border-top: 8px solid var(--alert);
+.step {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 500;
 }
+.alertCard .step { color: var(--color-bad); }
+.rejectCard .step { color: var(--color-ok); }
 
-.rejectCard {
-  border-top: 8px solid var(--machine);
+.src {
+  margin: 0;
+  font: 400 var(--text-xs) / 1.5 var(--font-outlier);
+  color: var(--color-muted);
 }
+.src a { text-decoration: underline; text-decoration-color: var(--color-rule-2); text-underline-offset: 0.18em; }
+.src a:hover { color: var(--color-accent-text); }
+
+.quote { font-size: var(--text-md); color: var(--color-ink); }
 
 .kv {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 2px;
-  padding: 6px 0;
-  border-bottom: 1px solid #b9b7ae;
-  font-size: 15px;
+  gap: var(--space-3xs);
+  margin: 0;
+  padding-top: var(--space-xs);
+  border-top: var(--rule-hair) solid var(--color-rule);
+  font-size: var(--text-sm);
 }
-
-.kv > span:first-child {
-  font:
-    500 12px/1.4 var(--font-dm-mono, monospace),
-    monospace;
-  color: #4a4a46;
-  text-transform: uppercase;
-}
-
-.quote {
-  font-style: italic;
-}
-
-@media (min-width: 700px) {
-  .page {
-    padding: var(--s5) var(--s4) var(--s6);
-  }
-  .title {
-    font-size: 64px;
-  }
-  .pitch {
-    font-size: 24px;
-  }
-}
+.kv > span:first-child { color: var(--color-muted); }
+.kv > span:last-child { color: var(--color-ink); }

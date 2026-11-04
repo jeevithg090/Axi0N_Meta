@@ -21,7 +21,8 @@ with `NEXT_PUBLIC_RULECAM_API` set to it (never `localhost`, or visitors count a
 ```bash
 curl -s http://127.0.0.1:8000/health      # ok true, runtime true, models.tier1 muse-spark-1.3 (meta-api)
 pgrep -fl cloudflared                      # one tunnel, to :8000
-curl -s $PUBLIC_TUNNEL_URL/health          # same answer; if not, the tunnel dropped (see above)
+pgrep -fl tunnel_watchdog                  # replaces a dead tunnel and redeploys the site
+curl -s $PUBLIC_TUNNEL_URL/health          # same answer; if not, see data/tunnel/watchdog.log
 pgrep -fl caffeinate                       # keeps the Mac awake (closing the lid on battery still sleeps it)
 ```
 

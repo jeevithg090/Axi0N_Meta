@@ -38,11 +38,21 @@ the UI's origin.
 ### The site on Vercel
 
 The site is the Vercel project `rulecam-live` (`https://rulecam-live.vercel.app`, `ui/` is
-linked to it). The API stays on the Mac behind a Cloudflare quick tunnel:
+linked to it). The API stays on the Mac behind a Cloudflare quick tunnel, which the watchdog
+starts and keeps up:
 
 ```bash
-cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8000   # prints https://<name>.trycloudflare.com
+uv run python scripts/ops/tunnel_watchdog.py >> data/tunnel/watchdog.log 2>&1
 ```
+
+Every 30 s it checks the API on 127.0.0.1, the tunnel and the site's `/rulecam-api/health`. When
+the tunnel fails four times in a row (or no cloudflared runs) it starts a new tunnel, sets the
+site's API address to it, redeploys the site and writes `PUBLIC_TUNNEL_URL` in `.env.live`; when
+only the site fails four times it redeploys the site. Deploys are at least 5 minutes apart. It
+keeps a tunnel that already answers, and its tunnel outlives it. Tested on 4 Nov by killing the
+tunnel: noticed after 23 s, new tunnel 9 s later, site redeployed 52 s after that. The
+phone-pairing link reads `PUBLIC_TUNNEL_URL` when the API starts, so restart the API after a
+tunnel change before pairing a phone.
 
 The project has two production settings: `NEXT_PUBLIC_RULECAM_API` (the tunnel address; it is
 built into the pages, and `/rulecam-api/*` is passed on to it) and `RULECAM_PROXY_SECRET` (the
@@ -50,7 +60,7 @@ API's `UI_PROXY_SECRET`, marked sensitive). In `.env.live`, `PUBLIC_UI_URL` is t
 `PUBLIC_TUNNEL_URL` the tunnel and `PUBLIC_DEMO=true` (the cameras are stock clips).
 
 A quick tunnel's address is gone once it loses the network for long (on 4 Nov both tunnels
-dropped at 09:47 UTC and never came back). With a new address, from `ui/`:
+dropped at 09:47 UTC and never came back). Without the watchdog, with a new address, from `ui/`:
 
 ```bash
 npx vercel env rm NEXT_PUBLIC_RULECAM_API production --yes

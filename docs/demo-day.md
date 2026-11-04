@@ -43,8 +43,9 @@ Not running:
    ulimit -n 65536; uv run uvicorn rulecam.api.app:app --host 127.0.0.1 --port 8000
    ```
 
-   `cloudflared` keeps running on the Mac (the site itself is on Vercel). Keep the Mac awake and
-   on the network for the whole demo.
+   The tunnel watchdog keeps running on the Mac (`pgrep -fl tunnel_watchdog`; the site itself is
+   on Vercel). It replaces a dead tunnel and redeploys the site within about 2 minutes. Keep the
+   Mac awake and on the network for the whole demo.
 2. Check that the public address answers:
 
    ```bash
@@ -53,8 +54,8 @@ Not running:
 
    Expect `ok: true` and, under `models`, `muse-spark-1.3` (Tier 1), `muse-wonder-1.0` (Tier 2)
    and `sam-3.1`, each on `meta-api`. If this fails but `http://127.0.0.1:8000/health` answers,
-   the tunnel dropped: start a new one and redeploy the site with its address
-   ([`deploy.md`](deploy.md), "The site on Vercel").
+   the tunnel dropped: the watchdog fixes it within about 2 minutes (`data/tunnel/watchdog.log`;
+   [`deploy.md`](deploy.md), "The site on Vercel").
 3. Prove the models answer through Rulecam's own clients, in a shell with `.env.live` loaded
    (as above):
 

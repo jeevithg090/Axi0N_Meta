@@ -76,6 +76,7 @@ from rulecam.planner.geometry import (
     standing_people,
     trusted_calibrations,
 )
+from rulecam.planner.hedge import HedgedSegmenter
 from rulecam.planner.lint import CameraViews, LintFinding, lint_plan
 from rulecam.planner.models import Concern, UnderstandResult
 from rulecam.planner.standards import (
@@ -556,7 +557,7 @@ class PlannerPipeline:
         """
         self._spark = spark
         self._files = files
-        self._segmenter = segmenter
+        self._segmenter = HedgedSegmenter(segmenter)  # a hung SAM call gets a twin
         self._voice = voice
         self._bus = bus
         self._grounding = grounding
@@ -639,18 +640,26 @@ class PlannerPipeline:
             probe_summary,
         )
         gauge = step("gauge", GaugeResult, lambda: self._gauge(understood, probe), _verdict_counts)
-        step(
-            "ask",
-            AskResult,
-            lambda: self._ask(inputs, understood, survey, probe),
-            lambda out: f"{len(out.questions)} questions",
-        )
-        compiled = step(
-            "compile",
-            CompileResult,
-            lambda: self._compile(inputs, understood, survey, probe, gauge),
-            lambda out: f"{len(out.rules)} rules",
-        )
+        # Compile reads what ask reads, not ask's answer: its model call starts with ask's, and
+        # the steps are still reported (and saved) in order, ask first.
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="compile-ahead") as ahead:
+            compiling = (
+                ahead.submit(self._compile, inputs, understood, survey, probe, gauge)
+                if PIPELINE_STEPS.index("compile") >= start
+                else None
+            )
+            step(
+                "ask",
+                AskResult,
+                lambda: self._ask(inputs, understood, survey, probe),
+                lambda out: f"{len(out.questions)} questions",
+            )
+            compiled = step(
+                "compile",
+                CompileResult,
+                compiling.result if compiling is not None else self._unreachable_compile,
+                lambda out: f"{len(out.rules)} rules",
+            )
         linted = step(
             "lint",
             LintResult,
@@ -676,6 +685,11 @@ class PlannerPipeline:
             self._bus.publish(Topic.PLAN_UPDATED, plan)
         _log.info("plan_saved", plan_id=plan_id, version=plan.version, rules=len(plan.rules))
         return plan
+
+    @staticmethod
+    def _unreachable_compile() -> CompileResult:
+        msg = "compile runs ahead whenever it is run; a saved compile is loaded instead"
+        raise PipelineError(msg)
 
     def _hook_summary(self, name: StepName, plan: SitePlan) -> str:
         if self._hooks[name] is None:

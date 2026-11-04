@@ -86,3 +86,11 @@ and found no cameras, which is correct: there are none.
 - Many cameras at once for a long time (CPU per camera, disk use over a day).
 - The deployed RunPod API: nothing was deployed. A scan from a cloud pod finds nothing by design.
 - Accuracy of SAM 3.1's counts and of Spark's use-case ratings against human labels.
+
+## Known limits
+
+- A normal stop of the API stops every camera's ffmpeg (checked: none left running). If the API
+  process is killed outright (`kill -9`, a crash), its ffmpeg processes keep running until they
+  are stopped by hand, and would write chunks next to the restarted API's ones.
+- The 10-second fps reading jumps on HLS and YouTube streams (segment bursts); the long-run rate
+  is right.

@@ -37,13 +37,19 @@ export function VerifyPanel({ shared, token }: { shared: SharedPack; token: stri
   const [report, setReport] = useState<PackReport | null>(null);
   const [anchors, setAnchors] = useState<DayAnchor[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [seconds, setSeconds] = useState<number | null>(null);
 
   useEffect(() => {
     let live = true;
     setReport(null);
     setAnchors(null);
+    const started = performance.now();
     verifyPack(shared, token)
-      .then((r) => live && setReport(r))
+      .then((r) => {
+        if (!live) return;
+        setSeconds((performance.now() - started) / 1000);
+        setReport(r);
+      })
       .catch((e: unknown) => live && setError(e instanceof Error ? e.message : "check failed"));
     Promise.all(shared.pack.days.map(async (d) => anchorDay(d, await dayHashes(d.day))))
       .then((a) => live && setAnchors(a))
@@ -71,6 +77,7 @@ export function VerifyPanel({ shared, token }: { shared: SharedPack; token: stri
       <b>
         {report.ok ? "✓ Verified in your browser" : "✗ This pack does not check out"} ·{" "}
         {shared.pack.records.length} records · {shared.pack.metrics.length} numbers
+        {seconds !== null ? ` · ${seconds.toFixed(1)} s` : ""}
       </b>
       <ul className={styles.checks}>
         <Line

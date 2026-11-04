@@ -39,6 +39,14 @@ from rulecam.planner.standards import (
 _log = get_logger(__name__)
 
 CitationChecker = Callable[[Citation], CitationCheck]
+CONCERN_VERSION = "v2"
+# The rule is the owner's words; the clause is whatever published requirement its alerts give
+# evidence about (a general duty counts), so Spark is asked for that, not for a clause that
+# repeats the rule's own number.
+CONCERN = (
+    'A camera rule enforced at this site: "{text}".{hint} Which published safety, health or '
+    "hygiene clause sets the requirement that this rule's alerts give evidence about?"
+)
 
 
 @dataclass(frozen=True)
@@ -236,7 +244,9 @@ class ClauseFinder:
 
     def find(self, rule: RuleInForce) -> tuple[Clause | None, str]:
         """The rule's clause and a note on where it came from (or why there is none)."""
-        key = hashlib.sha256(f"{rule.text}|{','.join(rule.standards)}".encode()).hexdigest()
+        key = hashlib.sha256(
+            f"{CONCERN_VERSION}|{rule.text}|{','.join(rule.standards)}".encode()
+        ).hexdigest()
         cached = self._cache.get(key)
         if cached is not None:
             clause = cached.get("clause")
@@ -246,9 +256,11 @@ class ClauseFinder:
             )
         if self._spark is None or self._check is None:
             return None, "no clause: the plan cites none and model grounding is off for this pack"
-        hint = f" (the plan names: {', '.join(rule.standards)})" if rule.standards else ""
+        hint = f" The owner's plan names: {', '.join(rule.standards)}." if rule.standards else ""
         try:
-            citation = ground_concern_standard(rule.text + hint, spark=self._spark)
+            citation = ground_concern_standard(
+                CONCERN.format(text=rule.text, hint=hint), spark=self._spark
+            )
         except Exception as exc:  # a model failure must not fail the pack
             _log.warning("proof_clause_failed", rule_id=rule.rule_id, error=type(exc).__name__)
             return None, f"no clause: Muse Spark grounding failed ({type(exc).__name__})"

@@ -153,6 +153,7 @@ from rulecam.planner.runner import ChunkFrames, PlannerService
 from rulecam.planner.site_config import SiteConfigError, load_site_config
 from rulecam.planner.standards import StandardsLibrary
 from rulecam.planner.steps.audit import audit_hook
+from rulecam.planner.survey_cache import SurveyCache
 from rulecam.replay.cache import Mode, ModeChanged, ReplayCache, badge_for
 from rulecam.retail import build_retail
 from rulecam.rule_ci import prove_plan_hook
@@ -781,6 +782,7 @@ def build_planner(
         prove=prove_plan_hook(bus, calibrations=run_calibrations(PlanStore(PLANS_DIR))),
         zoom=crop_segmenter(settings, perception),
         geometry=geometry_estimator(settings, perception),
+        survey_cache=SurveyCache(clock=clock, max_age_s=settings.planner_survey_reuse_s),
     )
     frames = ChunkFrames(
         perception.chunks,
@@ -1107,7 +1109,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
             retail,
             chain_router(settings.rulecam_chains_dir, dependencies=_OWNER),
             connectors_router(connectors, dependencies=_OWNER),
-            build_warehouse(
+            *build_warehouse(
                 settings,
                 cache=cache,
                 clock=clock,
@@ -1118,6 +1120,7 @@ def services_from_settings(settings: Settings, site: str = "demo") -> AppService
                 perception=perception,
                 planner=planner,
                 whatsapp=response.whatsapp,
+                client_address=client_address,
                 dependencies=_OWNER,
             ),
             build_wearables(

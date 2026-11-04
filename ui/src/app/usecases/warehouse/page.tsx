@@ -27,6 +27,7 @@ import {
 import styles from "./warehouse.module.css";
 
 const POLL_MS = 4000;
+const PLANNING_POLL_MS = 1500; // while a plan is being planned, its steps show up quickly
 const RECORDED_RUN = "/demo?demo=worker_passes_4m";
 
 function Notice({ access }: { access: Exclude<Access, "ok" | "loading"> }) {
@@ -77,11 +78,12 @@ export default function WarehousePage() {
     }
   }, [planId, selected]);
 
+  const planning = story?.planning !== undefined && story?.planning?.total_s === null;
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), POLL_MS);
+    const timer = window.setInterval(() => void refresh(), planning ? PLANNING_POLL_MS : POLL_MS);
     return () => window.clearInterval(timer);
-  }, [refresh]);
+  }, [refresh, planning]);
 
   const followedId = selected ?? story?.event_id ?? null;
   const followed = rows.find((r) => r.event_id === followedId) ?? null;

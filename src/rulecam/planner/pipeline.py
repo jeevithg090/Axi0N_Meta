@@ -36,6 +36,8 @@ from __future__ import annotations
 import re
 import threading
 from collections.abc import Callable, Sequence
+from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout
 from functools import partial
 from pathlib import Path
 from typing import Final, Literal, TypeVar
@@ -74,6 +76,7 @@ from rulecam.planner.geometry import (
     standing_people,
     trusted_calibrations,
 )
+from rulecam.planner.hedge import HedgedSegmenter
 from rulecam.planner.lint import CameraViews, LintFinding, lint_plan
 from rulecam.planner.models import Concern, UnderstandResult
 from rulecam.planner.standards import (
@@ -86,8 +89,14 @@ from rulecam.planner.steps.ask import Question, propose_clarifying_questions
 from rulecam.planner.steps.audit import audit_summary
 from rulecam.planner.steps.compile import compile_rule
 from rulecam.planner.steps.probe import ProbeZoom, concept_needs, probe_concepts
-from rulecam.planner.steps.survey import ImageSegmenter, survey_cameras
+from rulecam.planner.steps.survey import (
+    DEFAULT_SURVEY_FRAMES,
+    ImageSegmenter,
+    sample_frames,
+    survey_cameras,
+)
 from rulecam.planner.steps.understand import FileAttacher, understand
+from rulecam.planner.survey_cache import Reused, SurveyCache, scene_hash
 from rulecam.prototype import prototype_mode
 from rulecam.replay.cache import atomic_write_text
 
@@ -114,6 +123,7 @@ PLAN_ID_PATTERN: Final = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}")
 MAX_DETAIL_CHARS: Final = 300
 COMPILED_VERDICTS: Final = frozenset({"observable", "caveat"})
 HOOK_STEPS: Final[tuple[StepName, ...]] = ("audit", "prove")
+GEOMETRY_WAIT_S: Final = 5.0
 HOOK_TASKS: Final[dict[StepName, str]] = {
     "audit": "P2-07",
     "prove": "P2-08",
@@ -155,10 +165,15 @@ class PipelineInput(Frozen):
 
 
 class SurveyResult(Frozen):
-    """Step 2: what each camera sees, and the calibrations its reference objects give."""
+    """Step 2: what each camera sees, and the calibrations its reference objects give.
+
+    `reused` names, per camera, the earlier plan whose survey of the same scene was reused and
+    how old it was (`planner.survey_cache`); empty when the survey ran.
+    """
 
     inventory: tuple[InventoryItem, ...]
     calibrations: dict[str, Calibration] = Field(default_factory=dict)
+    reused: dict[str, Reused] = Field(default_factory=dict)
 
 
 class ProbeResult(Frozen):
@@ -426,7 +441,11 @@ def survey_summary(survey: SurveyResult) -> str:
         f"{cam} calibrated from {cal.reference or cal.method} ({cal.err_m:.2f} m)"
         for cam, cal in survey.calibrations.items()
     ]
-    return "; ".join([f"{len(survey.inventory)} things seen", *calibrated])
+    reused = [
+        f"{cam} reused from {r.plan_id} ({r.age_s:.0f} s old, same scene)"
+        for cam, r in survey.reused.items()
+    ]
+    return "; ".join([f"{len(survey.inventory)} things seen", *calibrated, *reused])
 
 
 def probe_summary(probe: ProbeResult) -> str:
@@ -511,6 +530,8 @@ class PlannerPipeline:
         prove: PlanHook | None = None,
         zoom: CropSegmenter | None = None,
         geometry: GeometryEstimator | None = None,
+        survey_cache: SurveyCache | None = None,
+        geometry_wait_s: float = GEOMETRY_WAIT_S,
     ) -> None:
         """Create the pipeline.
 
@@ -530,16 +551,21 @@ class PlannerPipeline:
                 enlarged crops of each person where the full frame missed them.
             geometry: MoGe-2 on the GPU pod (add-on 3.5): the survey calibrates each camera
                 from a metric point map and SAM's floor when it is available.
+            survey_cache: Reuses a fresh survey of the same scene (`planner.survey_cache`).
+            geometry_wait_s: How long the survey waits, after its SAM calls, for the geometry
+                model's health check that started with it; a slower check skips the model.
         """
         self._spark = spark
         self._files = files
-        self._segmenter = segmenter
+        self._segmenter = HedgedSegmenter(segmenter)  # a hung SAM call gets a twin
         self._voice = voice
         self._bus = bus
         self._grounding = grounding
         self._standards = standards
         self._zoom = zoom
         self._geometry = geometry
+        self._survey_cache = survey_cache
+        self._geometry_wait_s = geometry_wait_s
         self.store = store
         self._hooks: dict[StepName, PlanHook | None] = dict(
             zip(HOOK_STEPS, (audit, prove), strict=True)
@@ -614,18 +640,26 @@ class PlannerPipeline:
             probe_summary,
         )
         gauge = step("gauge", GaugeResult, lambda: self._gauge(understood, probe), _verdict_counts)
-        step(
-            "ask",
-            AskResult,
-            lambda: self._ask(inputs, understood, survey, probe),
-            lambda out: f"{len(out.questions)} questions",
-        )
-        compiled = step(
-            "compile",
-            CompileResult,
-            lambda: self._compile(inputs, understood, survey, probe, gauge),
-            lambda out: f"{len(out.rules)} rules",
-        )
+        # Compile reads what ask reads, not ask's answer: its model call starts with ask's, and
+        # the steps are still reported (and saved) in order, ask first.
+        with ThreadPoolExecutor(max_workers=1, thread_name_prefix="compile-ahead") as ahead:
+            compiling = (
+                ahead.submit(self._compile, inputs, understood, survey, probe, gauge)
+                if PIPELINE_STEPS.index("compile") >= start
+                else None
+            )
+            step(
+                "ask",
+                AskResult,
+                lambda: self._ask(inputs, understood, survey, probe),
+                lambda out: f"{len(out.questions)} questions",
+            )
+            compiled = step(
+                "compile",
+                CompileResult,
+                compiling.result if compiling is not None else self._unreachable_compile,
+                lambda out: f"{len(out.rules)} rules",
+            )
         linted = step(
             "lint",
             LintResult,
@@ -651,6 +685,11 @@ class PlannerPipeline:
             self._bus.publish(Topic.PLAN_UPDATED, plan)
         _log.info("plan_saved", plan_id=plan_id, version=plan.version, rules=len(plan.rules))
         return plan
+
+    @staticmethod
+    def _unreachable_compile() -> CompileResult:
+        msg = "compile runs ahead whenever it is run; a saved compile is loaded instead"
+        raise PipelineError(msg)
 
     def _hook_summary(self, name: StepName, plan: SitePlan) -> str:
         if self._hooks[name] is None:
@@ -710,6 +749,21 @@ class PlannerPipeline:
         return understand(inputs.request, spark=self._spark, files=self._files, voice=self._voice)
 
     def _survey(self, inputs: PipelineInput) -> SurveyResult:
+        scenes = (
+            {
+                camera_id: scene_hash(
+                    sample_frames(frames, DEFAULT_SURVEY_FRAMES, seed=inputs.seed)
+                )
+                for camera_id, frames in inputs.camera_frames.items()
+            }
+            if self._survey_cache is not None
+            else {}
+        )
+        if self._survey_cache is not None and (hit := self._survey_cache.lookup(scenes)):
+            inventory, calibrations, reused = hit
+            _log.info("survey_reused", plan_id=inputs.plan_id, cameras=sorted(reused))
+            return SurveyResult(inventory=inventory, calibrations=calibrations, reused=reused)
+        ready = self._check_geometry()  # in the background, while SAM surveys
         recorder = RecordingSegmenter(self._segmenter)
         inventory = survey_cameras(
             inputs.camera_frames,
@@ -718,14 +772,34 @@ class PlannerPipeline:
             segmenter=recorder,
             seed=inputs.seed,
         )
-        model = self._model_calibrations(inputs, recorder)
+        model = self._model_calibrations(inputs, recorder, ready)
         calibrations = scene_calibrations(recorder.sightings, model=model)
+        if self._survey_cache is not None:
+            self._survey_cache.keep(inputs.plan_id, scenes, inventory, calibrations)
         return SurveyResult(inventory=inventory, calibrations=calibrations)
 
+    def _check_geometry(self) -> Future[bool] | None:
+        """Start the geometry model's health check (a slow GPU can take a minute to answer)."""
+        if self._geometry is None:
+            return None
+        pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="geometry-health")
+        future = pool.submit(self._geometry.available)
+        pool.shutdown(wait=False)
+        return future
+
+    def _geometry_available(self, ready: Future[bool] | None) -> bool:
+        if ready is None:
+            return False
+        try:
+            return ready.result(timeout=self._geometry_wait_s)
+        except FutureTimeout:
+            _log.info("geometry_check_slow", waited_s=self._geometry_wait_s)
+            return False
+
     def _model_calibrations(
-        self, inputs: PipelineInput, recorder: RecordingSegmenter
+        self, inputs: PipelineInput, recorder: RecordingSegmenter, ready: Future[bool] | None
     ) -> dict[str, Calibration]:
-        if self._geometry is None or not self._geometry.available():
+        if self._geometry is None or not self._geometry_available(ready):
             _log.info("model_calibration_skipped", geometry=self._geometry is not None)
             return {}
         return model_calibrations(

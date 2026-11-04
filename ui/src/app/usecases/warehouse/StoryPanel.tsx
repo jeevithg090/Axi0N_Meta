@@ -7,7 +7,7 @@ import { useState } from "react";
 import { StepFlow, type StepState } from "@/components/kit";
 import { api, errorText } from "@/lib/api";
 
-import { progress, type StepStatus, type WarehouseStory } from "./warehouse";
+import { progress, type Planning, type StepStatus, type WarehouseStory } from "./warehouse";
 import styles from "./warehouse.module.css";
 
 // The API's step states, said in the kit's: waiting is the step in progress.
@@ -17,6 +17,38 @@ const FLOW_STATE: Record<StepStatus, StepState> = {
   not_yet: "todo",
   failed: "failed",
 };
+
+/** Each planner step with its time, the running one counting up (read from the saved run). */
+export function PlanningTimeline({ planning }: { planning: Planning }) {
+  return (
+    <div data-testid="planning">
+      <h3>
+        {planning.total_s !== null
+          ? `Planned in ${planning.total_s.toFixed(0)} s`
+          : "Planning now (each step appears as it finishes)"}
+      </h3>
+      <ol className={styles.row} style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        {planning.steps.map((s) => (
+          <li
+            key={s.step}
+            className={`${styles.chip} ${s.status === "done" ? styles.done : s.status === "running" ? styles.waiting : styles.not_yet}`}
+            title={s.detail || undefined}
+          >
+            {s.step} {s.seconds !== null ? `${s.seconds.toFixed(1)} s` : "…"}
+            {s.status === "running" ? " ⏳" : ""}
+          </li>
+        ))}
+      </ol>
+      {planning.steps
+        .filter((s) => s.detail)
+        .map((s) => (
+          <p key={s.step} className={styles.muted}>
+            {s.step}: {s.detail}
+          </p>
+        ))}
+    </div>
+  );
+}
 
 export function StoryPanel({
   story,
@@ -62,6 +94,7 @@ export function StoryPanel({
             : ""}
         </p>
       )}
+      {story.planning && <PlanningTimeline planning={story.planning} />}
       {story.cant_check.length > 0 && (
         <div>
           <h3>What the planner says it cannot fully check</h3>

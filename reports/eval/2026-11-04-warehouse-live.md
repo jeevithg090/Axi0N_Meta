@@ -88,6 +88,43 @@ Run 4 was stopped during its survey when the RunPod GPUs came back, to re-run on
     `distance_m < 4 ∧ moving` with Rule CI green, and the planner said it was "not probed" on any
     camera (no recent frames at that moment) and had no zone for "the main aisle".
 
+## Planning speed: before and after (02:20–02:46 UTC)
+
+The lead's target: "Plan this rule" under about 90 s on stage, every check kept.
+
+**Before.** The five forklift plans above took 291–424 s from request to plan. One of them
+(`plan-d459ce9fa411`, 309.6 s), profiled from the API log:
+
+| Step | Time | Where it went |
+|---|---|---|
+| survey | 224.9 s | Spark proposes 30 things (14.8 s); SAM 3.1 looks for each on 8 frames, 240 hosted calls 8 at a time (149 s); the MoGe-2 health check on the serverless GPU timed out twice (60 s) |
+| probe | 56.5 s | Spark picks the concepts (5.5 s); 2 concepts x 19 frames, one SAM call after another |
+| ask, compile | 7.5 s, 9.3 s | one Spark call each, one after the other |
+| audit | 11.3 s | Glimmer back-translation (Spark Open answers 401 at once) |
+| prove (Rule CI) | 0.1 s | 16 boundary traces and 6 mutants: nothing to win here |
+
+**What changed** (commits 0f3192e, cbf5561, 0a96beb): all of a survey's SAM calls at once (up
+to 32 in flight); each probe's frames at once, two probes at a time; a SAM call hung for 15 s
+gets a twin; the MoGe health check runs beside the survey and is waited on for 5 s at most;
+compile's Spark call starts with ask's; a camera's survey is reused for 30 minutes while its
+scene hash is unchanged. The probe, the calibration check against people, the acceptance checks
+and Rule CI run in full every time; Rule CI was green (16/16, 6/6) on all nine plans below.
+
+**After.** Three benches, each: one phone camera fed the worker clip in a loop, the Spanish 4 m
+rule planned three times in a row (`scripts/ops/plan_bench.py`; request to plan, as measured by the
+client and by the saved run):
+
+| Bench | Plan 1 (new camera) | Plan 2 | Plan 3 | What it showed |
+|---|---|---|---|---|
+| 1: parallel calls, reuse at 24 bits, no hedging | 160.2 s | 170.5 s (survey reused; one probe and one acceptance probe each waited ~40-60 s on a hung SAM call) | **70.4 s** (reused) | hung calls set the time |
+| 2: hedging after 8 s | 139.5 s | 187.1 s | 76.2 s | the looping clip's scene hash moved 30-39 bits, so no reuse; 198 twins on a busy API only added load |
+| 3: final (reuse within 48 bits, hedge after 15 s) | 122.8 s | **41.8 s** (reused) | **45.1 s** (reused) | 17 twins; survey 0.0 s, probe 14-16 s, ask 9-11 s, compile 1.7-1.9 s after ask, audit 17 s |
+
+So on stage: plan once on the stage camera beforehand (any rule), and "Plan this rule" then
+takes about 40-50 s on a warm GPU; a first plan on a new camera takes about 2 minutes (survey
+53 s, probe 38 s on the final bench). The hosted SAM's latency still moves these numbers by
+tens of seconds when the API is busy. The page shows each step's time as it finishes.
+
 ## Goldens
 
 T02 (`worker_passes_4m`, verified alert, Glimmer 0.99) and T04 (`driver_only_4m`, driver

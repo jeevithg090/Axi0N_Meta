@@ -8,6 +8,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from rulecam.contracts import Frozen
+from rulecam.warehouse.planning import Planning
 
 StepStatus = Literal["done", "waiting", "not_yet", "failed"]
 
@@ -154,6 +155,7 @@ class WarehouseStory(Frozen):
         event_id: The incident the story follows (the newest alerted one, else the newest).
         steps: The steps in order.
         near_misses: The day's near misses of this plan's rules, newest first.
+        planning: How long each planner step took (or has been running), from the saved run.
     """
 
     plan_id: str | None
@@ -165,6 +167,7 @@ class WarehouseStory(Frozen):
     event_id: str | None
     steps: tuple[StoryStep, ...]
     near_misses: tuple[NearMiss, ...]
+    planning: Planning | None = None
 
 
 class TalkSection(BaseModel):
@@ -545,3 +548,15 @@ class VoiceNoteRequest(BaseModel):
     role: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z][\w-]*$")
     lang: str = Field(default="es", pattern=r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
     also: str | None = Field(default=None, pattern=r"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$")
+
+
+class HeardReport(Frozen):
+    """What a worker gets back after reporting a near miss by voice on the public page.
+
+    Only what they said and whether a camera measured it: no event id, no other report.
+    """
+
+    heard: str
+    what_happened: str
+    matched: bool
+    measured_m: float | None

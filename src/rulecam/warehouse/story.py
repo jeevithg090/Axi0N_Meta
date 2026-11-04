@@ -36,6 +36,7 @@ from rulecam.warehouse.models import (
     ToolboxTalk,
     WarehouseStory,
 )
+from rulecam.warehouse.planning import Planning
 
 CI_CHECK = "ci_green"
 NOT_CHECKABLE = frozenset({"caveat", "not_observable", "declined"})
@@ -91,6 +92,7 @@ def build_story(
     warning: SpokenWarning | None = None,
     duty: RefresherDuty | None = None,
     regressions: int = 0,
+    planning: Planning | None = None,
 ) -> WarehouseStory:
     """Build one plan's story.
 
@@ -103,6 +105,7 @@ def build_story(
         talk: The toolbox talk of the followed incident, if written.
         warning: The spoken warning of the followed incident, if made.
         duty: The refresher-training duty of the followed incident, if raised.
+        planning: The planner's step timings, from its saved run.
         regressions: Hard-negative regressions stored for its rules.
 
     Returns:
@@ -160,6 +163,7 @@ def build_story(
         event_id=followed.event_id if followed else None,
         steps=tuple(steps),
         near_misses=tuple(near),
+        planning=planning,
     )
 
 
@@ -348,4 +352,42 @@ def _warning_step(n: NearMiss, warning: SpokenWarning | None) -> StoryStep:
         status,
         ("; ".join(n.actions) or "No action recorded.") + spoken,
         event_id=n.event_id,
+    )
+
+
+def planning_story(
+    plan_id: str, request: str, lang: str | None, planning: Planning
+) -> WarehouseStory:
+    """The story of a plan the planner is still working on: the request, then its steps."""
+    current = next((s for s in planning.steps if s.status == "running"), None)
+    done = [s for s in planning.steps if s.status == "done"]
+    progress = ", ".join(f"{s.step} {s.seconds:.1f} s" for s in done)
+    detail = (
+        f"Planning: {current.step} running for {current.seconds or 0:.0f} s"
+        + (f" (done: {progress})" if progress else "")
+        if current is not None
+        else f"Planned in {planning.total_s or 0:.0f} s; registering the plan."
+    )
+    return WarehouseStory(
+        plan_id=plan_id,
+        approved=False,
+        request=request,
+        request_lang=lang,
+        rules=(),
+        cant_check=(),
+        event_id=None,
+        steps=(
+            _step(
+                "request", "Say or type the rule", "done", request or "(no text)", lang=lang or ""
+            ),
+            _step(
+                "plan",
+                "The planner writes the rule and says what it cannot check",
+                "waiting",
+                detail,
+                plan_id=plan_id,
+            ),
+        ),
+        near_misses=(),
+        planning=planning,
     )

@@ -51,7 +51,22 @@ export interface NearMiss {
   foot_px: [number, number] | null;
 }
 
+export interface PlanStepTiming {
+  step: string;
+  status: "done" | "running" | "pending";
+  seconds: number | null;
+  detail: string;
+}
+
+export interface Planning {
+  plan_id: string;
+  started_at: string;
+  total_s: number | null;
+  steps: PlanStepTiming[];
+}
+
 export interface WarehouseStory {
+  planning?: Planning | null;
   plan_id: string | null;
   approved: boolean;
   request: string;

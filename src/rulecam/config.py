@@ -277,6 +277,15 @@ class Settings(BaseSettings):
     planner_survey_window_s: float = (
         60.0  # seconds of recent chunks the planner samples frames from
     )
+    # Without Tier 2 (Spark Open), Muse Spark 1.3 reviews worker disputes with the evidence
+    # frames instead of leaving every one pending for a person (`worker.spark_review`).
+    rulecam_dispute_spark_fallback: bool = True
+    # Chain a `coverage` record when a camera goes BLIND or recovers (`runtime.coverage_log`).
+    # Off by default: moving-camera stock clips flap `moved`; turn it on for fixed site cameras.
+    rulecam_coverage_log: bool = False
+    # Reuse a camera's survey (inventory, calibration) for this long when its scene is unchanged
+    # (`planner.survey_cache`); 0 surveys every time. The probe and Rule CI always run.
+    planner_survey_reuse_s: float = Field(default=1800.0, ge=0)
     # Proof portal (`compliance/`): signs share links; default a random key in <data>/compliance.
     rulecam_share_secret: SecretStr | None = None
     # Camera connectors (`rulecam.connectors`, `/connectors`): chunk rate, the widest frame

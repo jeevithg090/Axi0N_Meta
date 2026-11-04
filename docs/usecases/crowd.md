@@ -36,15 +36,20 @@ the forecast, the staff actions and the announcements.
    camera numbers are read; if it is as dense as where people are coming from, or getting denser,
    Spark is asked again with those numbers before anything goes out. A destination no camera
    sees is marked unmeasured on the alert.
-6. **Muse Glimmer checks the frames** (the newest frame, its heatmap and one from 30 s earlier)
-   within 20 s. A Glimmer that does not see it holds the alert. A Glimmer with no warm worker is
-   not waited for (a cold start outlasts the budget); its verdict is chained when it comes.
+6. **Muse Glimmer checks the frames** (the newest frame, its heatmap with each zone's density
+   outlined, and one from 30 s earlier) within 20 s. When Glimmer does not confirm it, Spark gets
+   Glimmer's description with the measurements and decides to send or hold (live on Jülich,
+   Glimmer once called shoulder-to-shoulder packing "not confirmed" because it could not count
+   8 per m² from a picture). A Glimmer with no warm worker is not waited for (a cold start
+   outlasts the budget); its verdict is chained when it comes.
 7. **Stewards are alerted with buttons** (*On my way*, *False alarm*, *Escalate*) through the
    site's notifier (phone app, Telegram, WhatsApp). Nobody tapping within `ack_within_s` sends it
    to the next role (`escalate_to`). After *On my way*, SAM 3.1 looks for the steward
    (`high-visibility vest`) in the alert's zone on each new reading for five minutes.
-8. **Announcements are spoken** with Meta MMS-TTS into WAVs the page plays (voices are loaded
-   when the watch starts, so the first alert does not wait for them).
+8. **Announcements are spoken and heard back**: Meta MMS-TTS speaks each one into a WAV (voices
+   are loaded when the watch starts), Muse Voice Transcribe transcribes the WAV back, and Spark
+   judges whether the meaning survived. The page plays only announcements that did; live, a
+   Hindi "do not push at the gate" came back as "do not push at the crowd" and was stopped.
 9. **Everything is chained**: the candidate, Glimmer's verdict, each notification, escalation,
    tap and arrival, on the hash-chained evidence log.
 10. **After the event**, `GET /crowd/report` gives the timeline, peaks, time above each reference
@@ -85,7 +90,11 @@ cd ui && npm run dev          # http://localhost:3000/usecases/crowd
 6. In **After the event**, press **Build report**, then **+ Muse Spark after-action**: peaks,
    time above each density, the latency table, the evidence seal, the timeline, and the live
    readings against the published trajectories.
-7. Route guard with two cameras: `samples/crowd/two-gates` plays the Jülich queue run as side
+7. Ask about it: `POST /ask {"question": "When was the gate approach most crowded, how dense
+   did it get, and for how long was it above 6 per square metre?"}`. Spark queries
+   `crowd_readings` with SQL, re-counts the peak with `crowd_scan`, and answers (live: 8.25 per
+   m² at 01:14:02–01:14:08, above 6 for about 24–30 s, in 43 s).
+8. Route guard with two cameras: `samples/crowd/two-gates` plays the Jülich queue run as side
    door B next to the gate run, with a venue that lets Spark send people to side door B. See
    `scripts/crowd/feed_clip.py --alias`.
 
@@ -150,7 +159,8 @@ them is marked unmeasured.
   `assessment`, `check` (Glimmer: `agrees`, `seen`, `confidence`) or `check_note`, `sent`,
   `held_reason`, `heatmap`, `audio[]` (`lang`, `text`, `audio` file), `chain_hash`, `notified`,
   `assessed_at`, `notified_at`, `sent_at`, `roles`, `route_checks[]` (`to`, `measured`,
-  `density_ppm2`, `per_min`, `filling`, `note`, `replaced`).
+  `density_ppm2`, `per_min`, `filling`, `note`, `replaced`). Each `audio[]` item also carries
+  `heard`, `wer`, `meaning` (`same`, `different`, `unchecked`) and `meaning_note`.
 - `acks{alert_id}` (`AckState`): `status` (`open`, `acknowledged`, `false_alarm`), `escalating`,
   `notified[]` (`role`, `at`, `status`), `taps[]`, `arrival` (`concept`, `zone`, `checks`,
   `seen_at`, `people`, `gave_up`).
@@ -163,11 +173,14 @@ trajectories.
 
 **Report** (`GET /crowd/report`): `readings`, `clip_start`, `series` per zone, `zones[]`
 (`peak_density_ppm2`, `peak_at`, `peak_heatmap`, `mean_density_ppm2`, `above_s`),
-`timeline[]` (`at`, `kind`: assessment, alert, held, announcement, notified, tap, peak; `level`,
-`text`, `ref`), `latency[]` (`assess_s` and `alert_s` from the reading, `checked`), `evidence`
+`timeline[]` (`at`, `kind`: assessment, alert, held, announcement, notified, tap, arrival,
+peak; `level`, `text`, `ref`, `alert_id`, `role`, and `seq` and `hash` of the evidence-chain
+record behind the line), `unknowns[]` (what the system did not know when it acted, in plain
+sentences), `latency[]` (`assess_s` and `alert_s` from the reading, `checked`), `evidence`
 (`chain_ok`, `chain_files`, `records[]` with `seq`, `kind`, `hash`), `truth[]` (`count_ratio`,
 `count_mae`, `density_ratio_median`, `sys_peak_ppm2`, `true_peak_ppm2`, and the series for the
-chart), `after_action` (`headline`, `narrative`, `worked`, `change`).
+chart), `after_action` (`headline`, `narrative`, `cited[]` with each sentence's chain `records`,
+`worked`, `change`).
 
 ## Files Ask reads
 

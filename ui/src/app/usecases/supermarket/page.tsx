@@ -39,6 +39,10 @@ const OWNER_ONLY =
 const MAX_CAMERAS = 6;
 
 /** Cameras with the newest video first, at most `MAX_CAMERAS` (old pairings drop off). */
+function newestCard(cards: RetailCard[]): RetailCard | null {
+  return [...cards].sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
+}
+
 function newestFirst(cameras: Camera[]): Camera[] {
   return [...cameras].sort((a, b) => b.last.localeCompare(a.last)).slice(0, MAX_CAMERAS);
 }
@@ -119,11 +123,7 @@ export default function SupermarketPage() {
   }, [refresh]);
 
   const cameras = newestFirst(overview?.cameras ?? []);
-  const latestCard =
-    card ??
-    overview?.cards.find((c) => c.preregistered_seq !== null) ??
-    overview?.cards.at(-1) ??
-    null;
+  const latestCard = card ?? newestCard(overview?.cards ?? []) ?? null;
   const shownCard =
     latestCard && overview
       ? (overview.cards.find((c) => c.recommendation.id === latestCard.recommendation.id) ??

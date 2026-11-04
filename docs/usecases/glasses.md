@@ -129,6 +129,12 @@ curl -s -F image=@aisle.jpg -F audio=@question.wav -F mode=aisle \
    hashes. Open `/incidents` to see them.
 5. Leave the page open while another camera raises an alert: it is spoken as "Site alert. …".
 
+## Results
+
+Live runs on Nov 4 2026 are in `reports/eval/2026-11-04-glasses.md`: the whole path works with
+the real models and verified alerts happened, but a question takes about 30 seconds from frame to
+spoken answer, which is too slow for an earpiece. Screens of the page are in `apps/glasses/screens/`.
+
 ## Files
 
 - `src/rulecam/wearables/assist.py`: the assistant (hear, look, count, answer, speak).

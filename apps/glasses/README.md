@@ -62,3 +62,19 @@ Wearables Developer Center, so plain Bluetooth audio routing is the safer path f
    phone paired with the glasses (Developer Mode on).
 
 The Android SDK is `https://github.com/meta/meta-wearables-dat-android`.
+
+## Screens
+
+There are no app screens yet. `screens/` holds the phone page `/glasses` at phone size (375 by
+812), taken in the desktop app's browser pane against a local API with live models. The pane
+blocks the camera, so the point of view is an **uploaded stock photo**, not a camera:
+
+- `web-1-progress.jpg`: a question in flight; the HUD shows each finished stage ("Glimmer look
+  16.8 s").
+- `web-2-verified-caption.jpg`: the spoken answer as a red caption, because Glimmer and Spark both
+  flagged the forklift.
+- `web-3-answer-card.jpg`: the answer card with SAM 3.1's boxes, the stage times and the voice.
+- `web-4-walk-report.jpg`: a safety walk report (two patrol frames of the same photo) with the
+  evidence records it wrote.
+- `sam-marked-forklift-side.jpg`: a marked frame from the live run; SAM 3.1's "hard hat" box is
+  really the forklift's warning light (see the results report).

@@ -22,18 +22,21 @@ verdicts in the [1 Nov live campaign](reports/eval/2026-11-01-live-test-campaign
 
 ## Try it now
 
-Live site: **https://preferred-florist-labeled-trace.trycloudflare.com**. It is served from the team's Mac through a Cloudflare tunnel, and every
-model call goes to the Meta API. We run no GPUs of our own. If the tunnel restarts the address
-changes; the repo then gets the new one.
+Live site: **https://rulecam-live.vercel.app**. The site runs on Vercel. During the hackathon the
+Rulecam API ran on the team's Mac behind a Cloudflare tunnel, with every model call going to the
+Meta API. **Since the hackathon ended (4 Nov 2026) that API is switched off**, so the hosted
+site's live pages have no backend. The replay and the verify page below still work, because
+they need no API. To run the whole system yourself, see
+[Run it on your own machine](#run-it-on-your-own-machine).
 
 | What | Link | What you will see |
 |---|---|---|
 | The 3-minute video | [`docs/video/script.md`](docs/video/script.md) · [`captions.srt`](docs/video/captions.srt) | The three worlds below, live and recorded, each labelled |
-| Replay, no login, no keys | `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1` | A recorded live run, step by step: request, plan, Rule CI, runtime, evidence. The header says **REPLAY**. It makes no model calls |
-| Check the evidence yourself | `https://preferred-florist-labeled-trace.trycloudflare.com/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35` | Your browser recomputes every SHA-256 of the 35-record evidence log and checks it against the day's Merkle root. Nothing is trusted from us |
-| The three worlds | `https://preferred-florist-labeled-trace.trycloudflare.com/usecases/warehouse`, `/usecases/crowd`, `/usecases/supermarket` | Each world's story, step by step, read from what Rulecam recorded. The crowd page shows recorded runs only: crowd is not live now |
-| Staff phone app, glasses mode | `https://preferred-florist-labeled-trace.trycloudflare.com/staff`, `https://preferred-florist-labeled-trace.trycloudflare.com/glasses` | Open them on a phone |
-| Run it on your laptop | `cd ui && npm ci && npm run dev`, then `localhost:3000/demo?demo=1` | The same replay, offline |
+| Replay, no login, no keys | `https://rulecam-live.vercel.app/demo?demo=1` | A recorded live run, step by step: request, plan, Rule CI, runtime, evidence. The header says **REPLAY**. It makes no model calls |
+| Check the evidence yourself | `https://rulecam-live.vercel.app/verify/index.html?chain=/golden/warehouse_driver/chain.jsonl&root=6fe7daeb1f2543aef6a3d01d27f3a7793c4516520be41433ba6ee0871f87082e&n=35` | Your browser recomputes every SHA-256 of the 35-record evidence log and checks it against the day's Merkle root. Nothing is trusted from us |
+| The three worlds | `https://rulecam-live.vercel.app/usecases/warehouse`, `/usecases/crowd`, `/usecases/supermarket` | Each world's story, step by step, read from what Rulecam recorded. The crowd page shows recorded runs only: crowd is not live now |
+| Staff phone app, glasses mode | `https://rulecam-live.vercel.app/staff`, `https://rulecam-live.vercel.app/glasses` | Open them on a phone |
+| Run it on your laptop | `./start_rulecam.sh` (macOS/Linux) or `./start_rulecam.ps1` (Windows), then `localhost:3000/demo?demo=1` | The API and the site on your machine; see [Run it on your own machine](#run-it-on-your-own-machine) |
 
 ![The Rulecam landing page as captured before 4 Nov: the recorded T02 run's verified alert, with the measured distance, Glimmer's verdict and the state of the GPUs we ran then.](docs/pitch/media/app-landing.jpg)
 
@@ -44,8 +47,9 @@ models instead of GPU states.*
 ## Live now: Meta API only (since 4 Nov 2026)
 
 On 4 Nov, at about 05:50 UTC, we moved every model call to the Meta API. We no longer run
-RunPod or any GPUs of our own. The API and the site run on the team's Mac, public through a
-Cloudflare tunnel ([`docs/deploy.md`](docs/deploy.md), "Meta API only").
+RunPod or any GPUs of our own. Until the hackathon ended, the API and the site ran on the
+team's Mac, public through a Cloudflare tunnel ([`docs/deploy.md`](docs/deploy.md), "Meta API
+only"). That API is off now; run it yourself with `./start_rulecam.sh`.
 
 - **Runs now:** Muse Spark 1.3 (planner, Ask, the planner's guardrail pass, retail checks, and
   the Tier 1 check of every alert), Muse Wonder 1.0 (Tier 2: dispute review, plan audit, Ask
@@ -340,7 +344,7 @@ An earlier E3 figure came from a simulated harness and was withdrawn on Oct 31 (
 
 | Time | Open | What to look for |
 |---|---|---|
-| 0:00 | `https://preferred-florist-labeled-trace.trycloudflare.com/demo?demo=1` | The owner's plain-language request, the planner's steps, the compiled rule and its acceptance trace |
+| 0:00 | `https://rulecam-live.vercel.app/demo?demo=1` | The owner's plain-language request, the planner's steps, the compiled rule and its acceptance trace |
 | 0:30 | the Rule CI section of the same page | The rule was attacked with boundary scenes and mutants before anyone could approve it, re-run offline in CI |
 | 0:50 | **Verify it in your browser** | Your browser recomputes every SHA-256 of the evidence chain and its Merkle root |
 | 1:20 | [Results](#results), then [`reports/eval/`](reports/eval/) | Live runs on real video and on hand-labelled CCTV, every number tied to its run, date and commit |
@@ -497,7 +501,33 @@ reference objects ([`docs/deploy.md`](docs/deploy.md)).
 | [`evidence/`](evidence/README.md) | Screenshots and verify-page captures behind our claims |
 | [`eval/RESULTS.md`](eval/RESULTS.md) | Measured evaluation results |
 
-### Quick start
+### Run it on your own machine
+
+You need [`uv`](https://docs.astral.sh/uv/) (it installs Python 3.12), Node 20+, `ffmpeg` and
+`git`. On macOS: `brew install uv node ffmpeg`.
+
+```bash
+git clone https://github.com/jeevithg090/Axi0N_Meta.git
+cd Axi0N_Meta
+./start_rulecam.sh
+```
+
+On Windows, run `./start_rulecam.ps1` in PowerShell instead. The script checks for the tools
+above, creates `.env` from `.env.example`, runs `uv sync` and `npm ci` the first time, loads
+made-up SAMPLE data, starts the API on `http://localhost:8000` and the site on
+`http://localhost:3000`, and lists the pages to open. Press Ctrl+C to stop both. Logs go to
+`data/logs/local-{seed,api,ui}.log`. Use `./start_rulecam.sh --no-seed` to skip the sample data.
+
+- `http://localhost:3000/demo?demo=1` replays a recorded live run. It needs no API keys and
+  makes no model calls.
+- `/monitor`, `/streams`, `/planner` and `/audit` show the SAMPLE data. Those records were
+  written by hand (each one is labelled `[SAMPLE ...]`), so don't quote numbers from them.
+- To run with real models, put a Meta API key in `.env.live` (see "Live" below).
+
+Or with Docker: `docker compose up --build` starts the same two services (without the sample
+data).
+
+### Quick start (development)
 
 ```bash
 make setup        # uv sync + pre-commit hooks

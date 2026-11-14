@@ -3,7 +3,7 @@
 // Steps 2 to 6 of the supermarket story: advice from the answer, accept (pre-register + watch),
 // the watch alerting staff with the marked photo, tasks closed with proof, and the owner brief.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { errorText } from "@/lib/api";
 
@@ -23,6 +23,18 @@ import {
   type Watch,
 } from "./api";
 import styles from "./supermarket.module.css";
+
+/**
+ * A relative age ("3 min ago"), filled in after mount. The page is prerendered at build time,
+ * so an age worked out on the server would disagree with the browser's clock and break
+ * hydration; the first render shows nothing (or the fallback) and the browser fills it in.
+ */
+function Age({ iso, fallback = "" }: { iso: string | null; fallback?: string }) {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => setNow(new Date()), []);
+  if (!now) return null;
+  return <>{age(iso, now) || fallback}</>;
+}
 
 function useAction(): [
   boolean,
@@ -270,7 +282,7 @@ export function FindingCard({ finding }: { finding: Finding }) {
         <span className={styles.pill}>{finding.kind}</span>
         <strong>{finding.camera_name || finding.camera_id}</strong>
         <span className={styles.muted}>
-          {age(finding.checked_at)} · {finding.seconds.toFixed(1)} s
+          <Age iso={finding.checked_at} /> · {finding.seconds.toFixed(1)} s
         </span>
       </div>
       <div>{finding.headline}</div>
@@ -354,7 +366,9 @@ export function WatchPanel({
               <td>
                 {c.name} <span className={styles.muted}>{c.camera_id}</span>
               </td>
-              <td className={styles.muted}>{age(c.last)}</td>
+              <td className={styles.muted}>
+                <Age iso={c.last} />
+              </td>
               <td className={styles.row}>
                 {KINDS.map((k) => (
                   <button
@@ -403,7 +417,9 @@ export function WatchPanel({
           <div key={w.id} className={styles.row}>
             <span className={styles.pill}>{w.kind}</span> {w.camera_id} every {w.every_s} s → role “
             {w.role}”{w.advice_id && <span className={styles.muted}>from {w.advice_id}</span>}
-            <span className={styles.muted}>last run {age(w.last_run) || "never"}</span>
+            <span className={styles.muted}>
+              last run <Age iso={w.last_run} fallback="never" />
+            </span>
             <button
               type="button"
               className={styles.ghost}
@@ -478,7 +494,7 @@ export function TasksPanel({ tasks, onChange }: { tasks: StaffTask[]; onChange: 
             ))}
           </ul>
           <div className={styles.muted}>
-            Seen {age(t.seen_at)}
+            Seen <Age iso={t.seen_at} />
             {t.done_at &&
               ` · fixed in ${t.minutes_to_fix ?? "?"} min (checked by ${t.closed_by})${
                 t.fixed_seq !== null

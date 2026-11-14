@@ -544,14 +544,26 @@ export function SiteSignage() {
             marginBottom: "var(--s3)",
           }}
         >
-          <label className="dm" style={{ fontSize: "13px", fontWeight: 700 }}>
+          <label
+            className="dm"
+            style={{
+              fontSize: "13px",
+              fontWeight: 700,
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: "6px",
+              minWidth: 0,
+              maxWidth: "100%",
+            }}
+          >
             VERTICAL:{" "}
             <select
               value={vertical}
               onChange={(e) => setVertical(e.target.value as Vertical)}
               aria-label="Kind of site"
               style={{
-                marginLeft: "6px",
+                minWidth: 0,
                 padding: "8px 12px",
                 border: "1px solid var(--color-rule)",
                 borderRadius: "var(--radius-card)",

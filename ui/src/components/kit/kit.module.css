@@ -5,6 +5,7 @@
 /* ---------- LiveBadge ---------- */
 .badge {
   display: inline-flex;
+  max-width: 100%;
   align-items: center;
   gap: var(--space-xs);
   min-height: 26px;
@@ -14,6 +15,14 @@
   font: 500 var(--text-xs) / 1.2 var(--font-outlier);
   white-space: nowrap;
   vertical-align: middle;
+}
+/* On a phone a long badge wraps inside its border instead of running off the screen. */
+@media (max-width: 760px) {
+  .badge {
+    flex-wrap: wrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 .badge[data-mode="live"] {
   color: var(--color-ok);

@@ -51,7 +51,7 @@ tracking = ["motmetrics>=1.4"]
 reid = ["boxmot==26.0.0", "torch>=2.3", "torchvision>=0.18"]
 
 [project.urls]
-Homepage = "https://rulecam.vercel.app/demo?demo=1"
+Homepage = "https://rulecam-live.vercel.app/demo?demo=1"
 Repository = "https://github.com/jeevithg090/Axi0N_Meta"
 Documentation = "https://github.com/jeevithg090/Axi0N_Meta/tree/main/docs"
 

@@ -551,11 +551,99 @@ uv run rulecam chain demo chains/kitchen-basics   # Chain Mode, no models, about
 - **Check an evidence log:** `uv run rulecam audit <YYYY-MM-DD> <site>` re-verifies a day's
   chain and re-derives every decision; or drop the chain file on the browser verify page.
 
+### Tech stack
+
+| Layer | What we use |
+|---|---|
+| Backend | Python 3.12, FastAPI + Uvicorn, Pydantic v2 (typed contracts in `src/rulecam/contracts`), Typer CLI (`rulecam`), structlog |
+| Video and perception | ffmpeg (3 s H.264 chunks), OpenCV (headless), SAM 3.1 (hosted by Meta), ByteTrack via `trackers` + `supervision`, Shapely for zones |
+| Models | Meta API (Muse Spark 1.3, Muse Wonder 1.0, SAM 3.1, Voice Transcribe, Muse Image), all through `rulecam.clients` and a replay cache |
+| Storage and proof | DuckDB + Parquet track store, SHA-256 hash-chained evidence log with daily Merkle roots, Z3 for proving model-written checks |
+| Web UI | Next.js 15 (App Router), React 19, TypeScript (strict), Vitest + Testing Library |
+| Tooling | uv, Ruff (lint + format), mypy, pytest + Hypothesis, ESLint, Prettier, pre-commit, GitHub Actions |
+
+### Configuration
+
+All settings are environment variables, read by `src/rulecam/config.py` (pydantic-settings).
+[`.env.example`](.env.example) lists every one with a comment; copy it to `.env` for development
+and keep live keys in `.env.live` (both are git-ignored). The ones you are most likely to touch:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `RULECAM_MODE` | `replay` | `replay` serves recorded model replies (no network), `record` records new ones, `live` calls the models |
+| `RULECAM_DATA_DIR` | `./data` | Chunks, track store, evidence chains and logs |
+| `META_API_KEY` | empty | Meta Model API key (Standard tier). Needed only for live mode |
+| `META_API_BASE_URL` | empty | Meta API base URL, from the Meta API docs |
+| `RULECAM_ACTIONS_DRY_RUN` | `true` | Record actions as "dry-run: would ..." instead of running them |
+| `RULECAM_PROTOTYPE_MODE` | `false` | The hackathon's prototype mode (see "What we claim" below) |
+| `PUBLIC_DEMO` | `false` | Let non-owners watch `/ws` and read plans on a demo site |
+| `NEXT_PUBLIC_RULECAM_API` (UI) | `http://localhost:8000` | The API address the browser uses (WebSocket), baked in at build time |
+| `RULECAM_API_URL` (UI) | `NEXT_PUBLIC_RULECAM_API` | Where the Next.js server forwards `/rulecam-api/*`, when it reaches the API on another address (docker compose) |
+
+Optional integrations (WhatsApp, Telegram, signed webhooks, Kasa smart plugs, self-hosted
+Glimmer/SAM endpoints, budgets) are all off when their variables are empty.
+
+### Tests and builds
+
+```bash
+make lint          # ruff check + ruff format --check
+make type          # mypy (strict on contracts, rules, evidence, verify, eval, advisor)
+make test          # pytest with coverage, then the per-package coverage floors
+make ui-check      # ESLint, Prettier, tsc, Vitest, and the verify page's cross-language tests
+make check         # all of the above
+make eval-replay   # re-score the recorded eval baseline offline
+make golden-verify # replay every golden run in scenarios/ from its recording
+cd ui && npm run build   # production build of the web UI
+```
+
+Unit tests never touch the network: model calls are served from `tests/fakes` or the replay
+cache. Tests marked `live`, `gpu` or `ui` are skipped by default (`make live-test` runs the live
+ones). CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the `check`,
+`eval-replay`, `golden-verify`, `guardrails`, `ml-cpu` and `ui` jobs on every pull request.
+
+### Deployment
+
+- **One machine:** `docker compose up --build` builds the API image
+  ([`deploy/api.Dockerfile`](deploy/api.Dockerfile)) and serves the UI from `node:22-alpine`,
+  on ports 8000 and 3000. Put settings in `.env`.
+- **Meta API only (current):** any machine with Python 3.12 and ffmpeg; see the "Meta API only"
+  section of [`docs/deploy.md`](docs/deploy.md). The UI deploys to Vercel or any Node host
+  (`npm run build && npm run start`) with `NEXT_PUBLIC_RULECAM_API` pointing at the API.
+- **Monitoring:** Prometheus metrics on `/metrics`, with a Prometheus + Grafana compose file in
+  [`deploy/monitoring/`](deploy/monitoring/).
+- The earlier RunPod GPU setup (`make ship-api`, `make ship-gpu`) is kept in `docs/deploy.md`
+  as a record; it is not running.
+
+### Project structure
+
+```text
+src/rulecam/
+  api/           FastAPI app: plans, runtime, Ask, crowd, owner auth, Prometheus
+  contracts/     Pydantic models shared by every module (the source of truth)
+  planner/       Plain-language request -> typed rule plan, with guardrails
+  rule_ci/       Boundary scenes and mutants that every plan must pass before approval
+  rules/         Rule IR and the rule engine
+  runtime/       Chunk -> SAM keyframes -> tracks -> candidates -> verification
+  perception/    Segmentation and tracking (SAM 3.1, ByteTrack, BoT-SORT)
+  verify/        Tier 1 / Tier 2 checks and the verification policy
+  evidence/      Hash-chained log, Merkle roots and the browser verify page
+  clients/       Every model client, behind the replay cache
+  connectors/    RTSP / HLS / MJPEG / ONVIF / uploads -> chunks
+  ask/ crowd/ retail/ shelf/ warehouse/ staff/ chain/ extensions/ ...  feature modules
+ui/              Next.js web UI (owner console, staff app, glasses mode, replay, verify page)
+tests/           pytest suite, mirroring src/rulecam; tests/fakes holds the model fakes
+scenarios/       Golden runs: request, recording and expected outcome
+eval/            Labelled clips (manifests only), eval runners and results
+scripts/         Ops, deploy, eval and seeding scripts
+deploy/          Dockerfiles, entrypoints and the monitoring stack
+docs/            Design, task book, deployment, demo and pitch documents
+```
+
 ### How we work
 
-Code, pull requests and **CI all live on GitHub** (GitHub Actions, `.github/workflows/ci.yml`:
-the `check`, `guardrails` and `ml-cpu` jobs). Every task ends in a pull request with all checks
-green; see `docs/TASKS.md` §0 and §3.4, and `CLAUDE.md`.
+Code, pull requests and **CI all live on GitHub** (GitHub Actions, `.github/workflows/ci.yml`).
+Every change ends in a pull request with all checks green; see
+[`CONTRIBUTING.md`](CONTRIBUTING.md) and `docs/TASKS.md` §0 and §3.4.
 
 ### What we claim, and what we don't
 

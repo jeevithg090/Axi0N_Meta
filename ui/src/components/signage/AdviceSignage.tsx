@@ -497,7 +497,7 @@ export function AdviceSignage() {
             gap: "12px",
           }}
         >
-          <div style={{ display: "flex", gap: "6px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
             <button
               type="button"
               className="tab"

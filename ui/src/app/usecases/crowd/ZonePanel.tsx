@@ -74,26 +74,28 @@ function Countdown({ forecast }: { forecast: ZoneForecast | undefined }) {
     above: forecast.above_s[ref] ?? 0,
   }));
   return (
-    <table className={styles.table}>
-      <thead>
-        <tr>
-          <th>per m²</th>
-          <th title="The last minute's density line">trend</th>
-          <th title="Net people crossing the zone's edge (optical flow)">fill clock</th>
-          <th>held for</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <tr key={r.ref}>
-            <td>{r.ref}</td>
-            <td>{r.trend != null ? `in ${seconds(r.trend)}` : "–"}</td>
-            <td>{r.fill != null ? `in ${seconds(r.fill)}` : "–"}</td>
-            <td>{r.above > 0 ? seconds(r.above) : "–"}</td>
+    <div className={styles.tableWrap}>
+      <table className={styles.table}>
+        <thead>
+          <tr>
+            <th>per m²</th>
+            <th title="The last minute's density line">trend</th>
+            <th title="Net people crossing the zone's edge (optical flow)">fill clock</th>
+            <th>held for</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.ref}>
+              <td>{r.ref}</td>
+              <td>{r.trend != null ? `in ${seconds(r.trend)}` : "–"}</td>
+              <td>{r.fill != null ? `in ${seconds(r.fill)}` : "–"}</td>
+              <td>{r.above > 0 ? seconds(r.above) : "–"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

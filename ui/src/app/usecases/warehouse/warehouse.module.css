@@ -11,6 +11,8 @@
   gap: var(--space-lg);
   font-size: var(--text-md);
   line-height: 1.5;
+  /* minmax(0, 1fr): a wide child shrinks to the screen instead of widening the page */
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .header {

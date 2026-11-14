@@ -117,7 +117,7 @@ export function WorkerSignage() {
           gap: "12px",
         }}
       >
-        <div>
+        <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
           <div className="mono" style={{ fontSize: "11px" }}>
             PUBLIC WORKER TRANSPARENCY &amp; DISPUTE PORTAL · GET /worker/{planId}/{cameraId}
           </div>

@@ -13,7 +13,10 @@ async function startShift(page: import("@playwright/test").Page): Promise<void> 
   await page.goto("/staff");
   await settle(page);
   await page.getByPlaceholder(/other role/i).fill("steward");
-  await page.getByRole("button", { name: /start|begin|continue|go|shift/i }).first().click();
+  await page
+    .getByRole("button", { name: /start|begin|continue|go|shift/i })
+    .first()
+    .click();
   await page.waitForTimeout(4_000);
 }
 

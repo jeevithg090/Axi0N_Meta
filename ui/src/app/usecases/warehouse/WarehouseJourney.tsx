@@ -26,7 +26,9 @@ export function warehouseJourney(run: GoldenRun): FlowStep[] {
     },
     {
       name: "Prove",
-      text: ci ? `Rule CI ${ci.ci_green ? "green" : "red"}: ${ci.summary}.` : "No Rule CI result recorded.",
+      text: ci
+        ? `Rule CI ${ci.ci_green ? "green" : "red"}: ${ci.summary}.`
+        : "No Rule CI result recorded.",
       models: [{ model: "Rule CI", meta: false }],
     },
     {
@@ -43,7 +45,9 @@ export function warehouseJourney(run: GoldenRun): FlowStep[] {
     },
     {
       name: "Act",
-      text: actions.length ? `${actions[0]!.detail} (${actions.length} action${actions.length === 1 ? "" : "s"}).` : "No action recorded.",
+      text: actions.length
+        ? `${actions[0]!.detail} (${actions.length} action${actions.length === 1 ? "" : "s"}).`
+        : "No action recorded.",
     },
     {
       name: "Evidence",

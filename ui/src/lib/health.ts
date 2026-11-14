@@ -3,7 +3,14 @@
 // `GET /health` through the same-origin proxy, polled. A failed call is reported as an error with
 // its time, never replaced by a remembered answer.
 
-import { createContext, createElement, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  createElement,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { API_PROXY } from "./config";
 

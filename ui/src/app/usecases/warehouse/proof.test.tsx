@@ -27,9 +27,13 @@ describe("WarehouseProof", () => {
     const [alert, excluded] = cards as [HTMLElement, HTMLElement];
     expect(within(alert).getAllByRole("img").length).toBeGreaterThan(0);
     expect(within(alert).getByTestId("verdict-pill").getAttribute("data-verdict")).toBe("yes");
-    expect(within(alert).getByRole("link", { name: "Verify" }).getAttribute("href")).toBe(passes.verify_url);
+    expect(within(alert).getByRole("link", { name: "Verify" }).getAttribute("href")).toBe(
+      passes.verify_url,
+    );
     expect(within(excluded).getByTestId("verdict-pill").getAttribute("data-verdict")).toBe("no");
-    expect(within(excluded).getByRole("link", { name: "Verify" }).getAttribute("href")).toBe(driver.verify_url);
+    expect(within(excluded).getByRole("link", { name: "Verify" }).getAttribute("href")).toBe(
+      driver.verify_url,
+    );
     expect(excluded.textContent).toContain("operator");
   });
 });

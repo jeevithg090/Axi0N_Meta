@@ -25,7 +25,11 @@ interface Recorded {
     check?: { agrees?: boolean; confidence?: number };
     audio?: { lang: string; text: string; heard?: string }[];
   };
-  ack: { notified: { role: string; at: string }[]; taps: { role: string; button: string; at: string }[]; arrival?: { concept: string; zone: string; seen_at: string } };
+  ack: {
+    notified: { role: string; at: string }[];
+    taps: { role: string; button: string; at: string }[];
+    arrival?: { concept: string; zone: string; seen_at: string };
+  };
   assessment: { level: string; why: string; staff_actions?: string[] };
 }
 
@@ -50,15 +54,37 @@ interface LoopEntry {
 function loop(peak: number | null, zone: string | undefined, cleared: string | null): LoopEntry[] {
   const iso = (t: string) => t.replace("+00:00", "Z");
   const entries: LoopEntry[] = [
-    { time: run.alert.at, title: `Reading: ${peak?.toFixed(1) ?? "?"} people/m²`, tone: "instrument", meta: zone },
+    {
+      time: run.alert.at,
+      title: `Reading: ${peak?.toFixed(1) ?? "?"} people/m²`,
+      tone: "instrument",
+      meta: zone,
+    },
   ];
   if (run.alert.assessed_at)
-    entries.push({ time: run.alert.assessed_at, title: `Muse Spark: ${run.assessment.level}`, tone: "instrument", meta: run.assessment.staff_actions?.[0] });
-  for (const n of run.ack.notified) entries.push({ time: n.at, title: `${role(n.role)} alerted`, tone: "neutral" });
-  if (run.alert.sent_at) entries.push({ time: run.alert.sent_at, title: "Glimmer confirmed; the alert is chained", tone: "instrument" });
-  for (const t of run.ack.taps) entries.push({ time: iso(t.at), title: `${role(t.role)}: “${t.button}”`, tone: "person" });
+    entries.push({
+      time: run.alert.assessed_at,
+      title: `Muse Spark: ${run.assessment.level}`,
+      tone: "instrument",
+      meta: run.assessment.staff_actions?.[0],
+    });
+  for (const n of run.ack.notified)
+    entries.push({ time: n.at, title: `${role(n.role)} alerted`, tone: "neutral" });
+  if (run.alert.sent_at)
+    entries.push({
+      time: run.alert.sent_at,
+      title: "Glimmer confirmed; the alert is chained",
+      tone: "instrument",
+    });
+  for (const t of run.ack.taps)
+    entries.push({ time: iso(t.at), title: `${role(t.role)}: “${t.button}”`, tone: "person" });
   if (run.ack.arrival)
-    entries.push({ time: run.ack.arrival.seen_at, title: `Staff seen at the gate (${run.ack.arrival.concept})`, tone: "instrument", meta: run.ack.arrival.zone });
+    entries.push({
+      time: run.ack.arrival.seen_at,
+      title: `Staff seen at the gate (${run.ack.arrival.concept})`,
+      tone: "instrument",
+      meta: run.ack.arrival.zone,
+    });
   if (cleared) entries.push({ time: cleared, title: "Cleared", tone: "ok" });
   return entries.sort((a, b) => a.time.localeCompare(b.time));
 }
@@ -83,14 +109,20 @@ export function CrowdProof() {
       verdict={
         <p className={styles.proofLine}>
           <span className="state bad">{run.assessment.level}</span>{" "}
-          {run.alert.check?.agrees ? "Glimmer confirmed it on the frames" : "Glimmer did not confirm it"}
+          {run.alert.check?.agrees
+            ? "Glimmer confirmed it on the frames"
+            : "Glimmer did not confirm it"}
           {typeof confidence === "number" ? ` (${confidence.toFixed(2)})` : ""}.
         </p>
       }
       reason={run.assessment.why}
       chips={[
         { model: "SAM 3.1", job: "counted heads" },
-        { model: "Muse Spark 1.3", job: "judged and planned", ms: typeof assess === "number" ? assess * 1000 : null },
+        {
+          model: "Muse Spark 1.3",
+          job: "judged and planned",
+          ms: typeof assess === "number" ? assess * 1000 : null,
+        },
         { model: "Muse Glimmer 30B", job: "checked the frames" },
       ]}
       footnote={
@@ -103,7 +135,13 @@ export function CrowdProof() {
         <h3 id="crowd-loop">From the reading to a cleared gate</h3>
         <Timeline label="The crowd alert, minute by minute">
           {loop(gate?.peak_density_ppm2 ?? null, gate?.zone, cleared).map((e) => (
-            <TimelineItem key={`${e.time}-${e.title}`} time={e.time} title={e.title} tone={e.tone} meta={e.meta} />
+            <TimelineItem
+              key={`${e.time}-${e.title}`}
+              time={e.time}
+              title={e.title}
+              tone={e.tone}
+              meta={e.meta}
+            />
           ))}
         </Timeline>
       </section>
@@ -114,7 +152,9 @@ export function CrowdProof() {
             <li key={a.lang}>
               <span className={styles.small}>{LANG[a.lang] ?? a.lang}</span>
               <br />“{a.text}”
-              {a.heard && <span className={styles.small}> Heard back by Muse Voice Transcribe.</span>}
+              {a.heard && (
+                <span className={styles.small}> Heard back by Muse Voice Transcribe.</span>
+              )}
             </li>
           ))}
         </ul>

@@ -540,7 +540,11 @@
   bottom: 0;
   z-index: 6;
   padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
-  background: linear-gradient(to top, var(--bg) 70%, color-mix(in oklab, var(--bg) 0%, transparent));
+  background: linear-gradient(
+    to top,
+    var(--bg) 70%,
+    color-mix(in oklab, var(--bg) 0%, transparent)
+  );
 }
 
 .dockInner {
@@ -792,7 +796,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app *, .app *::before, .app *::after { animation: none !important; transition: none !important; }
+  .app *,
+  .app *::before,
+  .app *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
-.app :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.app :focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}

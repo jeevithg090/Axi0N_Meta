@@ -22,7 +22,13 @@ export function SystemStatus() {
             <Skeleton label="Checking the API" />
           ) : (
             <LiveBadge
-              mode={healthBadge(load) === "LIVE" ? "live" : healthBadge(load) === "REPLAY" ? "replay" : "offline"}
+              mode={
+                healthBadge(load) === "LIVE"
+                  ? "live"
+                  : healthBadge(load) === "REPLAY"
+                    ? "replay"
+                    : "offline"
+              }
               detail={`checked ${load.at.toISOString().slice(11, 19)} UTC`}
             />
           )}
@@ -32,8 +38,8 @@ export function SystemStatus() {
 
         {load.phase === "error" && (
           <p className={styles.statusError}>
-            The API did not answer just now. The demo still works: it replays a recorded run with
-            no model calls.
+            The API did not answer just now. The demo still works: it replays a recorded run with no
+            model calls.
           </p>
         )}
 

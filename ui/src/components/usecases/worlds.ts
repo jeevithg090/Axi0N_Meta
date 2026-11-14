@@ -15,7 +15,8 @@ export const WORLDS = [
       src: "/usecases/supermarket.jpg",
       label: "Stock footage, Pexels 39221979",
       alt: "Shoppers unloading trolleys at a supermarket checkout lane",
-      credit: "Stock footage, Pexels video 39221979 (faces blurred): the checkout clip the Ask agent watched on 1 Nov.",
+      credit:
+        "Stock footage, Pexels video 39221979 (faces blurred): the checkout clip the Ask agent watched on 1 Nov.",
     },
   },
   {
@@ -29,7 +30,8 @@ export const WORLDS = [
       src: "/usecases/warehouse.jpg",
       label: "Stock footage, Pexels 32243654",
       alt: "A worker walks past a moving forklift in a warehouse aisle",
-      credit: "Stock footage, Pexels video 32243654: the clip behind the 1 Nov verified alert (T02).",
+      credit:
+        "Stock footage, Pexels video 32243654: the clip behind the 1 Nov verified alert (T02).",
     },
   },
   {
@@ -43,7 +45,8 @@ export const WORLDS = [
       src: "/usecases/crowd.jpg",
       label: "Research footage, Jülich",
       alt: "Seen from above, a dense crowd in caps presses toward a narrow gate",
-      credit: "Research footage, Jülich bottleneck experiment (run 030, Forschungszentrum Jülich data archive). Not a real venue.",
+      credit:
+        "Research footage, Jülich bottleneck experiment (run 030, Forschungszentrum Jülich data archive). Not a real venue.",
     },
   },
 ] as const;

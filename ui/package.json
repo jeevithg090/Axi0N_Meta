@@ -12,6 +12,7 @@
     "test": "vitest",
     "test:verify-page": "vitest run --root ../src/rulecam/evidence/verify_page",
     "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "openapi": "openapi-typescript src/api/openapi.json -o src/api/schema.d.ts"
   },
   "dependencies": {

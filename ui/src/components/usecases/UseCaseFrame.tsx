@@ -50,11 +50,15 @@ export function UseCaseFrame({ children }: { children: ReactNode }) {
           <div className={styles.heroBody}>
             <h1 className={styles.title}>{world ? world.promise : "One engine, three worlds"}</h1>
             <p className={styles.line}>
-              {world ? world.line : "The same planner, Rule CI and verifier, pointed at three kinds of site."}
+              {world
+                ? world.line
+                : "The same planner, Rule CI and verifier, pointed at three kinds of site."}
             </p>
             {world && <p className={styles.worldModels}>{world.models.join(" · ")}</p>}
           </div>
-          {world && <UseCaseStill world={world} caption="full" priority className={styles.heroStill} />}
+          {world && (
+            <UseCaseStill world={world} caption="full" priority className={styles.heroStill} />
+          )}
         </div>
       </header>
       <div className={styles.body}>{children}</div>

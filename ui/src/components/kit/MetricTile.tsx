@@ -38,7 +38,12 @@ export function MetricTile({
 }: MetricTileProps) {
   const unknown = value === null || value === undefined || value === "";
   return (
-    <div className={cx(styles.metric, className)} data-tone={tone} data-size={size} data-testid="metric-tile">
+    <div
+      className={cx(styles.metric, className)}
+      data-tone={tone}
+      data-size={size}
+      data-testid="metric-tile"
+    >
       {loading ? (
         <Skeleton label={`Loading ${label}`} height="2.5rem" shape="block" />
       ) : (

@@ -117,7 +117,9 @@ describe("advice card", () => {
     for (const part of ["Saw", "Why", "Do", "Gain", "Check", "Safety"]) {
       expect(screen.getByRole("region", { name: part })).toBeTruthy();
     }
-    expect(screen.getByTestId("reproduced").textContent).toBe("2/2 numbers reproduced by the Tier 1 model");
+    expect(screen.getByTestId("reproduced").textContent).toBe(
+      "2/2 numbers reproduced by the Tier 1 model",
+    );
     expect(card.textContent).toContain("14 min");
     expect(card.textContent).toContain(
       "Considered and not recommended: add a second forklift at the docks",

@@ -71,7 +71,13 @@ export function EvidenceCard({
           list.map((f, i) => (
             <div key={`${f.src}-${i}`} className={styles.frame}>
               {/* eslint-disable-next-line @next/next/no-img-element -- strips are plain files, any size */}
-              <img src={f.src} alt={f.alt ?? `Frame ${i + 1} of ${list.length}`} loading="lazy" width={320} height={240} />
+              <img
+                src={f.src}
+                alt={f.alt ?? `Frame ${i + 1} of ${list.length}`}
+                loading="lazy"
+                width={320}
+                height={240}
+              />
               <span className={styles.frameIndex} aria-hidden="true">
                 {i + 1}
               </span>

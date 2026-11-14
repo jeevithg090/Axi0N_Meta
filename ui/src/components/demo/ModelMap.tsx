@@ -33,7 +33,8 @@ function named(id: string | null | undefined, role: string): string {
 export function ModelMap({ fixed }: { fixed: readonly FixedModel[] }) {
   const load = useSharedHealth();
   const live = load.phase === "ok" ? (load.health.models ?? null) : null;
-  const unknown = load.phase === "loading" ? "Checking the API…" : "Not known (the API did not say)";
+  const unknown =
+    load.phase === "loading" ? "Checking the API…" : "Not known (the API did not say)";
   const jobs = [
     {
       key: "tier1",
@@ -75,7 +76,10 @@ export function ModelMap({ fixed }: { fixed: readonly FixedModel[] }) {
               <tr key={m.key} data-testid={`model-row-${m.key}`}>
                 <th scope="row">{m.model}</th>
                 <td>{m.job}</td>
-                <td className={styles.modelStatus} data-live={m.status.startsWith("Live") ? "true" : "false"}>
+                <td
+                  className={styles.modelStatus}
+                  data-live={m.status.startsWith("Live") ? "true" : "false"}
+                >
                   {m.status}
                 </td>
               </tr>

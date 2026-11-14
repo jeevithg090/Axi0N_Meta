@@ -23,8 +23,12 @@ describe("modelLabel", () => {
   });
 
   it("adds where it runs, or falls back to the role", () => {
-    expect(modelLine("muse-spark-1.3", "meta-api", "Tier 1 check")).toBe("Muse Spark 1.3 · Meta API");
-    expect(modelLine("muse-glimmer-30b", "self-hosted", "Tier 1 check")).toBe("Muse Glimmer 30B · our GPU");
+    expect(modelLine("muse-spark-1.3", "meta-api", "Tier 1 check")).toBe(
+      "Muse Spark 1.3 · Meta API",
+    );
+    expect(modelLine("muse-glimmer-30b", "self-hosted", "Tier 1 check")).toBe(
+      "Muse Glimmer 30B · our GPU",
+    );
     expect(modelLine(undefined, "meta-api", "Tier 1 check")).toBe("Tier 1 check");
     expect(hostLabel(null)).toBe("");
   });
@@ -40,7 +44,11 @@ describe("modelLabel", () => {
 
 describe("modelRows", () => {
   it("names each job from /health and says the Meta API, not a GPU state", () => {
-    const rows = modelRows({ ok: true, models: META_API, gpus: { glimmer: { state: "warm", up: true } } });
+    const rows = modelRows({
+      ok: true,
+      models: META_API,
+      gpus: { glimmer: { state: "warm", up: true } },
+    });
     expect(rows.map((r) => [r.role, r.model, r.status])).toEqual([
       ["Tier 1 check", "Muse Spark 1.3", "Meta API"],
       ["Tier 2 review", "Muse Wonder 1.0", "Meta API"],
@@ -59,13 +67,22 @@ describe("modelRows", () => {
 
   it("keeps our own GPUs' states and workers when the models run there", () => {
     const rows = modelRows({
-      models: { ...META_API, tier1: "muse-glimmer-30b", tier1_host: "self-hosted", sam_host: "self-hosted" },
+      models: {
+        ...META_API,
+        tier1: "muse-glimmer-30b",
+        tier1_host: "self-hosted",
+        sam_host: "self-hosted",
+      },
       gpus: {
         glimmer: { state: "cold-ready", up: true, workers: { running: 0, idle: 1 } },
         sam: { state: "warm", up: true },
       },
     });
-    expect(rows[0]).toMatchObject({ model: "Muse Glimmer 30B", status: "cold-ready", workers: "0 running, 1 idle" });
+    expect(rows[0]).toMatchObject({
+      model: "Muse Glimmer 30B",
+      status: "cold-ready",
+      workers: "0 running, 1 idle",
+    });
     expect(rows[2]?.status).toBe("warm");
   });
 

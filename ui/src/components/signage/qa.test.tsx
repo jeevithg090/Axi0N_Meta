@@ -44,10 +44,17 @@ describe("SystemSignage (QA-B19)", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) => {
-        if (url.endsWith("/health")) return new Response(JSON.stringify({ ok: true, mode: "live", gpus: {} }));
+        if (url.endsWith("/health"))
+          return new Response(JSON.stringify({ ok: true, mode: "live", gpus: {} }));
         if (url.endsWith("/runtime/metrics")) {
           return new Response(
-            JSON.stringify({ chunks_processed: 3, candidates: 0, verify_pending: 0, verifications_failed: 0, verify_errors: 0 }),
+            JSON.stringify({
+              chunks_processed: 3,
+              candidates: 0,
+              verify_pending: 0,
+              verifications_failed: 0,
+              verify_errors: 0,
+            }),
           );
         }
         return new Response("", { status: 404 });
@@ -71,7 +78,15 @@ describe("SystemSignage (QA-B19)", () => {
       runtime: true,
       revision: null,
       gpus: {
-        glimmer: { state: "warm", up: true, serverless: false, workers_min: null, workers_max: null, workers: null, error: null },
+        glimmer: {
+          state: "warm",
+          up: true,
+          serverless: false,
+          workers_min: null,
+          workers_max: null,
+          workers: null,
+          error: null,
+        },
       },
       models: {
         tier1: "muse-spark-1.3",
@@ -85,11 +100,15 @@ describe("SystemSignage (QA-B19)", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: string) =>
-        url.endsWith("/health") ? new Response(JSON.stringify(health)) : new Response("", { status: 404 }),
+        url.endsWith("/health")
+          ? new Response(JSON.stringify(health))
+          : new Response("", { status: 404 }),
       ),
     );
     render(<SystemSignage />);
-    await waitFor(() => expect(document.body.textContent).toContain("Tier 1 alert check · Muse Spark 1.3"));
+    await waitFor(() =>
+      expect(document.body.textContent).toContain("Tier 1 alert check · Muse Spark 1.3"),
+    );
     const models = screen.getByTestId("models-in-use").textContent ?? "";
     expect(models).toContain("Muse Spark 1.3 (muse-spark-1.3) · Meta API");
     expect(models).toContain("Muse Wonder 1.0 (muse-wonder-1.0) · Meta API");

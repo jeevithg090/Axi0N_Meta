@@ -44,7 +44,13 @@ export function WarehouseProof() {
           limit !== null ? `; the rule says under ${limit} m` : ""
         }. Live run, 1 Nov (${t02.id}).`,
       }}
-      verdict={<VerdictPill verdict={reading.verdict.verdict} confidence={reading.verdict.score} model={checker} />}
+      verdict={
+        <VerdictPill
+          verdict={reading.verdict.verdict}
+          confidence={reading.verdict.score}
+          model={checker}
+        />
+      }
       reason={reading.verdict.reason}
       chips={[
         { model: "SAM 3.1", job: "measured the gap" },
@@ -63,13 +69,29 @@ export function WarehouseProof() {
         <EvidenceCard
           title="Verified alert: a worker passes the forklift"
           caption={`Golden run recorded ${passes.recorded_at.slice(0, 10)}: the strip Glimmer looked at.`}
-          frames={alert.frames.map((src, i) => ({ src, alt: `Strip frame ${i + 1}: a worker beside the moving forklift` }))}
+          frames={alert.frames.map((src, i) => ({
+            src,
+            alt: `Strip frame ${i + 1}: a worker beside the moving forklift`,
+          }))}
           facts={[
             {
               label: "Measured",
-              value: <span className="measured">{alert.v.measurement ? `${alert.v.measurement.value.toFixed(2)} m` : "unknown"}</span>,
+              value: (
+                <span className="measured">
+                  {alert.v.measurement ? `${alert.v.measurement.value.toFixed(2)} m` : "unknown"}
+                </span>
+              ),
             },
-            { label: "Glimmer", value: <VerdictPill verdict={alert.v.tier1.verdict} confidence={alert.v.tier1.score} model="" /> },
+            {
+              label: "Glimmer",
+              value: (
+                <VerdictPill
+                  verdict={alert.v.tier1.verdict}
+                  confidence={alert.v.tier1.score}
+                  model=""
+                />
+              ),
+            },
             { label: "Decision", value: decisionText(alert.v) },
           ]}
           hash={passes.steps.evidence.root}
@@ -81,9 +103,21 @@ export function WarehouseProof() {
         <EvidenceCard
           title="Operator excluded: the seated driver"
           caption={`Golden run recorded ${driver.recorded_at.slice(0, 10)}: the only person is the driver in the cab.`}
-          frames={excluded.frames.map((src, i) => ({ src, alt: `Strip frame ${i + 1}: the driver seated in the forklift` }))}
+          frames={excluded.frames.map((src, i) => ({
+            src,
+            alt: `Strip frame ${i + 1}: the driver seated in the forklift`,
+          }))}
           facts={[
-            { label: "Glimmer", value: <VerdictPill verdict={excluded.v.tier1.verdict} confidence={excluded.v.tier1.score} model="" /> },
+            {
+              label: "Glimmer",
+              value: (
+                <VerdictPill
+                  verdict={excluded.v.tier1.verdict}
+                  confidence={excluded.v.tier1.score}
+                  model=""
+                />
+              ),
+            },
             { label: "Why", value: excluded.v.tier1.reason },
             { label: "Decision", value: decisionText(excluded.v) },
           ]}

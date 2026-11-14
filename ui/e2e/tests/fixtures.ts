@@ -48,7 +48,10 @@ export interface PageProblems {
 function isAsset(url: string, base: string): boolean {
   if (!url.startsWith(base)) return false;
   const path = new URL(url).pathname;
-  return path.startsWith("/_next/") || /\.(js|css|png|jpe?g|svg|webp|ico|woff2?|ttf|json|mp4|webm|html)$/.test(path);
+  return (
+    path.startsWith("/_next/") ||
+    /\.(js|css|png|jpe?g|svg|webp|ico|woff2?|ttf|json|mp4|webm|html)$/.test(path)
+  );
 }
 
 /** Collects console errors, uncaught errors and failed same-origin assets for one page. */
@@ -73,7 +76,8 @@ export function watch(page: Page, base: string): PageProblems {
   page.on("requestfailed", (request) => {
     const url = request.url();
     const reason = request.failure()?.errorText ?? "";
-    if (isAsset(url, base) && !reason.includes("ERR_ABORTED")) problems.assets.push(`failed ${url} ${reason}`);
+    if (isAsset(url, base) && !reason.includes("ERR_ABORTED"))
+      problems.assets.push(`failed ${url} ${reason}`);
   });
   return problems;
 }
@@ -117,7 +121,11 @@ export async function clippedElements(page: Page): Promise<string[]> {
     const scrolls = (el: Element | null): boolean => {
       // A scroller inside main (a wide table, a code block) is fine; main itself scrolling
       // sideways is the overflow this check is for.
-      for (let node = el; node && node.tagName !== "MAIN" && node !== document.body; node = node.parentElement) {
+      for (
+        let node = el;
+        node && node.tagName !== "MAIN" && node !== document.body;
+        node = node.parentElement
+      ) {
         const x = getComputedStyle(node).overflowX;
         if ((x === "auto" || x === "scroll") && node.scrollWidth > node.clientWidth) return true;
       }
@@ -126,7 +134,12 @@ export async function clippedElements(page: Page): Promise<string[]> {
     return [...document.querySelectorAll("main *")]
       .filter((el) => {
         const r = el.getBoundingClientRect();
-        return r.width > 0 && r.height > 0 && r.right > window.innerWidth + 2 && !scrolls(el.parentElement);
+        return (
+          r.width > 0 &&
+          r.height > 0 &&
+          r.right > window.innerWidth + 2 &&
+          !scrolls(el.parentElement)
+        );
       })
       .filter((el, _, all) => !all.includes(el.parentElement as Element))
       .slice(0, 5)
@@ -142,7 +155,9 @@ export async function clippedElements(page: Page): Promise<string[]> {
 export async function badgeText(page: Page): Promise<string> {
   const badge = page.getByTestId("mode-badge").first();
   await expect(badge).toBeVisible();
-  await expect(badge).not.toHaveText("…", { timeout: 8_000 }).catch(() => undefined);
+  await expect(badge)
+    .not.toHaveText("…", { timeout: 8_000 })
+    .catch(() => undefined);
   return ((await badge.textContent()) ?? "").trim();
 }
 

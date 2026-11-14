@@ -214,7 +214,12 @@ export function StreamsSignage() {
               Camera Fleet &nbsp;·&nbsp;{" "}
               <b>
                 GET /cameras (
-                {cameraList ? `${cameraList.length} reported` : cameraError ? "not reachable" : "loading…"})
+                {cameraList
+                  ? `${cameraList.length} reported`
+                  : cameraError
+                    ? "not reachable"
+                    : "loading…"}
+                )
               </b>
             </div>
             <h1 className="h1">
@@ -278,7 +283,9 @@ export function StreamsSignage() {
       <section className="wrap sec">
         <div className="grid" style={{ alignItems: "end" }}>
           <div className="s7">
-            <span className="small" style={{ marginRight: "8px" }}>Filter Fleet:</span>
+            <span className="small" style={{ marginRight: "8px" }}>
+              Filter Fleet:
+            </span>
             <button
               type="button"
               className="tab"
@@ -315,7 +322,12 @@ export function StreamsSignage() {
 
           <div
             className="s5 mono"
-            style={{ display: "flex", flexWrap: "wrap", gap: "var(--s1) var(--s3)", justifyContent: "flex-end" }}
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "var(--s1) var(--s3)",
+              justifyContent: "flex-end",
+            }}
           >
             <span>SAM 3.1 Keyframes · 38 ms</span>
             <span>Tier 1 check · 412 ms</span>
@@ -336,7 +348,14 @@ export function StreamsSignage() {
               border: "1px solid var(--color-scene-rule)",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "12px",
+              }}
+            >
               <div>
                 <span className="mono" style={{ color: "var(--color-scene-accent)" }}>
                   LIVE STREAM INSPECTOR · {selectedCam.cameraId}
@@ -349,7 +368,12 @@ export function StreamsSignage() {
                 <Link
                   href={`/worker?camera=${encodeURIComponent(selectedCam.cameraId)}`}
                   className="btn"
-                  style={{ background: "var(--color-accent)", color: "var(--color-ink)", padding: "6px 12px", fontSize: "13px" }}
+                  style={{
+                    background: "var(--color-accent)",
+                    color: "var(--color-ink)",
+                    padding: "6px 12px",
+                    fontSize: "13px",
+                  }}
                 >
                   View Worker Rules Card
                 </Link>
@@ -357,7 +381,12 @@ export function StreamsSignage() {
                   type="button"
                   className="btn ghost"
                   onClick={() => setSelectedCam(null)}
-                  style={{ color: "var(--color-on-scene)", borderColor: "var(--color-on-scene)", padding: "6px 12px", fontSize: "13px" }}
+                  style={{
+                    color: "var(--color-on-scene)",
+                    borderColor: "var(--color-on-scene)",
+                    padding: "6px 12px",
+                    fontSize: "13px",
+                  }}
                 >
                   Close ✕
                 </button>
@@ -371,7 +400,12 @@ export function StreamsSignage() {
                 loop
                 muted
                 playsInline
-                style={{ width: "100%", maxHeight: "460px", objectFit: "contain", background: "#000" }}
+                style={{
+                  width: "100%",
+                  maxHeight: "460px",
+                  objectFit: "contain",
+                  background: "#000",
+                }}
               />
             )}
           </div>
@@ -443,9 +477,7 @@ export function StreamsSignage() {
                       left: 8,
                       right: 8,
                       background:
-                        c.state === "BREACH"
-                          ? "rgba(201, 52, 16, 0.92)"
-                          : "rgba(10, 12, 14, 0.85)",
+                        c.state === "BREACH" ? "rgba(201, 52, 16, 0.92)" : "rgba(10, 12, 14, 0.85)",
                       padding: "3px 8px",
                       fontSize: "11px",
                       color: c.state === "BREACH" ? "#fff" : "var(--color-scene-cool)",
@@ -461,7 +493,12 @@ export function StreamsSignage() {
               ) : (
                 <svg
                   viewBox="0 0 320 190"
-                  style={{ display: "block", width: "100%", height: "190px", background: "var(--cam)" }}
+                  style={{
+                    display: "block",
+                    width: "100%",
+                    height: "190px",
+                    background: "var(--cam)",
+                  }}
                   role="img"
                   aria-label={c.name}
                 >
@@ -472,7 +509,15 @@ export function StreamsSignage() {
                     strokeOpacity=".45"
                     strokeWidth="6"
                   />
-                  <rect x="30" y="68" width="260" height="54" fill="var(--color-scene)" stroke="var(--color-bad)" strokeWidth="2" />
+                  <rect
+                    x="30"
+                    y="68"
+                    width="260"
+                    height="54"
+                    fill="var(--color-scene)"
+                    stroke="var(--color-bad)"
+                    strokeWidth="2"
+                  />
                   <text
                     x="160"
                     y="92"
@@ -516,7 +561,14 @@ export function StreamsSignage() {
                 {c.where}
               </div>
 
-              <div className="kv" style={{ borderTop: "1px solid var(--color-rule)", padding: "6px 0", fontSize: "13px" }}>
+              <div
+                className="kv"
+                style={{
+                  borderTop: "1px solid var(--color-rule)",
+                  padding: "6px 0",
+                  fontSize: "13px",
+                }}
+              >
                 <span>Enforced Rule</span>
                 <b className="dm" style={{ fontSize: "11px" }}>
                   {c.rules[0] ?? "UNCHECKED (Lens Blocked)"}

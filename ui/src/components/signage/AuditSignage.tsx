@@ -70,12 +70,19 @@ async function computeMerkleRoot(leaves: string[]): Promise<string> {
   return level[0] ?? "";
 }
 
-function summarizeRecord(r: ChainRecord): { what: string; who: string; category: "rule" | "trip" | "disp" | "other" } {
+function summarizeRecord(r: ChainRecord): {
+  what: string;
+  who: string;
+  category: "rule" | "trip" | "disp" | "other";
+} {
   const p = r.payload;
   if (r.kind === "candidate") {
     const cand = (p.candidate ?? {}) as Record<string, unknown>;
     const meas = (cand.measurement ?? {}) as Record<string, unknown>;
-    const val = typeof meas.value === "number" ? `${meas.value.toFixed(2)} ${String(meas.unit ?? "")}`.trim() : "";
+    const val =
+      typeof meas.value === "number"
+        ? `${meas.value.toFixed(2)} ${String(meas.unit ?? "")}`.trim()
+        : "";
     return {
       what: `Candidate ${String(cand.event_id ?? "").slice(0, 14)}: ${String(cand.rule_id ?? "rule")} on ${String(cand.camera_id ?? "cam")}${val ? ` (${val})` : ""}`,
       who: `Rule Engine · ${String(cand.severity ?? "high").toUpperCase()}`,
@@ -123,15 +130,17 @@ function summarizeRecord(r: ChainRecord): { what: string; who: string; category:
   if (r.kind === "plan") {
     const rules = Array.isArray(p.rules) ? p.rules.join(", ") : "";
     return {
-      what: p.event === "plan_approved"
-        ? `Plan ${String(p.plan_id ?? "")} v${String(p.version ?? 1)} approved & activated (${rules})`
-        : `Active plan hash anchored (${String(p.plan_version_hash ?? "").slice(0, 12)}…)`,
+      what:
+        p.event === "plan_approved"
+          ? `Plan ${String(p.plan_id ?? "")} v${String(p.version ?? 1)} approved & activated (${rules})`
+          : `Active plan hash anchored (${String(p.plan_version_hash ?? "").slice(0, 12)}…)`,
       who: "Site Owner · PlanActivator",
       category: "rule",
     };
   }
   if (r.kind === "coverage") {
-    const pct = typeof p.watched_fraction === "number" ? `${(p.watched_fraction * 100).toFixed(1)}%` : "";
+    const pct =
+      typeof p.watched_fraction === "number" ? `${(p.watched_fraction * 100).toFixed(1)}%` : "";
     return {
       what: `Fleet coverage seal: ${String(p.cameras_watched ?? 11)}/${String(p.cameras_total ?? 12)} cameras watching (${pct})`,
       who: "Coverage Watchdog",
@@ -369,7 +378,10 @@ export function AuditSignage() {
               )}
             </h1>
             {!chainIntact && (
-              <p className="lead" style={{ color: "var(--alert)", marginTop: "var(--s1)", fontWeight: 600 }}>
+              <p
+                className="lead"
+                style={{ color: "var(--alert)", marginTop: "var(--s1)", fontWeight: 600 }}
+              >
                 {badReason} — Every subsequent hash link invalidated.
               </p>
             )}
@@ -520,7 +532,9 @@ export function AuditSignage() {
             <h2 className="h3">
               Sealed Event Records ({filtered.length} of {records.length})
             </h2>
-            <p className="small">Click any block to inspect its full canonical JSON and SHA-256 link</p>
+            <p className="small">
+              Click any block to inspect its full canonical JSON and SHA-256 link
+            </p>
           </div>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
             <input
@@ -646,11 +660,20 @@ export function AuditSignage() {
                       fontSize: "12px",
                     }}
                   >
-                    <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", rowGap: "6px", marginBottom: "12px" }}>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "140px 1fr",
+                        rowGap: "6px",
+                        marginBottom: "12px",
+                      }}
+                    >
                       <span style={{ color: "var(--color-on-scene-2)" }}>prev_hash:</span>
                       <span style={{ wordBreak: "break-all" }}>{r.prev_hash}</span>
                       <span style={{ color: "var(--color-on-scene-2)" }}>recorded hash:</span>
-                      <span style={{ wordBreak: "break-all", color: "var(--color-cool)" }}>{r.hash}</span>
+                      <span style={{ wordBreak: "break-all", color: "var(--color-cool)" }}>
+                        {r.hash}
+                      </span>
                       <span style={{ color: "var(--color-on-scene-2)" }}>WebCrypto SHA-256:</span>
                       <span
                         style={{
@@ -658,7 +681,8 @@ export function AuditSignage() {
                           color: r.computedHash === r.hash ? "var(--color-ok)" : "var(--color-bad)",
                         }}
                       >
-                        {r.computedHash} ({r.computedHash === r.hash ? "BYTE-FOR-BYTE MATCH" : "MISMATCH"})
+                        {r.computedHash} (
+                        {r.computedHash === r.hash ? "BYTE-FOR-BYTE MATCH" : "MISMATCH"})
                       </span>
                     </div>
                     <pre

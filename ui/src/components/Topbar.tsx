@@ -35,11 +35,7 @@ export function Topbar() {
                 pathname === item.href ||
                 (item.href === "/monitor" && (pathname === "/" || pathname === "/monitor"));
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={active ? "on" : ""}
-                >
+                <Link key={item.href} href={item.href} className={active ? "on" : ""}>
                   {item.label}
                 </Link>
               );
@@ -50,18 +46,10 @@ export function Topbar() {
         <div style={{ display: "flex", alignItems: "center", gap: "24px", flexWrap: "wrap" }}>
           <span className="who">M. Vance · Lead Ops</span>
           <div className="mode" role="group" aria-label="Theme toggle">
-            <button
-              type="button"
-              aria-pressed={!isDark}
-              onClick={() => setTheme("light")}
-            >
+            <button type="button" aria-pressed={!isDark} onClick={() => setTheme("light")}>
               Light
             </button>
-            <button
-              type="button"
-              aria-pressed={isDark}
-              onClick={() => setTheme("dark")}
-            >
+            <button type="button" aria-pressed={isDark} onClick={() => setTheme("dark")}>
               Dark
             </button>
           </div>

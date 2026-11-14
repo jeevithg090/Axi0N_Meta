@@ -7,7 +7,13 @@ import { usePathname } from "next/navigation";
 import { GOLDEN_RUNS } from "@/fixtures/golden";
 import { useAuth, type AuthPhase } from "@/lib/auth";
 import { API_PROXY } from "@/lib/config";
-import { healthBadge, HealthProvider, useSharedHealth, type HealthLoad, type SystemBadge } from "@/lib/health";
+import {
+  healthBadge,
+  HealthProvider,
+  useSharedHealth,
+  type HealthLoad,
+  type SystemBadge,
+} from "@/lib/health";
 import { modelRows } from "@/lib/models";
 import { useDemo, useDemoQuery, useStream } from "@/lib/stream";
 import type { UiState } from "@/lib/store";
@@ -168,7 +174,8 @@ function pageName(pathname: string, mounted: boolean): { group: string; label: s
   if (pathname === "/" || pathname === "/demo" || pathname.startsWith("/demo/")) return null;
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
-      if (!item.external && isActive(pathname, item.href)) return { group: group.group, label: item.label };
+      if (!item.external && isActive(pathname, item.href))
+        return { group: group.group, label: item.label };
     }
   }
   // A route outside the nav (a 404 among them) is named from the URL only after mount: the
@@ -198,11 +205,21 @@ export function ThemeSwitch({ compact = false }: { compact?: boolean }) {
   const { isDark, setTheme } = useTheme();
   return (
     <div className="theme-switch" role="group" aria-label="Colour theme">
-      <button type="button" aria-pressed={!isDark} onClick={() => setTheme("light")} aria-label="Light theme">
+      <button
+        type="button"
+        aria-pressed={!isDark}
+        onClick={() => setTheme("light")}
+        aria-label="Light theme"
+      >
         {icons.sun}
         {!compact && <span className="theme-word">Light</span>}
       </button>
-      <button type="button" aria-pressed={isDark} onClick={() => setTheme("dark")} aria-label="Dark theme">
+      <button
+        type="button"
+        aria-pressed={isDark}
+        onClick={() => setTheme("dark")}
+        aria-label="Dark theme"
+      >
         {icons.moon}
         {!compact && <span className="theme-word">Dark</span>}
       </button>
@@ -380,10 +397,16 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
         <nav aria-label="Primary navigation" className="sidebar-nav">
           {NAV_GROUPS.map((grp) => (
             <div key={grp.group} className="nav-group">
-              <p className="nav-group-label" id={`nav-${grp.group.replace(/\s+/g, "-").toLowerCase()}`}>
+              <p
+                className="nav-group-label"
+                id={`nav-${grp.group.replace(/\s+/g, "-").toLowerCase()}`}
+              >
                 {grp.group}
               </p>
-              <ul className="nav-list" aria-labelledby={`nav-${grp.group.replace(/\s+/g, "-").toLowerCase()}`}>
+              <ul
+                className="nav-list"
+                aria-labelledby={`nav-${grp.group.replace(/\s+/g, "-").toLowerCase()}`}
+              >
                 {grp.items.map((item) => {
                   const active = !item.external && isActive(pathname, item.href);
                   const badge = liveBadge(item.href, liveStats) ?? item.badge;

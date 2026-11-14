@@ -19,7 +19,14 @@ export interface EmptyStateProps {
 }
 
 /** What belongs here, why it is empty (or what broke), and the one action that fills it. */
-export function EmptyState({ title, children, action, icon, tone = "empty", className }: EmptyStateProps) {
+export function EmptyState({
+  title,
+  children,
+  action,
+  icon,
+  tone = "empty",
+  className,
+}: EmptyStateProps) {
   return (
     <div
       className={cx(styles.empty, className)}

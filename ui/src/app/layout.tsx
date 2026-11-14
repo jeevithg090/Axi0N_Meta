@@ -20,7 +20,13 @@ const host = localFont({
 });
 
 const mono = localFont({
-  src: [{ path: "./fonts/AtkinsonHyperlegibleMono-latin-wght.woff2", weight: "400 500", style: "normal" }],
+  src: [
+    {
+      path: "./fonts/AtkinsonHyperlegibleMono-latin-wght.woff2",
+      weight: "400 500",
+      style: "normal",
+    },
+  ],
   variable: "--font-atkinson-mono",
   display: "swap",
   adjustFontFallback: false,

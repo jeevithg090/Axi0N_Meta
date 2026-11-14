@@ -50,7 +50,10 @@ export const STEPS = [
 const STEP_MODELS: Record<(typeof STEPS)[number]["name"], FlowStep["models"]> = {
   Describe: ["Muse Voice Transcribe", "Muse Spark 1.3"],
   Plan: ["Muse Spark 1.3", "SAM 3.1"],
-  Prove: [{ model: "Rule CI", meta: false }, { model: "Muse Image", state: "off" }],
+  Prove: [
+    { model: "Rule CI", meta: false },
+    { model: "Muse Image", state: "off" },
+  ],
   Trust: [ROLES.tier1, ROLES.tier2],
 };
 
@@ -135,7 +138,9 @@ function AlertProof() {
   return (
     <figure className={styles.proof} aria-labelledby="proof-caption" data-testid="alert-proof">
       <div className={styles.proofHead}>
-        <span className={styles.proofKind}>{event.decision.alert ? "Verified alert" : "Rejected"}</span>
+        <span className={styles.proofKind}>
+          {event.decision.alert ? "Verified alert" : "Rejected"}
+        </span>
         <span className={styles.proofWhen}>
           <span className="visually-hidden">Test </span>
           {test.id}
@@ -156,7 +161,8 @@ function AlertProof() {
         <p className={styles.readingNote}>
           {limit !== null ? (
             <>
-              Measured on the calibrated floor. The rule says under <b className="measured">{limit} m</b>.
+              Measured on the calibrated floor. The rule says under{" "}
+              <b className="measured">{limit} m</b>.
             </>
           ) : (
             "Measured on the calibrated floor."
@@ -165,7 +171,11 @@ function AlertProof() {
       </div>
 
       <div className={styles.proofVerdict}>
-        <VerdictPill verdict={event.verdict.verdict} confidence={event.verdict.score} model={checker} />
+        <VerdictPill
+          verdict={event.verdict.verdict}
+          confidence={event.verdict.score}
+          model={checker}
+        />
         <p className={styles.proofReason}>{event.verdict.reason}</p>
       </div>
 
@@ -183,8 +193,9 @@ function AlertProof() {
 
       <figcaption id="proof-caption" className={styles.proofCaption}>
         <span>
-          Event to checked decision <b className="measured">{formatMs(event.event_to_decision_s * 1000)}</b>.
-          Recorded on the deployed stack, checked by {checker} on our own GPUs; not live now.
+          Event to checked decision{" "}
+          <b className="measured">{formatMs(event.event_to_decision_s * 1000)}</b>. Recorded on the
+          deployed stack, checked by {checker} on our own GPUs; not live now.
         </span>
         <a href={repoFile(CAMPAIGN.source)} className={styles.proofSource}>
           The run&apos;s record
@@ -220,8 +231,8 @@ export function Landing() {
               )}
             </div>
             <p className={styles.note}>
-              The demo replays a recorded run with no model calls (labelled REPLAY), so it works with
-              every GPU switched off. The verify page recomputes every SHA-256 in your browser.
+              The demo replays a recorded run with no model calls (labelled REPLAY), so it works
+              with every GPU switched off. The verify page recomputes every SHA-256 in your browser.
             </p>
           </div>
           <AlertProof />
@@ -236,7 +247,9 @@ export function Landing() {
             <h2 id="how-title" className={styles.h2}>
               From a worry to a proven rule
             </h2>
-            <p className={styles.headLine}>Nothing runs until a person approves a plan that passed every check.</p>
+            <p className={styles.headLine}>
+              Nothing runs until a person approves a plan that passed every check.
+            </p>
           </div>
           <StepFlow
             label="How a rule goes live"
@@ -245,7 +258,11 @@ export function Landing() {
         </div>
       </section>
 
-      <section id="worlds" aria-labelledby="worlds-title" className={`${styles.section} ${styles.band}`}>
+      <section
+        id="worlds"
+        aria-labelledby="worlds-title"
+        className={`${styles.section} ${styles.band}`}
+      >
         <div className={`container ${styles.split}`}>
           <div className={styles.splitHead}>
             <h2 id="worlds-title" className={styles.h2}>
@@ -259,7 +276,11 @@ export function Landing() {
             {WORLDS.map((w) => (
               <li key={w.slug} className={styles.world}>
                 <UseCaseStill world={w} className={styles.worldStill} />
-                <Link href={`/usecases/${w.slug}`} className={styles.worldLink} data-testid={`world-${w.slug}`}>
+                <Link
+                  href={`/usecases/${w.slug}`}
+                  className={styles.worldLink}
+                  data-testid={`world-${w.slug}`}
+                >
                   <span className={styles.worldName}>
                     <span className={styles.worldIcon}>{icons[w.icon]}</span>
                     {w.name}
@@ -293,7 +314,11 @@ export function Landing() {
         </div>
       </section>
 
-      <section id="measured" aria-labelledby="measured-title" className={`${styles.section} ${styles.sectionLast}`}>
+      <section
+        id="measured"
+        aria-labelledby="measured-title"
+        className={`${styles.section} ${styles.sectionLast}`}
+      >
         <div className="container">
           <div className={styles.head}>
             <h2 id="measured-title" className={styles.h2}>

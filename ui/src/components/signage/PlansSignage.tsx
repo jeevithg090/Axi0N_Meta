@@ -92,7 +92,9 @@ export function PlansSignage() {
             <h1 className="h1">
               {summaries.length} site plans on file.{" "}
               <span className="hi">
-                {approvedPlan ? `${approvedPlan.plan_id} is enforcing live.` : "Select a plan to activate."}
+                {approvedPlan
+                  ? `${approvedPlan.plan_id} is enforcing live.`
+                  : "Select a plan to activate."}
               </span>
             </h1>
           </div>
@@ -150,7 +152,9 @@ export function PlansSignage() {
                 style={{
                   border: "1px solid var(--color-rule)",
                   borderRadius: "var(--radius-card)",
-                  borderTop: s.approved ? "1px solid var(--color-rule-2)" : "1px solid var(--color-rule-2)",
+                  borderTop: s.approved
+                    ? "1px solid var(--color-rule-2)"
+                    : "1px solid var(--color-rule-2)",
                   background: isOpen ? "var(--paper-2)" : "var(--paper)",
                   padding: "var(--s3)",
                 }}
@@ -295,7 +299,10 @@ export function PlansSignage() {
                             </thead>
                             <tbody>
                               {plan.rules.map((r) => {
-                                const zonesMap = (r.zones ?? {}) as Record<string, { camera_id?: string }>;
+                                const zonesMap = (r.zones ?? {}) as Record<
+                                  string,
+                                  { camera_id?: string }
+                                >;
                                 const camZones = Object.values(zonesMap)
                                   .map((z) => z.camera_id)
                                   .filter(Boolean);
@@ -326,7 +333,9 @@ export function PlansSignage() {
                                         {r.severity.toUpperCase()}
                                       </span>
                                       <div className="dm small" style={{ marginTop: "4px" }}>
-                                        {r.actions.map((a) => `${a.kind}→${a.role ?? "all"}`).join(", ")}
+                                        {r.actions
+                                          .map((a) => `${a.kind}→${a.role ?? "all"}`)
+                                          .join(", ")}
                                       </div>
                                     </td>
                                   </tr>
@@ -341,7 +350,10 @@ export function PlansSignage() {
                             <h4 className="h3" style={{ fontSize: "18px", marginBottom: "8px" }}>
                               Independent Back-Translation by the Tier 1 model ([en] &amp; [es])
                             </h4>
-                            <pre className="code" style={{ whiteSpace: "pre-wrap", fontSize: "13px" }}>
+                            <pre
+                              className="code"
+                              style={{ whiteSpace: "pre-wrap", fontSize: "13px" }}
+                            >
                               {plan.back_translation}
                             </pre>
                           </div>

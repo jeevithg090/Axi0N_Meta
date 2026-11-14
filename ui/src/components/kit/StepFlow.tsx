@@ -7,7 +7,12 @@ import { cx } from "./cx";
 
 export type StepState = "done" | "current" | "todo" | "failed";
 
-const STATE_WORDS: Record<StepState, string> = { done: "done", current: "in progress", todo: "not yet", failed: "failed" };
+const STATE_WORDS: Record<StepState, string> = {
+  done: "done",
+  current: "in progress",
+  todo: "not yet",
+  failed: "failed",
+};
 
 export interface FlowStep {
   /** The step's name: "Describe", "Plan", "Prove", "Trust". */

@@ -98,7 +98,9 @@ describe("StepFlow", () => {
   it("is an ordered list with the current step marked", () => {
     render(<StepFlow steps={steps} current={1} label="How a rule goes live" />);
     const list = screen.getByRole("list", { name: "How a rule goes live" });
-    const items = within(list).getAllByRole("listitem").filter((li) => li.parentElement === list);
+    const items = within(list)
+      .getAllByRole("listitem")
+      .filter((li) => li.parentElement === list);
     expect(items).toHaveLength(4);
     expect(items[0]!.getAttribute("data-state")).toBe("done");
     expect(items[1]!.getAttribute("aria-current")).toBe("step");
@@ -117,7 +119,10 @@ describe("EvidenceCard", () => {
     vi.stubGlobal("navigator", { clipboard: { writeText } });
     render(
       <EvidenceCard
-        frames={["/strips/CAM-01_strip_0.jpg", { src: "/strips/CAM-01_strip_1.jpg", alt: "second" }]}
+        frames={[
+          "/strips/CAM-01_strip_0.jpg",
+          { src: "/strips/CAM-01_strip_1.jpg", alt: "second" },
+        ]}
         hash={hash}
         verifyHref="/verify/?day=2026-11-01"
         title="forklift-proximity"
@@ -128,7 +133,9 @@ describe("EvidenceCard", () => {
     expect(screen.getByAltText("second")).toBeTruthy();
     expect(screen.getByTestId("evidence-hash").textContent).toBe(shortHash(hash));
     expect(screen.getByTestId("evidence-hash").getAttribute("title")).toBe(hash);
-    expect(screen.getByRole("link", { name: "Verify" }).getAttribute("href")).toBe("/verify/?day=2026-11-01");
+    expect(screen.getByRole("link", { name: "Verify" }).getAttribute("href")).toBe(
+      "/verify/?day=2026-11-01",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Copy hash" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Copied" })).toBeTruthy());
     expect(writeText).toHaveBeenCalledWith(hash);
@@ -143,7 +150,14 @@ describe("EvidenceCard", () => {
 
 describe("MetricTile", () => {
   it("shows the figure with its unit and its source", () => {
-    render(<MetricTile label="Event to checked decision" value="19.0" unit="s" source={{ href: "/r.json", text: "r.json" }} />);
+    render(
+      <MetricTile
+        label="Event to checked decision"
+        value="19.0"
+        unit="s"
+        source={{ href: "/r.json", text: "r.json" }}
+      />,
+    );
     const tile = screen.getByTestId("metric-tile");
     expect(tile.textContent).toContain("19.0s");
     expect(screen.getByRole("link", { name: "r.json" }).getAttribute("href")).toBe("/r.json");
@@ -191,7 +205,9 @@ describe("AlertCard", () => {
       />,
     );
     const card = screen.getByTestId("alert-card");
-    expect(screen.getByRole("heading", { level: 3 }).textContent).toBe("Person within 2 m of a moving forklift");
+    expect(screen.getByRole("heading", { level: 3 }).textContent).toBe(
+      "Person within 2 m of a moving forklift",
+    );
     expect(card.getAttribute("data-severity")).toBe("high");
     expect(card.textContent).toContain("forklift-proximity-2m");
     expect(card.textContent).toContain("phone-1");
@@ -224,7 +240,9 @@ describe("ZoneDensityBar", () => {
 
   it("has no tone without a limit", () => {
     render(<ZoneDensityBar zones={[{ name: "Hall", density: 9 }]} />);
-    expect(within(screen.getByTestId("zone-density")).getByRole("listitem").getAttribute("data-tone")).toBe("ok");
+    expect(
+      within(screen.getByTestId("zone-density")).getByRole("listitem").getAttribute("data-tone"),
+    ).toBe("ok");
     expect(screen.queryByText(/^Limit/)).toBeNull();
   });
 });

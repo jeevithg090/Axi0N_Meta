@@ -103,15 +103,24 @@ describe("DashboardShell", () => {
 
     render(<DashboardShell>page</DashboardShell>);
 
-    await waitFor(() => expect(screen.getByTestId("model-tier1").textContent).toContain("Muse Spark 1.3"));
-    expect(screen.getByTestId("model-tier1").textContent).toBe("Tier 1 checkMeta APIMuse Spark 1.3");
-    expect(screen.getByTestId("model-tier2").textContent).toBe("Tier 2 reviewMeta APIMuse Wonder 1.0");
+    await waitFor(() =>
+      expect(screen.getByTestId("model-tier1").textContent).toContain("Muse Spark 1.3"),
+    );
+    expect(screen.getByTestId("model-tier1").textContent).toBe(
+      "Tier 1 checkMeta APIMuse Spark 1.3",
+    );
+    expect(screen.getByTestId("model-tier2").textContent).toBe(
+      "Tier 2 reviewMeta APIMuse Wonder 1.0",
+    );
     expect(screen.getByTestId("model-sam").textContent).toBe("SAM 3.1Meta API");
     expect(document.body.textContent).not.toMatch(/Glimmer|GPU/);
   });
 
   it("names the current page in the breadcrumb, and shows none on the landing page or replay", () => {
-    vi.stubGlobal("fetch", vi.fn(async () => respond({}, 404)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond({}, 404)),
+    );
     pathname = "/ci";
     render(<DashboardShell>page</DashboardShell>);
     expect(document.querySelector(".shell-crumb")?.textContent).toContain("Rule CI");
@@ -142,7 +151,9 @@ describe("DashboardShell", () => {
 
 describe("DashboardShell badge comes from GET /health", () => {
   const health = (body: unknown) =>
-    vi.fn(async (url: string) => (url === "/rulecam-api/health" ? respond(body) : respond({}, 403)));
+    vi.fn(async (url: string) =>
+      url === "/rulecam-api/health" ? respond(body) : respond({}, 403),
+    );
 
   it("says LIVE when /health is ok and live, even with the event socket down", async () => {
     vi.stubGlobal("fetch", health({ ok: true, mode: "live", gpus: {} }));
@@ -173,8 +184,12 @@ describe("DashboardShell badge comes from GET /health", () => {
   it("maps modes the way the API's badge_for does", () => {
     const at = new Date();
     expect(shellBadge(false, { phase: "loading" }, initialState)).toBe("…");
-    expect(shellBadge(false, { phase: "ok", health: { ok: true, mode: "record" }, at }, initialState)).toBe("LIVE");
-    expect(shellBadge(false, { phase: "ok", health: { ok: false, mode: "live" }, at }, initialState)).toBe("OFFLINE");
+    expect(
+      shellBadge(false, { phase: "ok", health: { ok: true, mode: "record" }, at }, initialState),
+    ).toBe("LIVE");
+    expect(
+      shellBadge(false, { phase: "ok", health: { ok: false, mode: "live" }, at }, initialState),
+    ).toBe("OFFLINE");
     expect(shellBadge(true, { phase: "error", at }, initialState)).toBe("REPLAY");
     // The socket may fill the badge only while /health has not answered yet.
     const open = { ...initialState, connection: "open" as const, badge: "LIVE" as const };
@@ -185,22 +200,30 @@ describe("DashboardShell badge comes from GET /health", () => {
 
 describe("DashboardShell information architecture", () => {
   it("groups the app as use cases, build, run, trust and system", () => {
-    vi.stubGlobal("fetch", vi.fn(async () => respond({}, 404)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond({}, 404)),
+    );
     render(<DashboardShell>page</DashboardShell>);
     const nav = screen.getByRole("navigation", { name: "Primary navigation" });
     for (const group of ["Use cases", "Build", "Run", "Trust", "System"]) {
       expect(screen.getByRole("list", { name: group })).toBeTruthy();
     }
     const useCases = screen.getByRole("list", { name: "Use cases" });
-    expect(
-      Array.from(useCases.querySelectorAll("a")).map((a) => a.getAttribute("href")),
-    ).toEqual(["/usecases/supermarket", "/usecases/warehouse", "/usecases/crowd"]);
+    expect(Array.from(useCases.querySelectorAll("a")).map((a) => a.getAttribute("href"))).toEqual([
+      "/usecases/supermarket",
+      "/usecases/warehouse",
+      "/usecases/crowd",
+    ]);
     const current = nav.querySelector('[aria-current="page"]');
     expect(current?.textContent).toContain("Monitor");
   });
 
   it("gives the landing page a wordmark bar and the worker QR page a bare frame", () => {
-    vi.stubGlobal("fetch", vi.fn(async () => respond({}, 404)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond({}, 404)),
+    );
     pathname = "/";
     render(<DashboardShell>page</DashboardShell>);
     expect(document.querySelector(".shell-sidebar")).toBeNull();
@@ -208,7 +231,14 @@ describe("DashboardShell information architecture", () => {
     expect(screen.getByTestId("mode-badge")).toBeTruthy();
     cleanup();
 
-    for (const path of ["/worker/plan-1/phone-1", "/inspector/view", "/inspector/view/pack-1", "/staff", "/staff/alerts", "/glasses"]) {
+    for (const path of [
+      "/worker/plan-1/phone-1",
+      "/inspector/view",
+      "/inspector/view/pack-1",
+      "/staff",
+      "/staff/alerts",
+      "/glasses",
+    ]) {
       pathname = path;
       render(<DashboardShell>page</DashboardShell>);
       expect(document.querySelector(".shell-sidebar")).toBeNull();

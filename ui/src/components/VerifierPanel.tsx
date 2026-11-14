@@ -87,8 +87,8 @@ export function VerifierPanel({ view }: { view: EventView }) {
       {view.verdicts.map((v, index) => (
         <div key={`${v.tier}-${index}`} className={`tier tier-${v.verdict}`}>
           <p>
-            <strong>{verifierLabel(v.tier, v.model_version)}</strong>{" "}
-            {VERDICT_TEXT[v.verdict]} ({Math.round(v.score * 100)}%) · {v.latency_ms} ms
+            <strong>{verifierLabel(v.tier, v.model_version)}</strong> {VERDICT_TEXT[v.verdict]} (
+            {Math.round(v.score * 100)}%) · {v.latency_ms} ms
             {v.tamper && <span className="pill pill-warn">tamper attempt</span>}
           </p>
           <p>{v.reason}</p>

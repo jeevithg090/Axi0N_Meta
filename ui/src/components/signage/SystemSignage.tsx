@@ -3,7 +3,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { API_PROXY } from "../../lib/config";
 import { withCsrf } from "../../lib/api";
-import { hostLabel, modelLabel, modelLine, ROLES, type ModelHost, type ModelsInUse } from "../../lib/models";
+import {
+  hostLabel,
+  modelLabel,
+  modelLine,
+  ROLES,
+  type ModelHost,
+  type ModelsInUse,
+} from "../../lib/models";
 
 interface GpuWorkerPool {
   running: number;
@@ -90,8 +97,10 @@ function probeHost(service: string, models: ModelsInUse | null | undefined): Mod
 
 /** An endpoint probe's title: the job and the model the API says it runs. */
 function probeTitle(service: string, models: ModelsInUse | null | undefined): string {
-  if (service === "glimmer") return `Tier 1 alert check · ${modelLabel(models?.tier1) || "model not reported"}`;
-  if (service === "sam") return models?.sam_host === "self-hosted" ? "SAM 3.1 + MoGe-2 perception pod" : "SAM 3.1";
+  if (service === "glimmer")
+    return `Tier 1 alert check · ${modelLabel(models?.tier1) || "model not reported"}`;
+  if (service === "sam")
+    return models?.sam_host === "self-hosted" ? "SAM 3.1 + MoGe-2 perception pod" : "SAM 3.1";
   return service.toUpperCase();
 }
 
@@ -198,8 +207,7 @@ export function SystemSignage() {
         <div className="grid">
           <div className="s8">
             <div className="ctx">
-              System &amp; models &nbsp;·&nbsp; site{" "}
-              <b>{health?.site ?? "demo"}</b> &nbsp;·&nbsp;{" "}
+              System &amp; models &nbsp;·&nbsp; site <b>{health?.site ?? "demo"}</b> &nbsp;·&nbsp;{" "}
               <span className="dm">
                 {lastUpdated ? `polled ${lastUpdated}` : "connecting to /health…"}
               </span>
@@ -218,7 +226,9 @@ export function SystemSignage() {
             </h1>
           </div>
           <div className="s4 stack end">
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <div
+              style={{ display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "flex-end" }}
+            >
               {(["live", "replay", "record"] as const).map((m) => (
                 <button
                   key={m}
@@ -240,9 +250,7 @@ export function SystemSignage() {
                 Refresh now
               </button>
             </div>
-            <p className="mono">
-              GET /health · GET /runtime/metrics · GET /metrics
-            </p>
+            <p className="mono">GET /health · GET /runtime/metrics · GET /metrics</p>
           </div>
         </div>
         {errorMsg && (
@@ -265,7 +273,10 @@ export function SystemSignage() {
       {/* Top KPI Strip */}
       <section className="wrap sec">
         <div className="grid">
-          <div className="s3" style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}>
+          <div
+            className="s3"
+            style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}
+          >
             <div className="small">Runtime Orchestrator</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
               {health ? (health.runtime ? "ACTIVE" : "STANDBY") : "UNKNOWN"}
@@ -275,7 +286,10 @@ export function SystemSignage() {
             </div>
           </div>
 
-          <div className="s3" style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}>
+          <div
+            className="s3"
+            style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}
+          >
             <div className="small">Tier-1 Verifier Circuit Breaker</div>
             <div
               className="num-l"
@@ -287,30 +301,50 @@ export function SystemSignage() {
               {(breaker?.state ?? "unknown").toUpperCase()}
             </div>
             <div className="mono" style={{ marginTop: "6px" }}>
-              Failures: {breaker?.failures ?? "unknown"}, consecutive: {breaker?.consecutive_failures ?? "unknown"}
+              Failures: {breaker?.failures ?? "unknown"}, consecutive:{" "}
+              {breaker?.consecutive_failures ?? "unknown"}
             </div>
           </div>
 
-          <div className="s3" style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}>
+          <div
+            className="s3"
+            style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}
+          >
             <div className="small">Compute Spend &amp; Budget</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
-              {typeof cost?.usd_per_camera_hour === "number" ? `$${cost.usd_per_camera_hour.toFixed(2)}` : "—"}
+              {typeof cost?.usd_per_camera_hour === "number"
+                ? `$${cost.usd_per_camera_hour.toFixed(2)}`
+                : "—"}
               <span style={{ fontSize: "18px", fontWeight: 500 }}>/cam·hr</span>
             </div>
             <div className="mono" style={{ marginTop: "6px" }}>
-              Cap: {typeof cost?.budget_usd_per_camera_hour === "number" ? `$${cost.budget_usd_per_camera_hour.toFixed(2)}/cam·hr` : "unknown"}, GPU rate:{" "}
-              {typeof cost?.gpu_usd_per_hour === "number" ? `$${cost.gpu_usd_per_hour.toFixed(2)}/hr` : "unknown"}
+              Cap:{" "}
+              {typeof cost?.budget_usd_per_camera_hour === "number"
+                ? `$${cost.budget_usd_per_camera_hour.toFixed(2)}/cam·hr`
+                : "unknown"}
+              , GPU rate:{" "}
+              {typeof cost?.gpu_usd_per_hour === "number"
+                ? `$${cost.gpu_usd_per_hour.toFixed(2)}/hr`
+                : "unknown"}
               {typeof cost?.usd === "number" ? `, spent $${cost.usd.toFixed(2)}` : ""}
             </div>
           </div>
 
-          <div className="s3" style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}>
+          <div
+            className="s3"
+            style={{ borderTop: "1px solid var(--color-rule)", paddingTop: "var(--s2)" }}
+          >
             <div className="small">Safety Response Gate</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
-              {responseCfg ? (responseCfg.actions_dry_run === false ? "ARMED" : "DRY-RUN") : "UNKNOWN"}
+              {responseCfg
+                ? responseCfg.actions_dry_run === false
+                  ? "ARMED"
+                  : "DRY-RUN"
+                : "UNKNOWN"}
             </div>
             <div className="mono" style={{ marginTop: "6px" }}>
-              Firewall: {responseCfg?.firewall ?? "unknown"}, Tier 2: {responseCfg?.tier2 ?? "unknown"}
+              Firewall: {responseCfg?.firewall ?? "unknown"}, Tier 2:{" "}
+              {responseCfg?.tier2 ?? "unknown"}
             </div>
           </div>
         </div>
@@ -332,7 +366,11 @@ export function SystemSignage() {
         <div style={{ borderTop: "1px solid var(--color-rule)" }}>
           {health?.models ? (
             [
-              { role: `${ROLES.tier1} (every alert)`, id: health.models.tier1, host: health.models.tier1_host },
+              {
+                role: `${ROLES.tier1} (every alert)`,
+                id: health.models.tier1,
+                host: health.models.tier1_host,
+              },
               {
                 role: `${ROLES.tier2} (disputes, plan audit, Ask answers)`,
                 id: health.models.tier2,
@@ -343,7 +381,9 @@ export function SystemSignage() {
               <div className="kv" key={m.role}>
                 <span>{m.role}</span>
                 <b className="dm">
-                  {m.id ? `${modelLabel(m.id)} (${m.id})${m.host ? ` · ${hostLabel(m.host)}` : ""}` : "not configured"}
+                  {m.id
+                    ? `${modelLabel(m.id)} (${m.id})${m.host ? ` · ${hostLabel(m.host)}` : ""}`
+                    : "not configured"}
                 </b>
               </div>
             ))
@@ -367,9 +407,7 @@ export function SystemSignage() {
           }}
         >
           <h2 className="h3">Endpoint probes (live)</h2>
-          <span className="mono">
-            A serverless GPU scaled to zero (cold-ready) counts as up
-          </span>
+          <span className="mono">A serverless GPU scaled to zero (cold-ready) counts as up</span>
         </div>
 
         <div className="grid">
@@ -423,7 +461,8 @@ export function SystemSignage() {
                   <div className="kv">
                     <span>Autoscaling Bounds</span>
                     <b className="dm">
-                      min {gpu.workers_min ?? "unknown"}, max {gpu.workers_max ?? "unknown"} GPU workers
+                      min {gpu.workers_min ?? "unknown"}, max {gpu.workers_max ?? "unknown"} GPU
+                      workers
                     </b>
                   </div>
                 )}
@@ -441,24 +480,37 @@ export function SystemSignage() {
                     }}
                   >
                     <div>
-                      <div className="mono" style={{ fontSize: "11px" }}>RUNNING</div>
+                      <div className="mono" style={{ fontSize: "11px" }}>
+                        RUNNING
+                      </div>
                       <div className="h3">{w.running}</div>
                     </div>
                     <div>
-                      <div className="mono" style={{ fontSize: "11px" }}>IDLE (WARM)</div>
+                      <div className="mono" style={{ fontSize: "11px" }}>
+                        IDLE (WARM)
+                      </div>
                       <div className="h3">{w.idle}</div>
                     </div>
                     <div>
-                      <div className="mono" style={{ fontSize: "11px" }}>INIT</div>
+                      <div className="mono" style={{ fontSize: "11px" }}>
+                        INIT
+                      </div>
                       <div className="h3">{w.initializing}</div>
                     </div>
                     <div>
-                      <div className="mono" style={{ fontSize: "11px" }}>THROTTLED</div>
+                      <div className="mono" style={{ fontSize: "11px" }}>
+                        THROTTLED
+                      </div>
                       <div className="h3">{w.throttled}</div>
                     </div>
                     <div>
-                      <div className="mono" style={{ fontSize: "11px" }}>UNHEALTHY</div>
-                      <div className="h3" style={{ color: w.unhealthy > 0 ? "var(--alert)" : "inherit" }}>
+                      <div className="mono" style={{ fontSize: "11px" }}>
+                        UNHEALTHY
+                      </div>
+                      <div
+                        className="h3"
+                        style={{ color: w.unhealthy > 0 ? "var(--alert)" : "inherit" }}
+                      >
                         {w.unhealthy}
                       </div>
                     </div>
@@ -503,7 +555,8 @@ export function SystemSignage() {
               <div className="kv">
                 <span>Tier-1 verifications pending / failed / errors</span>
                 <b className="dm">
-                  {runtime?.verify_pending ?? "unknown"} / {runtime?.verifications_failed ?? "unknown"} /{" "}
+                  {runtime?.verify_pending ?? "unknown"} /{" "}
+                  {runtime?.verifications_failed ?? "unknown"} /{" "}
                   {runtime?.verify_errors ?? "unknown"}
                 </b>
               </div>
@@ -532,7 +585,7 @@ export function SystemSignage() {
                     ? "Degraded: scene text goes to the human queue"
                     : responseCfg?.firewall === "on"
                       ? "On (Llama Prompt Guard 2)"
-                      : responseCfg?.firewall ?? "unknown"}
+                      : (responseCfg?.firewall ?? "unknown")}
                 </b>
               </div>
               <div className="kv">
@@ -558,7 +611,11 @@ export function SystemSignage() {
               <div className="kv">
                 <span>Budget Alarm State</span>
                 <b className="dm" style={{ color: cost?.alarm ? "var(--alert)" : "inherit" }}>
-                  {!cost ? "unknown" : cost.alarm ? `Over budget (${cost.over_budget.join(", ")})` : "Within budget"}
+                  {!cost
+                    ? "unknown"
+                    : cost.alarm
+                      ? `Over budget (${cost.over_budget.join(", ")})`
+                      : "Within budget"}
                 </b>
               </div>
               <div className="kv">
@@ -609,7 +666,10 @@ export function SystemSignage() {
             {rawProm || "# No metrics scraped yet"}
           </pre>
         ) : (
-          <div className="scroll-x" style={{ maxHeight: "380px", overflowY: "auto", border: "1px solid var(--color-rule)" }}>
+          <div
+            className="scroll-x"
+            style={{ maxHeight: "380px", overflowY: "auto", border: "1px solid var(--color-rule)" }}
+          >
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
               <thead>
                 <tr style={{ background: "var(--ink)", color: "var(--paper)", textAlign: "left" }}>
@@ -630,7 +690,10 @@ export function SystemSignage() {
                     <td className="dm" style={{ padding: "6px 12px", color: "var(--ink-2)" }}>
                       {m.labels || "—"}
                     </td>
-                    <td className="dm" style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700 }}>
+                    <td
+                      className="dm"
+                      style={{ padding: "6px 12px", textAlign: "right", fontWeight: 700 }}
+                    >
                       {m.value}
                     </td>
                   </tr>

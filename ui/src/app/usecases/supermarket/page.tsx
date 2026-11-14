@@ -157,10 +157,10 @@ export default function SupermarketPage() {
       <header className={styles.header}>
         <p className={styles.lead}>
           Your cameras already see the queue, the empty shelf and the spill. Ask anything in your
-          own language; Muse Spark answers from what SAM 3.1 tracked and the Tier 1 model saw, turns the
-          answer into a change you can test, watches for it, tells the right person with the photo,
-          checks the fix twice and keeps a receipt. Everything below runs on this store’s cameras
-          or replays the 4 Nov live store run.
+          own language; Muse Spark answers from what SAM 3.1 tracked and the Tier 1 model saw, turns
+          the answer into a change you can test, watches for it, tells the right person with the
+          photo, checks the fix twice and keeps a receipt. Everything below runs on this store’s
+          cameras or replays the 4 Nov live store run.
         </p>
         {error && (
           <p className={styles.card} role="status">
@@ -178,11 +178,31 @@ export default function SupermarketPage() {
         label="The supermarket story, step by step"
         columns={5}
         steps={[
-          { name: "Ask", text: "Typed or spoken, any language; the answer is read aloud.", state: activeAnswer !== null ? "done" : "todo" },
-          { name: "Advice", text: "A card with a pre-registered check; its numbers must be in the answer's evidence.", state: shownCard !== null ? "done" : "todo" },
-          { name: "Watch", text: "Queue, hazard and shelf checks tell the right person, with the photo.", state: alerted.length > 0 ? "done" : "todo" },
-          { name: "Fixed", text: "A staff photo checked by Spark and the Tier 1 model closes the task; the time goes on the chain.", state: tasks.some((t) => t.status === "done") ? "done" : "todo" },
-          { name: "Brief", text: "Muse Spark writes the owner's brief from the stored checks and tasks.", state: activeBrief != null ? "done" : "todo" },
+          {
+            name: "Ask",
+            text: "Typed or spoken, any language; the answer is read aloud.",
+            state: activeAnswer !== null ? "done" : "todo",
+          },
+          {
+            name: "Advice",
+            text: "A card with a pre-registered check; its numbers must be in the answer's evidence.",
+            state: shownCard !== null ? "done" : "todo",
+          },
+          {
+            name: "Watch",
+            text: "Queue, hazard and shelf checks tell the right person, with the photo.",
+            state: alerted.length > 0 ? "done" : "todo",
+          },
+          {
+            name: "Fixed",
+            text: "A staff photo checked by Spark and the Tier 1 model closes the task; the time goes on the chain.",
+            state: tasks.some((t) => t.status === "done") ? "done" : "todo",
+          },
+          {
+            name: "Brief",
+            text: "Muse Spark writes the owner's brief from the stored checks and tasks.",
+            state: activeBrief != null ? "done" : "todo",
+          },
         ]}
       />
       <div id="sm-workspace" className={styles.steps}>

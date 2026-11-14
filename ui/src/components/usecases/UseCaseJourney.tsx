@@ -19,7 +19,16 @@ export interface UseCaseJourneyProps {
 }
 
 /** The journey under the proof: a StepFlow on its own panel, the same on every use-case page. */
-export function UseCaseJourney({ id, title, badge, steps, label, columns = 4, current, children }: UseCaseJourneyProps) {
+export function UseCaseJourney({
+  id,
+  title,
+  badge,
+  steps,
+  label,
+  columns = 4,
+  current,
+  children,
+}: UseCaseJourneyProps) {
   return (
     <section className={styles.journeyPanel} aria-labelledby={id}>
       <div className={styles.journeyHead}>
@@ -28,7 +37,14 @@ export function UseCaseJourney({ id, title, badge, steps, label, columns = 4, cu
         </h2>
         {badge && <LiveBadge mode={badge.mode} detail={badge.detail} />}
       </div>
-      <StepFlow steps={steps} columns={columns} size="compact" as="h3" label={label} current={current} />
+      <StepFlow
+        steps={steps}
+        columns={columns}
+        size="compact"
+        as="h3"
+        label={label}
+        current={current}
+      />
       {children}
     </section>
   );

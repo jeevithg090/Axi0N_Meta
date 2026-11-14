@@ -39,7 +39,9 @@ const run = recorded as unknown as Recorded;
 /** The model that checked this run's frames, as its chained verdict records it (Muse Glimmer 30B). */
 const checker =
   modelLabel(
-    (run.report.evidence.records as { kind: string; tier?: string }[]).find((r) => r.kind === "verdict")?.tier,
+    (run.report.evidence.records as { kind: string; tier?: string }[]).find(
+      (r) => r.kind === "verdict",
+    )?.tier,
   ) || undefined;
 
 function speakCrowd(text: string, lang: string) {
@@ -57,7 +59,8 @@ function speakCrowd(text: string, lang: string) {
  */
 export function RecordedRun() {
   const peak = run.tallies.find((t) => t.camera_id === run.alert.camera_id) ?? null;
-  const audioList = (run.alert as { audio?: { lang: string; text: string; heard?: string }[] }).audio ?? [];
+  const audioList =
+    (run.alert as { audio?: { lang: string; text: string; heard?: string }[] }).audio ?? [];
 
   return (
     <section id="crowd-workspace" className={styles.card} aria-label="Recorded live run">
@@ -76,7 +79,9 @@ export function RecordedRun() {
           <div>
             <strong>Announcements, as spoken and heard back</strong>
             <div className={styles.small}>
-              Only announcements whose meaning survives round-trip transcription are broadcast (live, a Hindi announcement where “gate” came back as “crowd” was automatically stopped).
+              Only announcements whose meaning survives round-trip transcription are broadcast
+              (live, a Hindi announcement where “gate” came back as “crowd” was automatically
+              stopped).
             </div>
           </div>
           <div className={styles.row}>

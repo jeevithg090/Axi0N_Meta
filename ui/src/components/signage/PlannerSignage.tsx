@@ -374,6 +374,7 @@ export function PlannerSignage() {
             </div>
 
             <textarea
+              aria-label="The rule, in plain words"
               rows={3}
               value={promptText}
               onChange={(e) => setPromptText(e.target.value)}
@@ -396,7 +397,7 @@ export function PlannerSignage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(4, 1fr)",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
                 gap: "10px",
                 padding: "12px",
                 background: "var(--paper-2)",
@@ -406,12 +407,14 @@ export function PlannerSignage() {
             >
               <div>
                 <label
+                  htmlFor="planner-camera"
                   className="mono"
                   style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}
                 >
                   TARGET CAMERA
                 </label>
                 <select
+                  id="planner-camera"
                   value={cameraId}
                   onChange={(e) => setCameraId(e.target.value)}
                   style={{
@@ -447,12 +450,14 @@ export function PlannerSignage() {
 
               <div>
                 <label
+                  htmlFor="planner-threshold"
                   className="mono"
                   style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}
                 >
                   THRESHOLD ({preset.unit})
                 </label>
                 <input
+                  id="planner-threshold"
                   type="number"
                   step="0.1"
                   min="0.5"
@@ -473,12 +478,14 @@ export function PlannerSignage() {
 
               <div>
                 <label
+                  htmlFor="planner-severity"
                   className="mono"
                   style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}
                 >
                   SEVERITY GATE
                 </label>
                 <select
+                  id="planner-severity"
                   value={severity}
                   onChange={(e) => setSeverity(e.target.value as "high" | "medium" | "low")}
                   style={{
@@ -499,12 +506,14 @@ export function PlannerSignage() {
 
               <div>
                 <label
+                  htmlFor="planner-role"
                   className="mono"
                   style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}
                 >
                   RESPONDER ROLE
                 </label>
                 <select
+                  id="planner-role"
                   value={role}
                   onChange={(e) => setRole(e.target.value)}
                   style={{

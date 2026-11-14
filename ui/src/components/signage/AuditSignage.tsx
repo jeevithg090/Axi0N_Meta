@@ -387,7 +387,7 @@ export function AuditSignage() {
             )}
           </div>
           <div className="s4 stack end">
-            <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", width: "100%" }}>
               <button
                 type="button"
                 className="btn block"
@@ -539,6 +539,7 @@ export function AuditSignage() {
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
             <input
               type="search"
+              aria-label="Filter the evidence log"
               placeholder="Filter by event ID, camera, rule, hash…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

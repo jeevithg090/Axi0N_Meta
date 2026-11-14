@@ -11,7 +11,7 @@ export default function CardGalleryPage() {
   const entries = Object.values(plans);
   return (
     <section aria-label="Rule cards">
-      <h2>Rule cards</h2>
+      <h1>Rule cards</h1>
       {forbidden ? (
         <OwnerOnly what="The rule cards of this site" checking={false} />
       ) : (

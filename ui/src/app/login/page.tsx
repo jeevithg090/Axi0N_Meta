@@ -26,7 +26,7 @@ export default function LoginPage() {
   if (auth.phase === "owner") {
     return (
       <section className="login" aria-label="Owner login">
-        <h2>Owner</h2>
+        <h1>Owner</h1>
         <p role="status">
           {auth.via === "loopback"
             ? "You are on the owner's machine: no login needed."
@@ -57,7 +57,7 @@ export default function LoginPage() {
   const off = auth.phase === "visitor" && !auth.loginEnabled;
   return (
     <section className="login" aria-label="Owner login">
-      <h2>Owner login</h2>
+      <h1>Owner login</h1>
       <p className="muted">
         Planning, approving plans, answering the planner and the full evidence log are for the site
         owner. Everyone else can watch the live monitor and check the evidence hashes.

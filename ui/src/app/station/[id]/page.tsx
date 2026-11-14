@@ -19,6 +19,7 @@ export default function StationPage() {
       : undefined;
   return (
     <section className="station" aria-label={`Station ${id}`}>
+      <h1 className="visually-hidden">Station {id}</h1>
       <Countdown value={stationCountdown(station?.progress, lastFail)} />
       {station?.coach && (
         <p className="station-coach" lang={station.coach.lang ?? undefined}>

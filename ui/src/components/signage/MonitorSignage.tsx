@@ -277,6 +277,7 @@ export function MonitorSignage() {
 
   return (
     <div style={{ padding: "var(--s3) var(--gut) var(--s6)" }}>
+      <h1 className="visually-hidden">Operations monitor</h1>
       <SampleDataTag what="This monitor is a scripted walkthrough: its acts, Tier 1 scores, distances, interlock timings and frame hashes are written into the page." />
       {/* Dashboard Cockpit Control Strip */}
       <div

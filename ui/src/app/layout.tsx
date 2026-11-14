@@ -33,10 +33,28 @@ const mono = localFont({
   fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
 });
 
+const TITLE = "Rulecam: camera rules in plain words, verified by Meta models";
+const DESCRIPTION =
+  "Describe a safety rule in your own words; Rulecam plans it, proves it with Rule CI, and has a second model check every alert.";
+
+/** Where the site is served, for absolute Open Graph links; set NEXT_PUBLIC_SITE_URL to change. */
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://rulecam-live.vercel.app";
+
+// Each screen sets its own short title ("Planner", "Rule CI"); the template adds the product name.
+// The favicon (icon.svg) and the share image (opengraph-image.png) sit next to this file.
 export const metadata: Metadata = {
-  title: "Rulecam: camera rules in plain words, verified by Meta models",
-  description:
-    "Describe a safety rule in your own words; Rulecam plans it, proves it with Rule CI, and has a second model check every alert.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: TITLE, template: "%s · Rulecam" },
+  description: DESCRIPTION,
+  applicationName: "Rulecam",
+  openGraph: {
+    type: "website",
+    siteName: "Rulecam",
+    title: TITLE,
+    description: DESCRIPTION,
+    url: "/",
+  },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 export const viewport: Viewport = {

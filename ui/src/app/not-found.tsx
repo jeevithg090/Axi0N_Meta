@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { StatusPage } from "./StatusPage";
 
-export const metadata: Metadata = { title: "Page not found · Rulecam" };
+export const metadata: Metadata = { title: "Page not found" };
 
 /** The 404 page for any address the site does not serve. */
 export default function NotFound() {

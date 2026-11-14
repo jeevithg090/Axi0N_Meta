@@ -120,6 +120,7 @@ export interface WorkerStrings {
   language: string;
   loading: string;
   loadFailed: string;
+  retry: string;
   watches: string;
   notTranslated: string;
   never: string;
@@ -150,6 +151,7 @@ export const STRINGS: Record<UiLang, WorkerStrings> = {
     language: "Language",
     loading: "Loading…",
     loadFailed: "This page could not be loaded. Try again later.",
+    retry: "Try again",
     watches: "What this camera checks",
     notTranslated: "Not yet described in this language.",
     never: "What it never does",
@@ -202,6 +204,7 @@ export const STRINGS: Record<UiLang, WorkerStrings> = {
     language: "Idioma",
     loading: "Cargando…",
     loadFailed: "No se pudo cargar esta página. Inténtelo más tarde.",
+    retry: "Reintentar",
     watches: "Qué revisa esta cámara",
     notTranslated: "Aún no descrita en este idioma.",
     never: "Lo que nunca hace",

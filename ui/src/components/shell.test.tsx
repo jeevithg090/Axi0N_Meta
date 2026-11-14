@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { initialState, type UiState } from "@/lib/store";
@@ -217,6 +217,39 @@ describe("DashboardShell information architecture", () => {
     ]);
     const current = nav.querySelector('[aria-current="page"]');
     expect(current?.textContent).toContain("Monitor");
+  });
+
+  it("starts every frame with a skip link to the main region", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond({}, 404)),
+    );
+    for (const path of ["/monitor", "/", "/staff"]) {
+      pathname = path;
+      const { unmount } = render(<DashboardShell>page</DashboardShell>);
+      const skip = screen.getByRole("link", { name: "Skip to content" });
+      expect(skip.getAttribute("href")).toBe("#main");
+      expect(document.getElementById("main")?.tagName).toBe("MAIN");
+      unmount();
+    }
+  });
+
+  it("closes the phone drawer on Escape", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => respond({}, 404)),
+    );
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(max-width: 760px)",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    render(<DashboardShell>page</DashboardShell>);
+    const sidebar = screen.getByRole("complementary", { name: "Rulecam navigation" });
+    fireEvent.click(screen.getByRole("button", { name: "Toggle navigation" }));
+    expect(sidebar.getAttribute("data-mobile-open")).toBe("true");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(sidebar.getAttribute("data-mobile-open")).toBe("false");
   });
 
   it("gives the landing page a wordmark bar and the worker QR page a bare frame", () => {

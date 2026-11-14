@@ -174,7 +174,7 @@ export default function ExtensionsPage() {
   const demo = useDemo() === true;
   return (
     <section aria-label="Rule extensions" className="site-page">
-      <h2>Rule extensions</h2>
+      <h1>Rule extensions</h1>
       <Intro />
       {demo ? (
         <SampleView />

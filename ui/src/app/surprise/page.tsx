@@ -21,7 +21,7 @@ export default function SurprisePage() {
 
   return (
     <section aria-label="Surprise Lens">
-      <h2>Surprise Lens</h2>
+      <h1>Surprise Lens</h1>
       {message && (
         <p className="muted" role="status">
           {message}

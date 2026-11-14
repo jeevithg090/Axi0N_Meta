@@ -227,6 +227,15 @@ export function ThemeSwitch({ compact = false }: { compact?: boolean }) {
   );
 }
 
+/** The first stop for a keyboard: jumps past the header and the navigation to the page. */
+function SkipLink() {
+  return (
+    <a className="skip-link" href="#main">
+      Skip to content
+    </a>
+  );
+}
+
 /** The wordmark, linking home. */
 function Wordmark({ query, compact = false }: { query: string; compact?: boolean }) {
   return (
@@ -334,12 +343,14 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
     };
   }, [demo, chrome]);
 
-  // Keyboard shortcut: Ctrl+B (or Cmd+B) toggles the sidebar.
+  // Keyboard shortcuts: Ctrl+B (or Cmd+B) toggles the sidebar; Escape closes the phone drawer.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
         e.preventDefault();
         setCollapsed((c) => !c);
+      } else if (e.key === "Escape") {
+        setMobileOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -349,8 +360,11 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   if (chrome === "page") {
     return (
       <div className="app" data-chrome="page">
+        <SkipLink />
         <SiteHeader />
-        <main className="shell-main">{children}</main>
+        <main id="main" className="shell-main" tabIndex={-1}>
+          {children}
+        </main>
       </div>
     );
   }
@@ -358,11 +372,14 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
   if (chrome === "bare") {
     return (
       <div className="app" data-chrome="bare">
+        <SkipLink />
         <header className="bare-header">
           <Wordmark query={demoQuery} />
           <ModeBadge label={badge} />
         </header>
-        <main className="shell-main">{children}</main>
+        <main id="main" className="shell-main" tabIndex={-1}>
+          {children}
+        </main>
       </div>
     );
   }
@@ -373,6 +390,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="app root" data-chrome="app">
+      <SkipLink />
       <aside
         aria-label="Rulecam navigation"
         className="shell-sidebar"
@@ -498,7 +516,9 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="shell-main">{children}</main>
+        <main id="main" className="shell-main" tabIndex={-1}>
+          {children}
+        </main>
       </div>
     </div>
   );

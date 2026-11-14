@@ -53,7 +53,16 @@ function WorkerRules() {
     return (
       <div className="worker">
         {failed ? (
-          <EmptyState title={strings.loadFailed} tone="error" icon="qr" />
+          <EmptyState
+            title={strings.loadFailed}
+            tone="error"
+            icon="qr"
+            action={
+              <button type="button" className="btn" onClick={refresh}>
+                {strings.retry}
+              </button>
+            }
+          />
         ) : (
           <Skeleton lines={5} label={strings.loading} />
         )}

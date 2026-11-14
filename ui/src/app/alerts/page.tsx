@@ -84,7 +84,7 @@ export default function AlertsPage() {
 
   return (
     <section className="alerts-page" aria-label="Alerts">
-      <h2>Alerts</h2>
+      <h1>Alerts</h1>
       {forbidden && <OwnerOnly what="The alert queue" checking={false} />}
       <label className="role-field" hidden={forbidden}>
         My role{" "}

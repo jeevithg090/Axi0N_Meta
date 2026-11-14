@@ -668,7 +668,7 @@ export default function CamerasPage() {
   const demo = useDemo() === true;
   return (
     <section aria-label="Connect cameras" className="site-page">
-      <h2>Connect cameras</h2>
+      <h1>Connect cameras</h1>
       <p className="muted">
         Bring the cameras you already have: CCTV and NVRs over RTSP or ONVIF (Hikvision, Dahua,
         Reolink, Axis…), HLS or MJPEG streams, a public live stream, a phone or a clip. As soon as a

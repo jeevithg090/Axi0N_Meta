@@ -118,6 +118,22 @@ describe("SystemSignage (QA-B19)", () => {
     expect(text).not.toMatch(/Glimmer|RunPod|Autoscaling/);
   });
 
+  it("calls a stopped runtime loop standby, never online", async () => {
+    const health = { ok: true, site: "demo", mode: "replay", runtime: false, gpus: {} };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) =>
+        url.endsWith("/health")
+          ? new Response(JSON.stringify(health))
+          : new Response("", { status: 404 }),
+      ),
+    );
+    render(<SystemSignage />);
+    const heading = await screen.findByRole("heading", { level: 1, name: /API online/ });
+    expect(heading.textContent).toContain("runtime loop on standby");
+    expect(heading.textContent).not.toContain("Runtime loop online");
+  });
+
   it("says unknown, not LIVE, when the API does not answer", async () => {
     vi.stubGlobal(
       "fetch",

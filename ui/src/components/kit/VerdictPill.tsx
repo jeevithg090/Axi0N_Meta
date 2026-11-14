@@ -41,9 +41,16 @@ export function VerdictPill({
   const v = normaliseVerdict(verdict);
   const score = typeof confidence === "number" && Number.isFinite(confidence) ? confidence : null;
   const scoreText = score !== null ? `, ${scoreLabel} ${score.toFixed(2)}` : "";
-  const said = model ? `${model} says ${WORDS[v].toLowerCase()}${scoreText}` : `${WORDS[v]}${scoreText}`;
+  const said = model
+    ? `${model} says ${WORDS[v].toLowerCase()}${scoreText}`
+    : `${WORDS[v]}${scoreText}`;
   return (
-    <span className={cx(styles.pill, className)} data-verdict={v} data-testid="verdict-pill" title={said}>
+    <span
+      className={cx(styles.pill, className)}
+      data-verdict={v}
+      data-testid="verdict-pill"
+      title={said}
+    >
       <span className="visually-hidden">{said}</span>
       {model && (
         <span className={styles.pillModel} aria-hidden="true">

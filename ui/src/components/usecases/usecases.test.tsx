@@ -37,22 +37,29 @@ describe("UseCaseFrame", () => {
   it("frames the page with its promise, the switcher, its still and the live status", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ ok: true, mode: "live", gpus: { glimmer: { state: "warm" } } }))),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ ok: true, mode: "live", gpus: { glimmer: { state: "warm" } } }),
+          ),
+      ),
     );
     render(
       <UseCaseFrame>
         <p>live data</p>
       </UseCaseFrame>,
     );
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Forklift rules that prove themselves");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe(
+      "Forklift rules that prove themselves",
+    );
     const switcher = screen.getByRole("navigation", { name: "Use cases" });
     const current = within(switcher).getByRole("link", { current: "page" });
     expect(current.textContent).toContain("Warehouse");
-    expect(within(switcher).getAllByRole("link").map((a) => a.getAttribute("href"))).toEqual([
-      "/usecases/supermarket",
-      "/usecases/warehouse",
-      "/usecases/crowd",
-    ]);
+    expect(
+      within(switcher)
+        .getAllByRole("link")
+        .map((a) => a.getAttribute("href")),
+    ).toEqual(["/usecases/supermarket", "/usecases/warehouse", "/usecases/crowd"]);
     // Each page tells its own journey with real data; the frame carries the world's still.
     expect(screen.getByTestId("still-warehouse")).toBeTruthy();
     expect(screen.queryByTestId("step-flow")).toBeNull();
@@ -62,18 +69,38 @@ describe("UseCaseFrame", () => {
   });
 
   it("names the Tier 1 check's model and host from /health", async () => {
-    const models = { tier1: "muse-spark-1.3", tier1_host: "meta-api", tier2: null, sam: "sam-3.1", sam_host: "meta-api" };
+    const models = {
+      tier1: "muse-spark-1.3",
+      tier1_host: "meta-api",
+      tier2: null,
+      sam: "sam-3.1",
+      sam_host: "meta-api",
+    };
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ ok: true, mode: "live", gpus: { glimmer: { state: "warm" } }, models }))),
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              ok: true,
+              mode: "live",
+              gpus: { glimmer: { state: "warm" } },
+              models,
+            }),
+          ),
+      ),
     );
     render(
       <UseCaseFrame>
         <p>live data</p>
       </UseCaseFrame>,
     );
-    await waitFor(() => expect(screen.getByTestId("usecase-status").textContent).toContain("Muse Spark 1.3"));
-    expect(screen.getByTestId("usecase-status").textContent).toContain("Tier 1 · Muse Spark 1.3 Meta API");
+    await waitFor(() =>
+      expect(screen.getByTestId("usecase-status").textContent).toContain("Muse Spark 1.3"),
+    );
+    expect(screen.getByTestId("usecase-status").textContent).toContain(
+      "Tier 1 · Muse Spark 1.3 Meta API",
+    );
     expect(screen.getByTestId("usecase-status").textContent).not.toContain("GPU");
   });
 
@@ -85,7 +112,9 @@ describe("UseCaseFrame", () => {
     render(<UseCaseFrame>page</UseCaseFrame>);
     expect(screen.getByTestId("live-badge").textContent).toContain("REPLAY");
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole("link", { name: /Crowd/ }).getAttribute("href")).toBe("/usecases/crowd?demo=1");
+    expect(screen.getByRole("link", { name: /Crowd/ }).getAttribute("href")).toBe(
+      "/usecases/crowd?demo=1",
+    );
   });
 
   it("shows a still from the footage it ran on, labelled honestly", () => {
@@ -108,7 +137,9 @@ describe("UseCaseFrame", () => {
       }),
     );
     render(<UseCaseFrame>page</UseCaseFrame>);
-    await waitFor(() => expect(screen.getByTestId("usecase-status").textContent).toContain("OFFLINE"));
+    await waitFor(() =>
+      expect(screen.getByTestId("usecase-status").textContent).toContain("OFFLINE"),
+    );
     expect(screen.getByTestId("usecase-status").textContent).toContain("API not reachable");
   });
 });

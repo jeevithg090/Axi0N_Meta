@@ -22,12 +22,26 @@ export interface ModelChipProps {
 }
 
 /** Which model did this step, what it did and how long it took. */
-export function ModelChip({ model, job, ms, state = "ran", meta = true, className }: ModelChipProps) {
+export function ModelChip({
+  model,
+  job,
+  ms,
+  state = "ran",
+  meta = true,
+  className,
+}: ModelChipProps) {
   return (
-    <span className={cx(styles.chip, className)} data-state={state} data-meta={meta} data-testid="model-chip">
+    <span
+      className={cx(styles.chip, className)}
+      data-state={state}
+      data-meta={meta}
+      data-testid="model-chip"
+    >
       <span className={styles.chipModel}>{model}</span>
       {job && <span className={styles.chipJob}>{job}</span>}
-      {typeof ms === "number" && Number.isFinite(ms) && <span className={styles.chipTime}>{formatMs(ms)}</span>}
+      {typeof ms === "number" && Number.isFinite(ms) && (
+        <span className={styles.chipTime}>{formatMs(ms)}</span>
+      )}
       {state !== "ran" && <span className={styles.chipState}>{state}</span>}
     </span>
   );

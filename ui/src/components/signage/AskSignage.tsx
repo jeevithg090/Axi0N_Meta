@@ -122,8 +122,8 @@ export function AskSignage() {
             <p className="lead" style={{ marginTop: "var(--s2)", maxWidth: "66ch" }}>
               Each question gets a fresh read-only DuckDB snapshot of the track store
               (`track_points`, `track_spans`, `captions`, identities, the supermarket checks and
-              staff tasks). Muse Spark chooses its own tools step by step (SQL, SAM 3.1 counts,
-              Tier 1 model looks, watching the recorded clip) and every answer gets a SHA-256 run
+              staff tasks). Muse Spark chooses its own tools step by step (SQL, SAM 3.1 counts, Tier
+              1 model looks, watching the recorded clip) and every answer gets a SHA-256 run
               receipt. Answers stream live from the API; nothing on this page is scripted.
             </p>
           </div>

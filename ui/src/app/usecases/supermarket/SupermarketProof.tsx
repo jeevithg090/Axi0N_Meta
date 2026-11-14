@@ -24,7 +24,9 @@ export function SupermarketProof() {
         struck: { value: first.tracker, label: "Ask's answer before: the tracker's count" },
         caption: `The ${CROSS_COUNT.camera} camera, one frame at ${first.at} UTC. Counted by hand: about ${first.byHand.replace("~", "")}.`,
       }}
-      verdict={<p className={styles.proofLine}>Three counts of the same frame, none seeing the others:</p>}
+      verdict={
+        <p className={styles.proofLine}>Three counts of the same frame, none seeing the others:</p>
+      }
       chips={[
         { model: "SAM 3.1", job: `${first.sam} boxes` },
         { model: "Muse Spark 1.3", job: `${first.spark} points` },
@@ -44,8 +46,18 @@ export function SupermarketProof() {
           <LiveBadge mode="sample" detail="the spill photo is a Muse Image edit" />
         </div>
         <Timeline label="The spill task">
-          <TimelineItem time={HAZARD.seen} title="Seen on the aisle camera" tone="instrument" meta="Muse Spark found it, SAM 3.1 boxed the puddle, Glimmer agreed" />
-          <TimelineItem time={HAZARD.alerted} title="Staff alerted" tone="person" meta={`Chain record ${HAZARD.detectRecord}`} />
+          <TimelineItem
+            time={HAZARD.seen}
+            title="Seen on the aisle camera"
+            tone="instrument"
+            meta="Muse Spark found it, SAM 3.1 boxed the puddle, Glimmer agreed"
+          />
+          <TimelineItem
+            time={HAZARD.alerted}
+            title="Staff alerted"
+            tone="person"
+            meta={`Chain record ${HAZARD.detectRecord}`}
+          />
           <TimelineItem
             time={HAZARD.cleared}
             title={`Cleared, ${HAZARD.minutes} after it was seen`}
@@ -88,8 +100,8 @@ export function SupermarketProof() {
           </table>
         </div>
         <p className={styles.muted}>
-          No single model was right: SAM over-counts busy views and Spark&apos;s points miss people half
-          hidden; the three counts bracket the truth.
+          No single model was right: SAM over-counts busy views and Spark&apos;s points miss people
+          half hidden; the three counts bracket the truth.
         </p>
       </section>
     </UseCaseProof>

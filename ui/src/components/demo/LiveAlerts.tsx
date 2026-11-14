@@ -51,7 +51,9 @@ export function LiveTestCard({ test }: { test: CampaignTest }) {
         {test.id} · {test.started_at.slice(0, 10)} {test.started_at.slice(11, 16)} UTC ·{" "}
         {test.camera_id}
       </p>
-      <p className={styles.step}>{alert ? "Verified alert" : `Rejected by ${checker} · no alert`}</p>
+      <p className={styles.step}>
+        {alert ? "Verified alert" : `Rejected by ${checker} · no alert`}
+      </p>
       <p className={styles.quote}>“{test.request}”</p>
       {event.measurement && (
         <Row label="Distance the engine measured">
@@ -69,8 +71,8 @@ export function LiveTestCard({ test }: { test: CampaignTest }) {
         {alert ? "alert" : "no alert"} ({event.decision.reason})
       </Row>
       <Row label="Event → checked decision">
-        {seconds(event.event_to_decision_s)} ({checker} took {seconds(event.verdict.latency_ms, "ms")}
-        )
+        {seconds(event.event_to_decision_s)} ({checker} took{" "}
+        {seconds(event.verdict.latency_ms, "ms")})
       </Row>
       <Row label="Actions recorded (dry run, nothing was sent)">{event.actions.join("; ")}</Row>
       {clip && (
@@ -98,8 +100,7 @@ export function LiveAlerts() {
         These three tests ran on the deployed stack on 1 Nov 2026 (the campaign&apos;s run 2, in
         prototype mode): a real stock video played into Rulecam as a phone camera, the planner built
         the rule, and Muse Glimmer 30B, on our own GPUs, checked every candidate on the video
-        frames. Every value below is
-        copied from the run&apos;s own records.
+        frames. Every value below is copied from the run&apos;s own records.
       </p>
       <div className={styles.cards}>
         {CAMPAIGN.tests.map((test) => (

@@ -56,7 +56,10 @@ function GoldenStory({ run }: { run: GoldenRun }) {
   return (
     <div className="golden" data-testid="golden-run">
       <header className="golden-hero">
-        <LiveBadge mode="replay" detail={`recorded ${run.recorded_at.slice(0, 10)}, no model calls`} />
+        <LiveBadge
+          mode="replay"
+          detail={`recorded ${run.recorded_at.slice(0, 10)}, no model calls`}
+        />
         <h1 className="golden-title">The golden replay</h1>
         <p className="lead">
           One request, followed from plain words to a hash-chained decision. Every model reply was
@@ -67,10 +70,30 @@ function GoldenStory({ run }: { run: GoldenRun }) {
           size="compact"
           as="h2"
           steps={[
-            { name: "Describe", text: "The owner's request, in their words.", state: "done", href: "#planner" },
-            { name: "Plan", text: "The planner's steps, with their real details.", state: "done", href: "#planner" },
-            { name: "Prove", text: "Rule CI, re-run offline, same as at approval.", state: "done", href: "#rule" },
-            { name: "Trust", text: "The chain, checked in your own browser.", state: "done", href: "#evidence" },
+            {
+              name: "Describe",
+              text: "The owner's request, in their words.",
+              state: "done",
+              href: "#planner",
+            },
+            {
+              name: "Plan",
+              text: "The planner's steps, with their real details.",
+              state: "done",
+              href: "#planner",
+            },
+            {
+              name: "Prove",
+              text: "Rule CI, re-run offline, same as at approval.",
+              state: "done",
+              href: "#rule",
+            },
+            {
+              name: "Trust",
+              text: "The chain, checked in your own browser.",
+              state: "done",
+              href: "#evidence",
+            },
           ]}
         />
       </header>

@@ -32,13 +32,22 @@ export function LiveStatusChip() {
   const tier1 = load.phase === "ok" ? modelRows(load.health)[0] : undefined;
   return (
     <p className={styles.status} data-testid="usecase-status">
-      <LiveBadge mode={healthBadge(load) === "LIVE" ? "live" : healthBadge(load) === "REPLAY" ? "replay" : "offline"} />
+      <LiveBadge
+        mode={
+          healthBadge(load) === "LIVE"
+            ? "live"
+            : healthBadge(load) === "REPLAY"
+              ? "replay"
+              : "offline"
+        }
+      />
       <span className={styles.statusText}>
         {load.phase === "error" ? (
           "API not reachable just now"
         ) : (
           <>
-            {tier1?.model ? `Tier 1 · ${tier1.model}` : "Tier 1 check"} <b>{tier1?.status ?? "unknown"}</b>
+            {tier1?.model ? `Tier 1 · ${tier1.model}` : "Tier 1 check"}{" "}
+            <b>{tier1?.status ?? "unknown"}</b>
           </>
         )}
       </span>

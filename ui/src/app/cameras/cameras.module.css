@@ -27,9 +27,13 @@
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    color var(--dur-micro) var(--ease-out);
 }
-.tab:hover { color: var(--color-ink); }
+.tab:hover {
+  color: var(--color-ink);
+}
 
 .tabActive {
   composes: tab;
@@ -38,12 +42,24 @@
   box-shadow: 0 0 0 1px var(--color-rule-2);
 }
 
-.form { display: grid; gap: var(--space-sm); max-width: 720px; }
+.form {
+  display: grid;
+  gap: var(--space-sm);
+  max-width: 720px;
+}
 
-.row { display: flex; flex-wrap: wrap; gap: var(--space-xs); align-items: center; }
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  align-items: center;
+}
 
 .row input,
-.row select { flex: 1 1 180px; min-width: 0; }
+.row select {
+  flex: 1 1 180px;
+  min-width: 0;
+}
 
 .grid {
   display: grid;
@@ -72,8 +88,17 @@
   display: block;
 }
 
-.title { display: flex; justify-content: space-between; gap: var(--space-xs); align-items: baseline; }
-.title h3 { margin: 0; font-size: var(--text-lg); overflow-wrap: anywhere; }
+.title {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  align-items: baseline;
+}
+.title h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+  overflow-wrap: anywhere;
+}
 
 .mono {
   font-family: var(--font-outlier);
@@ -91,11 +116,27 @@
   color: var(--color-muted);
 }
 
-.live { composes: state; color: var(--color-ok); background: var(--color-ok-soft); }
-.waiting { composes: state; color: var(--color-accent-text); background: var(--color-accent-soft); }
-.down { composes: state; color: var(--color-bad); background: var(--color-bad-soft); }
+.live {
+  composes: state;
+  color: var(--color-ok);
+  background: var(--color-ok-soft);
+}
+.waiting {
+  composes: state;
+  color: var(--color-accent-text);
+  background: var(--color-accent-soft);
+}
+.down {
+  composes: state;
+  color: var(--color-bad);
+  background: var(--color-bad-soft);
+}
 
-.chips { display: flex; flex-wrap: wrap; gap: var(--space-2xs); }
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+}
 
 .chip {
   font-size: var(--text-xs);
@@ -106,18 +147,56 @@
   color: var(--color-ink);
 }
 
-.chipNone { composes: chip; background: transparent; color: var(--color-muted); text-decoration: line-through; }
-.strong { composes: chip; border-color: var(--color-ok); background: var(--color-ok-soft); color: var(--color-ok); font-weight: 500; }
-.possible { composes: chip; border-color: var(--color-accent-text); background: var(--color-accent-soft); color: var(--color-ink); }
-.poor { composes: chip; background: transparent; color: var(--color-muted); }
+.chipNone {
+  composes: chip;
+  background: transparent;
+  color: var(--color-muted);
+  text-decoration: line-through;
+}
+.strong {
+  composes: chip;
+  border-color: var(--color-ok);
+  background: var(--color-ok-soft);
+  color: var(--color-ok);
+  font-weight: 500;
+}
+.possible {
+  composes: chip;
+  border-color: var(--color-accent-text);
+  background: var(--color-accent-soft);
+  color: var(--color-ink);
+}
+.poor {
+  composes: chip;
+  background: transparent;
+  color: var(--color-muted);
+}
 
-.error { color: var(--color-bad); font-size: var(--text-sm); overflow-wrap: anywhere; margin: 0; }
+.error {
+  color: var(--color-bad);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+  margin: 0;
+}
 
-.small { font-size: var(--text-sm); color: var(--color-muted); margin: 0; }
+.small {
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  margin: 0;
+}
 
-.actions { display: flex; flex-wrap: wrap; gap: var(--space-xs); padding-top: var(--space-xs); border-top: var(--rule-hair) solid var(--color-rule); }
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: var(--rule-hair) solid var(--color-rule);
+}
 
-.devices { display: grid; gap: var(--space-xs); }
+.devices {
+  display: grid;
+  gap: var(--space-xs);
+}
 
 .device {
   border-top: var(--rule-hair) solid var(--color-rule);
@@ -126,4 +205,8 @@
   gap: var(--space-xs);
 }
 
-.tab:focus-visible, .tabActive:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.tab:focus-visible,
+.tabActive:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

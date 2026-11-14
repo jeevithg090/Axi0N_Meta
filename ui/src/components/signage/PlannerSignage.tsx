@@ -30,7 +30,8 @@ const PRESETS: RulePreset[] = [
   {
     id: "keep-people-2m-from-moving-forklift",
     label: "Forklift 2.0m Proximity (OSHA 1910.178)",
-    textEn: "Keep people at least 2.0 metres away from a moving forklift (>0.2 m/s); exclude seated operator.",
+    textEn:
+      "Keep people at least 2.0 metres away from a moving forklift (>0.2 m/s); exclude seated operator.",
     textEs: "Mantener a las personas a 2.0 metros de un montacargas en movimiento (>0.2 m/s).",
     cameraId: "CAM-02",
     videoSrc: "/videos/cam02_intersection.mp4",
@@ -48,7 +49,8 @@ const PRESETS: RulePreset[] = [
   {
     id: "require-hardhat-in-visitor-corridor",
     label: "Visitor Corridor Hardhat PPE (OSHA 1910.135)",
-    textEn: "Every person entering the East Visitor Corridor must wear a safety helmet (Tier-0 head crop-zoom).",
+    textEn:
+      "Every person entering the East Visitor Corridor must wear a safety helmet (Tier-0 head crop-zoom).",
     textEs: "Toda persona que ingrese al Corredor Este de Visitantes debe usar casco de seguridad.",
     cameraId: "CAM-03",
     videoSrc: "/videos/cam03_ppe.mp4",
@@ -66,7 +68,8 @@ const PRESETS: RulePreset[] = [
   {
     id: "heavy-equipment-swing-radius-exclusion",
     label: "Excavator 3.5m Swing Radius (OSHA 1926.1424)",
-    textEn: "Maintain a 3.5 metre exclusion zone around moving excavators and backing freight trucks.",
+    textEn:
+      "Maintain a 3.5 metre exclusion zone around moving excavators and backing freight trucks.",
     textEs: "Mantener una zona de exclusión de 3.5 metros alrededor de excavadoras en movimiento.",
     cameraId: "CAM-09",
     videoSrc: "/videos/cam09_excavator.mp4",
@@ -402,7 +405,10 @@ export function PlannerSignage() {
               }}
             >
               <div>
-                <label className="mono" style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}>
+                <label
+                  className="mono"
+                  style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}
+                >
                   TARGET CAMERA
                 </label>
                 <select
@@ -411,13 +417,27 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
+                    border: "1px solid var(--color-rule-2)",
+                    borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,
                   }}
                 >
-                  {["CAM-01", "CAM-02", "CAM-03", "CAM-04", "CAM-05", "CAM-06", "CAM-08", "CAM-09", "CAM-10", "CAM-11", "CAM-12", "phone-27"].map((c) => (
+                  {[
+                    "CAM-01",
+                    "CAM-02",
+                    "CAM-03",
+                    "CAM-04",
+                    "CAM-05",
+                    "CAM-06",
+                    "CAM-08",
+                    "CAM-09",
+                    "CAM-10",
+                    "CAM-11",
+                    "CAM-12",
+                    "phone-27",
+                  ].map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>
@@ -426,7 +446,10 @@ export function PlannerSignage() {
               </div>
 
               <div>
-                <label className="mono" style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}>
+                <label
+                  className="mono"
+                  style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}
+                >
                   THRESHOLD ({preset.unit})
                 </label>
                 <input
@@ -439,7 +462,8 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
+                    border: "1px solid var(--color-rule-2)",
+                    borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,
@@ -448,7 +472,10 @@ export function PlannerSignage() {
               </div>
 
               <div>
-                <label className="mono" style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}>
+                <label
+                  className="mono"
+                  style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}
+                >
                   SEVERITY GATE
                 </label>
                 <select
@@ -457,7 +484,8 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
+                    border: "1px solid var(--color-rule-2)",
+                    borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,
@@ -470,7 +498,10 @@ export function PlannerSignage() {
               </div>
 
               <div>
-                <label className="mono" style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}>
+                <label
+                  className="mono"
+                  style={{ fontSize: "11px", display: "block", marginBottom: "4px" }}
+                >
                   RESPONDER ROLE
                 </label>
                 <select
@@ -479,7 +510,8 @@ export function PlannerSignage() {
                   style={{
                     width: "100%",
                     padding: "6px",
-                    border: "1px solid var(--color-rule-2)", borderRadius: "var(--radius-pill)",
+                    border: "1px solid var(--color-rule-2)",
+                    borderRadius: "var(--radius-pill)",
                     background: "var(--paper)",
                     fontFamily: "var(--font-dm-mono, monospace)",
                     fontWeight: 700,
@@ -609,7 +641,13 @@ export function PlannerSignage() {
               <span className="state ok">HOMOGRAPHY ERR ±0.094m</span>
             </div>
 
-            <div style={{ position: "relative", background: "var(--color-scene)", border: "1px solid var(--color-rule)" }}>
+            <div
+              style={{
+                position: "relative",
+                background: "var(--color-scene)",
+                border: "1px solid var(--color-rule)",
+              }}
+            >
               <ClipPlayer
                 key={preset.videoSrc}
                 src={preset.videoSrc}

@@ -19,7 +19,14 @@ describe("supermarket proof data", () => {
     for (const f of CROSS_COUNT.frames) {
       const row = report.split("\n").find((l) => l.includes(`checkout queue, ${f.at}`));
       expect(row, f.at).toBeTruthy();
-      for (const v of [f.byHand, `${f.tracker} \`customer\``, f.sam, f.spark, f.glimmer, `**${f.askNow}**`]) {
+      for (const v of [
+        f.byHand,
+        `${f.tracker} \`customer\``,
+        f.sam,
+        f.spark,
+        f.glimmer,
+        `**${f.askNow}**`,
+      ]) {
         expect(row, `${f.at}: ${v}`).toContain(v);
       }
     }
@@ -28,7 +35,9 @@ describe("supermarket proof data", () => {
     expect(report).toContain(`Seen ${HAZARD.seen}`);
     expect(report).toContain(`cleared ${HAZARD.cleared} (${HAZARD.minutes})`);
     expect(report).toContain(`Spark (${HAZARD.sparkProof}) and Glimmer (${HAZARD.glimmerProof})`);
-    expect(report).toContain(`chain records ${HAZARD.detectRecord} (detection) and ${HAZARD.clearedRecord}`);
+    expect(report).toContain(
+      `chain records ${HAZARD.detectRecord} (detection) and ${HAZARD.clearedRecord}`,
+    );
     expect(report).toContain(`chain intact (${HAZARD.chainRecords}`);
   });
 });
@@ -39,9 +48,13 @@ describe("SupermarketProof", () => {
     const proof = screen.getByTestId("supermarket-proof");
     expect(proof.querySelector("s")?.textContent).toBe(CROSS_COUNT.frames[0].tracker);
     expect(proof.textContent).toContain(`${CROSS_COUNT.frames[0].askNow}people`);
-    const badges = within(proof).getAllByTestId("live-badge").map((b) => b.textContent ?? "");
+    const badges = within(proof)
+      .getAllByTestId("live-badge")
+      .map((b) => b.textContent ?? "");
     expect(badges[0]).toContain("REPLAY");
     expect(badges.some((b) => b.includes("SAMPLE") && b.includes("Muse Image"))).toBe(true);
-    expect(screen.getByRole("list", { name: "The spill task" }).textContent).toContain(HAZARD.minutes);
+    expect(screen.getByRole("list", { name: "The spill task" }).textContent).toContain(
+      HAZARD.minutes,
+    );
   });
 });

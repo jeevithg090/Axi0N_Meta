@@ -76,8 +76,12 @@ export function ZoneDensityBar({
               </span>
               <span className={styles.track} role="img" aria-label={said}>
                 <span className={styles.fill} data-tone={tone} style={fill} />
-                {typeof warnAt === "number" && <span className={styles.warnMark} style={{ left: pct(warnAt) }} />}
-                {typeof limit === "number" && <span className={styles.limit} style={{ left: pct(limit) }} />}
+                {typeof warnAt === "number" && (
+                  <span className={styles.warnMark} style={{ left: pct(warnAt) }} />
+                )}
+                {typeof limit === "number" && (
+                  <span className={styles.limit} style={{ left: pct(limit) }} />
+                )}
               </span>
               <span className={styles.zoneValue} data-tone={tone}>
                 {z.density === null ? "no reading" : `${z.density.toFixed(1)} ${unit}`}

@@ -302,7 +302,8 @@ const INITIAL_ADVICE_CARDS: AdviceCard[] = [
         recomputed: 48.2,
         sql: "SELECT ROUND(AVG(cycle_s) / 60.0, 1) FROM kitchen_station_spans WHERE station = 'prep_a3';",
         ok: false,
-        error: "Catalogue value (11.4 min) differs from the Tier 1 model's SQL recomputation (48.2 min); claim automatically redacted.",
+        error:
+          "Catalogue value (11.4 min) differs from the Tier 1 model's SQL recomputation (48.2 min); claim automatically redacted.",
       },
     ],
     hidden: ["mr_hallucinated_delay"],
@@ -369,9 +370,7 @@ export function AdviceSignage() {
   };
 
   const visibleCards =
-    filterKlass === "all"
-      ? cards
-      : cards.filter((c) => c.recommendation.klass === filterKlass);
+    filterKlass === "all" ? cards : cards.filter((c) => c.recommendation.klass === filterKlass);
 
   const totalNumbers = cards.reduce((acc, c) => acc + c.recommendation.numbers_total, 0);
   const reproducedNumbers = cards.reduce((acc, c) => acc + c.recommendation.numbers_reproduced, 0);
@@ -395,13 +394,16 @@ export function AdviceSignage() {
               Every number is <span className="hi">recomputed by SQL</span> before you see it.
             </h1>
             <p className="lead" style={{ marginTop: "var(--s2)", maxWidth: "66ch" }}>
-              Click any highlighted number in a card below to inspect the exact DuckDB/SQL query
-              the Tier 1 model ran to verify it. Any number that does not reproduce is automatically redacted
-              and flagged. Accepting a recommendation hashes a switchback measurement plan onto the
-              SHA-256 chain before the change starts.
+              Click any highlighted number in a card below to inspect the exact DuckDB/SQL query the
+              Tier 1 model ran to verify it. Any number that does not reproduce is automatically
+              redacted and flagged. Accepting a recommendation hashes a switchback measurement plan
+              onto the SHA-256 chain before the change starts.
             </p>
           </div>
-          <div className="s4" style={{ borderLeft: "1px solid var(--color-rule-2)", paddingLeft: "var(--s3)" }}>
+          <div
+            className="s4"
+            style={{ borderLeft: "1px solid var(--color-rule-2)", paddingLeft: "var(--s3)" }}
+          >
             <div className="small">Tier 1 SQL Verification Rate</div>
             <div className="num-l" style={{ marginTop: "4px" }}>
               {reproducedNumbers}/{totalNumbers}
@@ -436,11 +438,7 @@ export function AdviceSignage() {
 
       {/* Cryptographic Sealed Cause Banner */}
       {seals.map((s) => (
-        <section
-          key={s.seal_id}
-          className="wrap"
-          style={{ paddingTop: "var(--s4)" }}
-        >
+        <section key={s.seal_id} className="wrap" style={{ paddingTop: "var(--s4)" }}>
           <div
             style={{
               border: "1px solid var(--color-rule)",
@@ -462,8 +460,12 @@ export function AdviceSignage() {
               <div style={{ fontSize: "18px", fontWeight: 700, marginTop: "4px" }}>
                 Revealed Root Cause: &ldquo;{s.cause}&rdquo;
               </div>
-              <div className="dm" style={{ fontSize: "12px", color: "var(--on-dark-2)", marginTop: "4px" }}>
-                Committed `sha256(cause + salt)` before blind Site Advisor run · Post-run reveal verified against chain
+              <div
+                className="dm"
+                style={{ fontSize: "12px", color: "var(--on-dark-2)", marginTop: "4px" }}
+              >
+                Committed `sha256(cause + salt)` before blind Site Advisor run · Post-run reveal
+                verified against chain
               </div>
             </div>
             <span
@@ -529,7 +531,9 @@ export function AdviceSignage() {
               Flagged / Hold
             </button>
           </div>
-          <span className="mono">Click any yellow metric badge to view its SQL recomputation proof</span>
+          <span className="mono">
+            Click any yellow metric badge to view its SQL recomputation proof
+          </span>
         </div>
       </section>
 
@@ -568,7 +572,8 @@ export function AdviceSignage() {
                   <div>
                     <div className="dm small">
                       Recommendation ID: <b>{rec.id}</b> · Class: <b>{rec.klass.toUpperCase()}</b> ·
-                      Provenance: <b>{rec.provenance.toUpperCase()}</b> · Role: <b>{rec.who_role}</b>
+                      Provenance: <b>{rec.provenance.toUpperCase()}</b> · Role:{" "}
+                      <b>{rec.who_role}</b>
                     </div>
                     <h2 className="h2" style={{ fontSize: "34px", marginTop: "4px" }}>
                       {rec.scope_ids.join(" + ")}
@@ -676,7 +681,14 @@ export function AdviceSignage() {
                       <div className="dm small" style={{ fontWeight: 700 }}>
                         2. WHY (Causal Hypotheses Tested)
                       </div>
-                      <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <div
+                        style={{
+                          marginTop: "8px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "8px",
+                        }}
+                      >
                         {rec.why.map((h) => (
                           <div
                             key={h.id}
@@ -829,14 +841,25 @@ export function AdviceSignage() {
                           borderRadius: "var(--radius-card)",
                         }}
                       >
-                        <div className="dm" style={{ fontSize: "11px", color: "var(--color-scene-accent)" }}>
+                        <div
+                          className="dm"
+                          style={{ fontSize: "11px", color: "var(--color-scene-accent)" }}
+                        >
                           6. SWITCHBACK EXPERIMENT VERDICT READ-OUT
                         </div>
                         <div style={{ fontSize: "18px", fontWeight: 700, marginTop: "4px" }}>
                           {verdictLine(card.verdict, rec.expect.unit)}
                         </div>
-                        <div className="dm" style={{ fontSize: "12px", color: "var(--color-scene-ok)", marginTop: "4px" }}>
-                          Exact sign-flip p = {card.verdict.p_value.toFixed(4)} (α = 0.05) · Entire CI &lt; 0
+                        <div
+                          className="dm"
+                          style={{
+                            fontSize: "12px",
+                            color: "var(--color-scene-ok)",
+                            marginTop: "4px",
+                          }}
+                        >
+                          Exact sign-flip p = {card.verdict.p_value.toFixed(4)} (α = 0.05) · Entire
+                          CI &lt; 0
                         </div>
                       </div>
                     )}

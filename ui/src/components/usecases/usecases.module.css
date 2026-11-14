@@ -2,7 +2,10 @@
 /* The shared use-case frame (/usecases/*): the world's promise, the three-world switcher, the
    live status chip and the journey, above the page's own live data. */
 
-.frame { display: grid; min-width: 0; }
+.frame {
+  display: grid;
+  min-width: 0;
+}
 
 .hero {
   display: grid;
@@ -11,7 +14,13 @@
   background: var(--color-paper-2);
   border-bottom: var(--rule-hair) solid var(--color-rule);
 }
-.heroTop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); }
+.heroTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
 
 .switcher {
   display: inline-flex;
@@ -34,15 +43,40 @@
   font-weight: 500;
   color: var(--color-muted);
   white-space: nowrap;
-  transition: background-color var(--dur-micro) var(--ease-out), color var(--dur-micro) var(--ease-out);
+  transition:
+    background-color var(--dur-micro) var(--ease-out),
+    color var(--dur-micro) var(--ease-out);
 }
-.switch:hover { color: var(--color-ink); }
-.switch[aria-current="page"] { background: var(--color-paper-2); color: var(--color-ink); box-shadow: 0 0 0 1px var(--color-rule-2); }
-.switch[aria-current="page"] svg { color: var(--color-accent-text); }
-.switch svg { width: 16px; height: 16px; }
+.switch:hover {
+  color: var(--color-ink);
+}
+.switch[aria-current="page"] {
+  background: var(--color-paper-2);
+  color: var(--color-ink);
+  box-shadow: 0 0 0 1px var(--color-rule-2);
+}
+.switch[aria-current="page"] svg {
+  color: var(--color-accent-text);
+}
+.switch svg {
+  width: 16px;
+  height: 16px;
+}
 
-.status { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs); margin: 0; font-size: var(--text-sm); color: var(--color-muted); min-width: 160px; }
-.statusText b { font: 500 var(--text-sm) var(--font-outlier); color: var(--color-cool); }
+.status {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+  min-width: 160px;
+}
+.statusText b {
+  font: 500 var(--text-sm) var(--font-outlier);
+  color: var(--color-cool);
+}
 
 .heroSplit {
   display: grid;
@@ -50,12 +84,25 @@
   gap: var(--space-xl);
   align-items: center;
 }
-.heroBody { display: grid; gap: var(--space-sm); max-width: 62rem; min-width: 0; }
-.heroStill { max-width: 560px; justify-self: end; width: 100%; }
-
+.heroBody {
+  display: grid;
+  gap: var(--space-sm);
+  max-width: 62rem;
+  min-width: 0;
+}
+.heroStill {
+  max-width: 560px;
+  justify-self: end;
+  width: 100%;
+}
 
 /* a still: one frame of real footage, black and white, a hairline edge, its source beneath */
-.still { margin: 0; display: grid; gap: var(--space-xs); min-width: 0; }
+.still {
+  margin: 0;
+  display: grid;
+  gap: var(--space-xs);
+  min-width: 0;
+}
 .still img {
   display: block;
   width: 100%;
@@ -67,32 +114,67 @@
   outline: var(--rule-hair) solid color-mix(in oklab, var(--color-ink) 12%, transparent);
   outline-offset: -1px;
 }
-.still figcaption { font-size: var(--text-xs); line-height: 1.45; color: var(--color-muted); }
+.still figcaption {
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--color-muted);
+}
 .title {
   font-size: var(--text-display-s);
   letter-spacing: var(--tracking-display);
   line-height: 1.04;
   max-width: 20ch;
 }
-.line { font-size: var(--text-lead); line-height: 1.45; color: var(--color-ink-2); max-width: 60ch; }
+.line {
+  font-size: var(--text-lead);
+  line-height: 1.45;
+  color: var(--color-ink-2);
+  max-width: 60ch;
+}
 
-.journey { max-width: var(--container); }
+.journey {
+  max-width: var(--container);
+}
 
-.body { min-width: 0; }
+.body {
+  min-width: 0;
+}
 
 @media (max-width: 60rem) {
-  .heroSplit { grid-template-columns: minmax(0, 1fr); gap: var(--space-lg); }
-  .heroStill { justify-self: start; }
+  .heroSplit {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-lg);
+  }
+  .heroStill {
+    justify-self: start;
+  }
 }
 
 @media (max-width: 760px) {
-  .hero { padding: var(--space-lg) var(--space-md); gap: var(--space-lg); }
+  .hero {
+    padding: var(--space-lg) var(--space-md);
+    gap: var(--space-lg);
+  }
 }
 
 /* ---------- the proof block every use-case page leads with (UseCaseProof) ---------- */
-.proof { display: grid; gap: var(--space-lg); }
-.proofHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); }
-.proofTitle { margin: 0; font-size: var(--text-section); letter-spacing: var(--tracking-display); line-height: 1.05; }
+.proof {
+  display: grid;
+  gap: var(--space-lg);
+}
+.proofHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+.proofTitle {
+  margin: 0;
+  font-size: var(--text-section);
+  letter-spacing: var(--tracking-display);
+  line-height: 1.05;
+}
 
 .reading {
   display: grid;
@@ -104,8 +186,19 @@
   border: var(--rule-hair) solid var(--color-rule);
   border-radius: var(--radius-card);
 }
-.readingFigure { display: grid; gap: var(--space-xs); }
-.struck { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-xs); font-size: var(--text-sm); color: var(--color-muted); }
+.readingFigure {
+  display: grid;
+  gap: var(--space-xs);
+}
+.struck {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+  color: var(--color-muted);
+}
 .struckValue {
   font: 400 var(--text-3xl) / 1 var(--font-outlier);
   letter-spacing: -0.04em;
@@ -120,22 +213,77 @@
   font-variant-numeric: tabular-nums slashed-zero;
   color: var(--color-ink);
 }
-.readingUnit { font-size: 0.4em; letter-spacing: 0; margin-left: var(--space-xs); color: var(--color-muted); }
-.readingCaption { margin: 0; color: var(--color-muted); max-width: 64ch; }
-.readingVerdict { display: grid; gap: var(--space-sm); justify-items: start; }
-.reason { margin: 0; font-size: var(--text-lg); line-height: 1.45; color: var(--color-ink); max-width: 60ch; }
-.chipRow { display: flex; flex-wrap: wrap; gap: var(--space-2xs); }
-.proofGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); }
+.readingUnit {
+  font-size: 0.4em;
+  letter-spacing: 0;
+  margin-left: var(--space-xs);
+  color: var(--color-muted);
+}
+.readingCaption {
+  margin: 0;
+  color: var(--color-muted);
+  max-width: 64ch;
+}
+.readingVerdict {
+  display: grid;
+  gap: var(--space-sm);
+  justify-items: start;
+}
+.reason {
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: 1.45;
+  color: var(--color-ink);
+  max-width: 60ch;
+}
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+}
+.proofGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-lg);
+}
 
 /* the journey under the proof, on its own panel */
-.journeyPanel { display: grid; gap: var(--space-lg); padding: var(--space-lg); background: var(--color-paper-2); border: var(--rule-hair) solid var(--color-rule); border-radius: var(--radius-card); }
-.journeyHead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-sm); }
-.journeyTitle { margin: 0; font-size: var(--text-xl); letter-spacing: -0.02em; }
+.journeyPanel {
+  display: grid;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  background: var(--color-paper-2);
+  border: var(--rule-hair) solid var(--color-rule);
+  border-radius: var(--radius-card);
+}
+.journeyHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+.journeyTitle {
+  margin: 0;
+  font-size: var(--text-xl);
+  letter-spacing: -0.02em;
+}
 
 @media (max-width: 900px) {
-  .reading, .proofGrid { grid-template-columns: minmax(0, 1fr); }
+  .reading,
+  .proofGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 @media (max-width: 40rem) {
-  .reading, .journeyPanel { padding: var(--space-md); }
+  .reading,
+  .journeyPanel {
+    padding: var(--space-md);
+  }
 }
-.worldModels { margin: 0; font: 500 var(--text-xs) / 1.5 var(--font-outlier); letter-spacing: 0.02em; color: var(--color-muted); }
+.worldModels {
+  margin: 0;
+  font: 500 var(--text-xs) / 1.5 var(--font-outlier);
+  letter-spacing: 0.02em;
+  color: var(--color-muted);
+}

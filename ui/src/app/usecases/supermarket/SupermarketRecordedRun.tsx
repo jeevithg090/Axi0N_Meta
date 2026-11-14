@@ -13,8 +13,7 @@ import { speak } from "./AskPanel";
 import type { Brief, Overview, RetailCard } from "./api";
 import styles from "./supermarket.module.css";
 
-export const RECORDED_RECEIPT =
-  "21c820c291dc2d22101574d58169e74b99a54ced89772aef6513e92927cb67ad";
+export const RECORDED_RECEIPT = "21c820c291dc2d22101574d58169e74b99a54ced89772aef6513e92927cb67ad";
 
 export const RECORDED_ANSWER: AskAnswer = {
   question:
@@ -25,9 +24,7 @@ export const RECORDED_ANSWER: AskAnswer = {
   seconds: 60.4,
   models: ["muse-spark-1.3", "muse-glimmer-30b", "muse-spark-1.2", "sam-3.1"],
   receipt: RECORDED_RECEIPT,
-  turns: [
-    { turn: 0, model: "muse-spark-1.3", seconds: 19.2, actions: 3 },
-  ],
+  turns: [{ turn: 0, model: "muse-spark-1.3", seconds: 19.2, actions: 3 }],
   steps: [
     {
       turn: 0,
@@ -44,7 +41,8 @@ export const RECORDED_ANSWER: AskAnswer = {
       turn: 0,
       action: {
         action: "look",
-        thought: "Inspect the peak checkout frames with Muse Glimmer 30B to count open tills and queue.",
+        thought:
+          "Inspect the peak checkout frames with Muse Glimmer 30B to count open tills and queue.",
       },
       result: { tills_open: 2, waiting: "8-11" },
       frames: [],
@@ -55,7 +53,8 @@ export const RECORDED_ANSWER: AskAnswer = {
       turn: 0,
       action: {
         action: "watch",
-        thought: "Watch the 35 s checkout clip with Muse Spark 1.2 to estimate arrival rate and service time.",
+        thought:
+          "Watch the 35 s checkout clip with Muse Spark 1.2 to estimate arrival rate and service time.",
       },
       result: { arrivals_per_min: 6, service_s: "60-90", wait_s: 300 },
       frames: [],
@@ -125,7 +124,8 @@ export const RECORDED_CARD: RetailCard = {
     n_pairs: 6,
     min_detectable_effect: 2.1,
     smallest_possible_p: 0.03125,
-    decision_rule: "worked: the whole 95% interval of (ON − OFF) customers waiting is below 0 after 6 pairs.",
+    decision_rule:
+      "worked: the whole 95% interval of (ON − OFF) customers waiting is below 0 after 6 pairs.",
     preregistration_hash: "e5bc76f3185a271083a7487e670ac8822d8e7451f71a64c511ae790b57690ff2",
   },
   sigma_note: "standard deviation across stored checkout-queue readings",
@@ -238,10 +238,14 @@ export const RECORDED_OVERVIEW: Overview = {
       headline: "8 waiting, 2 of 2 tills open; about 300 s wait — open another till",
       staff_message: "Open a 3rd checkout till now: queue rose from 6 to 8 waiting (~5 min wait).",
       detail: {
-        reason: "Queue worsened from earlier reading of 6 waiting customers; re-alerting duty-manager.",
+        reason:
+          "Queue worsened from earlier reading of 6 waiting customers; re-alerting duty-manager.",
         announcement:
           "A new till is opening, please come through. / Una nueva caja está abriendo, por favor pase.",
-        lanes: [{ id: 1, open: true }, { id: 2, open: true }],
+        lanes: [
+          { id: 1, open: true },
+          { id: 2, open: true },
+        ],
       },
       evidence: { frames: [], marked: null, clip: null },
       calls: [
@@ -265,9 +269,11 @@ export const RECORDED_OVERVIEW: Overview = {
       watch_id: null,
       act: true,
       headline: "1 confirmed hazard: liquid milk spill on aisle 3 floor",
-      staff_message: "Wet floor hazard in Aisle 3 — place cone, mop spill, and upload a photo when clear.",
+      staff_message:
+        "Wet floor hazard in Aisle 3 — place cone, mop spill, and upload a photo when clear.",
       detail: {
-        summary: "Muse Spark found the spill (10.5 s); SAM 3.1 segmented 'puddle of milk' inside the box (4.2 s); Muse Glimmer 30B confirmed on the marked frame (12.5 s).",
+        summary:
+          "Muse Spark found the spill (10.5 s); SAM 3.1 segmented 'puddle of milk' inside the box (4.2 s); Muse Glimmer 30B confirmed on the marked frame (12.5 s).",
       },
       evidence: { frames: [], marked: null, clip: null },
       calls: [
@@ -294,7 +300,8 @@ export const RECORDED_OVERVIEW: Overview = {
       headline: "11 empty shelf gaps (~136 facings) on the dried pasta aisle",
       staff_message: "Restock 11 bare pasta shelf gaps and upload an after photo to close.",
       detail: {
-        summary: "Muse Spark located 11 gaps on the 0–1000 grid; SAM 3.1 verified product package coverage ≤ 25% in each gap.",
+        summary:
+          "Muse Spark located 11 gaps on the 0–1000 grid; SAM 3.1 verified product package coverage ≤ 25% in each gap.",
       },
       evidence: { frames: [], marked: null, clip: null },
       calls: [
@@ -317,10 +324,12 @@ export const RECORDED_OVERVIEW: Overview = {
       checked_at: "2026-11-04T01:35:14Z",
       watch_id: null,
       act: true,
-      headline: "Fire exit blocked for 300 s (limit 300 s) by pallet of shrink-wrapped water bottles",
+      headline:
+        "Fire exit blocked for 300 s (limit 300 s) by pallet of shrink-wrapped water bottles",
       staff_message: "Clear the pallet blocking the fire exit door immediately (blocked 5.0 min).",
       detail: {
-        summary: "Unbroken blocked run across readings at 0, 2, and 5 min; SAM 3.1 confirmed obstruction inside Spark's box. Cleared at minute 8.",
+        summary:
+          "Unbroken blocked run across readings at 0, 2, and 5 min; SAM 3.1 confirmed obstruction inside Spark's box. Cleared at minute 8.",
       },
       evidence: { frames: [], marked: null, clip: null },
       calls: [
@@ -382,7 +391,9 @@ export const RECORDED_OVERVIEW: Overview = {
       proof_image: null,
       proof: {
         closed: true,
-        spark: { summary: "All 11 numbered shelf gaps are now stocked with pasta packages (41.2 s)." },
+        spark: {
+          summary: "All 11 numbered shelf gaps are now stocked with pasta packages (41.2 s).",
+        },
       },
       detected_seq: null,
       fixed_seq: 20,
@@ -422,10 +433,17 @@ export function SupermarketRecordedRun({
   const [tab, setTab] = useState<"e2e" | "exit" | "scorecard">("e2e");
 
   return (
-    <section className={styles.recordedSection} aria-labelledby="sm-recorded-head" data-testid="supermarket-recorded-run">
+    <section
+      className={styles.recordedSection}
+      aria-labelledby="sm-recorded-head"
+      data-testid="supermarket-recorded-run"
+    >
       <div className={styles.recordedHeader}>
         <div className={styles.row}>
-          <LiveBadge mode="replay" detail="recorded 4 Nov 2026 · 13 live model calls · 28 chain records" />
+          <LiveBadge
+            mode="replay"
+            detail="recorded 4 Nov 2026 · 13 live model calls · 28 chain records"
+          />
           <span className={styles.pill}>receipt 21c820c291dc…</span>
         </div>
         <div className={styles.recordedTitleRow}>
@@ -434,8 +452,9 @@ export function SupermarketRecordedRun({
               The 4 Nov store run
             </h3>
             <p className={styles.muted}>
-              Every number below was recorded live against Meta&apos;s API (Muse Spark 1.3 &amp; 1.2, hosted SAM 3.1,
-              Muse Voice Transcribe, Muse Image) and RunPod serverless SAM 3.1 + Muse Glimmer 30B (reports/eval/2026-11-04-supermarket-live.md).
+              Every number below was recorded live against Meta&apos;s API (Muse Spark 1.3 &amp;
+              1.2, hosted SAM 3.1, Muse Voice Transcribe, Muse Image) and RunPod serverless SAM 3.1
+              + Muse Glimmer 30B (reports/eval/2026-11-04-supermarket-live.md).
             </p>
           </div>
           <button
@@ -450,19 +469,27 @@ export function SupermarketRecordedRun({
         <div className={styles.kpiStrip} role="list" aria-label="4 Nov run key metrics">
           <div className={styles.kpiItem} role="listitem">
             <span className={styles.kpiValue}>10–11</span>
-            <span className={styles.kpiLabel}>customers waiting once the three counts were reconciled; the tracker said 22</span>
+            <span className={styles.kpiLabel}>
+              customers waiting once the three counts were reconciled; the tracker said 22
+            </span>
           </div>
           <div className={styles.kpiItem} role="listitem">
             <span className={styles.kpiValue}>#16</span>
-            <span className={styles.kpiLabel}>chain record where the till test was pre-registered (6 pairs of 30-minute blocks)</span>
+            <span className={styles.kpiLabel}>
+              chain record where the till test was pre-registered (6 pairs of 30-minute blocks)
+            </span>
           </div>
           <div className={styles.kpiItem} role="listitem">
             <span className={styles.kpiValue}>1.9 min</span>
-            <span className={styles.kpiLabel}>from seeing the spill to proof it was cleared (records #19 to #21)</span>
+            <span className={styles.kpiLabel}>
+              from seeing the spill to proof it was cleared (records #19 to #21)
+            </span>
           </div>
           <div className={styles.kpiItem} role="listitem">
             <span className={styles.kpiValue}>45.0 s</span>
-            <span className={styles.kpiLabel}>for a spoken Spanish question (transcribe 3.2 s, answer 41.8 s)</span>
+            <span className={styles.kpiLabel}>
+              for a spoken Spanish question (transcribe 3.2 s, answer 41.8 s)
+            </span>
           </div>
         </div>
 
@@ -540,13 +567,19 @@ export function SupermarketRecordedRun({
             <p className={styles.muted}>{RECORDED_CARD.gain}</p>
             <ul className={styles.compactList}>
               <li>
-                <strong>Queue watch (20.6 s):</strong> SAM 3.1 (2.7 s) + Spark (16.3 s) saw 8 waiting with 2 tills open; announced in EN + ES: <em>“Una nueva caja está abriendo, por favor pase.”</em>
+                <strong>Queue watch (20.6 s):</strong> SAM 3.1 (2.7 s) + Spark (16.3 s) saw 8
+                waiting with 2 tills open; announced in EN + ES:{" "}
+                <em>“Una nueva caja está abriendo, por favor pase.”</em>
               </li>
               <li>
-                <strong>Negative control (7.1 s &amp; 41.7 s):</strong> Real clean floor reported <em>“No floor hazard seen”</em>; submitting the unchanged bare shelf photo as proof was rejected by Spark (<em>“no restock visible in any numbered gap”</em>).
+                <strong>Negative control (7.1 s &amp; 41.7 s):</strong> Real clean floor reported{" "}
+                <em>“No floor hazard seen”</em>; submitting the unchanged bare shelf photo as proof
+                was rejected by Spark (<em>“no restock visible in any numbered gap”</em>).
               </li>
               <li>
-                <strong>Dual-model closure (1.9 min &amp; 2.0 min):</strong> Pasta shelf closed at record <code>#20</code>; milk spill closed at record <code>#21</code> after both Spark (9.8 s) and Glimmer 30B (15.1 s) verified the clean floor.
+                <strong>Dual-model closure (1.9 min &amp; 2.0 min):</strong> Pasta shelf closed at
+                record <code>#20</code>; milk spill closed at record <code>#21</code> after both
+                Spark (9.8 s) and Glimmer 30B (15.1 s) verified the clean floor.
               </li>
             </ul>
           </div>
@@ -557,11 +590,15 @@ export function SupermarketRecordedRun({
         <div className={styles.card}>
           <div className={styles.row}>
             <strong>“Fire exit blocked over 5 minutes”</strong>
-            <LiveBadge mode="sample" detail="frames are Muse Image edits (pallet of water bottles)" />
+            <LiveBadge
+              mode="sample"
+              detail="frames are Muse Image edits (pallet of water bottles)"
+            />
           </div>
           <p className={styles.muted}>
-            Muse Spark 1.3 judges whether the exit is blocked and names the obstruction; SAM 3.1 must segment that
-            exact phrase inside Spark&apos;s box; code measures the unbroken blocked duration and alerts at 300 s.
+            Muse Spark 1.3 judges whether the exit is blocked and names the obstruction; SAM 3.1
+            must segment that exact phrase inside Spark&apos;s box; code measures the unbroken
+            blocked duration and alerts at 300 s.
           </p>
           <div className={styles.tableWrap}>
             <table className={styles.table}>
@@ -595,7 +632,8 @@ export function SupermarketRecordedRun({
                   <td className={styles.mono}>1</td>
                   <td className={styles.mono}>300 s</td>
                   <td>
-                    <strong className={styles.alertText}>ALERT SENT</strong> (limit reached, task opened)
+                    <strong className={styles.alertText}>ALERT SENT</strong> (limit reached, task
+                    opened)
                   </td>
                 </tr>
                 <tr>
@@ -611,7 +649,8 @@ export function SupermarketRecordedRun({
                   <td className={styles.mono}>0</td>
                   <td className={styles.mono}>0 s</td>
                   <td>
-                    <strong className={styles.okText}>CLEARED</strong> (task auto-closes on clean camera re-check)
+                    <strong className={styles.okText}>CLEARED</strong> (task auto-closes on clean
+                    camera re-check)
                   </td>
                 </tr>
               </tbody>
@@ -654,7 +693,8 @@ export function SupermarketRecordedRun({
                   <td className={styles.mono}>0</td>
                   <td className={styles.mono}>3</td>
                   <td>
-                    <span className={styles.pill}>camera blind</span> Test camera had video for 5.5% of the window
+                    <span className={styles.pill}>camera blind</span> Test camera had video for 5.5%
+                    of the window
                   </td>
                 </tr>
               </tbody>

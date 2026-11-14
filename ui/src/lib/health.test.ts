@@ -17,7 +17,9 @@ describe("health", () => {
     expect(
       gpuLine({ state: "warm", workers_max: 3, workers: { running: 2, idle: 3, initializing: 0 } }),
     ).toEqual({ state: "warm", workers: "2 running, 3 idle" });
-    expect(gpuLine({ state: "cold-ready", workers: { running: 0, idle: 0, initializing: 1 } })).toEqual({
+    expect(
+      gpuLine({ state: "cold-ready", workers: { running: 0, idle: 0, initializing: 1 } }),
+    ).toEqual({
       state: "cold-ready",
       workers: "0 running, 0 idle, 1 starting",
     });

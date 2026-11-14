@@ -170,18 +170,28 @@ export function IncidentsSignage() {
               Chained incident queue{" "}
               <b>
                 GET /incidents (
-                {access === "ok" ? `${incidents.length} events` : access === "forbidden" ? "owner only" : "no answer"})
+                {access === "ok"
+                  ? `${incidents.length} events`
+                  : access === "forbidden"
+                    ? "owner only"
+                    : "no answer"}
+                )
               </b>
-              {access === "ok" && ` ${violationsCount} confirmed breaches, ${suppressedCount} suppressed by the Tier 1 check`}
+              {access === "ok" &&
+                ` ${violationsCount} confirmed breaches, ${suppressedCount} suppressed by the Tier 1 check`}
             </div>
             <h1 className="h1">
-              {access === "ok" ? `${violationsCount} confirmed breaches.` : "Every incident, with its proof."}
+              {access === "ok"
+                ? `${violationsCount} confirmed breaches.`
+                : "Every incident, with its proof."}
               <br />
               Nothing is punished without verifiable chain proof.
             </h1>
           </div>
           <div className="s4 stack end">
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <div
+              style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "flex-end" }}
+            >
               <button
                 type="button"
                 className="tab"
@@ -243,7 +253,8 @@ export function IncidentsSignage() {
                 </EmptyState>
               ) : incidents.length === 0 ? (
                 <EmptyState title="No incidents yet" icon="alert">
-                  An incident appears here when an approved rule fires and the Tier 1 check has looked at it.
+                  An incident appears here when an approved rule fires and the Tier 1 check has
+                  looked at it.
                 </EmptyState>
               ) : (
                 filtered.map((it) => {
@@ -262,7 +273,9 @@ export function IncidentsSignage() {
                         color: "var(--ink)",
                         border: 0,
                         borderBottom: "1px solid var(--color-rule)",
-                        borderLeft: isSel ? "1px solid var(--color-rule-2)" : "6px solid transparent",
+                        borderLeft: isSel
+                          ? "1px solid var(--color-rule-2)"
+                          : "6px solid transparent",
                         padding: "var(--s2)",
                         cursor: "pointer",
                       }}
@@ -429,7 +442,12 @@ export function IncidentsSignage() {
                       loop
                       muted
                       playsInline
-                      style={{ width: "100%", height: "240px", objectFit: "cover", display: "block" }}
+                      style={{
+                        width: "100%",
+                        height: "240px",
+                        objectFit: "cover",
+                        display: "block",
+                      }}
                     />
                     <div
                       style={{
@@ -477,10 +495,16 @@ export function IncidentsSignage() {
                           }}
                         />
                         <div style={{ minWidth: 0 }}>
-                          <div className="dm" style={{ fontSize: "11px", color: "var(--color-scene-accent)" }}>
+                          <div
+                            className="dm"
+                            style={{ fontSize: "11px", color: "var(--color-scene-accent)" }}
+                          >
                             SAMPLE STILL #{idx + 1}
                           </div>
-                          <div className="dm" style={{ fontSize: "11px", color: "var(--color-on-scene-2)" }}>
+                          <div
+                            className="dm"
+                            style={{ fontSize: "11px", color: "var(--color-on-scene-2)" }}
+                          >
                             Built-in, not this incident&apos;s evidence
                           </div>
                         </div>

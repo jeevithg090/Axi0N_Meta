@@ -35,8 +35,12 @@ export function crowdJourney(r: Recorded = run): FlowStep[] {
   const gate = rep.zones.find((z) => z.zone.startsWith("gate")) ?? rep.zones[0];
   const truth = rep.truth?.[0];
   const latency = rep.latency?.[0];
-  const acks = r.ack.notified.filter((n) => n.status === "acknowledged").map((n) => n.role.replace(/_/g, " "));
-  const langs = (r.alert.audio ?? []).map((a) => (a.lang === "hi" ? "Hindi" : a.lang === "en" ? "English" : a.lang));
+  const acks = r.ack.notified
+    .filter((n) => n.status === "acknowledged")
+    .map((n) => n.role.replace(/_/g, " "));
+  const langs = (r.alert.audio ?? []).map((a) =>
+    a.lang === "hi" ? "Hindi" : a.lang === "en" ? "English" : a.lang,
+  );
   const heard = (r.alert.audio ?? []).some((a) => a.heard);
   const records = rep.evidence?.records.length ?? null;
   return [

@@ -32,7 +32,7 @@ ifneq ($(UI_EXISTS),)
 endif
 
 ui-check:
-	cd ui && npm run lint && npm run typecheck && npm test -- --run && npm run test:verify-page
+	cd ui && npm run lint && npm run format:check && npm run typecheck && npm test -- --run && npm run test:verify-page
 
 api:
 	uv run uvicorn rulecam.api.app:app --reload

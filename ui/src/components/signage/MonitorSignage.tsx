@@ -61,7 +61,8 @@ const MASTER_ACTS: ActSpec[] = [
     camId: "CAM-03",
     camLabel: "CAM-03 · Aisle 4 High-Rack",
     ruleId: "ppe-hardhat-zone",
-    ruleText: "All personnel and visitors inside active high-rack forklift zones must wear hardhats.",
+    ruleText:
+      "All personnel and visitors inside active high-rack forklift zones must wear hardhats.",
     calibration: "SAM-2 Person + Head Keypoint Sub-Box · Confidence >= 0.85",
     statusBadge: "3× PPE VIOLATION · NO HARDHAT",
     isBreach: true,
@@ -97,7 +98,12 @@ const MASTER_ACTS: ActSpec[] = [
     plcState: "JUNCTION STROBE + HORN TRIPPED",
     entities: [
       { id: "Forklift", role: "Cross-aisle vehicle", metric: "2.6 m/s Westbound", status: "bad" },
-      { id: "Person", role: "Pedestrian, walking north", metric: "Dist 1.28m · TTC 0.58s", status: "bad" },
+      {
+        id: "Person",
+        role: "Pedestrian, walking north",
+        metric: "Dist 1.28m · TTC 0.58s",
+        status: "bad",
+      },
     ],
   },
   {
@@ -109,7 +115,8 @@ const MASTER_ACTS: ActSpec[] = [
     camId: "CAM-04",
     camLabel: "CAM-04 · Warehouse Aisle",
     ruleId: "forklift-proximity-2m (P1-07)",
-    ruleText: "Link person track born inside forklift cabin (IoU >= 0.65) as vehicle operator; suppress self-alerts.",
+    ruleText:
+      "Link person track born inside forklift cabin (IoU >= 0.65) as vehicle operator; suppress self-alerts.",
     calibration: "Reference Object: Euro Pallet 1.20×1.00m · Homography Err 0.09m",
     statusBadge: "0 FALSE ALERTS · OPERATOR EXEMPT",
     isBreach: false,
@@ -121,7 +128,12 @@ const MASTER_ACTS: ActSpec[] = [
     entities: [
       { id: "Forklift", role: "Active vehicle", metric: "2.2 m/s · Cabin Mask", status: "ok" },
       { id: "Operator", role: "Seated in the cab", metric: "IoU 0.89 · EXEMPT", status: "ok" },
-      { id: "Pallet", role: "Calibration reference", metric: "1.20m × 1.00m (Err 0.09m)", status: "ok" },
+      {
+        id: "Pallet",
+        role: "Calibration reference",
+        metric: "1.20m × 1.00m (Err 0.09m)",
+        status: "ok",
+      },
     ],
   },
   {
@@ -133,7 +145,8 @@ const MASTER_ACTS: ActSpec[] = [
     camId: "CAM-09",
     camLabel: "CAM-09 · Construction Yard Drone",
     ruleId: "excavator-swing-radius-5m",
-    ruleText: "Maintain 5.0m 360° radial clearance around slewing excavator boom during haul loading.",
+    ruleText:
+      "Maintain 5.0m 360° radial clearance around slewing excavator boom during haul loading.",
     calibration: "Nadir Orthophoto Metric Projection · Slew Pivot Locked",
     statusBadge: "SWING ZONE CLEAR · SLEW ACTIVE",
     isBreach: false,
@@ -145,7 +158,12 @@ const MASTER_ACTS: ActSpec[] = [
     entities: [
       { id: "Excavator", role: "Articulated boom", metric: "Slew -42° -> +12°", status: "warn" },
       { id: "Haul truck", role: "Dump bed target", metric: "Locked in Bay", status: "ok" },
-      { id: "5.0m SWING ARC", role: "Radial Exclusion", metric: "0 Personnel Inside", status: "ok" },
+      {
+        id: "5.0m SWING ARC",
+        role: "Radial Exclusion",
+        metric: "0 Personnel Inside",
+        status: "ok",
+      },
     ],
   },
   {
@@ -157,7 +175,8 @@ const MASTER_ACTS: ActSpec[] = [
     camId: "CAM-03",
     camLabel: "CAM-03 · Storage Aisle 4",
     ruleId: "workplace-anomaly-person-down",
-    ruleText: "Escalate sudden physical altercations, kinetic spikes (>3.5G), or person-down events.",
+    ruleText:
+      "Escalate sudden physical altercations, kinetic spikes (>3.5G), or person-down events.",
     calibration: "Optical-Flow Kinetic Energy + Tier-1 Multi-Frame Action Reasoning",
     statusBadge: "CRITICAL · PHYSICAL ALTERCATION",
     isBreach: true,
@@ -190,9 +209,19 @@ const MASTER_ACTS: ActSpec[] = [
       "Part A: a person steps into the approach path of a freight truck (1.05 m). Part B: three people at the kitchen sink each wash for at least 20.0 s.",
     plcState: "DOCK SIREN TRIPPED · PREP LINE OPEN",
     entities: [
-      { id: "Freight truck", role: "Heavy goods vehicle", metric: "3.1 m/s Dock Approach", status: "warn" },
+      {
+        id: "Freight truck",
+        role: "Heavy goods vehicle",
+        metric: "3.1 m/s Dock Approach",
+        status: "warn",
+      },
       { id: "Person", role: "Dock pedestrian", metric: "1.05m Blind-Spot Breach!", status: "bad" },
-      { id: "3 people", role: "At the handwash sink", metric: "22.4s / 20.0s Verified", status: "ok" },
+      {
+        id: "3 people",
+        role: "At the handwash sink",
+        metric: "22.4s / 20.0s Verified",
+        status: "ok",
+      },
     ],
   },
 ];
@@ -235,7 +264,8 @@ export function MonitorSignage() {
   const wc = isBreach ? "var(--color-bad)" : "var(--color-scene-cool)";
   const py = 262 - (dist / 4.0) * 180;
 
-  const ilText = viewMode === "video" ? currentAct.plcState : dist <= 2.0 ? "TRIPPED · 8 ms" : "Arm / Live";
+  const ilText =
+    viewMode === "video" ? currentAct.plcState : dist <= 2.0 ? "TRIPPED · 8 ms" : "Arm / Live";
   const ilCol = isBreach ? "var(--alert)" : "var(--machine)";
 
   // Illustrative pseudo-hash for the scripted walkthrough (not a hash of a real frame or record).
@@ -319,7 +349,11 @@ export function MonitorSignage() {
               className="tab"
               aria-pressed={viewMode === "video"}
               onClick={() => setViewMode("video")}
-              style={{ minHeight: "36px", padding: "0 12px", fontWeight: viewMode === "video" ? 700 : 400 }}
+              style={{
+                minHeight: "36px",
+                padding: "0 12px",
+                fontWeight: viewMode === "video" ? 700 : 400,
+              }}
             >
               Annotated CV Video
             </button>
@@ -328,7 +362,11 @@ export function MonitorSignage() {
               className="tab"
               aria-pressed={viewMode === "radar"}
               onClick={() => setViewMode("radar")}
-              style={{ minHeight: "36px", padding: "0 12px", fontWeight: viewMode === "radar" ? 700 : 400 }}
+              style={{
+                minHeight: "36px",
+                padding: "0 12px",
+                fontWeight: viewMode === "radar" ? 700 : 400,
+              }}
             >
               Overhead Radar
             </button>
@@ -373,68 +411,85 @@ export function MonitorSignage() {
 
       {/* 7-Act Interactive Scenario Chapter Bar (Collapsible) */}
       {chaptersOpen && (
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
-          gap: "6px",
-          marginBottom: "var(--s3)",
-          background: "var(--card)",
-          border: "1px solid var(--color-rule)",
-          borderRadius: "var(--radius-card)",
-          padding: "10px",
-        }}
-      >
-        {MASTER_ACTS.map((act) => {
-          const isActive = activeCam === "master" && viewMode === "video" && currentAct.id === act.id;
-          return (
-            <button
-              key={act.id}
-              type="button"
-              onClick={() => jumpToAct(act)}
-              style={{
-                textAlign: "left",
-                padding: "8px 10px",
-                border: isActive ? "1px solid var(--color-rule)" : "1px solid var(--rule)",
-                background: isActive
-                  ? act.isBreach
-                    ? "var(--alert, var(--color-bad))"
-                    : "var(--warn, var(--color-accent))"
-                  : "var(--paper)",
-                color: isActive && act.isBreach ? "var(--color-on-signal)" : "var(--ink)",
-                cursor: "pointer",
-                transition: "all 0.12s ease",
-              }}
-            >
-              <div style={{ fontSize: "11px", fontWeight: 800, opacity: 0.85 }}>
-                {act.startS.toFixed(0)}s–{act.endS.toFixed(0)}s · {act.camId}
-              </div>
-              <div style={{ fontSize: "13px", fontWeight: 700, marginTop: "2px", lineHeight: 1.2 }}>
-                {act.shortTitle}
-              </div>
-            </button>
-          );
-        })}
-      </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+            gap: "6px",
+            marginBottom: "var(--s3)",
+            background: "var(--card)",
+            border: "1px solid var(--color-rule)",
+            borderRadius: "var(--radius-card)",
+            padding: "10px",
+          }}
+        >
+          {MASTER_ACTS.map((act) => {
+            const isActive =
+              activeCam === "master" && viewMode === "video" && currentAct.id === act.id;
+            return (
+              <button
+                key={act.id}
+                type="button"
+                onClick={() => jumpToAct(act)}
+                style={{
+                  textAlign: "left",
+                  padding: "8px 10px",
+                  border: isActive ? "1px solid var(--color-rule)" : "1px solid var(--rule)",
+                  background: isActive
+                    ? act.isBreach
+                      ? "var(--alert, var(--color-bad))"
+                      : "var(--warn, var(--color-accent))"
+                    : "var(--paper)",
+                  color: isActive && act.isBreach ? "var(--color-on-signal)" : "var(--ink)",
+                  cursor: "pointer",
+                  transition: "all 0.12s ease",
+                }}
+              >
+                <div style={{ fontSize: "11px", fontWeight: 800, opacity: 0.85 }}>
+                  {act.startS.toFixed(0)}s–{act.endS.toFixed(0)}s · {act.camId}
+                </div>
+                <div
+                  style={{ fontSize: "13px", fontWeight: 700, marginTop: "2px", lineHeight: 1.2 }}
+                >
+                  {act.shortTitle}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       )}
 
       {/* Main 2-Column Dashboard Grid */}
       <div className="grid">
         {/* Left Column: 8 Cols or Full 12 Cols when Inspector is Collapsed */}
-        <div className={inspectorOpen ? "s8" : "s12"} style={{ display: "flex", flexDirection: "column", gap: "var(--s3)" }}>
+        <div
+          className={inspectorOpen ? "s8" : "s12"}
+          style={{ display: "flex", flexDirection: "column", gap: "var(--s3)" }}
+        >
           {/* Panel: Camera Overhead Visualization / Master Video */}
-          <div style={{ border: "1px solid var(--color-rule)", background: "var(--cam)", overflow: "hidden" }}>
+          <div
+            style={{
+              border: "1px solid var(--color-rule)",
+              background: "var(--cam)",
+              overflow: "hidden",
+            }}
+          >
             <div className="camhud">
               <span>
                 {activeCam === "master"
                   ? `${currentAct.camLabel} · RULE: ${currentAct.ruleId} · 1280×720@25fps`
                   : activeCam === "cam-04"
-                  ? "CAM-04 Dock A west · 1920×1080 · 60 fps · 38 ms"
-                  : activeCam === "cam-01"
-                  ? "CAM-01 Kitchen Prep · 1920×1080 · 60 fps · 29 ms"
-                  : "CAM-07 Walk-in Cooler · FEED BLIND"}
+                    ? "CAM-04 Dock A west · 1920×1080 · 60 fps · 38 ms"
+                    : activeCam === "cam-01"
+                      ? "CAM-01 Kitchen Prep · 1920×1080 · 60 fps · 29 ms"
+                      : "CAM-07 Walk-in Cooler · FEED BLIND"}
               </span>
-              <span style={{ color: isBreach ? "var(--color-bad)" : "var(--color-scene-cool)", fontWeight: 700 }}>
+              <span
+                style={{
+                  color: isBreach ? "var(--color-bad)" : "var(--color-scene-cool)",
+                  fontWeight: 700,
+                }}
+              >
                 {viewMode === "video"
                   ? `${currentAct.statusBadge} · TIER 1 ${currentAct.glimmerScore}`
                   : `${isBreach ? "BREACH ACTIVE · EXCLUSION 2.0 m" : "CLEAR"} · T ${
@@ -445,20 +500,50 @@ export function MonitorSignage() {
 
             {viewMode === "video" ? (
               activeCam === "cam-07" ? (
-                <div style={{ padding: "100px 20px", textAlign: "center", background: "var(--color-scene)", color: "var(--color-scene-accent)" }}>
-                  <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ margin: "0 auto 16px", display: "block" }}>
+                <div
+                  style={{
+                    padding: "100px 20px",
+                    textAlign: "center",
+                    background: "var(--color-scene)",
+                    color: "var(--color-scene-accent)",
+                  }}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="48"
+                    height="48"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                    style={{ margin: "0 auto 16px", display: "block" }}
+                  >
                     <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
                     <path d="M12 9v4M12 17h.01" />
                   </svg>
                   <div style={{ fontSize: "24px", fontWeight: 500 }}>
                     CAM-07 Walk-in Cooler · FEED BLIND
                   </div>
-                  <p style={{ maxWidth: "560px", margin: "14px auto", color: "var(--color-on-scene-2)", fontSize: "14px", lineHeight: 1.5 }}>
-                    Lens occlusion or connection drop detected at 14:12:08 UTC. Safety rules for this zone are suspended and cannot evaluate compliance. Operator manual clearance required.
+                  <p
+                    style={{
+                      maxWidth: "560px",
+                      margin: "14px auto",
+                      color: "var(--color-on-scene-2)",
+                      fontSize: "14px",
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Lens occlusion or connection drop detected at 14:12:08 UTC. Safety rules for
+                    this zone are suspended and cannot evaluate compliance. Operator manual
+                    clearance required.
                   </p>
                 </div>
               ) : (
-                <div style={{ position: "relative", width: "100%", background: "var(--color-scene)" }}>
+                <div
+                  style={{ position: "relative", width: "100%", background: "var(--color-scene)" }}
+                >
                   <ClipPlayer
                     ref={videoRef}
                     key={activeCam}
@@ -467,8 +552,8 @@ export function MonitorSignage() {
                       activeCam === "master"
                         ? "/videos/master_capabilities_demo.mp4"
                         : activeCam === "cam-04"
-                        ? "/videos/warehouse_forklift.mp4"
-                        : "/videos/kitchen_prep.mp4"
+                          ? "/videos/warehouse_forklift.mp4"
+                          : "/videos/kitchen_prep.mp4"
                     }
                     autoPlay
                     loop
@@ -494,10 +579,22 @@ export function MonitorSignage() {
                 aria-label="Overhead plan of the dock"
               >
                 <defs>
-                  <pattern id="hy" width="12" height="12" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+                  <pattern
+                    id="hy"
+                    width="12"
+                    height="12"
+                    patternUnits="userSpaceOnUse"
+                    patternTransform="rotate(-45)"
+                  >
                     <rect width="6" height="12" fill="var(--color-accent)" fillOpacity=".22" />
                   </pattern>
-                  <pattern id="hb" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+                  <pattern
+                    id="hb"
+                    width="10"
+                    height="10"
+                    patternUnits="userSpaceOnUse"
+                    patternTransform="rotate(45)"
+                  >
                     <rect width="4" height="10" fill="var(--color-scene-cool)" fillOpacity=".3" />
                   </pattern>
                   <pattern id="gr" width="100" height="100" patternUnits="userSpaceOnUse">
@@ -547,9 +644,29 @@ export function MonitorSignage() {
                 </text>
 
                 {/* Forklift chassis */}
-                <rect x="300" y="250" width="200" height="100" fill="url(#hb)" stroke="var(--color-scene-cool)" strokeWidth="2" />
-                <rect x="300" y="250" width="66" height="100" fill="var(--color-scene-2)" stroke="var(--color-scene-cool)" strokeWidth="2" />
-                <path d="M500 262H520M500 338H520" stroke="var(--color-scene-cool)" strokeWidth="5" />
+                <rect
+                  x="300"
+                  y="250"
+                  width="200"
+                  height="100"
+                  fill="url(#hb)"
+                  stroke="var(--color-scene-cool)"
+                  strokeWidth="2"
+                />
+                <rect
+                  x="300"
+                  y="250"
+                  width="66"
+                  height="100"
+                  fill="var(--color-scene-2)"
+                  stroke="var(--color-scene-cool)"
+                  strokeWidth="2"
+                />
+                <path
+                  d="M500 262H520M500 338H520"
+                  stroke="var(--color-scene-cool)"
+                  strokeWidth="5"
+                />
                 <path d="M360 250V214" stroke="var(--color-on-scene)" />
                 <text
                   x="360"
@@ -584,10 +701,20 @@ export function MonitorSignage() {
 
                 {/* Measure callout */}
                 <g stroke={wc} strokeWidth="2" fill="none">
-                  <path d={`M520 168V262M${wx} 168V254M520 168H${wx}M520 168l9 -5M520 168l9 5M${wx} 168l-9 -5M${wx} 168l-9 5`} />
+                  <path
+                    d={`M520 168V262M${wx} 168V254M520 168H${wx}M520 168l9 -5M520 168l9 5M${wx} 168l-9 -5M${wx} 168l-9 5`}
+                  />
                 </g>
                 <g transform={`translate(${mid}, 130)`}>
-                  <rect x="-56" y="-26" width="112" height="46" fill="var(--color-scene)" stroke={wc} strokeWidth="2" />
+                  <rect
+                    x="-56"
+                    y="-26"
+                    width="112"
+                    height="46"
+                    fill="var(--color-scene)"
+                    stroke={wc}
+                    strokeWidth="2"
+                  />
                   <text
                     x="0"
                     y="10"
@@ -613,10 +740,20 @@ export function MonitorSignage() {
               padding: "18px 20px",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "8px", marginBottom: "10px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "baseline",
+                flexWrap: "wrap",
+                gap: "8px",
+                marginBottom: "10px",
+              }}
+            >
               <div>
                 <div className="small" style={{ fontWeight: 700, color: "var(--muted)" }}>
-                  Active Scenario · Act {currentAct.id} of 7 ({currentAct.startS}s–{currentAct.endS}s)
+                  Active Scenario · Act {currentAct.id} of 7 ({currentAct.startS}s–{currentAct.endS}
+                  s)
                 </div>
                 <h2 className="h3" style={{ fontSize: "21px", marginTop: "2px" }}>
                   {currentAct.title}
@@ -627,11 +764,26 @@ export function MonitorSignage() {
               </span>
             </div>
 
-            <p className="small" style={{ marginBottom: "14px", padding: "8px 12px", background: "var(--paper)", borderLeft: "1px solid var(--color-rule-2)" }}>
-              <strong>Compiled Rule ({currentAct.ruleId}):</strong> &ldquo;{currentAct.ruleText}&rdquo;
+            <p
+              className="small"
+              style={{
+                marginBottom: "14px",
+                padding: "8px 12px",
+                background: "var(--paper)",
+                borderLeft: "1px solid var(--color-rule-2)",
+              }}
+            >
+              <strong>Compiled Rule ({currentAct.ruleId}):</strong> &ldquo;{currentAct.ruleText}
+              &rdquo;
             </p>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "10px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+                gap: "10px",
+              }}
+            >
               {currentAct.entities.map((ent) => (
                 <div
                   key={`${ent.id}-${ent.role}`}
@@ -643,18 +795,34 @@ export function MonitorSignage() {
                       ent.status === "bad"
                         ? "var(--color-bad-soft)"
                         : ent.status === "warn"
-                        ? "var(--color-accent-soft)"
-                        : "var(--color-paper)",
+                          ? "var(--color-accent-soft)"
+                          : "var(--color-paper)",
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
                     <strong style={{ fontSize: "13px" }}>{ent.id}</strong>
-                    <span className={`state ${ent.status === "bad" ? "bad" : ent.status === "warn" ? "warn" : "ok"}`} style={{ fontSize: "10px", padding: "1px 6px" }}>
+                    <span
+                      className={`state ${ent.status === "bad" ? "bad" : ent.status === "warn" ? "warn" : "ok"}`}
+                      style={{ fontSize: "10px", padding: "1px 6px" }}
+                    >
                       {ent.status.toUpperCase()}
                     </span>
                   </div>
-                  <div className="small" style={{ fontSize: "12px", marginTop: "2px" }}>{ent.role}</div>
-                  <div className="dm" style={{ fontSize: "13px", fontWeight: 700, marginTop: "4px" }}>{ent.metric}</div>
+                  <div className="small" style={{ fontSize: "12px", marginTop: "2px" }}>
+                    {ent.role}
+                  </div>
+                  <div
+                    className="dm"
+                    style={{ fontSize: "13px", fontWeight: 700, marginTop: "4px" }}
+                  >
+                    {ent.metric}
+                  </div>
                 </div>
               ))}
             </div>
@@ -689,7 +857,14 @@ export function MonitorSignage() {
 
             <svg
               viewBox="0 0 920 300"
-              style={{ width: "100%", height: "auto", display: "block", background: "var(--paper)", border: "1px solid var(--color-rule)", borderRadius: "var(--radius-pill)" }}
+              style={{
+                width: "100%",
+                height: "auto",
+                display: "block",
+                background: "var(--paper)",
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-pill)",
+              }}
               role="img"
               aria-label="Distance over time curve"
             >
@@ -700,8 +875,23 @@ export function MonitorSignage() {
                 <line x1="60" y1="220" x2="860" y2="220" />
               </g>
 
-              <rect x="60" y="172" width="800" height="88" fill="var(--color-bad)" fillOpacity=".09" />
-              <line x1="60" y1="172" x2="860" y2="172" stroke="var(--color-bad)" strokeWidth="2" strokeDasharray="8 6" />
+              <rect
+                x="60"
+                y="172"
+                width="800"
+                height="88"
+                fill="var(--color-bad)"
+                fillOpacity=".09"
+              />
+              <line
+                x1="60"
+                y1="172"
+                x2="860"
+                y2="172"
+                stroke="var(--color-bad)"
+                strokeWidth="2"
+                strokeDasharray="8 6"
+              />
               <text
                 x="852"
                 y="164"
@@ -720,11 +910,21 @@ export function MonitorSignage() {
                 fill="#5A5852"
                 textAnchor="end"
               >
-                <text x="50" y="44">4.0 m</text>
-                <text x="50" y="104">3.0 m</text>
-                <text x="50" y="176">2.0 m</text>
-                <text x="50" y="224">1.0 m</text>
-                <text x="50" y="264">0.0 m</text>
+                <text x="50" y="44">
+                  4.0 m
+                </text>
+                <text x="50" y="104">
+                  3.0 m
+                </text>
+                <text x="50" y="176">
+                  2.0 m
+                </text>
+                <text x="50" y="224">
+                  1.0 m
+                </text>
+                <text x="50" y="264">
+                  0.0 m
+                </text>
               </g>
 
               <g
@@ -733,11 +933,21 @@ export function MonitorSignage() {
                 fill="#5A5852"
                 textAnchor="middle"
               >
-                <text x="60" y="284">-1.25 s</text>
-                <text x="273" y="284">-0.85 s</text>
-                <text x="487" y="284">-0.45 s</text>
-                <text x="727" y="284">0.00 s · TRIP</text>
-                <text x="860" y="284">+0.25 s</text>
+                <text x="60" y="284">
+                  -1.25 s
+                </text>
+                <text x="273" y="284">
+                  -0.85 s
+                </text>
+                <text x="487" y="284">
+                  -0.45 s
+                </text>
+                <text x="727" y="284">
+                  0.00 s · TRIP
+                </text>
+                <text x="860" y="284">
+                  +0.25 s
+                </text>
               </g>
 
               <path
@@ -748,7 +958,14 @@ export function MonitorSignage() {
               />
 
               <line x1={px} y1="28" x2={px} y2="262" stroke="var(--color-bad)" strokeWidth="2" />
-              <circle cx={px} cy={py} r="7" fill="var(--color-bad)" stroke="#F4F1EA" strokeWidth="2" />
+              <circle
+                cx={px}
+                cy={py}
+                r="7"
+                fill="var(--color-bad)"
+                stroke="#F4F1EA"
+                strokeWidth="2"
+              />
             </svg>
 
             <div className="scrub" style={{ marginTop: "14px" }}>
@@ -777,134 +994,180 @@ export function MonitorSignage() {
 
         {/* Right Column: 4 Cols (Live Telemetry + Tier-1 VLM Verdict + Merkle Hash Chain) */}
         {inspectorOpen && (
-        <div className="s4" style={{ display: "flex", flexDirection: "column", gap: "var(--s3)" }}>
-          {/* Panel: Live Measurements */}
           <div
-            style={{
-              border: "1px solid var(--color-rule)",
-              borderRadius: "var(--radius-card)",
-              background: "var(--card)",
-              padding: "20px",
-            }}
+            className="s4"
+            style={{ display: "flex", flexDirection: "column", gap: "var(--s3)" }}
           >
-            <div className="small" style={{ fontWeight: 700, marginBottom: "8px" }}>
-              Live Telemetry · {currentAct.camId}
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", borderBottom: "1px solid var(--color-rule)", paddingBottom: "12px", marginBottom: "12px" }}>
-              <span className="small">Tier-1 VLM Score</span>
-              <div className="num" style={{ fontSize: "48px", color: wc }}>
-                {currentAct.glimmerScore}
+            {/* Panel: Live Measurements */}
+            <div
+              style={{
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
+                background: "var(--card)",
+                padding: "20px",
+              }}
+            >
+              <div className="small" style={{ fontWeight: 700, marginBottom: "8px" }}>
+                Live Telemetry · {currentAct.camId}
               </div>
-            </div>
-
-            <div className="kv">
-              <div className="k">Active Rule</div>
-              <div className="v dm">{currentAct.ruleId}</div>
-            </div>
-            <div className="kv">
-              <div className="k">Tier-1 Verdict</div>
-              <div className="v dm" style={{ color: wc, fontWeight: 700 }}>
-                {currentAct.glimmerVerdict}
-              </div>
-            </div>
-            <div className="kv">
-              <div className="k">PLC / Action State</div>
-              <div className="v dm" style={{ color: ilCol, fontWeight: 700 }}>
-                {ilText}
-              </div>
-            </div>
-            <div className="kv" style={{ borderBottom: "none" }}>
-              <div className="k">Merkle Leaf #{frameNum}</div>
-              <div className="v dm" style={{ fontSize: "12px" }}>
-                sha256:{frameHex}…
-              </div>
-            </div>
-          </div>
-
-          {/* Panel: Tier-1 VLM Verification Reasoning */}
-          <div
-            style={{
-              border: "1px solid var(--color-rule)",
-              borderRadius: "var(--radius-card)",
-              background: "var(--card)",
-              padding: "20px",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <h3 className="h3" style={{ fontSize: "20px" }}>
-                Tier-1 VLM Review
-              </h3>
-              <span className={`state ${isBreach ? "bad" : "ok"}`} style={{ fontSize: "12px", padding: "2px 8px" }}>
-                {currentAct.glimmerVerdict}
-              </span>
-            </div>
-
-            <p className="small" style={{ marginBottom: "14px", color: "var(--ink)", lineHeight: 1.45 }}>
-              {currentAct.glimmerReason}
-            </p>
-
-            {/* 6-Frame Contact Strip Indicator */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "4px", marginBottom: "14px" }}>
-              {[-1.0, -0.75, -0.5, -0.25, 0.0, +0.25].map((offset, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: "var(--color-scene-2)",
-                    border: idx === 4 ? "2px solid var(--alert, var(--color-bad))" : "1px solid var(--color-rule)",
-                    padding: "6px 4px",
-                    textAlign: "center",
-                    color: "var(--color-on-scene)",
-                  }}
-                >
-                  <div className="dm" style={{ fontSize: "10px", color: idx === 4 ? "var(--color-bad)" : "var(--color-scene-cool)" }}>
-                    KF#{idx + 1}
-                  </div>
-                  <div className="dm" style={{ fontSize: "9px", opacity: 0.8 }}>
-                    {offset >= 0 ? `+${offset.toFixed(2)}s` : `${offset.toFixed(2)}s`}
-                  </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                  borderBottom: "1px solid var(--color-rule)",
+                  paddingBottom: "12px",
+                  marginBottom: "12px",
+                }}
+              >
+                <span className="small">Tier-1 VLM Score</span>
+                <div className="num" style={{ fontSize: "48px", color: wc }}>
+                  {currentAct.glimmerScore}
                 </div>
-              ))}
-            </div>
+              </div>
 
-            <div className="kv" style={{ padding: "8px 0" }}>
-              <div className="k" style={{ fontSize: "13px" }}>Operator Warm-up (P1-07)</div>
-              <div className="v dm" style={{ fontSize: "13px", color: "var(--ok)" }}>
-                Active · IoU &ge; 0.65
+              <div className="kv">
+                <div className="k">Active Rule</div>
+                <div className="v dm">{currentAct.ruleId}</div>
+              </div>
+              <div className="kv">
+                <div className="k">Tier-1 Verdict</div>
+                <div className="v dm" style={{ color: wc, fontWeight: 700 }}>
+                  {currentAct.glimmerVerdict}
+                </div>
+              </div>
+              <div className="kv">
+                <div className="k">PLC / Action State</div>
+                <div className="v dm" style={{ color: ilCol, fontWeight: 700 }}>
+                  {ilText}
+                </div>
+              </div>
+              <div className="kv" style={{ borderBottom: "none" }}>
+                <div className="k">Merkle Leaf #{frameNum}</div>
+                <div className="v dm" style={{ fontSize: "12px" }}>
+                  sha256:{frameHex}…
+                </div>
               </div>
             </div>
-            <div className="kv" style={{ padding: "8px 0", borderBottom: "none" }}>
-              <div className="k" style={{ fontSize: "13px" }}>Rule CI Gate</div>
-              <div className="v dm" style={{ fontSize: "13px" }}>
-                16/16 Boundary · 6/6 Mutants
+
+            {/* Panel: Tier-1 VLM Verification Reasoning */}
+            <div
+              style={{
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
+                background: "var(--card)",
+                padding: "20px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "12px",
+                }}
+              >
+                <h3 className="h3" style={{ fontSize: "20px" }}>
+                  Tier-1 VLM Review
+                </h3>
+                <span
+                  className={`state ${isBreach ? "bad" : "ok"}`}
+                  style={{ fontSize: "12px", padding: "2px 8px" }}
+                >
+                  {currentAct.glimmerVerdict}
+                </span>
+              </div>
+
+              <p
+                className="small"
+                style={{ marginBottom: "14px", color: "var(--ink)", lineHeight: 1.45 }}
+              >
+                {currentAct.glimmerReason}
+              </p>
+
+              {/* 6-Frame Contact Strip Indicator */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(6, 1fr)",
+                  gap: "4px",
+                  marginBottom: "14px",
+                }}
+              >
+                {[-1.0, -0.75, -0.5, -0.25, 0.0, +0.25].map((offset, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      background: "var(--color-scene-2)",
+                      border:
+                        idx === 4
+                          ? "2px solid var(--alert, var(--color-bad))"
+                          : "1px solid var(--color-rule)",
+                      padding: "6px 4px",
+                      textAlign: "center",
+                      color: "var(--color-on-scene)",
+                    }}
+                  >
+                    <div
+                      className="dm"
+                      style={{
+                        fontSize: "10px",
+                        color: idx === 4 ? "var(--color-bad)" : "var(--color-scene-cool)",
+                      }}
+                    >
+                      KF#{idx + 1}
+                    </div>
+                    <div className="dm" style={{ fontSize: "9px", opacity: 0.8 }}>
+                      {offset >= 0 ? `+${offset.toFixed(2)}s` : `${offset.toFixed(2)}s`}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="kv" style={{ padding: "8px 0" }}>
+                <div className="k" style={{ fontSize: "13px" }}>
+                  Operator Warm-up (P1-07)
+                </div>
+                <div className="v dm" style={{ fontSize: "13px", color: "var(--ok)" }}>
+                  Active · IoU &ge; 0.65
+                </div>
+              </div>
+              <div className="kv" style={{ padding: "8px 0", borderBottom: "none" }}>
+                <div className="k" style={{ fontSize: "13px" }}>
+                  Rule CI Gate
+                </div>
+                <div className="v dm" style={{ fontSize: "13px" }}>
+                  16/16 Boundary · 6/6 Mutants
+                </div>
+              </div>
+            </div>
+
+            {/* Panel: Operator Actions & Cryptographic Chain */}
+            <div
+              style={{
+                border: "1px solid var(--color-rule)",
+                borderRadius: "var(--radius-card)",
+                background: "var(--card)",
+                padding: "20px",
+              }}
+            >
+              <h3 className="h3" style={{ fontSize: "20px", marginBottom: "8px" }}>
+                Cryptographic Evidence Log
+              </h3>
+              <p className="small" style={{ marginBottom: "14px" }}>
+                Every perception window, Tier-1 strip verdict, and PLC interlock action is chained
+                with SHA-256.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <Link href="/audit" className="btn" style={{ width: "100%" }}>
+                  Verify SHA-256 Chain in Browser
+                </Link>
+                <Link href="/ci" className="btn o" style={{ width: "100%" }}>
+                  Inspect Rule CI Matrix (22/22)
+                </Link>
               </div>
             </div>
           </div>
-
-          {/* Panel: Operator Actions & Cryptographic Chain */}
-          <div
-            style={{
-              border: "1px solid var(--color-rule)",
-              borderRadius: "var(--radius-card)",
-              background: "var(--card)",
-              padding: "20px",
-            }}
-          >
-            <h3 className="h3" style={{ fontSize: "20px", marginBottom: "8px" }}>
-              Cryptographic Evidence Log
-            </h3>
-            <p className="small" style={{ marginBottom: "14px" }}>
-              Every perception window, Tier-1 strip verdict, and PLC interlock action is chained with SHA-256.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <Link href="/audit" className="btn" style={{ width: "100%" }}>
-                Verify SHA-256 Chain in Browser
-              </Link>
-              <Link href="/ci" className="btn o" style={{ width: "100%" }}>
-                Inspect Rule CI Matrix (22/22)
-              </Link>
-            </div>
-          </div>
-        </div>
         )}
       </div>
     </div>

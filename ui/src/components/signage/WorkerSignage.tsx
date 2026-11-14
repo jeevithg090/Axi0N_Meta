@@ -121,7 +121,15 @@ export function WorkerSignage() {
           <div className="mono" style={{ fontSize: "11px" }}>
             PUBLIC WORKER TRANSPARENCY &amp; DISPUTE PORTAL · GET /worker/{planId}/{cameraId}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "6px", flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginTop: "6px",
+              flexWrap: "wrap",
+            }}
+          >
             <label htmlFor="station-select" className="small" style={{ fontWeight: 700 }}>
               {isEn ? "Select Camera Station:" : "Seleccionar Estación:"}
             </label>
@@ -153,20 +161,10 @@ export function WorkerSignage() {
         </div>
 
         <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-          <button
-            type="button"
-            className="tab"
-            aria-pressed={isEn}
-            onClick={() => setLang("en")}
-          >
+          <button type="button" className="tab" aria-pressed={isEn} onClick={() => setLang("en")}>
             English (EN)
           </button>
-          <button
-            type="button"
-            className="tab"
-            aria-pressed={!isEn}
-            onClick={() => setLang("es")}
-          >
+          <button type="button" className="tab" aria-pressed={!isEn} onClick={() => setLang("es")}>
             Español (ES)
           </button>
           <a
@@ -296,9 +294,7 @@ export function WorkerSignage() {
               (item) => (
                 <div key={item} className="no" style={{ fontSize: "13px", padding: "3px 0" }}>
                   <span style={{ fontWeight: 700, color: "var(--alert)" }}>×</span>
-                  <span>
-                    {STRINGS[lang].neverItems[item] ?? item}
-                  </span>
+                  <span>{STRINGS[lang].neverItems[item] ?? item}</span>
                 </div>
               ),
             )}
@@ -320,7 +316,9 @@ export function WorkerSignage() {
               : "RECIBOS ANÓNIMOS EN INTERVALOS DE 15 MINUTOS"}
           </div>
           <h2 className="h2" style={{ fontSize: "30px", marginTop: "4px", marginBottom: "12px" }}>
-            {isEn ? "Challenge an Alert (Zero Login)" : "Impugnar una Alerta (Sin Inicio de Sesión)"}
+            {isEn
+              ? "Challenge an Alert (Zero Login)"
+              : "Impugnar una Alerta (Sin Inicio de Sesión)"}
           </h2>
 
           {errorMsg && (
@@ -349,15 +347,15 @@ export function WorkerSignage() {
                 textAlign: "center",
               }}
             >
-              <div
-                className="cd"
-                style={{ fontWeight: 800, fontSize: "24px", lineHeight: 1 }}
-              >
+              <div className="cd" style={{ fontWeight: 800, fontSize: "24px", lineHeight: 1 }}>
                 {isEn
                   ? `DISPUTE #${lastResult.code} · ${lastResult.outcome.toUpperCase()}`
                   : `DISPUTA #${lastResult.code} · ${lastResult.outcome.toUpperCase()}`}
               </div>
-              <div className="dm" style={{ fontSize: "12px", marginTop: "6px", color: "var(--color-ink)" }}>
+              <div
+                className="dm"
+                style={{ fontSize: "12px", marginTop: "6px", color: "var(--color-ink)" }}
+              >
                 {isEn
                   ? `Chained to SHA-256 ledger · Rule ${lastResult.rule_id} now has ${lastResult.counts.disputes} dispute(s)`
                   : `Anclado a la cadena SHA-256 · Regla ${lastResult.rule_id} tiene ${lastResult.counts.disputes} disputa(s)`}
@@ -368,8 +366,13 @@ export function WorkerSignage() {
           {page && page.events.length > 0 ? (
             <form onSubmit={(e) => void handleSubmitDispute(e)}>
               <div style={{ marginBottom: "14px" }}>
-                <label className="small" style={{ fontWeight: 700, display: "block", marginBottom: "6px" }}>
-                  {isEn ? "1. Select 8-Digit Anonymous Event Code:" : "1. Código Anónimo del Evento:"}
+                <label
+                  className="small"
+                  style={{ fontWeight: 700, display: "block", marginBottom: "6px" }}
+                >
+                  {isEn
+                    ? "1. Select 8-Digit Anonymous Event Code:"
+                    : "1. Código Anónimo del Evento:"}
                 </label>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   {page.events.map((ev) => (
@@ -408,8 +411,13 @@ export function WorkerSignage() {
               </div>
 
               <div style={{ marginBottom: "14px" }}>
-                <label className="small" style={{ fontWeight: 700, display: "block", marginBottom: "6px" }}>
-                  {isEn ? "2. Why was this alert inaccurate?" : "2. ¿Por qué fue inexacta esta alerta?"}
+                <label
+                  className="small"
+                  style={{ fontWeight: 700, display: "block", marginBottom: "6px" }}
+                >
+                  {isEn
+                    ? "2. Why was this alert inaccurate?"
+                    : "2. ¿Por qué fue inexacta esta alerta?"}
                 </label>
                 <select
                   value={reasonChoice}
@@ -433,7 +441,10 @@ export function WorkerSignage() {
               </div>
 
               <div style={{ marginBottom: "16px" }}>
-                <label className="small" style={{ fontWeight: 700, display: "block", marginBottom: "6px" }}>
+                <label
+                  className="small"
+                  style={{ fontWeight: 700, display: "block", marginBottom: "6px" }}
+                >
                   {isEn
                     ? "3. Optional Note (Never tied to your name or IP):"
                     : "3. Nota opcional (Anónima):"}

@@ -16,7 +16,13 @@ export interface SkeletonProps {
 }
 
 /** A placeholder in the shape of what is coming, announced as busy. */
-export function Skeleton({ lines = 1, shape = "text", height, label = "Loading", className }: SkeletonProps) {
+export function Skeleton({
+  lines = 1,
+  shape = "text",
+  height,
+  label = "Loading",
+  className,
+}: SkeletonProps) {
   const count = shape === "text" ? Math.max(1, lines) : 1;
   const style = (height ? { "--bone-h": height } : undefined) as CSSProperties | undefined;
   return (

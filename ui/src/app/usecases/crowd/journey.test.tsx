@@ -10,7 +10,15 @@ afterEach(cleanup);
 describe("CrowdJourney", () => {
   it("tells the recorded run in seven steps, each with the run's own values", () => {
     const steps = crowdJourney();
-    expect(steps.map((s) => s.name)).toEqual(["Describe", "Plan", "Prove", "Watch", "Verify", "Act", "Evidence"]);
+    expect(steps.map((s) => s.name)).toEqual([
+      "Describe",
+      "Plan",
+      "Prove",
+      "Watch",
+      "Verify",
+      "Act",
+      "Evidence",
+    ]);
     const text = steps.map((s) => String(s.text)).join(" ");
     const gate = recorded.report.zones.find((z) => z.zone.startsWith("gate"))!;
     expect(text).toContain(`Peak ${gate.peak_density_ppm2.toFixed(1)} people/m²`);
@@ -26,7 +34,9 @@ describe("CrowdJourney", () => {
     const gate = recorded.report.zones.find((z) => z.zone.startsWith("gate"))!;
     expect(proof.textContent).toContain(gate.peak_density_ppm2.toFixed(1));
     const times = Array.from(
-      within(screen.getByRole("list", { name: "The crowd alert, minute by minute" })).getAllByRole("listitem"),
+      within(screen.getByRole("list", { name: "The crowd alert, minute by minute" })).getAllByRole(
+        "listitem",
+      ),
       (li) => li.querySelector("time")!.getAttribute("dateTime") ?? "",
     );
     expect(times).toEqual([...times].sort());
@@ -37,7 +47,11 @@ describe("CrowdJourney", () => {
   it("is labelled as a recorded run, never as live", () => {
     render(<CrowdJourney />);
     const list = screen.getByRole("list", { name: "The crowd warning, step by step" });
-    expect(within(list).getAllByRole("listitem").filter((li) => li.parentElement === list)).toHaveLength(7);
+    expect(
+      within(list)
+        .getAllByRole("listitem")
+        .filter((li) => li.parentElement === list),
+    ).toHaveLength(7);
     expect(screen.getByTestId("live-badge").textContent).toContain("REPLAY");
   });
 });

@@ -10,7 +10,13 @@ import { clock, fileUrl } from "./crowdApi";
  * The hottest zone counted three ways: SAM 3.1, Muse Spark pointing and the Tier 1 model
  * (`checker`: a recorded run's model, else the role).
  */
-export function TallyCard({ tally, checker = "Tier 1 model" }: { tally: ZoneTally | null; checker?: string }) {
+export function TallyCard({
+  tally,
+  checker = "Tier 1 model",
+}: {
+  tally: ZoneTally | null;
+  checker?: string;
+}) {
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   if (!tally) {
     return (

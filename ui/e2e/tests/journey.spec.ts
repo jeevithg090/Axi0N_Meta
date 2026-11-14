@@ -8,7 +8,9 @@ import { badgeText, clippedElements, expect, NOT_FOUND, settle, test } from "./f
 async function internalLinks(page: Page): Promise<string[]> {
   const hrefs = await page
     .locator("a[href]")
-    .evaluateAll((anchors) => anchors.map((a) => (a as HTMLAnchorElement).getAttribute("href") ?? ""));
+    .evaluateAll((anchors) =>
+      anchors.map((a) => (a as HTMLAnchorElement).getAttribute("href") ?? ""),
+    );
   return [...new Set(hrefs)]
     .filter((href) => href.startsWith("/") && !href.startsWith("//"))
     .filter((href) => !href.startsWith("/rulecam-api/")); // API downloads (posters, reports)
@@ -53,14 +55,19 @@ for (const useCase of ["/usecases/warehouse", "/usecases/crowd", "/usecases/supe
     await expect(page.locator('[data-testid^="still-"] img').first()).toBeVisible();
     // QA-B23: an API route missing from the deployed API must not leave a raw "Not Found" or a
     // loader that never ends.
-    await expect(page.locator("main").first()).not.toContainText(/^Not Found$|Loading the story…/m, {
-      timeout: 15_000,
-    });
+    await expect(page.locator("main").first()).not.toContainText(
+      /^Not Found$|Loading the story…/m,
+      {
+        timeout: 15_000,
+      },
+    );
     expect.soft(await clippedElements(page), `content cut off on ${useCase}`).toEqual([]);
   });
 }
 
-test("the golden replay tells its story and its evidence verifies in the browser", async ({ page }) => {
+test("the golden replay tells its story and its evidence verifies in the browser", async ({
+  page,
+}) => {
   await page.goto("/demo?demo=1");
   await settle(page);
   expect(await badgeText(page)).toBe("REPLAY");
@@ -100,7 +107,8 @@ test("ask shows a visitor what it is and how to get in", async ({ page }) => {
   await settle(page);
   await expect(page.locator("main").first()).toContainText(/ask/i);
   const ownerOnly = page.getByTestId("owner-only");
-  if (await ownerOnly.count()) await expect(ownerOnly.getByRole("link", { name: /log in/i })).toBeVisible();
+  if (await ownerOnly.count())
+    await expect(ownerOnly.getByRole("link", { name: /log in/i })).toBeVisible();
 });
 
 test("incidents shows a visitor a clear state", async ({ page }) => {

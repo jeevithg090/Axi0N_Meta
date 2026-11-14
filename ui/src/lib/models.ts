@@ -36,14 +36,21 @@ export const ROLES = {
 } as const;
 
 /** A GPU line: its state as the API wrote it, and its workers when it is serverless. */
-export function gpuLine(entry: GpuHealth | string | undefined): { state: string; workers: string | null } {
+export function gpuLine(entry: GpuHealth | string | undefined): {
+  state: string;
+  workers: string | null;
+} {
   if (entry === undefined) return { state: "unknown", workers: null };
   if (typeof entry === "string") return { state: entry, workers: null };
   // The serverless counts exactly as the API reports them (they can exceed workers_max while
   // RunPod scales), never added up into a figure the API did not give.
   const w = entry.workers;
   const workers = w
-    ? [`${w.running ?? 0} running`, `${w.idle ?? 0} idle`, ...(w.initializing ? [`${w.initializing} starting`] : [])].join(", ")
+    ? [
+        `${w.running ?? 0} running`,
+        `${w.idle ?? 0} idle`,
+        ...(w.initializing ? [`${w.initializing} starting`] : []),
+      ].join(", ")
     : null;
   return { state: entry.state ?? (entry.up ? "up" : "down"), workers };
 }
@@ -80,7 +87,11 @@ export function hostLabel(host: ModelHost | null | undefined): string {
 }
 
 /** "Muse Spark 1.3 · Meta API", or `fallback` (a role) when the API has not named the model. */
-export function modelLine(id: string | null | undefined, host: ModelHost | null | undefined, fallback: string): string {
+export function modelLine(
+  id: string | null | undefined,
+  host: ModelHost | null | undefined,
+  fallback: string,
+): string {
   const name = modelLabel(id);
   if (!name) return fallback;
   const where = hostLabel(host);
@@ -95,7 +106,10 @@ export function tierRole(tier: string | null | undefined): string {
 }
 
 /** A verdict's heading: its tier's role and the model that ran it, "Tier 1 · Muse Spark 1.3". */
-export function verifierLabel(tier: string | null | undefined, modelVersion: string | null | undefined): string {
+export function verifierLabel(
+  tier: string | null | undefined,
+  modelVersion: string | null | undefined,
+): string {
   const role = tierRole(tier);
   const name = modelLabel(modelVersion);
   return name && name !== role ? `${role} · ${name}` : role;
@@ -126,7 +140,14 @@ function row(
   if (id === null) status = "not configured";
   else if (host === "meta-api") status = fine ? "Meta API" : `Meta API · ${line.state}`;
   else status = line?.state ?? (hostLabel(host) || "unknown");
-  return { key, role: ROLES[key], model: modelLabel(id) || null, host: host ?? null, status, workers: line?.workers ?? null };
+  return {
+    key,
+    role: ROLES[key],
+    model: modelLabel(id) || null,
+    host: host ?? null,
+    status,
+    workers: line?.workers ?? null,
+  };
 }
 
 /**

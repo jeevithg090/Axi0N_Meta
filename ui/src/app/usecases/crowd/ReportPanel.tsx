@@ -191,65 +191,69 @@ export function ReportView({ report }: { report: EventReport }) {
             ? `verified (${report.evidence.records.length} records for these alerts)`
             : `BROKEN: ${report.evidence.problem}`}
       </span>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>zone</th>
-            <th>peak /m²</th>
-            <th>at</th>
-            <th>mean</th>
-            {report.reference_ppm2.map((r) => (
-              <th key={r}>≥{r}/m²</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {report.zones.map((z) => (
-            <tr key={z.zone}>
-              <td>{z.zone}</td>
-              <td>
-                {z.peak_heatmap ? (
-                  <a href={fileUrl(z.peak_heatmap)} target="_blank" rel="noreferrer">
-                    {fmt(z.peak_density_ppm2)}
-                  </a>
-                ) : (
-                  fmt(z.peak_density_ppm2)
-                )}
-              </td>
-              <td>{clock(z.peak_at)}</td>
-              <td>{fmt(z.mean_density_ppm2)}</td>
-              {report.reference_ppm2.map((r) => (
-                <td key={r}>{seconds(z.above_s[`${r}`] ?? 0)}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {report.latency.length > 0 && (
+      <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>alert</th>
-              <th>reading</th>
-              <th>→ Spark</th>
-              <th>→ sent</th>
-              <th>frame check</th>
+              <th>zone</th>
+              <th>peak /m²</th>
+              <th>at</th>
+              <th>mean</th>
+              {report.reference_ppm2.map((r) => (
+                <th key={r}>≥{r}/m²</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {report.latency.map((l) => (
-              <tr key={l.alert_id}>
-                <td style={{ color: LEVEL_COLOUR[l.level] }}>
-                  {l.level} {l.sent ? "" : "(held)"}
+            {report.zones.map((z) => (
+              <tr key={z.zone}>
+                <td>{z.zone}</td>
+                <td>
+                  {z.peak_heatmap ? (
+                    <a href={fileUrl(z.peak_heatmap)} target="_blank" rel="noreferrer">
+                      {fmt(z.peak_density_ppm2)}
+                    </a>
+                  ) : (
+                    fmt(z.peak_density_ppm2)
+                  )}
                 </td>
-                <td>{clock(l.reading_at)}</td>
-                <td>{seconds(l.assess_s)}</td>
-                <td>{seconds(l.alert_s)}</td>
-                <td>{l.checked}</td>
+                <td>{clock(z.peak_at)}</td>
+                <td>{fmt(z.mean_density_ppm2)}</td>
+                {report.reference_ppm2.map((r) => (
+                  <td key={r}>{seconds(z.above_s[`${r}`] ?? 0)}</td>
+                ))}
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+      {report.latency.length > 0 && (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>alert</th>
+                <th>reading</th>
+                <th>→ Spark</th>
+                <th>→ sent</th>
+                <th>frame check</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.latency.map((l) => (
+                <tr key={l.alert_id}>
+                  <td style={{ color: LEVEL_COLOUR[l.level] }}>
+                    {l.level} {l.sent ? "" : "(held)"}
+                  </td>
+                  <td>{clock(l.reading_at)}</td>
+                  <td>{seconds(l.assess_s)}</td>
+                  <td>{seconds(l.alert_s)}</td>
+                  <td>{l.checked}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {report.truth && (
         <>

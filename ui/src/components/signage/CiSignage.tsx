@@ -738,7 +738,15 @@ export function CiSignage() {
               >
                 {selectedMutant.astDiff}
               </pre>
-              <div style={{ display: "grid", rowGap: "4px", fontSize: "11px" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr)",
+                  rowGap: "4px",
+                  fontSize: "11px",
+                  overflowWrap: "anywhere",
+                }}
+              >
                 <div>
                   <span style={{ color: "var(--color-on-scene-2)" }}>Counterexample Trace: </span>
                   {selectedMutant.traceInput}

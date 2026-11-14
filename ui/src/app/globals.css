@@ -262,6 +262,27 @@ body {
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
+/* The page's main region takes focus from the skip link; it needs no ring of its own. */
+main:focus {
+  outline: none;
+}
+/* Off screen until a keyboard reaches it; then the first thing on the page. */
+.skip-link {
+  position: fixed;
+  top: var(--space-xs);
+  left: var(--space-xs);
+  z-index: var(--z-tooltip);
+  padding: var(--space-xs) var(--space-md);
+  border-radius: var(--radius-pill);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-weight: 500;
+  transform: translateY(calc(-100% - var(--space-md)));
+  transition: transform var(--dur-short) var(--ease-out);
+}
+.skip-link:focus-visible {
+  transform: none;
+}
 a {
   color: inherit;
   text-decoration: none;
@@ -370,9 +391,19 @@ textarea {
 input[type="checkbox"],
 input[type="radio"] {
   min-height: 0;
+  /* 18px boxes: easier to hit with a thumb than the 13px browser default */
+  width: 1.125rem;
+  height: 1.125rem;
+  padding: 0;
+  vertical-align: middle;
   accent-color: var(--color-accent-text);
 }
+select {
+  /* a long option must not push its form past the screen edge */
+  max-width: 100%;
+}
 input[type="file"] {
+  max-width: 100%;
   background: transparent;
   border: 0;
   padding: 0;
@@ -758,11 +789,19 @@ h2 .hi,
 }
 .state {
   display: inline-block;
+  max-width: 100%;
   padding: var(--space-3xs) var(--space-xs);
   border: var(--rule-hair) solid currentColor;
   border-radius: var(--radius-chip);
   font: 500 var(--text-xs) / 1.4 var(--font-outlier);
   white-space: nowrap;
+}
+/* On a phone a long status line wraps inside its pill rather than running off the screen. */
+@media (max-width: 760px) {
+  .state {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 .state.bad,
 .bad {
@@ -2005,7 +2044,9 @@ b.code {
   padding: var(--space-xl) var(--gut) var(--space-2xl);
   max-width: 1120px;
 }
+.site-page > h1:first-child,
 .site-page > h2:first-child,
+.ask-page > h1:first-child,
 .ask-page > h2:first-child {
   font-size: var(--text-3xl);
   letter-spacing: var(--tracking-display);
@@ -2062,6 +2103,7 @@ button.primary:not(.btn):hover {
   transform: none;
 }
 .site-page > p,
+.site-page > h1 + p,
 .site-page > h2 + p {
   max-width: 75ch;
 }

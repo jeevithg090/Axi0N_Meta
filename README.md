@@ -3,6 +3,10 @@
 [![ci](https://github.com/jeevithg090/Axi0N_Meta/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jeevithg090/Axi0N_Meta/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](.python-version)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![Next.js 15](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white)
+![React 19](https://img.shields.io/badge/React-19-149eca?logo=react&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178c6?logo=typescript&logoColor=white)
 
 **Tell your cameras what worries you, in plain words and in your own language. Rulecam says
 honestly what a camera can and can't check, proves each rule before it goes live, has a second
@@ -19,6 +23,16 @@ open-weight model, then running on our own GPU, looked at the frames, confirmed 
 the other. Frames from recorded live runs ([T02 and T04 goldens](scenarios/README.md); the same
 verdicts in the [1 Nov live campaign](reports/eval/2026-11-01-live-test-campaign.md)). Since
 4 Nov the live site runs this check on Muse Spark 1.3 through the Meta API.*
+
+## Contents
+
+- [Try it now](#try-it-now) · [Screenshots](#screenshots) · [Live now: Meta API only](#live-now-meta-api-only-since-4-nov-2026)
+- [One engine, three worlds](#one-engine-three-worlds) · [The platform around them](#the-platform-around-them) · [Why trust it](#why-trust-it)
+- [Meta models](#meta-models-what-runs-now-and-what-ran-before) · [How it works](#how-it-works) · [Results](#results) · [Honest limits](#honest-limits)
+- More detail: [the problem](#the-problem) · [who it helps](#who-it-helps) · [architecture](#architecture) · [model map](#model-map)
+- Run it: [prerequisites](#prerequisites) · [run it on your own machine](#run-it-on-your-own-machine) · [quick start](#quick-start-development) · [usage examples](#usage-examples) · [commands](#commands)
+- Build on it: [tech stack](#tech-stack) · [the web UI](#the-web-ui) · [configuration](#configuration) · [API reference](#api-reference) · [tests and builds](#tests-and-builds) · [deployment](#deployment) · [project structure](#project-structure)
+- [Troubleshooting and FAQ](#troubleshooting-and-faq) · [Roadmap](#roadmap) · [Contributing](#contributing) · [Licences](#licences)
 
 ## Try it now
 
@@ -43,6 +57,33 @@ they need no API. To run the whole system yourself, see
 *The landing page, captured before 4 Nov: the recorded T02 run's verified alert, labelled as
 recorded, and the state of the stack we ran then. Since 4 Nov the status band names the Meta API
 models instead of GPU states.*
+
+## Screenshots
+
+Captured from a local production build of this repository (`npm run build && npm run start`)
+with the API in replay mode, so every header says **REPLAY**. What they show is the recorded runs
+bundled in the repo; screens built from hand-written examples carry a **SAMPLE DATA** notice, as
+they do in the app. Stock and research footage is credited under each image in the app.
+
+| | |
+|---|---|
+| ![Landing page in the light theme: "Plain words in. Verified alerts out." beside the recorded T02 verified alert, 2.90 m](docs/screenshots/landing-desktop-light.webp) | ![The same landing page in the dark theme](docs/screenshots/landing-desktop-dark.webp) |
+| **Landing page**, light theme: the recorded T02 alert with its measured distance and the second model's verdict | **Dark theme**: every screen has both; the choice is remembered, and the system setting is followed until you pick |
+| ![The golden replay: Describe, Plan, Prove, Trust steps and the verified alerts of the 1 Nov live run](docs/screenshots/golden-replay.webp) | ![Warehouse use case: "Forklift rules that prove themselves" with the stock clip behind the 1 Nov alert](docs/screenshots/usecase-warehouse.webp) |
+| **Golden replay** (`/demo?demo=1`): one request followed from plain words to a hash-chained decision, with no model calls | **Warehouse**: the forklift story, read from what Rulecam recorded |
+| ![Supermarket use case: "Ask your store anything" with the checkout clip](docs/screenshots/usecase-supermarket.webp) | ![Crowd use case in the dark theme: crowd-crush early warning on the Jülich bottleneck footage, 8.2 people per square metre](docs/screenshots/usecase-crowd.webp) |
+| **Supermarket**: Ask, advice, standing watches, staff tasks closed with proof | **Crowd**: zone density from SAM 3.1 counts; recorded runs only (crowd is not live now) |
+| ![The planner: request box, rule presets and the planner's steps, with a SAMPLE DATA notice](docs/screenshots/planner.webp) | ![Rule CI: boundary trace sweep 16 of 16 and mutation ledger 6 of 6, with a SAMPLE DATA notice](docs/screenshots/rule-ci.webp) |
+| **Planner**: describe a rule; the preview on this screen is labelled SAMPLE | **Rule CI**: boundary scenes and mutants; the example layout is labelled SAMPLE until a plan is loaded |
+| ![Audit ledger in the dark theme: 35 blocks sealed, chain intact, re-verified in the browser](docs/screenshots/audit-ledger.webp) | ![System and models: API online, runtime loop on standby, models in use from GET /health](docs/screenshots/system-models.webp) |
+| **Audit**: the evidence chain re-hashed in your browser (here the golden recording, as the notice says) | **System and models**: what `/health` and `/runtime/metrics` report, and nothing the API did not say |
+
+On a phone (iPhone 13 size):
+
+| | | | |
+|---|---|---|---|
+| ![Landing page on a phone](docs/screenshots/landing-phone.png) | ![Navigation drawer open on a phone](docs/screenshots/nav-drawer-phone.png) | ![Rulecam Staff app onboarding on a phone: language and role](docs/screenshots/staff-app-phone.png) | ![The 404 page on a phone](docs/screenshots/not-found-phone.png) |
+| Landing | Navigation drawer (Escape or the backdrop closes it) | Staff app: alerts go to roles, never to names | The 404 page |
 
 ## Live now: Meta API only (since 4 Nov 2026)
 
@@ -501,10 +542,21 @@ reference objects ([`docs/deploy.md`](docs/deploy.md)).
 | [`evidence/`](evidence/README.md) | Screenshots and verify-page captures behind our claims |
 | [`eval/RESULTS.md`](eval/RESULTS.md) | Measured evaluation results |
 
+### Prerequisites
+
+| Tool | Version | Why | Install |
+|---|---|---|---|
+| [`uv`](https://docs.astral.sh/uv/) | recent | Installs Python 3.12 and the locked dependencies (`uv.lock`) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` or `brew install uv` |
+| Python | 3.12 (from `.python-version`) | The API, the CLI and the tests | `uv` installs it for you |
+| Node.js + npm | 20 or newer to run the site; 22 for the UI's unit tests (Vitest 4 needs 20.19+ or 22.12+; CI uses 22) | The Next.js web UI | [nodejs.org](https://nodejs.org) or `brew install node` |
+| `ffmpeg` | any recent build | Cuts camera video into 3 s H.264 chunks | `brew install ffmpeg` or `sudo apt install ffmpeg` |
+| `git` | any | Clone the repo | |
+| Docker (optional) | with Compose v2 | `docker compose up --build` instead of local installs | [docs.docker.com](https://docs.docker.com/get-docker/) |
+| Meta API key (optional) | Standard tier | Live mode only; replay mode and the golden replay need no key | See `.env.example` |
+
 ### Run it on your own machine
 
-You need [`uv`](https://docs.astral.sh/uv/) (it installs Python 3.12), Node 20+, `ffmpeg` and
-`git`. On macOS: `brew install uv node ffmpeg`.
+You need the tools in [Prerequisites](#prerequisites). On macOS: `brew install uv node ffmpeg`.
 
 ```bash
 git clone https://github.com/jeevithg090/Axi0N_Meta.git
@@ -551,6 +603,126 @@ uv run rulecam chain demo chains/kitchen-basics   # Chain Mode, no models, about
 - **Check an evidence log:** `uv run rulecam audit <YYYY-MM-DD> <site>` re-verifies a day's
   chain and re-derives every decision; or drop the chain file on the browser verify page.
 
+### Usage examples
+
+#### The web UI, step by step
+
+1. Open `http://localhost:3000`. The landing page shows one recorded verified alert and the
+   system status from the API. **Open the demo** goes to the golden replay.
+2. `/demo?demo=1` walks one request through **Describe → Plan → Prove → Trust**. Everything on it
+   is a recording, so it works with the API stopped.
+3. **Use cases** in the sidebar (Supermarket, Warehouse, Crowd) tell each world's story from what
+   Rulecam recorded. A switch on each page moves between the recorded run and this site's live
+   data, when there is any.
+4. **Build → Planner**: type a rule in plain words (or pick a preset) and press **Plan this rule
+   (live planner)**. In live mode the planner surveys the camera, writes the rule, runs Rule CI
+   and asks you to approve; the result appears under **Plans**.
+5. **Trust → Verify evidence** opens the static verify page, which re-hashes an evidence chain in
+   your browser and compares it with the day's Merkle root.
+6. **Run → Staff app** and **Glasses mode** are phone pages; open them on a phone, or in your
+   browser's device toolbar.
+
+Keyboard: the first Tab stop on every page is **Skip to content**; **Ctrl+B** (or **Cmd+B**)
+collapses the sidebar; **Escape** closes the phone navigation drawer.
+
+#### The API
+
+The API listens on `http://localhost:8000`; FastAPI serves interactive docs at
+`http://localhost:8000/docs`. These responses were captured from a fresh local API in replay mode:
+
+```console
+$ curl -s localhost:8000/health
+{"ok":true,"site":"demo","mode":"replay","runtime":false,"revision":null,
+ "gpus":{"glimmer":{"state":"unhealthy","up":false,"serverless":false,"workers_min":null,
+ "workers_max":null,"workers":null,"error":"health check failed"}},
+ "models":{"tier1":"muse-glimmer-30b","tier1_host":"self-hosted","tier2":null,
+ "tier2_host":null,"sam":"sam-3.1","sam_host":"meta-api"}}
+
+$ curl -s localhost:8000/mode
+{"mode":"replay","badge":"REPLAY"}
+
+$ curl -s localhost:8000/auth/me          # from the same machine: loopback counts as the owner
+{"owner":true,"via":"loopback","csrf_token":null,"expires_at":null,"login_enabled":false}
+```
+
+Bad input gets a 422 with every problem listed (here a worker dispute with an empty body):
+
+```console
+$ curl -s -X POST localhost:8000/worker/dispute -H 'content-type: application/json' -d '{}'
+{"detail":[{"type":"missing","loc":["body","event_code"],"msg":"Field required","input":{}},
+ {"type":"missing","loc":["body","reason_choice"],"msg":"Field required","input":{}}]}
+```
+
+From another machine, owner routes need a session. Set a passphrase once, put the printed line in
+the API's `.env` with a `SESSION_SECRET`, then log in:
+
+```bash
+uv run rulecam owner set-passphrase       # prints OWNER_PASSPHRASE_HASH=...
+curl -s -c cookies.txt -X POST https://<api-host>/auth/login \
+  -H 'content-type: application/json' -d '{"passphrase": "<your passphrase>"}'
+```
+
+The web UI does this for you on `/login`. Writes made with the session also need the CSRF token
+that `GET /auth/me` returns.
+
+#### The CLI
+
+```bash
+uv run rulecam --help                          # every command
+uv run rulecam version                         # package and contracts versions
+uv run rulecam chain demo chains/kitchen-basics   # Chain Mode on a sample pack, no models (~10 s)
+uv run rulecam golden verify warehouse_driver  # replay a golden run from its recording: "5/5 steps reproduced"
+uv run rulecam audit <YYYY-MM-DD> <site>       # re-verify a day's chain in data/evidence/ and re-derive each decision
+uv run rulecam capture --help                  # turn a camera, stream or file into 3 s chunks
+```
+
+`rulecam chain demo` prints each store's readiness, a scorecard marked **SIMULATED**, and what
+to fix first, for example:
+
+```text
+   store-22 Airport (east): 1/3 ready
+     handwash-before-line         ready       Runs on kitchen-cam; Rule CI boundary 13/13, mutations 5/5 on this store.
+     fire-exit-clear              needs_setup Needs setup: camera 'back-cam' needs a ground calibration to measure metres for 'egress'
+     delivery-to-cold-storage     blocked     Blocked: zone 'staff_break_room' names a private space and can never be watched
+```
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `./start_rulecam.sh` / `./start_rulecam.ps1` | One-command local run: checks tools, installs, seeds SAMPLE data, starts API (8000) and UI (3000). `--no-seed` skips the sample data |
+| `make setup` | `uv sync --group dev`, pre-commit hooks, and `npm ci` for the UI |
+| `make fmt` | Ruff format and auto-fix |
+| `make lint` | `ruff check` and `ruff format --check` |
+| `make type` | mypy over `src` and `tests` |
+| `make test` | pytest with coverage, then the per-package coverage floors (`scripts/coverage_floors.py`) |
+| `make ui-check` | ESLint, Prettier check, `tsc`, Vitest, and the verify page's cross-language tests |
+| `make check` | `lint` + `type` + `test` + `ui-check`: must pass before every push |
+| `make api` | The API with auto-reload (`uvicorn rulecam.api.app:app --reload`) |
+| `make ui` | The UI dev server (`npm run dev`) |
+| `make openapi` | Export the API's OpenAPI schema to the UI and regenerate its TypeScript types |
+| `make preflight` | Check the replay cache before a demo |
+| `make eval-replay` | Validate the eval set and re-score the recorded baseline offline |
+| `make golden-verify` / `make golden-gate` | Replay every golden run in `scenarios/` / re-score them and fail on a broken gate |
+| `make golden SCENARIO=<name>` | Record a golden run with real model calls (needs keys) |
+| `make live-test` | Tests marked `live` (real model calls; needs keys) |
+| `make verify-page-sync` | Copy the evidence verify page into `ui/public/verify/` |
+| `make eval-caviar` | Play the CAVIAR clips into a running API and score them (run on the API host) |
+| `make ship-api` / `make ship-gpu` | The earlier RunPod deploys, kept as a record (not running) |
+
+Inside `ui/`:
+
+| npm script | What it does |
+|---|---|
+| `npm run dev` | Next.js dev server on port 3000 |
+| `npm run build` / `npm run start` | Production build / serve it |
+| `npm run lint` | ESLint, zero warnings allowed |
+| `npm run typecheck` | `tsc --noEmit` (strict) |
+| `npm test` | Vitest (watch mode; `npm test -- --run` runs once) |
+| `npm run test:verify-page` | Tests of the browser verify page in `src/rulecam/evidence/verify_page` |
+| `npm run format` / `npm run format:check` | Prettier write / check |
+| `npm run openapi` | Regenerate `src/api/schema.d.ts` from `src/api/openapi.json` |
+
 ### Tech stack
 
 | Layer | What we use |
@@ -561,6 +733,41 @@ uv run rulecam chain demo chains/kitchen-basics   # Chain Mode, no models, about
 | Storage and proof | DuckDB + Parquet track store, SHA-256 hash-chained evidence log with daily Merkle roots, Z3 for proving model-written checks |
 | Web UI | Next.js 15 (App Router), React 19, TypeScript (strict), Vitest + Testing Library |
 | Tooling | uv, Ruff (lint + format), mypy, pytest + Hypothesis, ESLint, Prettier, pre-commit, GitHub Actions |
+
+### The web UI
+
+The UI in `ui/` is a Next.js App Router app with three frames: the landing page (`/`), the owner
+console (a grouped sidebar: use cases, build, run, trust, system) and bare pages for people
+outside the console (the worker QR page, the station tablet, the staff app, glasses mode and the
+inspector's proof view).
+
+- **Design system.** One set of tokens in `ui/src/app/globals.css`: a spacing scale
+  (`--space-3xs` … `--space-4xl`), a type scale with fluid display sizes, motion durations and
+  easings, z-index layers, and two colourways, *paper* (light) and *graphite* (dark), in OKLCH.
+  Amber marks a person or the one primary control; cool blue marks an instrument reading; green
+  and red are status only. Two self-hosted fonts (Host Grotesk for text, Atkinson Hyperlegible
+  Mono for measured values), so a build never touches the network. Shared pieces (badges,
+  metric tiles, empty states, skeletons, timelines, step flows) live in `ui/src/components/kit`.
+- **Light and dark.** The page follows the system setting until you choose; the choice is stored
+  and applied before first paint, so there is no flash.
+- **Honesty labels.** LIVE, REPLAY, SAMPLE and OFFLINE come from the API's own badge strings.
+  A replay is never shown as live, screens built from hand-written examples say SAMPLE DATA, and
+  an unknown value shows "unknown" or "—", never a made-up number.
+- **States.** Data screens have loading skeletons, empty states that say what fills them, error
+  states with the API's reason, and owner-only notices for visitors. The app has an error
+  boundary with **Try again** and a 404 page.
+- **Accessibility.** Semantic landmarks and one `h1` per page, a skip link, visible focus rings,
+  labelled form fields and icon buttons, `aria-current` in the navigation, `aria-pressed` on
+  toggles, screen-reader announcements for errors, reduced motion respected, and an 18 px
+  minimum for checkboxes.
+- **Responsive.** The sidebar becomes a drawer below 760 px. Pages were checked at 375, 768,
+  1024, 1280 and 1440 px for horizontal scroll and for content cut off at the right edge; wide
+  tables scroll inside their card.
+- **Page metadata.** Every screen has its own title (`Planner · Rulecam`) and description, an SVG
+  favicon, an Apple touch icon, and Open Graph / Twitter card tags with a share image captured
+  from the landing page (`ui/src/app/opengraph-image.png`).
+- **Staff app.** `/staff` installs as a PWA (manifest and service worker in `ui/public/`) and
+  stays dark on the floor.
 
 ### Configuration
 
@@ -583,6 +790,395 @@ and keep live keys in `.env.live` (both are git-ignored). The ones you are most 
 Optional integrations (WhatsApp, Telegram, signed webhooks, Kasa smart plugs, self-hosted
 Glimmer/SAM endpoints, budgets) are all off when their variables are empty.
 
+The web UI reads four variables of its own:
+
+| Variable | Required | Default | Notes |
+|---|---|---|---|
+| `NEXT_PUBLIC_RULECAM_API` | No | `http://localhost:8000` | The API address the browser uses; baked in at build time |
+| `RULECAM_API_URL` | No | `NEXT_PUBLIC_RULECAM_API` | Where the Next.js server forwards `/rulecam-api/*` when it reaches the API on another address (docker compose: `http://rulecam-api:8000`) |
+| `RULECAM_PROXY_SECRET` | No | unset | Server-only. Equal to the API's `UI_PROXY_SECRET`; lets the API trust the browser's address for per-client rate limits behind a proxy |
+| `NEXT_PUBLIC_SITE_URL` | No | `https://rulecam-live.vercel.app` | Absolute base for Open Graph and share links |
+
+<details>
+<summary>Every API setting (152, generated from <code>src/rulecam/config.py</code>)</summary>
+
+Names are case-insensitive. Notes come from the comments in `config.py` and `.env.example`; a
+note at the top of a group applies to the settings under it. "Secret" values are never logged.
+Nothing is required in replay mode; live mode needs `META_API_KEY` and `META_API_BASE_URL`, plus
+the "Meta API only" block of `.env.example`.
+
+| Variable | Required | Default | Notes |
+|---|---|---|---|
+| `RULECAM_MODE` | No | `replay` | live \| record \| replay |
+| `RULECAM_DATA_DIR` | No | `./data` | Chunks, track store, evidence chains, replay cache and logs |
+| `RULECAM_REPLAY_DIR` | No | `unset` | optional override of the replay cache directory |
+| `RULECAM_SITE_CONFIG` | No | `unset` | owner's site YAML (docs/site.example.yaml) |
+| `RULECAM_RUNTIME` | No | `False` | start the runtime loop (SAM, tracker, Glimmer) with the API |
+| `RULECAM_REVISION` | No | `unset` | The git SHA served in GET /health; unset, the REVISION file `make ship-api` writes is read. |
+| `RULECAM_IDLE_STRIDE_LOW` | No | `3` | Runtime SAM cost control (docs/deploy.md "Runtime SAM cost"): while nothing is happening on a camera, segment one chunk in N, per the strictest severity of the rules on that camera. |
+| `RULECAM_IDLE_STRIDE_MEDIUM` | No | `3` | Idle stride for cameras whose strictest rule is MEDIUM (see `RULECAM_IDLE_STRIDE_LOW`) |
+| `RULECAM_IDLE_STRIDE_HIGH` | No | `2` | HIGH: every 2nd chunk at most |
+| `RULECAM_IDLE_HOLDOFF_S` | No | `30.0` | every chunk for 30 s after activity |
+| `RULECAM_BUDGET_USD_PER_CAMERA_HOUR` | No | `12.0` | Per-camera dollar budget (runtime.cost): hosted SAM spend over the last minute as $/h, plus the camera's share of the GPU pods. At or above it: alarm, and with hosted spend, degrade to one chunk in RULECAM_SAM_BUDGET_STRIDE. 12 $/h = the former 1,000 hosted frames/min. 0 = no budget |
+| `RULECAM_GPU_USD_PER_HOUR` | No | `0.0` | GPU pods' combined $/h |
+| `RULECAM_GPU_WORKER_USD_PER_HOUR` | No | `1.34` | One running RunPod serverless worker's $/h (RTX 4090 pool); with serverless GPUs whose worker state is known, only running workers are charged (runtime.serverless). |
+| `RULECAM_SAM_BUDGET_FRAMES_PER_MIN` | No | `0` | optional frame cap; 0 = off |
+| `RULECAM_SAM_BUDGET_STRIDE` | No | `3` | over budget: one chunk in N |
+| `RULECAM_IDLE_STOP_GPU_AFTER_S` | No | `0.0` | Stop the GPU pods after this many seconds with no camera on an active plan (runtime.idle_stop); 0 = never. Needs the RunPod key in RULECAM_RUNPOD_API_KEY_FILE. |
+| `RULECAM_IDLE_STOP_GPU_PODS` | No | `rulecam-glimmer,rulecam-sam` | pod names or ids |
+| `RULECAM_RUNPOD_API_KEY_FILE` | No | `unset` | mode 600; read per call, never logged; also reads serverless GPU state (else SAM_EDGE_KEY / GLIMMER_EDGE_KEY) |
+| `RULECAM_RUNTIME_CONCEPT_WORKERS` | No | `4` | concepts segmented at once |
+| `RULECAM_RUNTIME_PIPELINE_DEPTH` | No | `4` | chunks per camera in flight |
+| `RULECAM_SAM_MAX_CONCURRENCY` | No | `8` | Runtime SAM calls open at once, across cameras (docs/deploy.md "Stage timings"). |
+| `RULECAM_RUNTIME_VERIFY_WORKERS` | No | `4` | Tier 1 verifications at once |
+| `RULECAM_VERIFY_RETRIES` | No | `1` | Tier 1 retry and circuit breaker (verify.guard): retries after a transient failure, the failures in a row that open the circuit, and how long it stays open before a trial. |
+| `RULECAM_VERIFY_BREAKER_FAILURES` | No | `3` | failures in a row that open the Tier 1 circuit (fail fast to the human queue) |
+| `RULECAM_VERIFY_BREAKER_COOLDOWN_S` | No | `30.0` | how long the circuit stays open before a trial (doubles, up to 5 min) |
+| `RULECAM_RUNTIME_SAM_MASKS` | No | `False` | Decode hosted SAM masks on the runtime path (pure-Python, GIL-bound; boxes suffice for feet). |
+| `RULECAM_RUNTIME_SAM_MODE` | No | `image` | Runtime perception (docs/deploy.md "Runtime perception modes"): `image` runs SAM 3.1 image mode on keyframes and joins them with ByteTrack; `video` sends whole chunks to SAM 3.1 video. |
+| `RULECAM_KEYFRAME_FPS` | No | `2.0` | keyframes per second |
+| `RULECAM_KEYFRAME_FPS_CAMERAS` | No | `empty` | per-camera overrides, e.g. "dock=4,kitchen=3" |
+| `RULECAM_TRACKER_LOW_CONFIDENCE` | No | `0.1` | Image mode: the lowest SAM score the keyframe tracker gets (ByteTrack's second pass, which only extends existing tracks); everything else keeps SAM's 0.5 cut. |
+| `RULECAM_PERSON_TRACKER` | No | `botsort` | Image mode: the tracker for people. `botsort` (BoT-SORT with OSNet-AIN person re-ID vectors from the SAM pod, `perception.botsort`) runs only in prototype mode with the `reid` extra installed; otherwise, and for every other concept, ByteTrack. |
+| `RULECAM_OPERATOR_EXCLUSION_OFF` | No | `empty` | Rule ids whose owner turned operator exclusion off (comma-separated; rules/operators.py): for these, a person riding a forklift counts as a pedestrian next to it. |
+| `RULECAM_OPERATOR_WARMUP_S` | No | `1.5` | How long a person first seen on board a vehicle is held as its operator pending before being judged operator or pedestrian (rules/operators.py rule 7); 0 turns the hold off. |
+| `RULECAM_FACE_MODEL` | No | `unset` | YuNet face-detector ONNX (opencv_zoo) for blurring faces in evidence strips; without it only the head regions of tracked people are blurred (runtime.strips). |
+| `RULECAM_ACTIONS_DRY_RUN` | No | `True` | Record actions as `dry-run: would …` and execute none of them (no power cut, light, speaker or notification) until the owner turns this off (docs/deploy.md "Actions"). |
+| `RULECAM_REGRESSIONS_DIR` | No | `unset` | Where confirmed false alarms become permanent Rule CI lookalike regressions (P2-09, `rule_ci.hard_negatives`); default `<data dir>/rule_ci/regressions`. |
+| `RULECAM_PROTOTYPE_MODE` | No | `False` | Prototype mode (`rulecam.prototype`): the planner declines nothing but rules that single people out by race, ethnicity, religion, nationality or sexual orientation; every compiled rule activates (failed checks are caveats); the verifier's verdict is final. |
+| `RULECAM_SITE_TIMEZONE` | No | `UTC` | The site's time zone (IANA name), for owner questions like "how many customers at 1 pm". |
+| `RULECAM_SITE_CITY` | No | `empty` | The site's approximate location for `/context` (Spark's web search is localised by it). |
+| `RULECAM_SITE_REGION` | No | `empty` | Region part of the site location used by `/context` web search |
+| `RULECAM_SITE_COUNTRY` | No | `empty` | ISO 3166-1 |
+| `RULECAM_CROWD_BUSY_PER_M2` | No | `2.0` | Crowd density levels for `/crowd`, persons per m² (rulecam.crowd.density). |
+| `RULECAM_CROWD_CROWDED_PER_M2` | No | `4.0` | people can no longer choose where they walk |
+| `RULECAM_CROWD_CRITICAL_PER_M2` | No | `5.0` | pressure can build through the crowd; escalates on density alone |
+| `RULECAM_SITE_PROFILE` | No | `empty` | Context for `POST /ask` (the owner's words, given to the models as they are): what the site is, and camera id -> name pairs ("phone-62=checkout lanes,phone-61=entrance queue"). |
+| `RULECAM_CAMERA_NAMES` | No | `empty` | Camera id -> name pairs for `POST /ask`, e.g. `phone-62=checkout lanes,phone-61=entrance queue` |
+| `RULECAM_ASK_CAPTION_EVERY_S` | No | `0.0` | Ask's temporal memory: Glimmer captions each camera every N seconds of video; 0 = off. |
+| `RULECAM_ASK_IDENTITIES` | No | `True` | Ask's identity memory: join track fragments by DINOv2 appearance on the GPU pod's /embed. |
+| `RULECAM_ASK_PERSON_REID` | No | `True` | ... and people by OSNet-AIN person re-ID vectors (`/embed` model "person", add-on 3.2) instead of DINOv2; falls back to DINOv2 when the GPU pod has no re-ID model. Prototype mode only. |
+| `RULECAM_ASK_MAX_ROWS` | No | `1000` | How much tool output reaches Spark in Ask (anything cut is reported to it, never silent): rows per SQL query, characters of results per turn, instants per count/look call. |
+| `RULECAM_ASK_MAX_RESULT_CHARS` | No | `100_000` | characters of tool results per turn, shared by the turn's actions |
+| `RULECAM_ASK_MAX_FRAMES` | No | `6` | instants per count_objects / look call |
+| `RULECAM_ASK_MAX_ACTIONS` | No | `6` | Tool calls one Ask turn runs at the same time (Spark picks how many, up to this). |
+| `RULECAM_ASK_MAX_WATCH_S` | No | `180.0` | Ask's `watch` tool: the longest window joined into one clip for Spark, and the Spark model that takes video (Spark's video limits are not published; the clip is capped to this). |
+| `RULECAM_ASK_WATCH_MODEL` | No | `muse-spark-1.2` | the Spark model that takes video |
+| `RULECAM_ASK_REVIEW` | No | `True` | Muse Spark Open (Baseten) checks each Ask answer against its trace and can send it back once (needs BASETEN_API_KEY; off without it). |
+| `RULECAM_MUSE_CODE_BIN` | No | `muse` | Rule extensions (`rulecam.extensions`): Muse Code writes a new check type headless (`muse exec --json`), authenticated once with `muse auth set --api-key-stdin`. Extra arguments go after `exec --json` (shell-split), e.g. an approval mode for file edits. |
+| `RULECAM_MUSE_CODE_ARGS` | No | `empty` | extra args after `exec --json` |
+| `RULECAM_MUSE_CODE_TIMEOUT_S` | No | `300.0` | Seconds one Muse Code run may take (up to 1800) |
+| `RULECAM_MUSE_CODE_MODEL` | No | `muse-spark-1.2` | the model Muse Code runs on (recorded with each version) |
+| `RULECAM_CHAINS_DIR` | No | `chains` | Chain Mode (`rulecam.chain`): one folder per rule pack (pack.yaml, stores/, simulation.yaml) served by the owner-only `/chain` routes. |
+| `RULECAM_GIT_SHA` | No | `empty` | The deployed commit, for Ask's run log (empty: `git rev-parse HEAD` when run from a clone). |
+| `RULECAM_CROWD_EVERY_S` | No | `0.0` | Crowd early warning (`rulecam.crowd`, prototype mode): measure each camera's crowd every N seconds of video (SAM 3.1 on grid x grid tiles counting the concept); 0 = off. |
+| `RULECAM_CROWD_CONCEPT` | No | `person` | What crowd watch counts with SAM 3.1 |
+| `RULECAM_CROWD_GRID` | No | `2` | Crowd watch splits each frame into grid x grid tiles (1 to 4) |
+| `RULECAM_CROWD_ASSESS_EVERY_S` | No | `10.0` | Seconds between the warden's assessments (Muse Spark) of a watched camera. |
+| `RULECAM_CROWD_CHECK_TIMEOUT_S` | No | `20.0` | Seconds Muse Glimmer gets to check an alert's frames; past it the alert goes unchecked. |
+| `RULECAM_CROWD_CAMERAS` | No | `empty` | Cameras to measure (comma-separated ids; empty: every camera with video). With an instruction, they are watched from start-up in these announcement languages ("hi,en"). |
+| `RULECAM_CROWD_INSTRUCTION` | No | `empty` | The owner's crowd instruction; with it, `RULECAM_CROWD_CAMERAS` are watched from start-up |
+| `RULECAM_CROWD_LANGUAGES` | No | `empty` | Announcement languages for crowd watch, e.g. `hi,en` |
+| `RULECAM_OWNER_PASSPHRASE` | No | `unset` | Secret. Only for command-line clients that log in to a remote API as the owner (`rulecam eval ask`); the API itself never reads it (it checks OWNER_PASSPHRASE_HASH). |
+| `RULECAM_STRIP_FRAMES` | No | `6` | Evidence strips sent to Glimmer: frames per strip and their width in pixels. |
+| `RULECAM_STRIP_MAX_WIDTH` | No | `640` | Width in pixels of each evidence-strip frame (320 to 1920) |
+| `RULECAM_POSE_ONNX` | No | `unset` | RTMPose-l body7 ONNX (`scripts/fetch_rtmpose.sh`; runs on the CPU, needs `onnxruntime`): strips then draw each person's real pose instead of a figure fitted to the box. Unset, or a file whose sha256 is not RULECAM_POSE_SHA256 (pose.keypoints.RTMPOSE_BODY7_ONNX_SHA256), means no pose. |
+| `RULECAM_POSE_SHA256` | No | `cff059fd58a2c0d5fabaddcd66a96abcfb327563bcb0149ea59c9de4a8990fe2` | the default: the pinned body7 ONNX |
+| `RULECAM_CROP_ZOOM` | No | `True` | Crop-zoom SAM 3.1 (add-on 3.3): look for small worn items (hats, hair nets, gloves) on enlarged head and hand crops of each person, at probe time and as Tier 0 before Glimmer. Served by the GPU pod's /segment_crops when SAM_BASE_URL is set, else by hosted SAM. |
+| `RULECAM_CALIBRATION_MODEL` | No | `auto` | Ground calibration from MoGe-2 on the GPU pod (add-on 3.5): `auto` uses it when the pod's /health says it is installed, `moge` always tries it, `off` keeps only the reference objects and the 1.7 m-person guess. Off in replay mode (its calls were never recorded). |
+| `META_API_KEY` | Live mode | `unset` | Secret. |
+| `META_API_BASE_URL` | Live mode | `unset` | from dev.meta.ai docs; do not hard-code |
+| `BASETEN_API_KEY` | No | `unset` | Secret. |
+| `BASETEN_BASE_URL` | No | `https://inference.baseten.co/v1` | Baseten OpenAI-compatible Model APIs |
+| `BASETEN_SPARK_OPEN_MODEL` | No | `meta-models/muse-spark-open-1026` | confirm the exact ID in #credit-requests |
+| `SPARK_OPEN_IMAGES_SUPPORTED` | No | `False` | Whether the Tier 2 endpoint accepts images (`true` for Muse Wonder on the Meta API) |
+| `SPARK_OPEN_BASE_URL` | No | `unset` | Muse Spark Open on any OpenAI-compatible server instead of Baseten (wins when set): our own llama-server on a RunPod serverless load balancer (docs/deploy.md "Serverless Muse Spark Open"; the RunPod key in SPARK_OPEN_EDGE_KEY goes in `Authorization`, SPARK_OPEN_API_KEY in `X-Rulecam-Key`) or a hosted provider (no edge key: SPARK_OPEN_API_KEY is the bearer). |
+| `SPARK_OPEN_API_KEY` | No | `unset` | Secret. |
+| `SPARK_OPEN_EDGE_KEY` | No | `unset` | Secret. |
+| `SPARK_OPEN_MODEL` | No | `muse-spark-open` | Tier 2 model name; `muse-wonder-1.0` in the Meta-API-only setup |
+| `SPARK_OPEN_HARDWARE` | No | `runpod-8xH100-llama.cpp-Q4_K_S` | Label recorded with Tier 2 verdicts (where the model ran) |
+| `SPARK_OPEN_SCHEMA_IN_PROMPT` | No | `True` | State the JSON schema in a system message too: llama-server's Muse Spark template does not enforce `response_format` (checked 4 Nov 2026). Applies to SPARK_OPEN_BASE_URL only. |
+| `SPARK_OPEN_STRICT_SCHEMA` | No | `True` | `strict` in `response_format`; false for the Meta API (see GLIMMER_STRICT_SCHEMA). |
+| `SPARK_OPEN_FALLBACK_BASE_URL` | No | `unset` | Hosted Spark Open used only when the server above gives no usable answer (e.g. Routeway, https://api.routeway.ai/v1, model `muse-spark-open`; its key is the bearer). |
+| `SPARK_OPEN_FALLBACK_API_KEY` | No | `unset` | Secret. |
+| `SPARK_OPEN_FALLBACK_MODEL` | No | `muse-spark-open` | Model name at the hosted Tier 2 fallback |
+| `LLAMA_GUARD_BASE_URL` | No | `unset` | Llama Guard 4 (12B) on an OpenAI-compatible server (`clients.open_weights.llama_guard`): the plan-time screen that refuses rules about who people are. Same key scheme as Spark Open. |
+| `LLAMA_GUARD_API_KEY` | No | `unset` | Secret. |
+| `LLAMA_GUARD_EDGE_KEY` | No | `unset` | Secret. |
+| `LLAMA_GUARD_MODEL` | No | `llama-guard-4-12b` | Llama Guard model name (not running since 4 Nov) |
+| `GLIMMER_BASE_URL` | No | `http://127.0.0.1:8080/v1` | llama-server OpenAI-compatible endpoint |
+| `GLIMMER_API_KEY` | No | `unset` | Secret. |
+| `GLIMMER_EDGE_KEY` | No | `unset` | Secret. The Glimmer URLs are RunPod serverless load balancers: their edge takes this RunPod API key as `Authorization`, and GLIMMER_API_KEY goes in `X-Rulecam-Key` (`llama_edge` checks it). |
+| `GLIMMER_MODEL` | No | `muse-glimmer-30b` | Tier 1 model name; `muse-spark-1.3` in the Meta-API-only setup |
+| `GLIMMER_EXTRA_BASE_URLS` | No | `empty` | More llama-server URLs serving the same model, comma-separated: Tier 1 calls are spread over all of them, least busy first, with failover (`clients.transport.PooledTransport`). |
+| `GLIMMER_QUANT` | No | `empty` | Label recorded with Tier 1 verdicts (quantisation) |
+| `GLIMMER_HARDWARE` | No | `empty` | Label recorded with Tier 1 verdicts (where the model ran) |
+| `GLIMMER_SCHEMA_IN_PROMPT` | No | `False` | Hosted OpenAI-compatible Glimmer (e.g. Routeway) may honour JSON mode but not a strict schema: also state the schema in a system message. Off for llama-server (grammar-enforced). |
+| `GLIMMER_STRICT_SCHEMA` | No | `True` | `strict` in `response_format`. A host applying OpenAI strict-mode rules (the Meta API: every property required) rejects our pydantic schemas, which have defaults; false sends `strict: false` and the reply is validated here, as `SparkClient` does. |
+| `GLIMMER_STANDBY_BASE_URL` | No | `unset` | A standby Glimmer endpoint (same keys and model, any region; docs/deploy.md "Standby Glimmer") tried when GLIMMER_BASE_URL and the extra URLs give no usable answer. |
+| `GLIMMER_FALLBACK_BASE_URL` | No | `unset` | Automatic fallback when our Glimmer GPU gives no usable answer (no HTTP answer, 404, 429, 5xx): the same request, rewritten for a hosted OpenAI-compatible Glimmer (e.g. Routeway, https://api.routeway.ai/v1 with model `muse-glimmer-30b`, or `muse-glimmer-30b:free`). |
+| `GLIMMER_FALLBACK_API_KEY` | No | `unset` | Secret. |
+| `GLIMMER_FALLBACK_MODEL` | No | `muse-glimmer-30b` | Model name at the hosted Tier 1 fallback |
+| `GLIMMER_MAX_TOKENS` | No | `1024` | Glimmer's output cap per call, reasoning included. A reply cut at it (finish_reason `length`) is retried with the cap doubled, up to the ceiling, then reported. |
+| `GLIMMER_MAX_TOKENS_CEILING` | No | `4096` | a reply cut at the cap (finish_reason=length) is retried with it doubled, up to this |
+| `GLIMMER_REASONING_BUDGET_TOKENS` | No | `-1` | llama.cpp's per-request `reasoning_budget_tokens` (thinking tokens before the model must answer). -1: not sent, the server's --reasoning-budget applies (unlimited by default); 0: no thinking. Off by default so recorded Tier 1 replies keep their replay keys; pick a value with scripts/eval/glimmer_budget_sweep.py. |
+| `EVIDENCE_DIR` | No | `./evidence` | Directory of evidence captures |
+| `HF_TOKEN` | No | `unset` | Secret. |
+| `MODAL_TOKEN_ID` | No | `unset` | Secret. |
+| `MODAL_TOKEN_SECRET` | No | `unset` | Secret. |
+| `SAM_BASE_URL` | No | `unset` | our own GPU pod running sam_server; wins over Modal |
+| `SAM_API_KEY` | No | `unset` | Secret. |
+| `SAM_EDGE_KEY` | No | `unset` | Secret. SAM_BASE_URL is a RunPod serverless load balancer: its edge takes this RunPod API key as `Authorization`, and SAM_API_KEY goes in `X-Rulecam-Key` to the worker. |
+| `SAM_HTTP_TIMEOUT_S` | No | `60.0` | Seconds one self-hosted SAM call may take (a RunPod cold start included) and how many tries it gets before the runtime falls back to hosted SAM for that call. 60 s x 2 waits up to 2 minutes on a throttled endpoint; for live demos 25 s x 1 (docs/demo-day.md). |
+| `SAM_HTTP_ATTEMPTS` | No | `2` | Tries per self-hosted SAM call before falling back to hosted SAM (1 to 4) |
+| `KASA_PLUG_HOST` | No | `unset` | smart plug for the toy-forklift interlock |
+| `KASA_LIGHT_HOST` | No | `unset` | stack light / RGB bulb |
+| `WHATSAPP_TOKEN` | No | `unset` | Secret. |
+| `WHATSAPP_PHONE_NUMBER_ID` | No | `unset` | WhatsApp Business phone number id |
+| `WHATSAPP_APP_SECRET` | No | `unset` | Secret. verifies X-Hub-Signature-256 on the webhook |
+| `WHATSAPP_VERIFY_TOKEN` | No | `unset` | Secret. the webhook subscription handshake |
+| `WHATSAPP_RECIPIENTS` | No | `unset` | Secret. role=E.164 pairs, e.g. "aide=15551234567,charge_nurse=15557654321" (kept only in .env) |
+| `WHATSAPP_API_BASE` | No | `https://graph.facebook.com/v21.0` | WhatsApp Graph API base URL |
+| `TELEGRAM_BOT_TOKEN` | No | `unset` | Secret. Telegram alerts (add-on 5.1): the token from BotFather; links come from `/telegram/link`. |
+| `TELEGRAM_BOT_USERNAME` | No | `unset` | without @; asked from getMe when unset |
+| `TELEGRAM_API_BASE` | No | `https://api.telegram.org` | Telegram Bot API base URL |
+| `RULECAM_WEBHOOKS` | No | `unset` | Secret. Signed outbound webhooks (add-on 5.4): `preset=url` pairs (generic, slack, teams), kept only in `.env` because the URLs are secrets, and the HMAC secret that signs every request. |
+| `RULECAM_WEBHOOK_SECRET` | No | `unset` | Secret. |
+| `PUBLIC_TUNNEL_URL` | No | `unset` | https tunnel for Pair-a-Phone and webhooks |
+| `PUBLIC_UI_URL` | No | `unset` | public origin of the web UI (worker page QR on posters) |
+| `RULECAM_UI_EXTRA_ORIGINS` | No | `empty` | More web UI hosts owner sessions may act from, comma-separated (e.g. a fallback UI host). |
+| `OWNER_PASSPHRASE_HASH` | No | `unset` | Secret. Owner login (docs/deploy.md "Owner login"): `rulecam owner set-passphrase` prints the hash. |
+| `SESSION_SECRET` | No | `unset` | Secret. signs owner session cookies; 32+ characters |
+| `SESSION_TTL_S` | No | `43200` | Owner session lifetime in seconds (300 to 7 days) |
+| `UI_PROXY_SECRET` | No | `unset` | Secret. Shared with the UI's middleware, which then forwards the browser's IP (per-client limits). |
+| `PUBLIC_DEMO` | No | `False` | Demo sites only: let non-owners watch the live feed and read plans. Never on a real site, where those reads stay owner-only (W-01). |
+| `PLANNER_SURVEY_WINDOW_S` | No | `60.0` | seconds of recent chunks the planner samples frames from |
+| `RULECAM_DISPUTE_SPARK_FALLBACK` | No | `True` | Without Tier 2 (Spark Open), Muse Spark 1.3 reviews worker disputes with the evidence frames instead of leaving every one pending for a person (`worker.spark_review`). |
+| `RULECAM_COVERAGE_LOG` | No | `False` | Chain a `coverage` record when a camera goes BLIND or recovers (`runtime.coverage_log`). Off by default: moving-camera stock clips flap `moved`; turn it on for fixed site cameras. |
+| `PLANNER_SURVEY_REUSE_S` | No | `1800.0` | Reuse a camera's survey (inventory, calibration) for this long when its scene is unchanged (`planner.survey_cache`); 0 surveys every time. The probe and Rule CI always run. |
+| `RULECAM_SHARE_SECRET` | No | `unset` | Secret. Proof portal (`compliance/`): signs share links; default a random key in <data>/compliance. |
+| `RULECAM_CONNECTORS_FPS` | No | `10.0` | Camera connectors (`rulecam.connectors`, `/connectors`): chunk rate, the widest frame kept (wider streams are scaled down) and how many 3 s chunk files each camera keeps. |
+| `RULECAM_CONNECTORS_MAX_WIDTH` | No | `1280` | Widest frame kept from a connected camera; wider streams are scaled down |
+| `RULECAM_CONNECTORS_KEEP_CHUNKS` | No | `1200` | How many 3 s chunk files each camera keeps |
+| `RULECAM_WEARABLES_GLIMMER_TIMEOUT_S` | No | `25.0` | Smart glasses (`/wearables`): how long a look waits for Glimmer before Muse Spark looks. |
+
+</details>
+
+### API reference
+
+The API is FastAPI (`src/rulecam/api/`). With it running, `http://localhost:8000/docs` is the
+interactive reference and `uv run rulecam openapi <file>` exports the schema. There are 169
+routes (168 HTTP routes plus the `/ws` WebSocket).
+
+**Auth.** *Owner* routes accept a request from the API's own machine (loopback) or an owner
+session cookie from `POST /auth/login`; writes made with a session also check the Origin and a
+CSRF token. *None* means no owner session is needed: health and metrics, the evidence roots and
+hashes anyone can verify, advice reads, the worker QR page and disputes, and the public voice
+near-miss report. Phone pairing uses a one-time token over HTTPS, and a shared proof pack uses a
+signed share token.
+
+| Area | Routes | Auth | What it covers |
+|---|---|---|---|
+| `/health`, `/mode`, `/metrics`, `/runtime/metrics`, `/cameras` | 8 | None (setting the mode and the runtime plan: Owner) | Health and models in use, replay/record/live mode, Prometheus metrics, runtime counters |
+| `/auth` | 3 | None / session | Owner login, logout and "who is asking" |
+| `/plans` | 9 | Owner | Plain-language plan requests, uploads, the planner's questions, approval |
+| `/alerts`, `/incidents`, `/ack`, `/correction`, `/interlock` | 8 | Owner | The alert queue, incidents and their reports, acknowledgements, corrections, resuming an interlock |
+| `/evidence` | 5 | None (the full chain: Owner) | Days with evidence, hashes, Merkle roots and server-side verification |
+| `/ask` | 3 | Owner | Ask a question over recorded tracks and video, streamed step by step |
+| `/advice` | 4 | None (accepting: Owner) | Site Advisor cards and their sealed causes |
+| `/worker` | 4 | None | The worker QR page, its poster, and disputes (typed or by voice) |
+| `/staff` | 18 | Owner | The staff app: per-role feed (also streamed), actions, media, spoken alerts, Ask, shelf photos, web push |
+| `/connectors` | 14 | Owner | Add, restart and remove cameras (RTSP, HLS, MJPEG, ONVIF, uploads), snapshots, surveys |
+| `/pair` | 5 | Pairing token | Pair a phone as a camera by QR code and receive its clips |
+| `/retail` | 23 | Owner | Supermarket overview, checks (also on a staff photo), standing watches, staff tasks closed with proof, advice, briefs, scorecard, Ask receipts |
+| `/warehouse` | 20 | Owner (voice near-miss report: None) | Warehouse story, near misses, heatmaps, spoken warnings, toolbox talks, follow-up duties, shift reports, voice reports |
+| `/crowd` | 14 | Owner | Crowd watch set-up, venue layout, live status (also as Server-Sent Events), alerts |
+| `/shelf`, `/context` | 5 | Owner | Shelf-gap scans and search-grounded site context |
+| `/wearables` | 8 | Owner | Glasses mode: look, walks, frames and spoken answers |
+| `/proof` | 8 | Owner (shared views: share token) | Proof packs for inspectors: create, share, revoke |
+| `/chain` | 4 | Owner | Chain Mode packs, proofs and store fit |
+| `/extensions` | 5 | Owner | Muse Code rule extensions: propose, list, approve, retire |
+
+<details>
+<summary>Every route (generated from the running app's route table)</summary>
+
+Descriptions are the first line of each handler's docstring; where a handler has none, its
+function name is shown.
+
+| Method | Path | Auth | What it does |
+|---|---|---|---|
+| WS | `/ws` | Owner (or anyone on a `PUBLIC_DEMO` site from an allowed origin) | Live event stream: the bus mirrored to the browser |
+| POST | `/auth/login` | None | Check the passphrase and set the session cookie. |
+| POST | `/auth/logout` | Session + CSRF | Revoke the session (a write: Origin and CSRF are checked) and clear the cookie. |
+| GET | `/auth/me` | None | Who is asking (never cached). |
+| GET | `/health` | None | Health |
+| GET | `/mode` | None | Get mode |
+| PUT | `/mode` | Owner | Set mode |
+| GET | `/metrics/perception` | None | Perception metrics |
+| GET | `/metrics` | None | Metrics |
+| GET | `/cameras` | None | Cameras |
+| GET | `/evidence/days` | None | Days |
+| GET | `/evidence/{day}/chain` | Owner | Chain |
+| GET | `/evidence/{day}/hashes` | None | Hashes |
+| GET | `/evidence/{day}/verify` | None | Verify |
+| GET | `/evidence/{day}/root` | None | Root |
+| GET | `/incidents` | Owner | Incidents |
+| GET | `/incidents/{event_id}` | Owner | Incident |
+| GET | `/incidents/{event_id}/report` | Owner | Report |
+| PUT | `/runtime/plan` | Owner | Set plan |
+| GET | `/runtime/metrics` | None | Metrics |
+| GET | `/plans/{plan_id}/questions` | Owner | Questions |
+| GET | `/plans/{plan_id}/frames/{camera_id}` | Owner | Frame |
+| POST | `/plans/{plan_id}/answers` | Owner | Answer |
+| POST | `/plans/uploads` | Owner | Upload |
+| POST | `/plans/requests` | Owner | Request plan |
+| GET | `/plans` | Owner | List plans |
+| POST | `/plans` | Owner | Create plan |
+| GET | `/plans/{plan_id}` | Owner | Get plan |
+| POST | `/plans/{plan_id}/approve` | Owner | Approve plan |
+| GET | `/advice` | None | List advice |
+| GET | `/advice/seals` | None | Seals |
+| GET | `/advice/{advice_id}` | None | Get advice |
+| POST | `/advice/{advice_id}/accept` | Owner | Accept |
+| POST | `/pair/token` | Owner | Issue a single-use pairing token with its URL and QR code (owner UI). |
+| GET | `/pair/assets/{name}` | Pairing token, HTTPS | Serve one of the page's static files (fixed allowlist; no user paths). |
+| GET | `/pair/{token}` | Pairing token, HTTPS | Serve the phone page while the token is unexpired or already paired. |
+| POST | `/pair/{token}/claim` | Pairing token, HTTPS | Pair the phone with this token (once) and return its camera id and session key. |
+| POST | `/pair/{token}/chunk` | Pairing token, HTTPS | Accept one clip from the paired phone, transcode it and publish a `Chunk`. |
+| POST | `/correction` | Owner | Apply a negative-point correction to an event and re-evaluate its rule. |
+| POST | `/worker/dispute` | None | Dispute |
+| POST | `/worker/dispute/voice` | None | Dispute voice |
+| GET | `/worker/{plan_id}/{camera}` | None | Page |
+| GET | `/worker/{plan_id}/{camera}/poster` | None | Poster |
+| GET | `/alerts` | Owner | List alerts |
+| POST | `/alerts/{alert_id}/respond` | Owner | Respond |
+| POST | `/ack` | Owner | Ack |
+| POST | `/interlock/{device}/resume` | Owner | Resume |
+| POST | `/ask` | Owner | Answer with Spark, SAM 3.1 and Glimmer over the recorded tracks and video. |
+| POST | `/ask/stream` | Owner | The same answer, streamed: each step as a server-sent `AskEvent` as it happens. |
+| GET | `/ask/frames/{name}` | Owner | A frame a step showed SAM 3.1 or Glimmer (JPEG), by the name in `AskStep.frames`. |
+| POST | `/crowd/setup` | Owner | Muse Spark's proposed watch for a camera, from the instruction and the newest frame. |
+| POST | `/crowd/watch` | Owner | Start (or replace) the warden's instruction for a camera. |
+| DELETE | `/crowd/watch/{camera_id}` | Owner | Stop watching a camera. |
+| GET | `/crowd/venue` | Owner | The venue layout. |
+| PUT | `/crowd/venue` | Owner | Replace the venue layout Spark plans staff actions on. |
+| GET | `/crowd/status` | Owner | Each camera's newest reading, series, projection, assessment, alerts and acks. |
+| GET | `/crowd/stream` | Owner | `GET /crowd/status` as Server-Sent Events: a `status` event on every change. |
+| GET | `/crowd/alerts` | Owner | Alerts sent and held, newest first. |
+| POST | `/crowd/alerts/{alert_id}/ack` | Owner | A steward's tap: acknowledge, false alarm, or escalate to the next role now. |
+| GET | `/crowd/files/{name}` | Owner | A heatmap or recorded frame (`.jpg`) or an announcement (`.wav`). |
+| PUT | `/crowd/truth/{camera_id}` | Owner | Register a camera's ground truth (true people per zone over the clip). |
+| GET | `/crowd/truth/{camera_id}` | Owner | A camera's registered ground truth. |
+| GET | `/crowd/report` | Owner | The after-event report; `narrate=true` adds Muse Spark's after-action summary. |
+| POST | `/crowd/scan` | Owner | Scan |
+| GET | `/context/{vertical}` | Owner | Latest |
+| POST | `/context/{vertical}` | Owner | Refresh |
+| POST | `/shelf/scan` | Owner | Scan |
+| POST | `/shelf/scan-image` | Owner | Scan image |
+| GET | `/shelf/marked/{name}` | Owner | Marked image |
+| POST | `/extensions` | Owner | Propose |
+| GET | `/extensions` | Owner | List latest |
+| GET | `/extensions/{name}` | Owner | Versions |
+| POST | `/extensions/{name}/approve` | Owner | Approve |
+| POST | `/extensions/{name}/retire` | Owner | Retire |
+| GET | `/retail/overview` | Owner | Everything the supermarket page shows. |
+| GET | `/retail/cameras` | Owner | Cameras with recorded video. |
+| GET | `/retail/findings` | Owner | Stored findings, newest first. |
+| GET | `/retail/files/{name}` | Owner | A frame, marked image or photo a finding names. |
+| POST | `/retail/checks/{kind}` | Owner | Run a check on a camera's recorded video now (alerting staff if the models say so). |
+| POST | `/retail/checks/{kind}/image` | Owner | Run a hazard or shelf check on a staff photo (JPEG or PNG). |
+| GET | `/retail/watches` | Owner | Every standing watch. |
+| POST | `/retail/watches` | Owner | Turn on a standing watch. |
+| POST | `/retail/watches/{watch_id}/run` | Owner | Run a watch's check now. |
+| DELETE | `/retail/watches/{watch_id}` | Owner | Turn a watch off. |
+| GET | `/retail/tasks` | Owner | Restock tasks, newest first (the staff app's feed: `?role=stock&open_only=true`). |
+| POST | `/retail/tasks/{task_id}/proof` | Owner | Close a restock task with a photo; Spark and Glimmer check every gap is filled. |
+| GET | `/retail/tasks/{task_id}/incident` | Owner | The task's incident report: seen, staff alerted, answered, cleared in N minutes. |
+| POST | `/retail/tasks/{task_id}/status` | Owner | Move a restock task on (staff tapped *On my way* or *Done*). |
+| GET | `/retail/asks` | Owner | The owner's latest Ask answers with their receipts. |
+| GET | `/retail/receipts/{sha}` | Owner | An Ask answer's receipt, the run log's chain check and a QR code of `link`. |
+| POST | `/retail/advice` | Owner | Draft an advice card from an Ask answer. |
+| POST | `/retail/advice/{card_id}/accept` | Owner | Pre-register the card's check on the evidence chain and turn on its watch. |
+| POST | `/retail/advice/{card_id}/blocks` | Owner | Record a switchback block from the watch's readings; read the test out when done. |
+| POST | `/retail/brief` | Owner | Write the owner's brief from the last 24 hours. |
+| GET | `/retail/scorecard` | Owner | This store's retail work as a Chain Mode scorecard row (the last 24 hours). |
+| GET | `/retail/brief` | Owner | The last brief written (null before the first). |
+| POST | `/retail/ask/voice` | Owner | A spoken question: Muse Voice Transcribe, then the Ask agent answers in that language. |
+| GET | `/chain/packs` | Owner | Packs |
+| GET | `/chain/packs/{folder}` | Owner | Report |
+| POST | `/chain/prove` | Owner | Prove |
+| POST | `/chain/fit` | Owner | Fit |
+| GET | `/connectors/cameras` | Owner | Cameras |
+| POST | `/connectors/cameras` | Owner | Add |
+| GET | `/connectors/cameras/{camera_id}` | Owner | Camera |
+| DELETE | `/connectors/cameras/{camera_id}` | Owner | Remove |
+| POST | `/connectors/cameras/{camera_id}/restart` | Owner | Restart |
+| POST | `/connectors/cameras/upload` | Owner | Upload |
+| GET | `/connectors/snapshot/{camera_id}.jpg` | Owner | Snapshot |
+| POST | `/connectors/survey/{camera_id}` | Owner | Start survey |
+| GET | `/connectors/survey/{camera_id}` | Owner | Survey |
+| GET | `/connectors/images/{name}` | Owner | Image |
+| POST | `/connectors/scan` | Owner | Scan network |
+| POST | `/connectors/onvif` | Owner | Onvif |
+| GET | `/connectors/brands` | Owner | Brands |
+| GET | `/connectors/presets` | Owner | Presets |
+| GET | `/warehouse/story` | Owner | Story |
+| GET | `/warehouse/near-misses` | Owner | Near |
+| GET | `/warehouse/heatmap` | Owner | Heat |
+| GET | `/warehouse/heatmap/{camera_id}/frame` | Owner | Frame |
+| GET | `/warehouse/incidents/{event_id}/warning` | Owner | Get warning |
+| POST | `/warehouse/incidents/{event_id}/warning` | Owner | Make warning |
+| GET | `/warehouse/incidents/{event_id}/toolbox-talk` | Owner | Get talk |
+| POST | `/warehouse/incidents/{event_id}/toolbox-talk` | Owner | Write talk |
+| GET | `/warehouse/duties` | Owner | Duties |
+| GET | `/warehouse/incidents/{event_id}/duty` | Owner | Get duty |
+| POST | `/warehouse/incidents/{event_id}/duty` | Owner | Raise duty |
+| POST | `/warehouse/incidents/{event_id}/duty/done` | Owner | Duty done |
+| GET | `/warehouse/shift-report` | Owner | Get shift |
+| POST | `/warehouse/shift-report` | Owner | Write shift |
+| GET | `/warehouse/files/{name}` | Owner | File |
+| POST | `/warehouse/reports/voice` | Owner | Report voice |
+| GET | `/warehouse/reports` | Owner | Reports |
+| POST | `/warehouse/reports/{report_id}/propose` | Owner | Propose |
+| POST | `/warehouse/incidents/{event_id}/voice-note` | Owner | Voice note |
+| POST | `/warehouse/public/reports/voice` | None | Report voice |
+| GET | `/wearables/status` | Owner | Status |
+| POST | `/wearables/look` | Owner | Look |
+| POST | `/wearables/walks` | Owner | Start walk |
+| GET | `/wearables/walks/{walk_id}` | Owner | Get walk |
+| POST | `/wearables/walks/{walk_id}/finish` | Owner | Finish walk |
+| GET | `/wearables/jobs/{job_id}` | Owner | Job |
+| GET | `/wearables/frames/{name}` | Owner | Frame |
+| GET | `/wearables/audio/{name}` | Owner | Audio file |
+| POST | `/proof/packs` | Owner | Create |
+| GET | `/proof/packs` | Owner | Packs |
+| GET | `/proof/packs/{pack_id}` | Owner | Pack |
+| GET | `/proof/packs/{pack_id}/document` | Owner | Document |
+| POST | `/proof/packs/{pack_id}/share` | Owner | Share |
+| POST | `/proof/packs/{pack_id}/revoke` | Owner | Revoke |
+| GET | `/proof/shared/{token}` | Share token | Shared |
+| GET | `/proof/shared/{token}/document` | Share token | Shared document |
+| GET | `/staff/config` | Owner | Get config |
+| GET | `/staff/roles` | Owner | Roles |
+| GET | `/staff/feed` | Owner | List feed |
+| GET | `/staff/stream` | Owner | Stream |
+| GET | `/staff/stats` | Owner | Stats |
+| GET | `/staff/items/{item_id}` | Owner | Get item |
+| POST | `/staff/items/{item_id}/actions` | Owner | Act |
+| POST | `/staff/items/{item_id}/done` | Owner | Done |
+| POST | `/staff/items/{item_id}/seen` | Owner | Seen |
+| GET | `/staff/media/{item_id}/{index}` | Owner | Media |
+| GET | `/staff/items/{item_id}/speech` | Owner | Speech |
+| GET | `/staff/audio/{name}` | Owner | Audio |
+| POST | `/staff/ask` | Owner | Ask |
+| POST | `/staff/shelf` | Owner | Shelf scan |
+| GET | `/staff/push/key` | Owner | Push key |
+| POST | `/staff/push/subscribe` | Owner | Subscribe |
+| POST | `/staff/push/unsubscribe` | Owner | Unsubscribe |
+| POST | `/staff/push/test` | Owner | Push test |
+
+</details>
+
 ### Tests and builds
 
 ```bash
@@ -595,6 +1191,23 @@ make eval-replay   # re-score the recorded eval baseline offline
 make golden-verify # replay every golden run in scenarios/ from its recording
 cd ui && npm run build   # production build of the web UI
 ```
+
+What the suites cover:
+
+- **Python (`tests/`, pytest + Hypothesis).** Mirrors `src/rulecam`: contracts, the planner and
+  its guardrails, Rule IR and the rule engine, Rule CI, the runtime, verification policy, evidence
+  chain and Merkle roots, connectors, every API router, and each feature module. Coverage floors
+  per package are enforced by `scripts/coverage_floors.py`.
+- **UI unit tests (`ui/src/**/*.test.tsx`, Vitest + Testing Library).** Components, the shell
+  (badges, navigation, skip link, phone drawer), each screen's loading, empty and error states,
+  and the honesty labels (no made-up numbers, REPLAY never shown as LIVE).
+- **Verify page (`npm run test:verify-page`).** The browser evidence check against the Python
+  implementation.
+- **Browser end-to-end (`ui/e2e/`, Playwright).** A separate package that loads every page on a
+  desktop browser and a 375 px phone and fails on console errors, page errors, broken assets,
+  horizontal scroll and content cut off at the edge. Run it against a running UI:
+  `cd ui/e2e && npm ci && npx playwright install chromium && E2E_BASE_URL=http://localhost:3000 npx playwright test`.
+  It is not part of CI.
 
 Unit tests never touch the network: model calls are served from `tests/fakes` or the replay
 cache. Tests marked `live`, `gpu` or `ui` are skipped by default (`make live-test` runs the live
@@ -631,6 +1244,12 @@ src/rulecam/
   connectors/    RTSP / HLS / MJPEG / ONVIF / uploads -> chunks
   ask/ crowd/ retail/ shelf/ warehouse/ staff/ chain/ extensions/ ...  feature modules
 ui/              Next.js web UI (owner console, staff app, glasses mode, replay, verify page)
+  src/app/       App Router routes; globals.css holds the design tokens; icon, share image, 404
+  src/components/  Shell (sidebar, header, theme switch), kit/ (shared UI pieces), signage/ (screens)
+  src/lib/       API client, auth, health polling, theme, event stream
+  src/fixtures/  Golden REPLAY bundles and labelled SAMPLE content
+  public/        Static verify page, golden chains, staff PWA manifest and service worker
+  e2e/           Playwright browser checks (separate package)
 tests/           pytest suite, mirroring src/rulecam; tests/fakes holds the model fakes
 scenarios/       Golden runs: request, recording and expected outcome
 eval/            Labelled clips (manifests only), eval runners and results
@@ -683,9 +1302,93 @@ Every change ends in a pull request with all checks green; see
   photos, a public live webcam) or images generated by Muse Image and labelled SAMPLE, never a
   real site's CCTV.
 
+### Troubleshooting and FAQ
+
+**The header says OFFLINE, or every live screen says it cannot reach the API.**
+The UI calls the API through its own `/rulecam-api/*` proxy. Check the API is up
+(`curl localhost:8000/health`). If the API is on another address, set `NEXT_PUBLIC_RULECAM_API`
+before `npm run build` (it is baked in at build time), and `RULECAM_API_URL` when the UI server
+reaches the API on a different address than the browser does (docker compose does this for you).
+
+**The header says REPLAY. Is anything live?**
+REPLAY means the API runs with `RULECAM_MODE=replay` (the default) or you are on the golden replay
+(`?demo=1`). Replay serves recorded model replies and makes no network calls. For live calls, put
+a Meta API key in `.env.live` and follow "Meta API only" in [`docs/deploy.md`](docs/deploy.md).
+
+**`/system` shows Tier 1 "unhealthy" and Tier 2 "not configured".**
+That is the honest default with no models configured: the Tier 1 client points at
+`http://127.0.0.1:8080/v1`, where nothing is listening. Set `GLIMMER_*` and `SPARK_OPEN_*` as in
+the "Meta API only" block of `.env.example`.
+
+**Owner screens say "owner login required" from another computer.**
+Owner routes accept loopback requests, so they work on the API's own machine. From anywhere
+else, set `OWNER_PASSPHRASE_HASH` (from `uv run rulecam owner set-passphrase`) and
+`SESSION_SECRET` (32+ characters) in the API's `.env`, restart, and log in at `/login`.
+
+**The UI tests (`npm test`) will not start.**
+Use Node 22 (or 20.19+). Vite 7 and Vitest 4 need it; npm only warns about the engine. The site
+itself (`npm run dev`, `npm run build`) runs on Node 20.
+
+**Port 3000 or 8000 is already in use.**
+Stop the other process (`lsof -i :3000`), or run the API with `--port` and the UI with
+`npx next dev -p <port>`, and point `NEXT_PUBLIC_RULECAM_API` at the new API port.
+
+**`start_rulecam.sh` stops at "ffmpeg not found" (or uv, node).**
+Install the missing tool from [Prerequisites](#prerequisites) and run the script again; it only
+installs dependencies the first time.
+
+**The Python test suite is slow.**
+The full suite takes a long time on one core (about 50 minutes in our last full run). Run the
+part you are working on, for example `uv run pytest tests/connectors -q`; CI runs the full suite.
+
+**Where do the numbers on a screen come from?**
+From the API, from a recording labelled REPLAY, or from hand-written examples labelled SAMPLE
+DATA. An unknown value shows "unknown" or "—". Only the reports in `reports/eval/`,
+`eval/RESULTS.md` and the golden runs are results; see
+[What we claim, and what we don't](#what-we-claim-and-what-we-dont).
+
+**Does Rulecam recognise faces or identify people?**
+No. There is no face recognition, alerts go to roles, and faces are blurred in evidence by
+default. Prototype mode differs, and says so: see
+[What we claim, and what we don't](#what-we-claim-and-what-we-dont).
+
+### Roadmap
+
+Ideas, not promises. Each follows from a limit above or from the model map.
+
+- **Re-run the evaluations on the Meta API alone.** Most published results come from the
+  earlier stack with Glimmer on our own GPUs.
+- **Score the verifier against human labels.** The blind labelling kit is in
+  [`eval/README.md`](eval/README.md).
+- **Real hardware:** a real CCTV camera or NVR, real smart glasses, push on a real phone.
+- **Bring crowd watch back live** with footage that is not tied to a deleted server.
+- **Planned models from the model map:** Sapiens for pose (RTMPose stands in today) and V-JEPA 2
+  for the Surprise Lens.
+- **Move the UI to Next 16**, which clears the remaining lint-time advisories and the postcss
+  override.
+- **Parallel Python tests** (for example `pytest-xdist`) if the suite tolerates it.
+
+### Contributing
+
+Contributions are welcome. The short version (the full rules are in
+[`CONTRIBUTING.md`](CONTRIBUTING.md) and [`docs/TASKS.md`](docs/TASKS.md)):
+
+1. Branch from a fresh `main`, one change per pull request, with
+   [Conventional Commits](https://www.conventionalcommits.org/).
+2. Code against `src/rulecam/contracts` exactly; changing a contract needs its own pull request.
+3. Unit tests never touch the network: model calls go through `rulecam.clients` and the replay
+   cache, and tests use `tests/fakes`.
+4. `make check` must pass before you push; the pull request template lists what reviewers look
+   for, and every CI job must be green.
+5. The privacy guardrails are not negotiable: no face recognition or identity, no per-person
+   metrics, no cameras in bathrooms, bedrooms or break rooms, no ambient speech transcription.
+
+Security issues: see [`SECURITY.md`](SECURITY.md). Conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
+
 ### Licences
 
-The code in this repository was written during the hackathon and is MIT-licensed. Third-party
+The code in this repository was written during the hackathon and is MIT-licensed (see
+[`LICENSE`](LICENSE)). Third-party
 components are used as dependencies under their own licences; see
 [`WHAT-WE-BUILT.md`](WHAT-WE-BUILT.md). Llama Prompt Guard 2 (not loaded since 4 Nov) and Llama
 Guard 4 (run until 4 Nov) are used under the Llama 4 Community License: **Built with Llama**.

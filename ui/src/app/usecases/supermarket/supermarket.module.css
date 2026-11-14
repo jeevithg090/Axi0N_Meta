@@ -293,6 +293,7 @@
 
 .recordedSection {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-md);
   padding: var(--space-lg);
   background: var(--color-paper-2);
@@ -301,6 +302,7 @@
 }
 .recordedHeader {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-sm);
 }
 .recordedTitleRow {

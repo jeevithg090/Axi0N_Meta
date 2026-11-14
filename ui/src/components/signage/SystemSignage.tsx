@@ -215,8 +215,16 @@ export function SystemSignage() {
             <h1 className="h1">
               {health?.ok ? (
                 <>
-                  Runtime loop <span className="hi">online</span> · Model endpoints{" "}
-                  {gpuEntries.every(([, g]) => g.up) ? "ready." : "degraded."}
+                  {health.runtime ? (
+                    <>
+                      Runtime loop <span className="hi">online</span>
+                    </>
+                  ) : (
+                    <>
+                      API online · runtime loop on <span className="hi">standby</span>
+                    </>
+                  )}{" "}
+                  · Model endpoints {gpuEntries.every(([, g]) => g.up) ? "ready." : "degraded."}
                 </>
               ) : loading ? (
                 "Connecting to Rulecam runtime telemetry…"

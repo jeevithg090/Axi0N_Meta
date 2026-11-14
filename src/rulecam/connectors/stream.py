@@ -541,9 +541,18 @@ class StreamWorker:
             first = self._health.first_chunk_s
             if first is None:
                 first = round(time.monotonic() - self._started_mono, 2)
-        self._update(
-            chunks=chunks, last_chunk_at=now, last_chunk_id=chunk.chunk_id, first_chunk_s=first
-        )
+            # A segment can land before the progress reader parses its first block: a published
+            # chunk proves the stream is up, so health must not still say "connecting".
+            went_live = self._health.state == "connecting"
+        changes: dict[str, object] = {
+            "chunks": chunks,
+            "last_chunk_at": now,
+            "last_chunk_id": chunk.chunk_id,
+            "first_chunk_s": first,
+        }
+        if went_live:
+            changes.update(state="live", connected_at=now, last_error=None)
+        self._update(**changes)
         self._bus.publish(Topic.CHUNK_READY, chunk)
         _log.info("chunk_ready", camera_id=self.config.camera_id, chunk_id=chunk.chunk_id)
 

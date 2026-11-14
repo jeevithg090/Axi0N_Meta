@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import styles from "./staff.module.css";
 
 export const metadata: Metadata = {
-  title: "Rulecam Staff",
+  title: { absolute: "Rulecam Staff" },
   description: "Camera alerts and tasks for the people on the floor: act, escalate, prove it.",
   manifest: "/staff-manifest.webmanifest",
   appleWebApp: { capable: true, title: "Rulecam Staff", statusBarStyle: "black-translucent" },
